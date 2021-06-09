@@ -1,0 +1,10 @@
+first {
+    fn foo(arg: int,): void {
+        print arg
+    }
+
+    fn main(args: string[],): void {
+        let variable = 10
+        foo(variable)
+    }
+}
