@@ -7,8 +7,9 @@ moduleDeclaration : moduleName '{' moduleBody '}' ;
 moduleBody: function* ;
 moduleName: ID;
 
-function : functionDeclaration '{' (blockStatement)* '}' ;
-functionDeclaration locals [ int paramIndex ] : FUNCTION functionName '(' (functionArgument[ $paramIndex++ ] ',')* '):' type ;
+block : '{' (blockStatement)* (returnExpression=expression)? '}' ;
+function : functionDeclaration block ;
+functionDeclaration locals [ int paramIndex ] : FUNCTION functionName '(' (functionArgument[ $paramIndex++ ])? (',' functionArgument[ $paramIndex++ ])* '):' type ;
 functionName : ID ;
 functionArgument [ int index ] : ID ':' type ;
 
@@ -21,20 +22,46 @@ blockStatement locals [ int lastVarIndex ]: variableDeclaration[ $lastVarIndex++
 variableDeclaration [ int index ] : VARIABLE identifier EQUALS expression ;
 identifier : ID ;
 printStatement : PRINT expression ;
-functionCall : functionName '(' expressionList ')' ;
+ifBlock : IF ifCondition=expression trueBlock=block (ELSE falseBlock=block)? ;
+functionCall : functionName LP expressionList RP ;
 
-expressionList : expression (',' expression)* ;
-expression : identifier | value | functionCall ;
-value : NUMBER
-      | STRING ;
+expressionList : (expression)? (',' expression)* ;
+expression : left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
+| left=expression operator=(PLUS|MINUS) right=expression #binaryOperation
+| LP expression RP #parenExpression
+| value #valueLiteral
+| identifier  #identifierExpression
+| functionCall #functionExpression
+| ifBlock #ifExpression;
 
-// lexer rules (tokens)
+value : NUMBER #intLiteral
+      | STRING #stringLiteral ;
+
+// Lexer Rules (tokens)
+
+// Keywords
 FUNCTION : 'fn' ;
+IF       : 'if' ;
+ELSE     : 'else' ;
 VARIABLE : 'let' ;
-PRINT : 'print' ;
-EQUALS : '=' ;
-NUMBER : [0-9]+ ;
-STRING : '"'.*'"' ;
-ID : [a-zA-Z0-9]+ ;
+PRINT    : 'print' ;
+
+// Literals
+NUMBER : '0'|[1-9][0-9]* ;
+STRING : '"'.*?'"' ;
+TRUE   : 'true';
+FALSE  : 'false';
+
+// Operators
+PLUS     : '+' ;
+MINUS    : '-' ;
+ASTERISK : '*' ;
+DIVISION : '/' ;
+EQUALS   : '=' ;
+LP       : '(' ;
+RP       : ')' ;
+
+// Identifiers
+ID : [a-zA-Z][a-zA-Z0-9]+ ;
 QUALIFIED_NAME : ID ('.' ID)+;
 WS : [ \t\n\r]+ -> skip ;

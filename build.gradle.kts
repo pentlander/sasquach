@@ -20,6 +20,9 @@ java {
 dependencies {
     antlr("org.antlr:antlr4:4.5")
     implementation("org.ow2.asm:asm:9.1")
+    implementation("com.fasterxml.jackson.core:jackson-core:2.12.2")
+    implementation("com.fasterxml.jackson.core:jackson-annotations:2.12.2")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.12.2")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.6.0")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
 }

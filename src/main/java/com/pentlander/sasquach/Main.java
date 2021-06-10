@@ -1,8 +1,10 @@
 package com.pentlander.sasquach;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pentlander.sasquach.ast.*;
 import org.antlr.v4.runtime.*;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
@@ -14,13 +16,18 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.pentlander.sasquach.ast.BinaryExpression.*;
+
 public class Main {
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     public static void main(String[] args) throws Exception {
         try {
             var sasquachPath = Paths.get(args[0]);
             var filename = sasquachPath.getFileName().toString();
             var compilationUnit = new Parser().getCompilationUnit(sasquachPath);
-            System.out.println(compilationUnit);
+            System.out.println(OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(compilationUnit));
+
             var bytecode = new BytecodeGenerator().generateBytecode(compilationUnit);
             saveBytecodeToFile(filename, bytecode);
         } catch (Exception e) {
@@ -57,8 +64,26 @@ public class Main {
             MethodVisitor methodVisitor = classWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, function.name(), descriptor, null, null);
             methodVisitor.visitCode();
             var exprGenerator = new ExpressionGenerator(methodVisitor);
-            function.expressions().forEach(expr -> exprGenerator.generate(expr, function.scope()));
-            methodVisitor.visitInsn(Opcodes.RETURN);
+            var expressions = function.expressions();
+            expressions.forEach(expr -> exprGenerator.generate(expr, function.scope()));
+            var returnExpr = function.returnExpression();
+            if (returnExpr != null) {
+                exprGenerator.generate(returnExpr, function.scope());
+                Type type = returnExpr.type();
+                if (type instanceof BuiltinType builtinType) {
+                    int opcode = switch (builtinType) {
+                        case BOOLEAN, INT, CHAR, BYTE, SHORT -> Opcodes.IRETURN;
+                        case LONG -> Opcodes.LRETURN;
+                        case FLOAT -> Opcodes.FRETURN;
+                        case DOUBLE -> Opcodes.DRETURN;
+                        case STRING, STRING_ARR -> Opcodes.ARETURN;
+                        case VOID -> Opcodes.RETURN;
+                    };
+                    methodVisitor.visitInsn(opcode);
+                }
+            } else {
+                methodVisitor.visitInsn(Opcodes.RETURN);
+            }
             methodVisitor.visitMaxs(-1, -1);
             methodVisitor.visitEnd();
         }
@@ -72,43 +97,78 @@ public class Main {
         }
 
         public void generate(Expression expression, Scope scope) {
-            if (expression instanceof PrintStatement p) {
+            if (expression instanceof PrintStatement printStatement) {
                 methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
-                generate(p.expression(), scope);
-                String descriptor = "(%s)V".formatted(p.expression().type().descriptor());
+                generate(printStatement.expression(), scope);
+                String descriptor = "(%s)V".formatted(printStatement.expression().type().descriptor());
                 StructType owner = new StructType("java.io.PrintStream");
                 methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, owner.internalName(), "println", descriptor, false);
-            } else if (expression instanceof  VariableDeclarations varDecl) {
+            } else if (expression instanceof  VariableDeclaration varDecl) {
                 var varDeclExpr = varDecl.expression();
                 int idx = scope.findIdentifierIdx(varDecl.name());
-                if (varDeclExpr instanceof Value value) {
-                    var type = value.type();
-                    if (type == BuiltinType.INT) {
-                        int intValue = Integer.parseInt(value.value());
-                        methodVisitor.visitIntInsn(Opcodes.BIPUSH, intValue);
-                        methodVisitor.visitVarInsn(Opcodes.ISTORE, idx);
-                    } else if (type == BuiltinType.STRING) {
-                        methodVisitor.visitLdcInsn(value);
-                        methodVisitor.visitVarInsn(Opcodes.ASTORE, idx);
+                generate(varDeclExpr, scope);
+                var type = varDeclExpr.type();
+                if (type instanceof BuiltinType builtinType) {
+                    Integer opcode = switch (builtinType) {
+                        case BOOLEAN, INT, BYTE, CHAR, SHORT -> Opcodes.ISTORE;
+                        case LONG -> Opcodes.LSTORE;
+                        case FLOAT -> Opcodes.FSTORE;
+                        case DOUBLE -> Opcodes.DSTORE;
+                        case STRING -> Opcodes.ASTORE;
+                        case STRING_ARR -> Opcodes.AASTORE;
+                        case VOID -> null;
+                    };
+                    if (opcode != null) {
+                        methodVisitor.visitVarInsn(opcode, idx);
                     }
                 }
             } else if (expression instanceof Identifier id) {
                 int idx = scope.findIdentifierIdx(id.name());
-                if (idx != -1 && id.type() == BuiltinType.INT) {
-                    System.out.println(scope.getIdentifiers());
-                    System.out.printf("Var '%s', index: %d\n", id.name(), idx);
-                    methodVisitor.visitVarInsn(Opcodes.ILOAD, idx);
+                if (idx != -1 && id.type() instanceof BuiltinType builtinType) {
+                    Integer opcode = switch (builtinType) {
+                        case BOOLEAN, INT, CHAR, BYTE, SHORT -> Opcodes.ILOAD;
+                        case LONG -> Opcodes.LLOAD;
+                        case FLOAT -> Opcodes.FLOAD;
+                        case DOUBLE -> Opcodes.DLOAD;
+                        case STRING -> Opcodes.ALOAD;
+                        case STRING_ARR -> Opcodes.AALOAD;
+                        case VOID -> null;
+                    };
+                    if (opcode != null) {
+                        methodVisitor.visitVarInsn(opcode, idx);
+                    } else {
+                        methodVisitor.visitInsn(Opcodes.ACONST_NULL);
+                    }
                 }
             } else if (expression instanceof Value value) {
                 var type = value.type();
-                if (type == BuiltinType.INT) {
-                    int intValue = Integer.parseInt(value.value());
-                    methodVisitor.visitIntInsn(Opcodes.BIPUSH, intValue);
-                } else if (type == BuiltinType.STRING) {
-                    methodVisitor.visitLdcInsn(value.value());
+                var literal = value.value();
+                if (type instanceof BuiltinType builtinType) {
+                    switch (builtinType) {
+                        case BOOLEAN, INT, CHAR, BYTE, SHORT -> {
+                            int intValue = Integer.parseInt(literal);
+                            methodVisitor.visitIntInsn(Opcodes.BIPUSH, intValue);
+                        }
+                        case LONG -> {
+                            long longValue = Long.parseLong(literal);
+                            methodVisitor.visitLdcInsn(longValue);
+                        }
+                        case FLOAT -> {
+                            float floatValue = Float.parseFloat(literal);
+                            methodVisitor.visitLdcInsn(floatValue);
+                        }
+                        case DOUBLE -> {
+                            double doubleValue = Double.parseDouble(literal);
+                            methodVisitor.visitLdcInsn(doubleValue);
+                        }
+                        case STRING -> methodVisitor.visitLdcInsn(literal);
+                        case STRING_ARR -> {}
+                        case VOID -> methodVisitor.visitInsn(Opcodes.ACONST_NULL);
+                    }
                 }
             } else if (expression instanceof FunctionParameter funcParam) {
                 if (funcParam.type() == BuiltinType.INT) {
+                    System.out.println("Visited function param: " + funcParam);
                     methodVisitor.visitVarInsn(Opcodes.ILOAD, funcParam.index());
                 }
             } else if (expression instanceof FunctionCall funcCall) {
@@ -116,7 +176,34 @@ public class Main {
                 String descriptor = DescriptorFactory.getMethodDescriptor(funcCall.signature());
                 Type owner = Objects.requireNonNullElseGet(funcCall.owner(), () -> new StructType(scope.getClassName()));
                 methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC, owner.internalName(), funcCall.functionName(), descriptor, false);
+            } else if (expression instanceof BinaryExpression binExpr) {
+                generate(binExpr.left(), scope);
+                generate(binExpr.right(), scope);
+                if (expression instanceof MathExpression mathExpr) {
+                    int opcode = switch (mathExpr.operator()) {
+                        case PLUS -> Opcodes.IADD;
+                        case MINUS -> Opcodes.ISUB;
+                        case ASTERISK -> Opcodes.IMUL;
+                        case DIVIDE -> Opcodes.IDIV;
+                    };
+                    methodVisitor.visitInsn(opcode);
+                }
+            } else if (expression instanceof IfExpression ifExpr) {
+                generate(ifExpr.condition(), scope);
+                var falseLabel = new Label();
+                var endLabel = new Label();
+                methodVisitor.visitJumpInsn(Opcodes.IFEQ, falseLabel);
+                generateBlock(ifExpr.trueBlock(), scope);
+                methodVisitor.visitJumpInsn(Opcodes.GOTO, endLabel);
+                methodVisitor.visitLabel(falseLabel);
+                generateBlock(ifExpr.falseBlock(), scope);
+                methodVisitor.visitLabel(endLabel);
             }
+        }
+
+        private void generateBlock(Block block, Scope scope) {
+            block.expressions().forEach(expr -> generate(expr, scope));
+            generate(block.returnExpression(), scope);
         }
     }
 
@@ -147,10 +234,20 @@ public class Main {
         }
     }
 
+    record CompileError(String message, Position position) {}
+
+    record Position(int line, int column) {}
+
     static class SasquachTreeWalkErrorListener extends BaseErrorListener {
+        private final List<CompileError> compileErrors = new ArrayList<>();
+
         @Override
         public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line, int charPositionInLine, String msg, RecognitionException e) {
-            System.out.printf("You done goofed at line %d, char %d. Details:\n%s\n", line, charPositionInLine, msg);
+            compileErrors.add(new CompileError(msg, new Position(line, charPositionInLine)));
+        }
+
+        public List<CompileError> getCompileErrors() {
+            return List.copyOf(compileErrors);
         }
     }
 
@@ -158,10 +255,12 @@ public class Main {
         public CompilationUnit getCompilationUnit(Path filePath) {
             try {
                 CharStream charStream = new ANTLRFileStream(filePath.toAbsolutePath().toString());
+                var errorListener = new SasquachTreeWalkErrorListener();
                 var lexer = new SasquachLexer(charStream);
+                lexer.addErrorListener(errorListener);
+
                 var tokenStream = new CommonTokenStream(lexer);
                 var parser = new SasquachParser(tokenStream);
-                var errorListener = new SasquachTreeWalkErrorListener();
                 parser.addErrorListener(errorListener);
 
                 var visitor = new CompilationUnitVisitor();
@@ -222,11 +321,16 @@ public class Main {
                     .peek(param -> scope.addIdentifier(new Identifier(param.name(), param)))
                     .toList();
 
-            List<Expression> expressions = ctx.blockStatement().stream()
+            List<Expression> expressions = ctx.block().blockStatement().stream()
                     .map(blockCtx -> blockCtx.accept(new ExpressionVisitor(scope)))
                     .toList();
 
-            return new Function(scope, name, returnType, parameters, expressions);
+            Expression returnExpr = null;
+            if (ctx.block().returnExpression != null) {
+                returnExpr = ctx.block().returnExpression.accept(new ExpressionVisitor(scope));
+            }
+
+            return new Function(scope, name, returnType, parameters, expressions, returnExpr);
         }
     }
 
@@ -243,11 +347,25 @@ public class Main {
         }
 
         @Override
-        public Expression visitValue(SasquachParser.ValueContext ctx) {
+        public Expression visitValueLiteral(SasquachParser.ValueLiteralContext ctx) {
             String value = ctx.getText();
             var visitor = new TypeVisitor();
             Type type = ctx.accept(visitor);
             return new Value(type, value);
+        }
+
+        @Override
+        public Expression visitParenExpression(SasquachParser.ParenExpressionContext ctx) {
+            return ctx.expression().accept(this);
+        }
+
+        @Override
+        public Expression visitBinaryOperation(SasquachParser.BinaryOperationContext ctx) {
+            String operatorString = ctx.operator.getText();
+            var visitor = new ExpressionVisitor(scope);
+            var leftExpr = ctx.left.accept(visitor);
+            var rightExpr = ctx.right.accept(visitor);
+            return new MathExpression(Operator.fromString(operatorString), leftExpr, rightExpr);
         }
 
         @Override
@@ -282,35 +400,59 @@ public class Main {
         }
 
         @Override
+        public Expression visitIfExpression(SasquachParser.IfExpressionContext ctx) {
+            var ifBlock = ctx.ifBlock();
+            var ifCondition = ifBlock.ifCondition.accept(this);
+            var blockVisitor = new BlockVisitor(scope);
+            var trueBlock = ifBlock.trueBlock.accept(blockVisitor);
+            Block falseBlock = null;
+            if (ifBlock.falseBlock != null) {
+                falseBlock = ifBlock.falseBlock.accept(blockVisitor);
+            }
+            return new IfExpression(ifCondition, trueBlock, falseBlock);
+        }
+
+        @Override
         public Expression visitVariableDeclaration(SasquachParser.VariableDeclarationContext ctx) {
             var idName = ctx.identifier().getText();
             Expression expr = ctx.expression().accept(new ExpressionVisitor(scope));
             var identifier = new Identifier(idName, expr);
             scope.addIdentifier(identifier);
-            return new VariableDeclarations(identifier.name(), identifier.expression(), ctx.index);
+            return new VariableDeclaration(identifier.name(), identifier.expression(), ctx.index);
+        }
+    }
+
+    static class BlockVisitor extends SasquachBaseVisitor<Block> {
+        private final Scope scope;
+
+        BlockVisitor(Scope scope) {
+            this.scope = scope;
+        }
+
+        @Override
+        public Block visitBlock(SasquachParser.BlockContext ctx) {
+            List<Expression> expressions = ctx.blockStatement().stream()
+                    .map(blockCtx -> blockCtx.accept(new ExpressionVisitor(scope)))
+                    .toList();
+
+            Expression returnExpr = null;
+            if (ctx.returnExpression != null) {
+                returnExpr = ctx.returnExpression.accept(new ExpressionVisitor(scope));
+            }
+
+            return new Block(expressions, returnExpr);
         }
     }
 
     static class TypeVisitor extends SasquachBaseVisitor<Type> {
         @Override
-        public Type visitValue(SasquachParser.ValueContext ctx) {
-            if (ctx == null) {
-                return BuiltinType.VOID;
-            }
-            String typeString = ctx.getText();
-            if (isNumeric(typeString)) {
-                return BuiltinType.INT;
-            }
-            return new StructType(typeString);
+        public Type visitIntLiteral(SasquachParser.IntLiteralContext ctx) {
+            return BuiltinType.INT;
         }
 
-        private static boolean isNumeric(String value) {
-            try {
-                Integer.parseInt(value);
-                return true;
-            } catch (NumberFormatException e) {
-                return false;
-            }
+        @Override
+        public Type visitStringLiteral(SasquachParser.StringLiteralContext ctx) {
+            return BuiltinType.STRING;
         }
 
         @Override

@@ -1,7 +1,5 @@
 package com.pentlander.sasquach.ast;
 
-import com.pentlander.sasquach.Main;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;

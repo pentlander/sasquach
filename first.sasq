@@ -1,10 +1,20 @@
 first {
-    fn foo(arg: int,): void {
+    fn foo(arg: int, otherArg: string): void {
         print arg
+        print otherArg
     }
 
-    fn main(args: string[],): void {
-        let variable = 10
-        foo(variable)
+    fn bar(): string {
+        let foo = "hello"
+        let bar = if 0 { "there" } else { "here" }
+        bar
+    }
+
+    fn main(args: string[]): void {
+        let other = 55
+        let variable = (10 + 30) + other
+        let str = "foobar"
+        foo(variable, str)
+        print bar()
     }
 }
