@@ -1,4 +1,6 @@
 package com.pentlander.sasquach.ast;
 
-public record Value(Type type, String value) implements Expression {
+import com.pentlander.sasquach.Range;
+
+public record Value(Type type, String value, Range range) implements Expression {
 }

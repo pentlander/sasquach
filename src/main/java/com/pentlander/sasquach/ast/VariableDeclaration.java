@@ -1,6 +1,8 @@
 package com.pentlander.sasquach.ast;
 
-public record VariableDeclaration(String name, Expression expression, int index) implements Expression {
+import com.pentlander.sasquach.Range;
+
+public record VariableDeclaration(String name, Expression expression, int index, Range.Single nameRange) implements Expression {
     @Override
     public Type type() {
         return expression.type();
