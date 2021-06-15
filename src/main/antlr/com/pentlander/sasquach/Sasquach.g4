@@ -29,14 +29,16 @@ expressionList : (expression)? (',' expression)* ;
 expression : left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
 | left=expression operator=(PLUS|MINUS) right=expression #binaryOperation
 | LP expression RP #parenExpression
-| left=expression operator=(EQ|NEQ|GE|GT|LE|LT) #compareExpression
+| left=expression operator=(EQ|NEQ|GE|GT|LE|LT) right=expression #compareExpression
 | value #valueLiteral
 | identifier  #identifierExpression
 | functionCall #functionExpression
 | ifBlock #ifExpression;
 
 value : NUMBER #intLiteral
-      | STRING #stringLiteral ;
+      | STRING #stringLiteral
+      | TRUE #booleanLiteral
+      | FALSE #booleanLiteral ;
 
 // Lexer Rules (tokens)
 

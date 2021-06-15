@@ -1,8 +1,11 @@
 package com.pentlander.sasquach;
 
-import com.pentlander.sasquach.Range.Multi;
-import com.pentlander.sasquach.Range.Single;
+import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
+import com.pentlander.sasquach.SasquachParser.CompareExpressionContext;
 import com.pentlander.sasquach.ast.*;
+import com.pentlander.sasquach.ast.BinaryExpression.CompareExpression;
+import com.pentlander.sasquach.ast.BinaryExpression.CompareOperator;
+import com.pentlander.sasquach.ast.BinaryExpression.MathOperator;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 
@@ -115,7 +118,7 @@ public class Visitor {
       var leftExpr = ctx.left.accept(visitor);
       var rightExpr = ctx.right.accept(visitor);
       return new BinaryExpression.MathExpression(
-          BinaryExpression.Operator.fromString(operatorString), leftExpr, rightExpr);
+          MathOperator.fromString(operatorString), leftExpr, rightExpr);
     }
 
     @Override
@@ -132,6 +135,14 @@ public class Visitor {
       }
 
       return new FunctionCall(signature, arguments, null, rangeFrom(ctx));
+    }
+
+    @Override
+    public Expression visitCompareExpression(CompareExpressionContext ctx) {
+      var leftExpr = ctx.left.accept(this);
+      var rightExpr = ctx.right.accept(this);
+      return new CompareExpression(
+          CompareOperator.fromString(ctx.operator.getText()), leftExpr, rightExpr, rangeFrom(ctx));
     }
 
     @Override
@@ -195,6 +206,11 @@ public class Visitor {
     @Override
     public Type visitStringLiteral(SasquachParser.StringLiteralContext ctx) {
       return BuiltinType.STRING;
+    }
+
+    @Override
+    public Type visitBooleanLiteral(BooleanLiteralContext ctx) {
+      return BuiltinType.BOOLEAN;
     }
 
     @Override

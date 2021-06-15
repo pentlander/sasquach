@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.ast;
 
+import com.pentlander.sasquach.Range;
 import java.util.NoSuchElementException;
 
 public interface BinaryExpression extends Expression {
@@ -11,17 +12,36 @@ public interface BinaryExpression extends Expression {
         return left().type();
     }
 
-    enum Operator {
+    enum MathOperator {
         PLUS("+"), MINUS("-"), ASTERISK("*"), DIVIDE("/");
 
         private final String literal;
 
-        Operator(String literal) {
+        MathOperator(String literal) {
             this.literal = literal;
         }
 
-        public static Operator fromString(String value) {
-            for (Operator operator : values()) {
+        public static MathOperator fromString(String value) {
+            for (MathOperator mathOperator : values()) {
+                if (mathOperator.literal.equals(value)) {
+                    return mathOperator;
+                }
+            }
+            throw new NoSuchElementException(value);
+        }
+    }
+
+    enum CompareOperator {
+        GE(">="), LE("<="), GT(">"), LT("<"), EQ("=="), NEQ("!=");
+
+        private final String literal;
+
+        CompareOperator(String literal) {
+            this.literal = literal;
+        }
+
+        public static CompareOperator fromString(String value) {
+            for (var operator : values()) {
                 if (operator.literal.equals(value)) {
                     return operator;
                 }
@@ -30,17 +50,12 @@ public interface BinaryExpression extends Expression {
         }
     }
 
-    record MathExpression(Operator operator, Expression left, Expression right) implements BinaryExpression {}
+    record MathExpression(MathOperator operator, Expression left, Expression right) implements BinaryExpression {}
 
-    record SumExpression(Expression left, Expression right) implements BinaryExpression {
-    }
-
-    record SubtractionExpression(Expression left, Expression right) implements BinaryExpression {
-    }
-
-    record MultiplicationExpression(Expression left, Expression right) implements BinaryExpression {
-    }
-
-    record DivisionExpression(Expression left, Expression right) implements BinaryExpression {
+    record CompareExpression(CompareOperator compareOperator, Expression left, Expression right, Range range) implements BinaryExpression {
+        @Override
+        public Type type() {
+            return BuiltinType.BOOLEAN;
+        }
     }
 }

@@ -6,7 +6,7 @@ first {
 
     fn bar(): string {
         let foo = "hello"
-        let bar = if 0 {
+        let bar = if 2 == 1 {
           "there"
         } else {
           foo
