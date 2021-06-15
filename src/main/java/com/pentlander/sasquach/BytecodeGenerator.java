@@ -1,6 +1,7 @@
 package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.*;
+import com.pentlander.sasquach.ast.BinaryExpression.CompareExpression;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
@@ -118,7 +119,11 @@ class BytecodeGenerator implements Opcodes {
                 var literal = value.value();
                 if (type instanceof BuiltinType builtinType) {
                     switch (builtinType) {
-                        case BOOLEAN, INT, CHAR, BYTE, SHORT -> {
+                        case BOOLEAN -> {
+                            boolean boolValue = Boolean.parseBoolean(literal);
+                            methodVisitor.visitIntInsn(BIPUSH, boolValue ? 1 : 0);
+                        }
+                        case INT, CHAR, BYTE, SHORT -> {
                             int intValue = Integer.parseInt(literal);
                             methodVisitor.visitIntInsn(BIPUSH, intValue);
                         }
@@ -160,6 +165,24 @@ class BytecodeGenerator implements Opcodes {
                         case DIVIDE -> IDIV;
                     };
                     methodVisitor.visitInsn(opcode);
+                } else if (expression instanceof BinaryExpression.CompareExpression cmpExpr) {
+                    int opCode = switch (cmpExpr.compareOperator()) {
+                        case EQ -> IF_ICMPEQ;
+                        case NEQ -> IF_ICMPNE;
+                        case GE -> IF_ICMPGE;
+                        case LE -> IF_ICMPLE;
+                        case LT -> IF_ICMPLT;
+                        case GT -> IF_ICMPGT;
+                    };
+
+                    var trueLabel = new Label();
+                    var endLabel = new Label();
+                    methodVisitor.visitJumpInsn(opCode, trueLabel);
+                    methodVisitor.visitInsn(ICONST_0);
+                    methodVisitor.visitJumpInsn(GOTO, endLabel);
+                    methodVisitor.visitLabel(trueLabel);
+                    methodVisitor.visitInsn(ICONST_1);
+                    methodVisitor.visitLabel(endLabel);
                 }
             } else if (expression instanceof IfExpression ifExpr) {
                 generate(ifExpr.condition(), scope);
