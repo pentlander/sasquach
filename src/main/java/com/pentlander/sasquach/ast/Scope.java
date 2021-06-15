@@ -35,24 +35,6 @@ public class Scope {
         identifiers.add(identifier);
     }
 
-    public Expression findExpression(String identifierName) {
-        return identifiers.stream()
-                .filter(identifier -> identifier.name().equals(identifierName))
-                .map(Identifier::expression)
-                .findFirst()
-                .orElseThrow();
-    }
-
-    public <T extends Expression> T findExpression(String identifierName, Class<T> exprType) {
-        return identifiers.stream()
-                .filter(identifier -> identifier.name().equals(identifierName))
-                .map(Identifier::expression)
-                .filter(exprType::isInstance)
-                .map(exprType::cast)
-                .findFirst()
-                .orElseThrow();
-    }
-
     public Identifier findIdentifier(String identifierName) {
         return identifiers.stream().filter(id -> id.name().equals(identifierName)).findFirst().orElseThrow();
     }

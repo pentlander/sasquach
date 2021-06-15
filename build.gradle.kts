@@ -29,6 +29,11 @@ dependencies {
 
 tasks.withType<JavaCompile>().configureEach {
     options.isIncremental = false
+//    options.compilerArgs.add("--enable-preview")
+}
+
+tasks.withType<JavaExec>().configureEach {
+//    jvmArgs?.add("--enable-preview")
 }
 
 tasks.getByName<Test>("test") {

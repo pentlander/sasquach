@@ -29,6 +29,7 @@ expressionList : (expression)? (',' expression)* ;
 expression : left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
 | left=expression operator=(PLUS|MINUS) right=expression #binaryOperation
 | LP expression RP #parenExpression
+| left=expression operator=(EQ|NEQ|GE|GT|LE|LT) #compareExpression
 | value #valueLiteral
 | identifier  #identifierExpression
 | functionCall #functionExpression
@@ -58,6 +59,12 @@ MINUS    : '-' ;
 ASTERISK : '*' ;
 DIVISION : '/' ;
 EQUALS   : '=' ;
+GT       : '>' ;
+LT       : '<' ;
+GE       : '>=' ;
+LE       : '<=' ;
+EQ       : '==' ;
+NEQ      : '!=' ;
 LP       : '(' ;
 RP       : ')' ;
 

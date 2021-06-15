@@ -1,6 +1,5 @@
 package com.pentlander.sasquach.ast;
 
-import java.util.Arrays;
 import java.util.NoSuchElementException;
 
 public interface BinaryExpression extends Expression {
@@ -9,7 +8,6 @@ public interface BinaryExpression extends Expression {
 
     @Override
     default Type type() {
-        System.out.println(this);
         return left().type();
     }
 
