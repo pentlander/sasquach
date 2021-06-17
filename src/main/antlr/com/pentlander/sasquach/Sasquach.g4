@@ -8,7 +8,7 @@ moduleBody: function* ;
 moduleName: ID;
 
 block : '{' (blockStatement)* (returnExpression=expression)? '}' ;
-function : functionDeclaration block ;
+function : functionDeclaration expression ;
 functionDeclaration locals [ int paramIndex ] : FUNCTION functionName '(' (functionArgument[ $paramIndex++ ])? (',' functionArgument[ $paramIndex++ ])* '):' type ;
 functionName : ID ;
 functionArgument [ int index ] : ID ':' type ;
@@ -23,11 +23,12 @@ blockStatement locals [ int lastVarIndex ]: variableDeclaration[ $lastVarIndex++
 variableDeclaration [ int index ] : VARIABLE identifier EQUALS expression ;
 identifier : ID ;
 printStatement : PRINT expression ;
-ifBlock : IF ifCondition=expression trueBlock=block (ELSE falseBlock=block)? ;
+ifBlock : IF ifCondition=expression trueBlock=expression (ELSE falseBlock=expression)? ;
 functionCall : functionName LP expressionList RP ;
 
 expressionList : (expression)? (',' expression)* ;
-expression : left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
+expression : block #blockExpression
+  | left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
   | left=expression operator=(PLUS|MINUS) right=expression #binaryOperation
   | LP expression RP #parenExpression
   | left=expression operator=(EQ|NEQ|GE|GT|LE|LT) right=expression #compareExpression
