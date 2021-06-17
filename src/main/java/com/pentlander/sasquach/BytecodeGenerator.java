@@ -28,19 +28,67 @@ class BytecodeGenerator implements Opcodes {
     }
 
     static class ClassGenerator {
+        private static final String INSTANCE_FIELD = "INSTANCE";
         private static final int CLASS_VERSION = V16;
         private final ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
         private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
 
         public Map<String, ClassWriter> generate(ModuleDeclaration moduleDeclaration) {
-            String name = moduleDeclaration.name();
+            generateStruct(moduleDeclaration.struct());
+            return generatedClasses;
+        }
+
+        private void generateStruct(Struct struct) {
+            var name = struct.name();
             generatedClasses.put(name, classWriter);
             classWriter.visit(CLASS_VERSION, ACC_PUBLIC, name, null, "java/lang/Object", null);
-            for (Function func : moduleDeclaration.functions()) {
+            List<Field> fields = struct.fields();
+            // Generate fields
+            for (var field : fields) {
+                var fv = classWriter.visitField(ACC_PUBLIC + ACC_FINAL, field.name(), field.type().descriptor(), null, null);
+                fv.visitEnd();
+            }
+
+            // Generate constructor
+            var initDescriptor = DescriptorFactory.getMethodDescriptor(fields, BuiltinType.VOID);
+            var mv = classWriter.visitMethod(ACC_PUBLIC, "<init>", initDescriptor, null, null);
+            mv.visitCode();
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitMethodInsn(INVOKESPECIAL, new ClassType("java.lang.Object").internalName(), "<init>", "()V", false);
+
+            // Set fields in constructor
+            for (int i = 0; i < fields.size(); i++) {
+                var field = fields.get(i);
+                mv.visitVarInsn(ALOAD, 0);
+                ExpressionGenerator.generateLoadVar(mv, field.type(), i + 1);
+                mv.visitFieldInsn(PUTFIELD, name, field.name(), field.type().descriptor());
+            }
+            mv.visitInsn(RETURN);
+
+            if (struct.structKind() == StructKind.MODULE) {
+                var field = classWriter.visitField(
+                        ACC_PUBLIC + ACC_FINAL + ACC_STATIC,
+                        INSTANCE_FIELD,
+                        struct.type().descriptor(),
+                        null,
+                        null);
+                field.visitEnd();
+
+                var smv = classWriter.visitMethod(ACC_STATIC, "<clinit>", "()V", null, null);
+                smv.visitCode();
+                new ExpressionGenerator(smv).generateStructInit(struct, Scope.NULL_SCOPE);
+                smv.visitFieldInsn(PUTSTATIC, name, INSTANCE_FIELD, struct.type().descriptor());
+                smv.visitInsn(RETURN);
+                smv.visitMaxs(-1, -1);
+                smv.visitEnd();
+            }
+
+            for (Function func : struct.functions()) {
                 generateFunction(classWriter, func);
             }
+
+            mv.visitMaxs(-1, -1);
             classWriter.visitEnd();
-            return generatedClasses;
         }
 
         private void generateFunction(ClassWriter classWriter, Function function) {
@@ -62,6 +110,8 @@ class BytecodeGenerator implements Opcodes {
                         case VOID -> RETURN;
                     };
                     methodVisitor.visitInsn(opcode);
+                } else {
+                    methodVisitor.visitInsn(ARETURN);
                 }
             } else {
                 methodVisitor.visitInsn(RETURN);
@@ -69,6 +119,10 @@ class BytecodeGenerator implements Opcodes {
             methodVisitor.visitMaxs(-1, -1);
             methodVisitor.visitEnd();
             generatedClasses.putAll(exprGenerator.getGeneratedClasses());
+        }
+
+        public Map<String, ClassWriter> getGeneratedClasses() {
+            return generatedClasses;
         }
     }
 
@@ -197,35 +251,11 @@ class BytecodeGenerator implements Opcodes {
                 generate(ifExpr.falseExpression(), scope);
                 methodVisitor.visitLabel(endLabel);
             } else if (expression instanceof Struct struct) {
-                var cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
-                cw.visit(ClassGenerator.CLASS_VERSION, ACC_PUBLIC, struct.name(), null, "java/lang/Object", null);
-                List<Field> fields = struct.fields();
-                for (var field : fields) {
-                    var fv = cw.visitField(ACC_PUBLIC + ACC_FINAL, field.name(), field.type().descriptor(), null, null);
-                    fv.visitEnd();
-                }
-                var initDescriptor = DescriptorFactory.getMethodDescriptor(struct.fields(), BuiltinType.VOID);
-                var mv = cw.visitMethod(ACC_PUBLIC, "<init>", initDescriptor, null, null);
-                mv.visitCode();
-                mv.visitVarInsn(ALOAD, 0);
-                mv.visitMethodInsn(INVOKESPECIAL, new ClassType("java.lang.Object").internalName(), "<init>", "()V", false);
+                var classGen = new ClassGenerator();
+                classGen.generateStruct(struct);
+                generatedClasses.putAll(classGen.getGeneratedClasses());
 
-                for (int i = 0; i < struct.fields().size(); i++) {
-                    var field = struct.fields().get(i);
-                    mv.visitVarInsn(ALOAD, 0);
-                    generateLoadVar(mv, field.type(), i + 1);
-                    mv.visitFieldInsn(PUTFIELD, struct.name(), field.name(), field.type().descriptor());
-                }
-
-                mv.visitInsn(RETURN);
-                mv.visitMaxs(-1, -1);
-                cw.visitEnd();
-                generatedClasses.put(struct.name(), cw);
-
-                methodVisitor.visitTypeInsn(NEW, struct.name());
-                methodVisitor.visitInsn(DUP);
-                struct.fields().forEach(field -> generate(field.value(), scope));
-                methodVisitor.visitMethodInsn(INVOKESPECIAL, struct.name(), "<init>", initDescriptor, false);
+                generateStructInit(struct, scope);
             } else if (expression instanceof FieldAccess fieldAccess) {
                 if (fieldAccess.expr().type() instanceof StructType structType) {
                     generate(fieldAccess.expr(), scope);
@@ -237,6 +267,14 @@ class BytecodeGenerator implements Opcodes {
             } else if (expression instanceof Block block) {
                 generateBlock(block);
             }
+        }
+
+        private void generateStructInit(Struct struct, Scope scope) {
+            methodVisitor.visitTypeInsn(NEW, struct.name());
+            methodVisitor.visitInsn(DUP);
+            struct.fields().forEach(field -> generate(field.value(), scope));
+            var initDescriptor = DescriptorFactory.getMethodDescriptor(struct.fields(), BuiltinType.VOID);
+            methodVisitor.visitMethodInsn(INVOKESPECIAL, struct.name(), "<init>", initDescriptor, false);
         }
 
         private static void generateLoadVar(MethodVisitor methodVisitor, Type type, int idx) {
@@ -269,9 +307,6 @@ class BytecodeGenerator implements Opcodes {
     }
 
     static class DescriptorFactory {
-        private static final Map<BuiltinType, String> FIELD_DESCRIPTOR_MAPPING =
-                Map.of(BuiltinType.VOID, "V", BuiltinType.INT, "I");
-
         public static String getMethodDescriptor(Function function) {
             return getMethodDescriptor(function.arguments(), function.type());
         }

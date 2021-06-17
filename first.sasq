@@ -1,11 +1,14 @@
 first {
-    fn foo(arg: { bar: int, foo: string }, otherArg: string): void {
+    gee = (arg: { bar: int, foo: string }, otherArg: string): void -> {
         let toPrint = if (arg.bar < 0) arg.foo else otherArg
         print toPrint
-    }
+    },
 
-    fn main(args: string[]): void {
+    bar = (boo: string): string -> "doo",
+
+    main = (args: string[]): void -> {
         let first = { foo = "hi", bar = 45 }
-        foo(first, "foo")
+        let second = { baze = "something else" }
+        gee(first, second.baze)
     }
 }

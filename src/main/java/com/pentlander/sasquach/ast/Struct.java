@@ -2,12 +2,24 @@ package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
-public record Struct(List<Field> fields, List<Function> functions, Type type, Range range) implements Expression {
-  public Struct(List<Field> fields, List<Function> functions, Range range) {
-    this(fields, functions, new StructType(
-        fields.stream().collect(Collectors.toMap(Field::name, field -> field.value().type()))), range);
+public record Struct(String name, List<Field> fields, List<Function> functions, Type type, StructKind structKind,
+                     Range range) implements Expression {
+
+  public static Struct anonStruct(List<Field> fields, List<Function> functions, Range range) {
+    var type = new StructType(typeFromFields(fields));
+    return new Struct(type.typeName(), fields, functions, type, StructKind.LITERAL, range);
+  }
+
+  public static Struct moduleStruct(String name, List<Field> fields, List<Function> functions, Range range) {
+    var type = new StructType(name, typeFromFields(fields));
+    return new Struct(name, fields, functions, type, StructKind.MODULE, range);
+  }
+
+  private static Map<String, Type> typeFromFields(List<Field> fields) {
+    return fields.stream().collect(Collectors.toMap(Field::name, Field::type));
   }
 
   public String name() {
@@ -18,5 +30,9 @@ public record Struct(List<Field> fields, List<Function> functions, Type type, Ra
     public Type type() {
       return value.type();
     }
+  }
+
+  public enum StructKind {
+    LITERAL, MODULE
   }
 }

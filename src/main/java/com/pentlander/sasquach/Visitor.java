@@ -17,6 +17,9 @@ import org.antlr.v4.runtime.Token;
 
 import org.antlr.v4.runtime.tree.TerminalNode;
 
+import static com.pentlander.sasquach.SasquachParser.*;
+import static com.pentlander.sasquach.ast.Struct.*;
+
 public class Visitor {
   public static Range rangeFrom(ParserRuleContext context) {
     Token start = context.start;
@@ -40,8 +43,7 @@ public class Visitor {
 
   static class CompilationUnitVisitor extends SasquachBaseVisitor<CompilationUnit> {
     @Override
-    public CompilationUnit visitCompilationUnit(SasquachParser.CompilationUnitContext ctx) {
-      String moduleName = ctx.moduleDeclaration().moduleName().getText();
+    public CompilationUnit visitCompilationUnit(CompilationUnitContext ctx) {
       ModuleVisitor moduleVisitor = new ModuleVisitor();
       ModuleDeclaration module = ctx.moduleDeclaration().accept(moduleVisitor);
       return new CompilationUnit(module);
@@ -49,35 +51,25 @@ public class Visitor {
   }
 
   static class ModuleVisitor extends SasquachBaseVisitor<ModuleDeclaration> {
-    private Scope scope;
-
     @Override
-    public ModuleDeclaration visitModuleDeclaration(SasquachParser.ModuleDeclarationContext ctx) {
+    public ModuleDeclaration visitModuleDeclaration(ModuleDeclarationContext ctx) {
       String name = ctx.moduleName().getText();
-      var functionSignatureVisitor = new FunctionSignatureVisitor();
-      var functionsCtx = ctx.moduleBody().function();
-      var metadata = new Metadata(ctx.moduleName().getText());
-      scope = new Scope(metadata);
-      functionsCtx.stream()
-          .map(method -> method.functionDeclaration().accept(functionSignatureVisitor))
-          .forEach(scope::addSignature);
-      var functions =
-          functionsCtx.stream()
-              .map(method -> method.accept(new FunctionVisitor(new Scope(metadata, scope))))
-              .toList();
-      return new ModuleDeclaration(name, functions);
+      var struct = ctx.struct().accept(StructVisitor.forModule(name));
+      return new ModuleDeclaration(name, struct);
     }
   }
 
   static class FunctionVisitor extends SasquachBaseVisitor<Function> {
     private final Scope scope;
+    private final String funcName;
 
-    FunctionVisitor(Scope scope) {
+    FunctionVisitor(Scope scope, String funcName) {
       this.scope = scope;
+      this.funcName = funcName;
     }
 
     @Override
-    public Function visitFunction(SasquachParser.FunctionContext ctx) {
+    public Function visitFunction(FunctionContext ctx) {
       FunctionSignature funcSignature =
           ctx.functionDeclaration().accept(new FunctionSignatureVisitor());
       funcSignature
@@ -86,7 +78,7 @@ public class Visitor {
 
       var expr = ctx.expression().accept(new ExpressionVisitor(scope));
 
-      return new Function(scope, funcSignature, expr, rangeFrom(ctx));
+      return new Function(scope, funcName, funcSignature, expr, rangeFrom(ctx));
     }
   }
 
@@ -98,12 +90,12 @@ public class Visitor {
     }
 
     @Override
-    public Expression visitIdentifier(SasquachParser.IdentifierContext ctx) {
+    public Expression visitIdentifier(IdentifierContext ctx) {
       return scope.findIdentifier(ctx.getText());
     }
 
     @Override
-    public Expression visitValueLiteral(SasquachParser.ValueLiteralContext ctx) {
+    public Expression visitValueLiteral(ValueLiteralContext ctx) {
       String value = ctx.getText();
       var visitor = new TypeVisitor();
       Type type = ctx.accept(visitor);
@@ -111,12 +103,12 @@ public class Visitor {
     }
 
     @Override
-    public Expression visitParenExpression(SasquachParser.ParenExpressionContext ctx) {
+    public Expression visitParenExpression(ParenExpressionContext ctx) {
       return ctx.expression().accept(this);
     }
 
     @Override
-    public Expression visitBinaryOperation(SasquachParser.BinaryOperationContext ctx) {
+    public Expression visitBinaryOperation(BinaryOperationContext ctx) {
       String operatorString = ctx.operator.getText();
       var visitor = new ExpressionVisitor(scope);
       var leftExpr = ctx.left.accept(visitor);
@@ -126,10 +118,10 @@ public class Visitor {
     }
 
     @Override
-    public Expression visitFunctionCall(SasquachParser.FunctionCallContext ctx) {
-      String funName = ctx.functionName().getText();
-      FunctionSignature signature = scope.findFunctionSignature(funName);
-      List<SasquachParser.ExpressionContext> argExpressions = ctx.expressionList().expression();
+    public Expression visitFunctionCall(FunctionCallContext ctx) {
+      String funcName = ctx.functionName().getText();
+      var function = scope.findFunction(funcName);
+      List<ExpressionContext> argExpressions = ctx.expressionList().expression();
 
       var arguments = new ArrayList<Expression>();
       for (var argExpressionCtx : argExpressions) {
@@ -138,7 +130,7 @@ public class Visitor {
         arguments.add(argument);
       }
 
-      return new FunctionCall(signature, arguments, null, rangeFrom(ctx));
+      return new FunctionCall(funcName, function.functionSignature(), arguments, null, rangeFrom(ctx));
     }
 
     @Override
@@ -150,13 +142,13 @@ public class Visitor {
     }
 
     @Override
-    public Expression visitPrintStatement(SasquachParser.PrintStatementContext ctx) {
+    public Expression visitPrintStatement(PrintStatementContext ctx) {
       Expression expr = ctx.expression().accept(new ExpressionVisitor(scope));
       return new PrintStatement(expr);
     }
 
     @Override
-    public Expression visitIfExpression(SasquachParser.IfExpressionContext ctx) {
+    public Expression visitIfExpression(IfExpressionContext ctx) {
       var ifBlock = ctx.ifBlock();
       var ifCondition = ifBlock.ifCondition.accept(this);
       var trueExpr = ifBlock.trueBlock.accept(this);
@@ -168,7 +160,7 @@ public class Visitor {
     }
 
     @Override
-    public Expression visitVariableDeclaration(SasquachParser.VariableDeclarationContext ctx) {
+    public Expression visitVariableDeclaration(VariableDeclarationContext ctx) {
       var idName = ctx.identifier().getText();
       Expression expr = ctx.expression().accept(new ExpressionVisitor(scope));
       var identifier = new Identifier(idName, expr.type());
@@ -177,17 +169,8 @@ public class Visitor {
     }
 
     @Override
-    public Expression visitStructLiteral(StructLiteralContext ctx) {
-      var expressions = ctx.struct().expression();
-      var fields = new ArrayList<Field>();
-      for (int i = 0; i < expressions.size(); i++) {
-        var id = ctx.struct().identifier(i);
-        var exprCtx = expressions.get(i);
-        var expr = exprCtx.accept(this);
-        fields.add(new Struct.Field(id.getText(), expr, rangeFrom(id)));
-      }
-
-      return new Struct(fields, List.of(), rangeFrom(ctx));
+    public Expression visitStruct(StructContext ctx) {
+      return ctx.accept(StructVisitor.forLiteral(scope));
     }
 
     @Override
@@ -197,29 +180,31 @@ public class Visitor {
     }
 
     @Override
-    public Expression visitBlock(SasquachParser.BlockContext ctx) {
+    public Expression visitBlock(BlockContext ctx) {
+      var blockScope = new Scope(scope);
+      var exprVisitor = new ExpressionVisitor(blockScope);
       List<Expression> expressions =
               ctx.blockStatement().stream()
-                      .map(blockCtx -> blockCtx.accept(new ExpressionVisitor(scope)))
+                      .map(blockCtx -> blockCtx.accept(exprVisitor))
                       .toList();
 
       Expression returnExpr = null;
       if (ctx.returnExpression != null) {
-        returnExpr = ctx.returnExpression.accept(new ExpressionVisitor(scope));
+        returnExpr = ctx.returnExpression.accept(exprVisitor);
       }
 
-      return new Block(new Scope(scope), expressions, returnExpr);
+      return new Block(blockScope, expressions, returnExpr);
     }
   }
 
   static class TypeVisitor extends SasquachBaseVisitor<Type> {
     @Override
-    public Type visitIntLiteral(SasquachParser.IntLiteralContext ctx) {
+    public Type visitIntLiteral(IntLiteralContext ctx) {
       return BuiltinType.INT;
     }
 
     @Override
-    public Type visitStringLiteral(SasquachParser.StringLiteralContext ctx) {
+    public Type visitStringLiteral(StringLiteralContext ctx) {
       return BuiltinType.STRING;
     }
 
@@ -234,17 +219,17 @@ public class Visitor {
     }
 
     @Override
-    public Type visitPrimitiveType(SasquachParser.PrimitiveTypeContext ctx) {
+    public Type visitPrimitiveType(PrimitiveTypeContext ctx) {
       return BuiltinType.fromString(ctx.getText());
     }
 
     @Override
-    public Type visitClassType(SasquachParser.ClassTypeContext ctx) {
+    public Type visitClassType(ClassTypeContext ctx) {
       return new ClassType(ctx.getText());
     }
 
     @Override
-    public Type visitStructType(SasquachParser.StructTypeContext ctx) {
+    public Type visitStructType(StructTypeContext ctx) {
       var fields = new HashMap<String, Type>();
       for (int i = 0; i < ctx.ID().size(); i++) {
         var id = ctx.ID(i).getText();
@@ -255,15 +240,62 @@ public class Visitor {
     }
   }
 
-  static class FunctionSignatureVisitor extends SasquachBaseVisitor<FunctionSignature> {
+  static class StructVisitor extends SasquachBaseVisitor<Struct> {
+    private final Scope scope;
+    private final String name;
+    private final StructKind structKind;
+    private final ExpressionVisitor expressionVisitor;
+
+    private StructVisitor(Scope scope, String name, StructKind structKind) {
+      this.scope = scope;
+      this.name = name;
+      this.structKind = structKind;
+      this.expressionVisitor = new ExpressionVisitor(scope);
+    }
+
+    public static StructVisitor forModule(String name) {
+      return new StructVisitor(new Scope(new Metadata(name)), name, StructKind.MODULE);
+    }
+
+    public static StructVisitor forLiteral(Scope parentScope) {
+      return new StructVisitor(new Scope(parentScope), null, StructKind.LITERAL);
+    }
 
     @Override
-    public FunctionSignature visitFunctionDeclaration(
-        SasquachParser.FunctionDeclarationContext ctx) {
-      var typeVisitor = new TypeVisitor();
-      String funcName = ctx.functionName().getText();
+    public Struct visitStruct(StructContext ctx) {
+      var expressions = ctx.expression();
+      var fields = new ArrayList<Field>();
+      for (int i = 0; i < expressions.size(); i++) {
+        var id = ctx.identifier(i);
+        var exprCtx = expressions.get(i);
+        var expr = exprCtx.accept(expressionVisitor);
+        fields.add(new Field(id.getText(), expr, rangeFrom(id)));
+      }
 
-      List<SasquachParser.FunctionArgumentContext> paramsCtx = ctx.functionArgument();
+      var functions = new ArrayList<Function>();
+      var functionCtx = ctx.function();
+      for (int i = 0; i < functionCtx.size(); i++) {
+        var id = ctx.identifier(i).getText();
+        var exprCtx = functionCtx.get(i);
+        var func = exprCtx.accept(new FunctionVisitor(scope, id));
+        scope.addFunction(func);
+        functions.add(func);
+      }
+
+      return switch (structKind) {
+        case LITERAL -> Struct.anonStruct(fields, functions, rangeFrom(ctx));
+        case MODULE -> Struct.moduleStruct(name, fields, functions, rangeFrom(ctx));
+      };
+    }
+  }
+
+  static class FunctionSignatureVisitor extends SasquachBaseVisitor<FunctionSignature> {
+    @Override
+    public FunctionSignature visitFunctionDeclaration(
+        FunctionDeclarationContext ctx) {
+      var typeVisitor = new TypeVisitor();
+
+      List<FunctionArgumentContext> paramsCtx = ctx.functionArgument();
       var params = new ArrayList<FunctionParameter>();
       for (int i = 0; i < paramsCtx.size(); i++) {
         var paramCtx = paramsCtx.get(i);
@@ -278,10 +310,9 @@ public class Visitor {
       }
 
       return new FunctionSignature(
-          funcName,
           params,
           ctx.type().accept(typeVisitor),
-          rangeFrom(ctx.functionName().ID()),
+          new Range.Single(new Position(1, 1), 1),
           rangeFrom(ctx));
     }
   }

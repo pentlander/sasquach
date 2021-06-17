@@ -2,14 +2,14 @@ grammar Sasquach;
 
 // parser rules
 compilationUnit : moduleDeclaration EOF;
-moduleDeclaration : moduleName '{' moduleBody '}' ;
+moduleDeclaration : moduleName struct ;
 
-moduleBody: function* ;
 moduleName: ID;
 
-block : '{' (blockStatement)* (returnExpression=expression)? '}' ;
+block : '{' (blockStatement)*? (returnExpression=expression)? '}' ;
 function : functionDeclaration expression ;
-functionDeclaration locals [ int paramIndex ] : FUNCTION functionName '(' (functionArgument[ $paramIndex++ ])? (',' functionArgument[ $paramIndex++ ])* '):' type ;
+functionDeclaration locals [ int paramIndex ] : '(' (functionArgument[ $paramIndex++ ])?
+    (',' functionArgument[ $paramIndex++ ])* '):' type '->' ;
 functionName : ID ;
 functionArgument [ int index ] : ID ':' type ;
 
@@ -39,7 +39,7 @@ expression : block #blockExpression
   | functionCall #functionExpression
   | ifBlock #ifExpression;
 
-struct : '{' (identifier EQUALS expression) (',' identifier EQUALS expression)* '}' ;
+struct : '{' (identifier EQUALS (expression|function)) (',' identifier EQUALS (expression|function))* '}' ;
 
 value : NUMBER #intLiteral
       | STRING #stringLiteral

@@ -26,7 +26,7 @@ public class AstValidator {
   List<Error> validate() {
     var errors = new ArrayList<Error>();
     ModuleDeclaration module = compilationUnit.module();
-    List<Function> functions = module.functions();
+    List<Function> functions = module.struct().functions();
     var functionNames = new HashMap<String, Function>();
 
     for (Function function : functions) {
@@ -75,7 +75,7 @@ public class AstValidator {
         if (funcCall.arguments().size() != params.size()) {
           errors.add(new BasicError(
               "Function '%s' expects %s arguments but found %s\n%s\nnote: function defined here\n%s".formatted(
-                  funcCall.signature().name(),
+                  funcCall.name(),
                   params.size(),
                   funcCall.arguments().size(),
                   source.highlight(funcCall.range()),
