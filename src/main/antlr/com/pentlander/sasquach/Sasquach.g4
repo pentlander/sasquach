@@ -13,9 +13,10 @@ functionDeclaration locals [ int paramIndex ] : FUNCTION functionName '(' (funct
 functionName : ID ;
 functionArgument [ int index ] : ID ':' type ;
 
-type : primitiveType | structType ;
+type : primitiveType | classType | structType ;
 primitiveType : 'boolean' | 'string' ('[' ']')* | 'char' | 'byte' | 'int' | 'long' | 'float' | 'double' | 'void' ;
-structType : QUALIFIED_NAME ;
+classType : QUALIFIED_NAME ;
+structType : '{' ID ':' type (',' ID ':' type)* '}' ;
 
 blockStatement locals [ int lastVarIndex ]: variableDeclaration[ $lastVarIndex++ ] | printStatement | functionCall ;
 
@@ -27,18 +28,23 @@ functionCall : functionName LP expressionList RP ;
 
 expressionList : (expression)? (',' expression)* ;
 expression : left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
-| left=expression operator=(PLUS|MINUS) right=expression #binaryOperation
-| LP expression RP #parenExpression
-| left=expression operator=(EQ|NEQ|GE|GT|LE|LT) right=expression #compareExpression
-| value #valueLiteral
-| identifier  #identifierExpression
-| functionCall #functionExpression
-| ifBlock #ifExpression;
+  | left=expression operator=(PLUS|MINUS) right=expression #binaryOperation
+  | LP expression RP #parenExpression
+  | left=expression operator=(EQ|NEQ|GE|GT|LE|LT) right=expression #compareExpression
+  | left=expression '.' right=identifier #fieldAccess
+  | value #valueLiteral
+  | struct #structLiteral
+  | identifier  #identifierExpression
+  | functionCall #functionExpression
+  | ifBlock #ifExpression;
+
+struct : '{' (identifier EQUALS expression) (',' identifier EQUALS expression)* '}' ;
 
 value : NUMBER #intLiteral
       | STRING #stringLiteral
       | TRUE #booleanLiteral
       | FALSE #booleanLiteral ;
+
 
 // Lexer Rules (tokens)
 
@@ -71,6 +77,6 @@ LP       : '(' ;
 RP       : ')' ;
 
 // Identifiers
-ID : [a-zA-Z][a-zA-Z0-9]+ ;
-QUALIFIED_NAME : ID ('.' ID)+;
+ID : [a-zA-Z][a-zA-Z0-9]* ;
+QUALIFIED_NAME : ID ('/' ID)+;
 WS : [ \t\n\r]+ -> skip ;

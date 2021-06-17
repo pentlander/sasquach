@@ -1,36 +1,46 @@
 package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.*;
-import com.pentlander.sasquach.ast.BinaryExpression.CompareExpression;
+
+import java.lang.invoke.MethodHandles;
+import java.net.http.HttpClient;
+import java.util.*;
+
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
-import java.util.Collection;
-import java.util.Map;
-import java.util.Objects;
-
+import static com.pentlander.sasquach.ast.Struct.*;
 import static java.util.stream.Collectors.joining;
 
 class BytecodeGenerator implements Opcodes {
-    public byte[] generateBytecode(CompilationUnit compilationUnit) throws Exception {
+    record BytecodeResult(Map<String, byte[]> generatedBytecode) {
+    }
+
+    public BytecodeResult generateBytecode(CompilationUnit compilationUnit) throws Exception {
         ModuleDeclaration moduleDeclaration = compilationUnit.module();
-        return new ClassGenerator().generate(moduleDeclaration).toByteArray();
+        var classGen = new ClassGenerator();
+        var generatedBytecode = new HashMap<String, byte[]>();
+        classGen.generate(moduleDeclaration).forEach((name, cw) -> generatedBytecode.put(name, cw.toByteArray()));
+
+        return new BytecodeResult(generatedBytecode);
     }
 
     static class ClassGenerator {
         private static final int CLASS_VERSION = V16;
         private final ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
+        private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
 
-        public ClassWriter generate(ModuleDeclaration moduleDeclaration) {
+        public Map<String, ClassWriter> generate(ModuleDeclaration moduleDeclaration) {
             String name = moduleDeclaration.name();
+            generatedClasses.put(name, classWriter);
             classWriter.visit(CLASS_VERSION, ACC_PUBLIC, name, null, "java/lang/Object", null);
             for (Function func : moduleDeclaration.functions()) {
                 generateFunction(classWriter, func);
             }
             classWriter.visitEnd();
-            return classWriter;
+            return generatedClasses;
         }
 
         private void generateFunction(ClassWriter classWriter, Function function) {
@@ -60,24 +70,31 @@ class BytecodeGenerator implements Opcodes {
             }
             methodVisitor.visitMaxs(-1, -1);
             methodVisitor.visitEnd();
+            generatedClasses.putAll(exprGenerator.getGeneratedClasses());
         }
     }
 
     static class ExpressionGenerator {
         private final MethodVisitor methodVisitor;
+        private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
 
         ExpressionGenerator(MethodVisitor methodVisitor) {
             this.methodVisitor = methodVisitor;
         }
 
+        public Map<String, ClassWriter> getGeneratedClasses() {
+            return Map.copyOf(generatedClasses);
+        }
+
         public void generate(Expression expression, Scope scope) {
             if (expression instanceof PrintStatement printStatement) {
                 methodVisitor.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
-                generate(printStatement.expression(), scope);
-                String descriptor = "(%s)V".formatted(printStatement.expression().type().descriptor());
-                StructType owner = new StructType("java.io.PrintStream");
+                var expr = printStatement.expression();
+                generate(expr, scope);
+                String descriptor = "(%s)V".formatted(expr.type().descriptor());
+                ClassType owner = new ClassType("java.io.PrintStream");
                 methodVisitor.visitMethodInsn(INVOKEVIRTUAL, owner.internalName(), "println", descriptor, false);
-            } else if (expression instanceof  VariableDeclaration varDecl) {
+            } else if (expression instanceof VariableDeclaration varDecl) {
                 var varDeclExpr = varDecl.expression();
                 int idx = scope.findIdentifierIdx(varDecl.name());
                 generate(varDeclExpr, scope);
@@ -95,25 +112,12 @@ class BytecodeGenerator implements Opcodes {
                     if (opcode != null) {
                         methodVisitor.visitVarInsn(opcode, idx);
                     }
+                } else {
+                    methodVisitor.visitVarInsn(ASTORE, idx);
                 }
             } else if (expression instanceof Identifier id) {
                 int idx = scope.findIdentifierIdx(id.name());
-                if (idx != -1 && id.type() instanceof BuiltinType builtinType) {
-                    Integer opcode = switch (builtinType) {
-                        case BOOLEAN, INT, CHAR, BYTE, SHORT -> ILOAD;
-                        case LONG -> LLOAD;
-                        case FLOAT -> FLOAD;
-                        case DOUBLE -> DLOAD;
-                        case STRING -> ALOAD;
-                        case STRING_ARR -> AALOAD;
-                        case VOID -> null;
-                    };
-                    if (opcode != null) {
-                        methodVisitor.visitVarInsn(opcode, idx);
-                    } else {
-                        methodVisitor.visitInsn(ACONST_NULL);
-                    }
-                }
+                generateLoadVar(methodVisitor, id.type(), idx);
             } else if (expression instanceof Value value) {
                 var type = value.type();
                 var literal = value.value();
@@ -140,19 +144,19 @@ class BytecodeGenerator implements Opcodes {
                             methodVisitor.visitLdcInsn(doubleValue);
                         }
                         case STRING -> methodVisitor.visitLdcInsn(literal.replace("\"", ""));
-                        case STRING_ARR -> {}
+                        case STRING_ARR -> {
+                        }
                         case VOID -> methodVisitor.visitInsn(ACONST_NULL);
                     }
                 }
             } else if (expression instanceof FunctionParameter funcParam) {
                 if (funcParam.type() == BuiltinType.INT) {
-                    System.out.println("Visited function param: " + funcParam);
                     methodVisitor.visitVarInsn(ILOAD, funcParam.index());
                 }
             } else if (expression instanceof FunctionCall funcCall) {
                 funcCall.arguments().forEach(arg -> generate(arg, scope));
                 String descriptor = DescriptorFactory.getMethodDescriptor(funcCall.signature());
-                Type owner = Objects.requireNonNullElseGet(funcCall.owner(), () -> new StructType(scope.getClassName()));
+                Type owner = Objects.requireNonNullElseGet(funcCall.owner(), () -> new ClassType(scope.getClassName()));
                 methodVisitor.visitMethodInsn(INVOKESTATIC, owner.internalName(), funcCall.functionName(), descriptor, false);
             } else if (expression instanceof BinaryExpression binExpr) {
                 generate(binExpr.left(), scope);
@@ -194,6 +198,67 @@ class BytecodeGenerator implements Opcodes {
                 methodVisitor.visitLabel(falseLabel);
                 generateBlock(ifExpr.falseBlock(), scope);
                 methodVisitor.visitLabel(endLabel);
+            } else if (expression instanceof Struct struct) {
+                var cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
+                cw.visit(ClassGenerator.CLASS_VERSION, ACC_PUBLIC, struct.name(), null, "java/lang/Object", null);
+                List<Field> fields = struct.fields();
+                for (var field : fields) {
+                    var fv = cw.visitField(ACC_PUBLIC + ACC_FINAL, field.name(), field.type().descriptor(), null, null);
+                    fv.visitEnd();
+                }
+                var initDescriptor = DescriptorFactory.getMethodDescriptor(struct.fields(), BuiltinType.VOID);
+                var mv = cw.visitMethod(ACC_PUBLIC, "<init>", initDescriptor, null, null);
+                mv.visitCode();
+                mv.visitVarInsn(ALOAD, 0);
+                mv.visitMethodInsn(INVOKESPECIAL, new ClassType("java.lang.Object").internalName(), "<init>", "()V", false);
+
+                for (int i = 0; i < struct.fields().size(); i++) {
+                    var field = struct.fields().get(i);
+                    mv.visitVarInsn(ALOAD, 0);
+                    generateLoadVar(mv, field.type(), i + 1);
+                    mv.visitFieldInsn(PUTFIELD, struct.name(), field.name(), field.type().descriptor());
+                }
+
+                mv.visitInsn(RETURN);
+                mv.visitMaxs(-1, -1);
+                cw.visitEnd();
+                generatedClasses.put(struct.name(), cw);
+
+                methodVisitor.visitTypeInsn(NEW, struct.name());
+                methodVisitor.visitInsn(DUP);
+                struct.fields().forEach(field -> generate(field.value(), scope));
+                methodVisitor.visitMethodInsn(INVOKESPECIAL, struct.name(), "<init>", initDescriptor, false);
+            } else if (expression instanceof FieldAccess fieldAccess) {
+                if (fieldAccess.expr().type() instanceof StructType structType) {
+                    generate(fieldAccess.expr(), scope);
+                    methodVisitor.visitFieldInsn(GETFIELD, structType.typeName(), fieldAccess.fieldName(), structType.fieldTypes().get(fieldAccess.fieldName()).descriptor());
+                } else {
+                    throw new IllegalStateException();
+                }
+
+            }
+        }
+
+        private static void generateLoadVar(MethodVisitor methodVisitor, Type type, int idx) {
+            if (idx < 0) return;
+
+            if (type instanceof BuiltinType builtinType) {
+                Integer opcode = switch (builtinType) {
+                    case BOOLEAN, INT, CHAR, BYTE, SHORT -> ILOAD;
+                    case LONG -> LLOAD;
+                    case FLOAT -> FLOAD;
+                    case DOUBLE -> DLOAD;
+                    case STRING -> ALOAD;
+                    case STRING_ARR -> AALOAD;
+                    case VOID -> null;
+                };
+                if (opcode != null) {
+                    methodVisitor.visitVarInsn(opcode, idx);
+                } else {
+                    methodVisitor.visitInsn(ACONST_NULL);
+                }
+            } else {
+                methodVisitor.visitVarInsn(ALOAD, idx);
             }
         }
 
@@ -215,7 +280,7 @@ class BytecodeGenerator implements Opcodes {
             return getMethodDescriptor(signature.parameters(), signature.returnType());
         }
 
-        public static String getMethodDescriptor(Collection<FunctionParameter> parameters, Type returnType) {
+        public static String getMethodDescriptor(Collection<? extends Expression> parameters, Type returnType) {
             String paramDescriptor = parameters.stream()
                     .map(param -> param.type().descriptor())
                     .collect(joining("", "(", ")"));

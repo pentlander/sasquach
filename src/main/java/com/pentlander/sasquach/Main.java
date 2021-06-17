@@ -1,13 +1,16 @@
 package com.pentlander.sasquach;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ser.FilterProvider;
 import com.pentlander.sasquach.ast.CompilationUnit;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import org.antlr.v4.runtime.ANTLRFileStream;
@@ -36,19 +39,21 @@ public class Main {
             }
 
             var bytecode = new BytecodeGenerator().generateBytecode(compilationUnit);
-            System.out.println(
-                OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(compilationUnit));
-            saveBytecodeToFile(filename, bytecode);
+//            System.out.println(
+//                OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(compilationUnit));
+            bytecode.generatedBytecode().forEach(
+                (name, byteCode) -> saveBytecodeToFile(Paths.get("out"), name, byteCode));
         } catch (Exception e) {
             System.err.println(e);
             e.printStackTrace();
         }
     }
 
-    private static void saveBytecodeToFile(String filename, byte[] byteCode) {
-        var classfileName = filename.replace(".sasq", ".class");
-        try (var outputStream = new FileOutputStream(classfileName)) {
-            outputStream.write(byteCode);
+    private static void saveBytecodeToFile(Path outputDir, String className, byte[] byteCode) {
+        try  {
+            var filepath = outputDir.resolve(className + ".class");
+            Files.createDirectories(outputDir);
+            Files.write(filepath, byteCode);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
