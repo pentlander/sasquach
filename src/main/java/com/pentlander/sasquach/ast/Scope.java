@@ -3,11 +3,11 @@ package com.pentlander.sasquach.ast;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.stream.Stream;
 
 public class Scope {
+    public static final Scope NULL_SCOPE = new Scope(new Metadata("null"));
     private final List<Identifier> identifiers = new ArrayList<>();
-    private final List<FunctionSignature> functionSignatures = new ArrayList<>();
+    private final List<Function> functions = new ArrayList<>();
     private final Metadata metadata;
     private final Scope parentScope;
 
@@ -29,12 +29,12 @@ public class Scope {
     public static Scope copyOf(Scope scope) {
         var newScope = new Scope(scope.metadata);
         newScope.identifiers.addAll(scope.identifiers);
-        newScope.functionSignatures.addAll(scope.functionSignatures);
+        newScope.functions.addAll(scope.functions);
         return newScope;
     }
 
-    public void addSignature(FunctionSignature signature) {
-        functionSignatures.add(signature);
+    public void addFunction(Function function) {
+        functions.add(function);
     }
 
     public void addIdentifier(Identifier identifier) {
@@ -57,8 +57,14 @@ public class Scope {
         throw new NoSuchElementException(identifierName);
     }
 
-    public FunctionSignature findFunctionSignature(String functionName) {
-        return Stream.concat(functionSignatures.stream(), parentScope.functionSignatures.stream()).filter(signature -> signature.name().equals(functionName)).findFirst().orElseThrow();
+    public Function findFunction(String functionName) {
+        var function = functions.stream().filter(func -> func.name().equals(functionName)).findFirst();
+        if (function.isPresent()) {
+            return function.get();
+        } else if (parentScope != null) {
+            return parentScope.findFunction(functionName);
+        }
+        throw new NoSuchElementException(functionName + " " + functions);
     }
 
     public String getClassName() {

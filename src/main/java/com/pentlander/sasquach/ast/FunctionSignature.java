@@ -4,5 +4,5 @@ import com.pentlander.sasquach.Range;
 
 import java.util.List;
 
-public record FunctionSignature(String name, List<FunctionParameter> parameters, Type returnType, Range.Single nameRange, Range range) {
+public record FunctionSignature(List<FunctionParameter> parameters, Type returnType, Range.Single nameRange, Range range) {
 }
