@@ -5,7 +5,7 @@ import org.antlr.v4.runtime.misc.Nullable;
 
 import java.util.List;
 
-public record Function(Scope scope, FunctionSignature functionSignature, Block block, Range range) implements Expression {
+public record Function(Scope scope, FunctionSignature functionSignature, Expression expression, Range range) implements Expression {
 
     @Override
     public Type type() {
@@ -25,12 +25,8 @@ public record Function(Scope scope, FunctionSignature functionSignature, Block b
         return functionSignature.parameters();
     }
 
-    public List<Expression> expressions() {
-        return block.expressions();
-    }
-
     @Nullable
     public Expression returnExpression() {
-        return block.returnExpression();
+        return expression;
     }
 }

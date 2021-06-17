@@ -1,7 +1,7 @@
 first {
     fn foo(arg: { bar: int, foo: string }, otherArg: string): void {
-        print arg.bar
-        print otherArg
+        let toPrint = if (arg.bar < 0) arg.foo else otherArg
+        print toPrint
     }
 
     fn main(args: string[]): void {

@@ -84,9 +84,9 @@ public class Visitor {
           .parameters()
           .forEach(param -> scope.addIdentifier(new Identifier(param.name(), param.type())));
 
-      Block block = ctx.block().accept(new BlockVisitor(scope));
+      var expr = ctx.expression().accept(new ExpressionVisitor(scope));
 
-      return new Function(scope, funcSignature, block, rangeFrom(ctx));
+      return new Function(scope, funcSignature, expr, rangeFrom(ctx));
     }
   }
 
@@ -159,13 +159,12 @@ public class Visitor {
     public Expression visitIfExpression(SasquachParser.IfExpressionContext ctx) {
       var ifBlock = ctx.ifBlock();
       var ifCondition = ifBlock.ifCondition.accept(this);
-      var blockVisitor = new BlockVisitor(scope);
-      var trueBlock = ifBlock.trueBlock.accept(blockVisitor);
-      Block falseBlock = null;
+      var trueExpr = ifBlock.trueBlock.accept(this);
+      Expression falseExpr = null;
       if (ifBlock.falseBlock != null) {
-        falseBlock = ifBlock.falseBlock.accept(blockVisitor);
+        falseExpr = ifBlock.falseBlock.accept(this);
       }
-      return new IfExpression(ifCondition, trueBlock, falseBlock);
+      return new IfExpression(ifCondition, trueExpr, falseExpr);
     }
 
     @Override
@@ -196,28 +195,20 @@ public class Visitor {
       var expr = ctx.expression().accept(this);
       return new FieldAccess(expr, ctx.identifier().getText(), rangeFrom(ctx));
     }
-  }
-
-  static class BlockVisitor extends SasquachBaseVisitor<Block> {
-    private final Scope scope;
-
-    BlockVisitor(Scope scope) {
-      this.scope = scope;
-    }
 
     @Override
-    public Block visitBlock(SasquachParser.BlockContext ctx) {
+    public Expression visitBlock(SasquachParser.BlockContext ctx) {
       List<Expression> expressions =
-          ctx.blockStatement().stream()
-              .map(blockCtx -> blockCtx.accept(new ExpressionVisitor(scope)))
-              .toList();
+              ctx.blockStatement().stream()
+                      .map(blockCtx -> blockCtx.accept(new ExpressionVisitor(scope)))
+                      .toList();
 
       Expression returnExpr = null;
       if (ctx.returnExpression != null) {
         returnExpr = ctx.returnExpression.accept(new ExpressionVisitor(scope));
       }
 
-      return new Block(expressions, returnExpr);
+      return new Block(new Scope(scope), expressions, returnExpr);
     }
   }
 

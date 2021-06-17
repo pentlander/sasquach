@@ -51,7 +51,16 @@ public class AstValidator {
       }
 
       errors.addAll(validateFunctionParameters(function.name(), function.arguments()));
-      errors.addAll(validateBlock(function.block()));
+      errors.addAll(validateExpression(function.expression()));
+    }
+
+    return errors;
+  }
+
+  private List<Error> validateExpression(Expression expression) {
+    var errors = new ArrayList<Error>();
+    if (expression instanceof Block block) {
+      errors.addAll(validateBlock(block));
     }
 
     return errors;

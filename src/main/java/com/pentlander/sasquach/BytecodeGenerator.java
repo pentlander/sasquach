@@ -48,8 +48,6 @@ class BytecodeGenerator implements Opcodes {
             MethodVisitor methodVisitor = classWriter.visitMethod(ACC_PUBLIC + ACC_STATIC, function.name(), descriptor, null, null);
             methodVisitor.visitCode();
             var exprGenerator = new ExpressionGenerator(methodVisitor);
-            var expressions = function.expressions();
-            expressions.forEach(expr -> exprGenerator.generate(expr, function.scope()));
             var returnExpr = function.returnExpression();
             if (returnExpr != null) {
                 exprGenerator.generate(returnExpr, function.scope());
@@ -193,10 +191,10 @@ class BytecodeGenerator implements Opcodes {
                 var falseLabel = new Label();
                 var endLabel = new Label();
                 methodVisitor.visitJumpInsn(IFEQ, falseLabel);
-                generateBlock(ifExpr.trueBlock(), scope);
+                generate(ifExpr.trueExpression(), scope);
                 methodVisitor.visitJumpInsn(GOTO, endLabel);
                 methodVisitor.visitLabel(falseLabel);
-                generateBlock(ifExpr.falseBlock(), scope);
+                generate(ifExpr.falseExpression(), scope);
                 methodVisitor.visitLabel(endLabel);
             } else if (expression instanceof Struct struct) {
                 var cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
@@ -236,6 +234,8 @@ class BytecodeGenerator implements Opcodes {
                     throw new IllegalStateException();
                 }
 
+            } else if (expression instanceof Block block) {
+                generateBlock(block);
             }
         }
 
@@ -262,9 +262,9 @@ class BytecodeGenerator implements Opcodes {
             }
         }
 
-        private void generateBlock(Block block, Scope scope) {
-            block.expressions().forEach(expr -> generate(expr, scope));
-            generate(block.returnExpression(), scope);
+        private void generateBlock(Block block) {
+            block.expressions().forEach(expr -> generate(expr, block.scope()));
+            generate(block.returnExpression(), block.scope());
         }
     }
 

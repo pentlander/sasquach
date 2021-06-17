@@ -2,6 +2,7 @@ package com.pentlander.sasquach.ast;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.stream.Stream;
 
 public class Scope {
@@ -18,6 +19,11 @@ public class Scope {
     public Scope(Metadata metadata, Scope parentScope) {
         this.metadata = metadata;
         this.parentScope = parentScope;
+        this.identifiers.addAll(parentScope.identifiers);
+    }
+
+    public Scope(Scope parentScope) {
+        this(parentScope.metadata, parentScope);
     }
 
     public static Scope copyOf(Scope scope) {
@@ -36,7 +42,10 @@ public class Scope {
     }
 
     public Identifier findIdentifier(String identifierName) {
-        return identifiers.stream().filter(id -> id.name().equals(identifierName)).findFirst().orElseThrow();
+        return identifiers.stream()
+                .filter(id -> id.name().equals(identifierName))
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException(identifierName));
     }
 
     public int findIdentifierIdx(String identifierName) {
@@ -45,7 +54,7 @@ public class Scope {
                 return i;
             }
         }
-        return -1;
+        throw new NoSuchElementException(identifierName);
     }
 
     public FunctionSignature findFunctionSignature(String functionName) {
