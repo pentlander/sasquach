@@ -2,15 +2,19 @@ package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
 import com.pentlander.sasquach.SasquachParser.CompareExpressionContext;
+import com.pentlander.sasquach.SasquachParser.FieldAccessContext;
+import com.pentlander.sasquach.SasquachParser.StructLiteralContext;
 import com.pentlander.sasquach.ast.*;
 import com.pentlander.sasquach.ast.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.ast.BinaryExpression.MathOperator;
+import com.pentlander.sasquach.ast.Struct.Field;
+
+import java.util.*;
+
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 
-import java.util.ArrayList;
-import java.util.List;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
 public class Visitor {
@@ -172,6 +176,26 @@ public class Visitor {
       scope.addIdentifier(identifier);
       return new VariableDeclaration(identifier.name(), expr, ctx.index, rangeFrom(ctx.identifier().ID()));
     }
+
+    @Override
+    public Expression visitStructLiteral(StructLiteralContext ctx) {
+      var expressions = ctx.struct().expression();
+      var fields = new ArrayList<Field>();
+      for (int i = 0; i < expressions.size(); i++) {
+        var id = ctx.struct().identifier(i);
+        var exprCtx = expressions.get(i);
+        var expr = exprCtx.accept(this);
+        fields.add(new Struct.Field(id.getText(), expr, rangeFrom(id)));
+      }
+
+      return new Struct(fields, List.of(), rangeFrom(ctx));
+    }
+
+    @Override
+    public Expression visitFieldAccess(FieldAccessContext ctx) {
+      var expr = ctx.expression().accept(this);
+      return new FieldAccess(expr, ctx.identifier().getText(), rangeFrom(ctx));
+    }
   }
 
   static class BlockVisitor extends SasquachBaseVisitor<Block> {
@@ -214,13 +238,29 @@ public class Visitor {
     }
 
     @Override
+    public Type visitStructLiteral(StructLiteralContext ctx) {
+      return new StructType(Map.of());
+    }
+
+    @Override
     public Type visitPrimitiveType(SasquachParser.PrimitiveTypeContext ctx) {
       return BuiltinType.fromString(ctx.getText());
     }
 
     @Override
+    public Type visitClassType(SasquachParser.ClassTypeContext ctx) {
+      return new ClassType(ctx.getText());
+    }
+
+    @Override
     public Type visitStructType(SasquachParser.StructTypeContext ctx) {
-      return new StructType(ctx.getText());
+      var fields = new HashMap<String, Type>();
+      for (int i = 0; i < ctx.ID().size(); i++) {
+        var id = ctx.ID(i).getText();
+        var type = ctx.type(i).accept(this);
+        fields.put(id, type);
+      }
+      return new StructType(fields);
     }
   }
 

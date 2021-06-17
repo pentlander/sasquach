@@ -1,22 +1,29 @@
 package com.pentlander.sasquach.ast;
 
-public record StructType(String typeName) implements Type {
-    @Override
-    public Class<?> typeClass() {
-        try {
-            return Class.forName(typeName);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
-        }
-    }
+import java.util.Map;
+import java.util.Map.Entry;
 
-    @Override
-    public String descriptor() {
-        return "L%s;".formatted(internalName());
-    }
+public record StructType(String typeName, Map<String, Type> fieldTypes) implements Type {
+  public StructType(Map<String, Type> fieldTypes) {
+    this("AnonStruct$" + hashFieldTypes(fieldTypes), fieldTypes);
+  }
 
-    @Override
-    public String internalName() {
-        return typeName.replace(".", "/");
-    }
+  private static String hashFieldTypes(Map<String, Type> fieldTypes) {
+    return Integer.toHexString(fieldTypes.entrySet().stream().sorted(Entry.comparingByKey()).toList().hashCode());
+  }
+
+  @Override
+  public Class<?> typeClass() {
+    return null;
+  }
+
+  @Override
+  public String descriptor() {
+    return "L%s;".formatted(internalName());
+  }
+
+  @Override
+  public String internalName() {
+    return typeName().replace(".", "/");
+  }
 }
