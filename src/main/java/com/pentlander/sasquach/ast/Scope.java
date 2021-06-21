@@ -1,13 +1,12 @@
 package com.pentlander.sasquach.ast;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.*;
 
 public class Scope {
     public static final Scope NULL_SCOPE = new Scope(new Metadata("null"));
     private final List<Identifier> identifiers = new ArrayList<>();
     private final List<Function> functions = new ArrayList<>();
+    private final Map<String, Use> useAliases = new LinkedHashMap<>();
     private final Metadata metadata;
     private final Scope parentScope;
 
@@ -20,17 +19,11 @@ public class Scope {
         this.metadata = metadata;
         this.parentScope = parentScope;
         this.identifiers.addAll(parentScope.identifiers);
+        this.useAliases.putAll(parentScope.useAliases);
     }
 
     public Scope(Scope parentScope) {
         this(parentScope.metadata, parentScope);
-    }
-
-    public static Scope copyOf(Scope scope) {
-        var newScope = new Scope(scope.metadata);
-        newScope.identifiers.addAll(scope.identifiers);
-        newScope.functions.addAll(scope.functions);
-        return newScope;
     }
 
     public void addFunction(Function function) {
@@ -41,11 +34,19 @@ public class Scope {
         identifiers.add(identifier);
     }
 
-    public Identifier findIdentifier(String identifierName) {
+    public void addUse(Use use) {
+        useAliases.put(use.alias(), use);
+    }
+
+    public Optional<Identifier> findIdentifier(String identifierName) {
         return identifiers.stream()
                 .filter(id -> id.name().equals(identifierName))
-                .findFirst()
-                .orElseThrow(() -> new NoSuchElementException(identifierName));
+                .findFirst();
+    }
+
+    public Optional<Use> findUse(String useName) {
+        System.out.println(useAliases);
+        return Optional.ofNullable(useAliases.get(useName));
     }
 
     public int findIdentifierIdx(String identifierName) {
@@ -69,9 +70,5 @@ public class Scope {
 
     public String getClassName() {
         return metadata.className();
-    }
-
-    public List<Identifier> getIdentifiers() {
-        return List.copyOf(identifiers);
     }
 }

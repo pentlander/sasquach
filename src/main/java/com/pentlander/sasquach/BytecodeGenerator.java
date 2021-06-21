@@ -11,6 +11,7 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
+import static com.pentlander.sasquach.ast.ForeignFunctionCall.*;
 import static com.pentlander.sasquach.ast.Struct.*;
 import static java.util.stream.Collectors.joining;
 
@@ -208,7 +209,10 @@ class BytecodeGenerator implements Opcodes {
             } else if (expression instanceof FunctionCall funcCall) {
                 funcCall.arguments().forEach(arg -> generate(arg, scope));
                 String descriptor = DescriptorFactory.getMethodDescriptor(funcCall.signature());
-                Type owner = Objects.requireNonNullElseGet(funcCall.owner(), () -> new ClassType(scope.getClassName()));
+                Type owner = Objects.requireNonNullElseGet(funcCall.owner(), () -> {
+                    System.out.println("Fallback type: " + funcCall);
+                    return new ClassType(scope.getClassName());
+                });
                 methodVisitor.visitMethodInsn(INVOKESTATIC, owner.internalName(), funcCall.functionName(), descriptor, false);
             } else if (expression instanceof BinaryExpression binExpr) {
                 generate(binExpr.left(), scope);
@@ -266,6 +270,25 @@ class BytecodeGenerator implements Opcodes {
 
             } else if (expression instanceof Block block) {
                 generateBlock(block);
+            } else if (expression instanceof ForeignFunctionCall foreignFuncCall) {
+                if (foreignFuncCall.functionCallType() == FunctionCallType.SPECIAL) {
+                    methodVisitor.visitTypeInsn(NEW, foreignFuncCall.owner());
+                    methodVisitor.visitInsn(DUP);
+                }
+                foreignFuncCall.arguments().forEach(arg -> generate(arg, scope));
+                if (foreignFuncCall.functionCallType() == FunctionCallType.VIRTUAL) {
+                    methodVisitor.visitInsn(DUP);
+                }
+
+                String descriptor = foreignFuncCall.methodDescriptor();
+                System.out.println(descriptor);
+                String owner = foreignFuncCall.owner();
+                int opCode = switch (foreignFuncCall.functionCallType()) {
+                    case SPECIAL -> INVOKESPECIAL;
+                    case STATIC -> INVOKESTATIC;
+                    case VIRTUAL -> INVOKEVIRTUAL;
+                };
+                methodVisitor.visitMethodInsn(opCode, owner, foreignFuncCall.name(), descriptor, false);
             }
         }
 

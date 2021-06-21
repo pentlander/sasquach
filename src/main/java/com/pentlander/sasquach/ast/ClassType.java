@@ -6,7 +6,7 @@ public record ClassType(String typeName) implements Type {
     @Override
     public Class<?> typeClass() {
         try {
-            return MethodHandles.lookup().findClass(typeName.replace(".", "/"));
+            return MethodHandles.lookup().findClass(typeName.replace("/", "."));
         } catch (ClassNotFoundException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
