@@ -6,6 +6,8 @@ moduleDeclaration : moduleName struct ;
 
 moduleName: ID;
 
+use: USE FOREIGN? QUALIFIED_NAME ;
+
 block : '{' (blockStatement)*? (returnExpression=expression)? '}' ;
 function : functionDeclaration expression ;
 functionDeclaration locals [ int paramIndex ] : '(' (functionArgument[ $paramIndex++ ])?
@@ -18,7 +20,7 @@ primitiveType : 'boolean' | 'string' ('[' ']')* | 'char' | 'byte' | 'int' | 'lon
 classType : QUALIFIED_NAME ;
 structType : '{' ID ':' type (',' ID ':' type)* '}' ;
 
-blockStatement locals [ int lastVarIndex ]: variableDeclaration[ $lastVarIndex++ ] | printStatement | functionCall ;
+blockStatement locals [ int lastVarIndex ]: variableDeclaration[ $lastVarIndex++ ] | printStatement | expression ;
 
 variableDeclaration [ int index ] : VARIABLE identifier EQUALS expression ;
 identifier : ID ;
@@ -27,19 +29,23 @@ ifBlock : IF ifCondition=expression trueBlock=expression (ELSE falseBlock=expres
 functionCall : functionName LP expressionList RP ;
 
 expressionList : (expression)? (',' expression)* ;
-expression : block #blockExpression
-  | left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
+expression :
+    left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
   | left=expression operator=(PLUS|MINUS) right=expression #binaryOperation
   | LP expression RP #parenExpression
   | left=expression operator=(EQ|NEQ|GE|GT|LE|LT) right=expression #compareExpression
+  | identifier '.' functionCall #functionAccess
   | left=expression '.' right=identifier #fieldAccess
   | value #valueLiteral
   | struct #structLiteral
   | identifier  #identifierExpression
   | functionCall #functionExpression
-  | ifBlock #ifExpression;
+  | ifBlock #ifExpression
+  | block #blockExpression ;
 
-struct : '{' (identifier EQUALS (expression|function)) (',' identifier EQUALS (expression|function))* '}' ;
+struct : '{' (structStatement) (',' structStatement)* '}' ;
+structStatement : use #useStatement
+  | identifier EQUALS (expression|function) #identifierStatement ;
 
 value : NUMBER #intLiteral
       | STRING #stringLiteral
@@ -55,6 +61,8 @@ IF       : 'if' ;
 ELSE     : 'else' ;
 VARIABLE : 'let' ;
 PRINT    : 'print' ;
+FOREIGN : 'foreign' ;
+USE : 'use' ;
 
 // Literals
 NUMBER : '0'|[1-9][0-9]* ;

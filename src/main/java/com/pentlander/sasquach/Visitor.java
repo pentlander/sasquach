@@ -10,7 +10,13 @@ import com.pentlander.sasquach.ast.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.ast.BinaryExpression.MathOperator;
 import com.pentlander.sasquach.ast.Struct.Field;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Member;
+import java.lang.reflect.Modifier;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
@@ -18,7 +24,9 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
 import static com.pentlander.sasquach.SasquachParser.*;
+import static com.pentlander.sasquach.ast.ForeignFunctionCall.*;
 import static com.pentlander.sasquach.ast.Struct.*;
+import static java.lang.invoke.MethodType.methodType;
 
 public class Visitor {
   public static Range rangeFrom(ParserRuleContext context) {
@@ -91,7 +99,7 @@ public class Visitor {
 
     @Override
     public Expression visitIdentifier(IdentifierContext ctx) {
-      return scope.findIdentifier(ctx.getText());
+      return scope.findIdentifier(ctx.getText()).orElseThrow();
     }
 
     @Override
@@ -180,6 +188,58 @@ public class Visitor {
     }
 
     @Override
+    public Expression visitFunctionAccess(FunctionAccessContext ctx) {
+      var classAlias = ctx.identifier().getText();
+      String funcName = ctx.functionCall().functionName().getText();
+      List<ExpressionContext> argExpressions = ctx.functionCall().expressionList().expression();
+      var arguments = new ArrayList<Expression>();
+      for (var argExpressionCtx : argExpressions) {
+        var visitor = new ExpressionVisitor(scope);
+        Expression argument = argExpressionCtx.accept(visitor);
+        arguments.add(argument);
+      }
+      var use = scope.findUse(classAlias).orElseThrow();
+      if (use instanceof Use.Foreign foreignUse) {
+        Type classType = new ClassType(foreignUse.qualifiedName());
+        List<Class<?>> argClasses = arguments.stream().map(arg -> arg.type().typeClass()).collect(Collectors.toList());
+        String name = funcName;
+        Type returnType = null;
+        String methodDescriptor = null;
+        FunctionCallType callType = null;
+        if (funcName.equals("new")) {
+          returnType = classType;
+          callType = FunctionCallType.SPECIAL;
+          try {
+            name = "<init>";
+            var handle = MethodHandles.lookup().findConstructor(classType.typeClass(), MethodType.methodType(void.class,
+                    argClasses));
+            methodDescriptor = handle.type().changeReturnType(void.class).toMethodDescriptorString();
+          } catch (NoSuchMethodException|IllegalAccessException e) {
+            throw new RuntimeException(e);
+          }
+        } else {
+          try {
+            var method = classType.typeClass().getMethod(funcName,
+                    argClasses.stream().skip(1).toList().toArray(new Class<?>[]{}));
+            callType = Modifier.isStatic(method.getModifiers()) ? FunctionCallType.STATIC : FunctionCallType.VIRTUAL;
+            var handle = MethodHandles.lookup().unreflect(method).type();
+            if (callType == FunctionCallType.VIRTUAL) {
+              handle = handle.dropParameterTypes(0, 1);
+            }
+            methodDescriptor = handle.toMethodDescriptorString();
+            returnType = new ClassType(handle.returnType().getName());
+          } catch (NoSuchMethodException|IllegalAccessException e) {
+            throw new RuntimeException(e);
+          }
+        }
+        return new ForeignFunctionCall(name, arguments, methodDescriptor, callType, returnType,
+                classType.internalName(),
+                rangeFrom(ctx));
+      }
+      throw new IllegalStateException();
+    }
+
+    @Override
     public Expression visitBlock(BlockContext ctx) {
       var blockScope = new Scope(scope);
       var exprVisitor = new ExpressionVisitor(blockScope);
@@ -258,35 +318,47 @@ public class Visitor {
     }
 
     public static StructVisitor forLiteral(Scope parentScope) {
-      return new StructVisitor(new Scope(parentScope), null, StructKind.LITERAL);
+      return new StructVisitor(new Scope(new Metadata("null")), null, StructKind.LITERAL);
     }
 
     @Override
     public Struct visitStruct(StructContext ctx) {
-      var expressions = ctx.expression();
+      var useList = new ArrayList<Use>();
       var fields = new ArrayList<Field>();
-      for (int i = 0; i < expressions.size(); i++) {
-        var id = ctx.identifier(i);
-        var exprCtx = expressions.get(i);
-        var expr = exprCtx.accept(expressionVisitor);
-        fields.add(new Field(id.getText(), expr, rangeFrom(id)));
-      }
-
       var functions = new ArrayList<Function>();
-      var functionCtx = ctx.function();
-      for (int i = 0; i < functionCtx.size(); i++) {
-        var id = ctx.identifier(i).getText();
-        var exprCtx = functionCtx.get(i);
-        var func = exprCtx.accept(new FunctionVisitor(scope, id));
-        scope.addFunction(func);
-        functions.add(func);
+      for (var structStatementCtx : ctx.structStatement()) {
+          if (structStatementCtx instanceof IdentifierStatementContext idCtx) {
+            var id = idCtx.identifier();
+            var exprCtx = idCtx.expression();
+            var funcCtx = idCtx.function();
+            if (exprCtx != null) {
+              var expr = exprCtx.accept(expressionVisitor);
+              fields.add(new Field(id.getText(), expr, rangeFrom(id)));
+            } else if (funcCtx != null) {
+              var func = funcCtx.accept(new FunctionVisitor(scope, id.getText()));
+              scope.addFunction(func);
+              functions.add(func);
+            }
+          } else if (structStatementCtx instanceof UseStatementContext useStatementCtx) {
+            var useCtx = useStatementCtx.use();
+            var importStr = useCtx.QUALIFIED_NAME().getText();
+            int idx = importStr.lastIndexOf('/');
+            var name = importStr.substring(idx + 1);
+            if (useCtx.FOREIGN() != null) {
+              System.out.println("Found use");
+              var use = new Use.Foreign(importStr, name, rangeFrom(useCtx));
+              scope.addUse(use);
+              useList.add(use);
+            }
+          }
       }
 
       return switch (structKind) {
         case LITERAL -> Struct.anonStruct(fields, functions, rangeFrom(ctx));
-        case MODULE -> Struct.moduleStruct(name, fields, functions, rangeFrom(ctx));
+        case MODULE -> Struct.moduleStruct(name, useList, fields, functions, rangeFrom(ctx));
       };
     }
+
   }
 
   static class FunctionSignatureVisitor extends SasquachBaseVisitor<FunctionSignature> {
