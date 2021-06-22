@@ -85,7 +85,8 @@ public class AstValidator {
             var arg = funcCall.arguments().get(i);
             var param = params.get(i);
             if (!arg.type().equals(param.type())) {
-              errors.add(new TypeMismatchError("Expected arg of type '%s', but found type '%s'".formatted(exprTypeName(param), exprTypeName(arg)), arg.range()));
+              errors.add(new TypeMismatchError("Expected arg of type '%s', but found type '%s'".formatted(param.type().typeName(),
+                      exprTypeName(arg)), arg.range()));
             }
           }
         }

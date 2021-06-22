@@ -7,4 +7,8 @@ public record VariableDeclaration(String name, Expression expression, int index,
     public Type type() {
         return expression.type();
     }
+
+    public Identifier toIdentifier() {
+        return new Identifier(name, type());
+    }
 }

@@ -13,7 +13,7 @@ public interface BinaryExpression extends Expression {
     }
 
     enum MathOperator {
-        PLUS("+"), MINUS("-"), ASTERISK("*"), DIVIDE("/");
+        PLUS("+"), MINUS("-"), TIMES("*"), DIVIDE("/");
 
         private final String literal;
 
@@ -32,7 +32,7 @@ public interface BinaryExpression extends Expression {
     }
 
     enum CompareOperator {
-        GE(">="), LE("<="), GT(">"), LT("<"), EQ("=="), NEQ("!=");
+        GE(">="), LE("<="), GT(">"), LT("<"), EQ("=="), NE("!=");
 
         private final String literal;
 

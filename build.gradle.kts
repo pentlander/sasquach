@@ -23,7 +23,9 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-core:2.12.2")
     implementation("com.fasterxml.jackson.core:jackson-annotations:2.12.2")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.12.2")
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.6.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.7.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-params")
+    testImplementation("org.assertj:assertj-core:3.20.2")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
 }
 
