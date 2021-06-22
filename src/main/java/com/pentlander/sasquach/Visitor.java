@@ -12,8 +12,6 @@ import com.pentlander.sasquach.ast.Struct.Field;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.lang.reflect.Executable;
-import java.lang.reflect.Member;
 import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -82,7 +80,7 @@ public class Visitor {
           ctx.functionDeclaration().accept(new FunctionSignatureVisitor());
       funcSignature
           .parameters()
-          .forEach(param -> scope.addIdentifier(new Identifier(param.name(), param.type())));
+          .forEach(param -> scope.addIdentifier(param.toIdentifier()));
 
       var expr = ctx.expression().accept(new ExpressionVisitor(scope));
 
@@ -224,6 +222,7 @@ public class Visitor {
             callType = Modifier.isStatic(method.getModifiers()) ? FunctionCallType.STATIC : FunctionCallType.VIRTUAL;
             var handle = MethodHandles.lookup().unreflect(method).type();
             if (callType == FunctionCallType.VIRTUAL) {
+              // Drop the "this" for the call since it's implied by the owner
               handle = handle.dropParameterTypes(0, 1);
             }
             methodDescriptor = handle.toMethodDescriptorString();
@@ -354,7 +353,7 @@ public class Visitor {
       }
 
       return switch (structKind) {
-        case LITERAL -> Struct.anonStruct(fields, functions, rangeFrom(ctx));
+        case LITERAL -> Struct.literalStruct(fields, functions, rangeFrom(ctx));
         case MODULE -> Struct.moduleStruct(name, useList, fields, functions, rangeFrom(ctx));
       };
     }
@@ -369,15 +368,13 @@ public class Visitor {
 
       List<FunctionArgumentContext> paramsCtx = ctx.functionArgument();
       var params = new ArrayList<FunctionParameter>();
-      for (int i = 0; i < paramsCtx.size(); i++) {
-        var paramCtx = paramsCtx.get(i);
+      for (FunctionArgumentContext paramCtx : paramsCtx) {
         var param =
-            new FunctionParameter(
-                paramCtx.ID().getText(),
-                paramCtx.type().accept(typeVisitor),
-                i,
-                rangeFrom(paramCtx.ID()),
-                (Range.Single) rangeFrom(paramCtx.type()));
+                new FunctionParameter(
+                        paramCtx.ID().getText(),
+                        paramCtx.type().accept(typeVisitor),
+                        rangeFrom(paramCtx.ID()),
+                        (Range.Single) rangeFrom(paramCtx.type()));
         params.add(param);
       }
 

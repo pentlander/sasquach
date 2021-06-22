@@ -2,8 +2,6 @@ package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.*;
 
-import java.lang.invoke.MethodHandles;
-import java.net.http.HttpClient;
 import java.util.*;
 
 import org.objectweb.asm.ClassWriter;
@@ -202,17 +200,10 @@ class BytecodeGenerator implements Opcodes {
                         case VOID -> methodVisitor.visitInsn(ACONST_NULL);
                     }
                 }
-            } else if (expression instanceof FunctionParameter funcParam) {
-                if (funcParam.type() == BuiltinType.INT) {
-                    methodVisitor.visitVarInsn(ILOAD, funcParam.index());
-                }
             } else if (expression instanceof FunctionCall funcCall) {
                 funcCall.arguments().forEach(arg -> generate(arg, scope));
                 String descriptor = DescriptorFactory.getMethodDescriptor(funcCall.signature());
-                Type owner = Objects.requireNonNullElseGet(funcCall.owner(), () -> {
-                    System.out.println("Fallback type: " + funcCall);
-                    return new ClassType(scope.getClassName());
-                });
+                Type owner = Objects.requireNonNullElseGet(funcCall.owner(), () -> new ClassType(scope.getClassName()));
                 methodVisitor.visitMethodInsn(INVOKESTATIC, owner.internalName(), funcCall.functionName(), descriptor, false);
             } else if (expression instanceof BinaryExpression binExpr) {
                 generate(binExpr.left(), scope);
@@ -221,14 +212,14 @@ class BytecodeGenerator implements Opcodes {
                     int opcode = switch (mathExpr.operator()) {
                         case PLUS -> IADD;
                         case MINUS -> ISUB;
-                        case ASTERISK -> IMUL;
+                        case TIMES -> IMUL;
                         case DIVIDE -> IDIV;
                     };
                     methodVisitor.visitInsn(opcode);
                 } else if (expression instanceof BinaryExpression.CompareExpression cmpExpr) {
                     int opCode = switch (cmpExpr.compareOperator()) {
                         case EQ -> IF_ICMPEQ;
-                        case NEQ -> IF_ICMPNE;
+                        case NE -> IF_ICMPNE;
                         case GE -> IF_ICMPGE;
                         case LE -> IF_ICMPLE;
                         case LT -> IF_ICMPLT;
@@ -281,7 +272,6 @@ class BytecodeGenerator implements Opcodes {
                 }
 
                 String descriptor = foreignFuncCall.methodDescriptor();
-                System.out.println(descriptor);
                 String owner = foreignFuncCall.owner();
                 int opCode = switch (foreignFuncCall.functionCallType()) {
                     case SPECIAL -> INVOKESPECIAL;
@@ -289,6 +279,8 @@ class BytecodeGenerator implements Opcodes {
                     case VIRTUAL -> INVOKEVIRTUAL;
                 };
                 methodVisitor.visitMethodInsn(opCode, owner, foreignFuncCall.name(), descriptor, false);
+            } else {
+                throw new IllegalStateException("Unrecognized expression: " + expression);
             }
         }
 

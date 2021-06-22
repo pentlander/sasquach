@@ -9,7 +9,7 @@ public record Struct(String name, List<Use> useList, List<Field> fields, List<Fu
                      StructKind structKind,
                      Range range) implements Expression {
 
-  public static Struct anonStruct(List<Field> fields, List<Function> functions, Range range) {
+  public static Struct literalStruct(List<Field> fields, List<Function> functions, Range range) {
     var type = new StructType(typeFromFields(fields));
     return new Struct(type.typeName(), List.of(), fields, functions, type, StructKind.LITERAL, range);
   }
