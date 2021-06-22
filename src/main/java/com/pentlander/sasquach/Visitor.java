@@ -120,7 +120,7 @@ public class Visitor {
       var leftExpr = ctx.left.accept(visitor);
       var rightExpr = ctx.right.accept(visitor);
       return new BinaryExpression.MathExpression(
-          MathOperator.fromString(operatorString), leftExpr, rightExpr);
+          MathOperator.fromString(operatorString), leftExpr, rightExpr, rangeFrom(ctx));
     }
 
     @Override
@@ -150,7 +150,7 @@ public class Visitor {
     @Override
     public Expression visitPrintStatement(PrintStatementContext ctx) {
       Expression expr = ctx.expression().accept(new ExpressionVisitor(scope));
-      return new PrintStatement(expr);
+      return new PrintStatement(expr, rangeFrom(ctx));
     }
 
     @Override
@@ -162,16 +162,17 @@ public class Visitor {
       if (ifBlock.falseBlock != null) {
         falseExpr = ifBlock.falseBlock.accept(this);
       }
-      return new IfExpression(ifCondition, trueExpr, falseExpr);
+      return new IfExpression(ifCondition, trueExpr, falseExpr, rangeFrom(ctx));
     }
 
     @Override
     public Expression visitVariableDeclaration(VariableDeclarationContext ctx) {
       var idName = ctx.identifier().getText();
       Expression expr = ctx.expression().accept(new ExpressionVisitor(scope));
-      var identifier = new Identifier(idName, expr.type());
+      var identifier = new Identifier(idName, expr.type(), rangeFrom(ctx.identifier().ID()));
       scope.addIdentifier(identifier);
-      return new VariableDeclaration(identifier.name(), expr, ctx.index, rangeFrom(ctx.identifier().ID()));
+      return new VariableDeclaration(identifier.name(), expr, ctx.index,
+              rangeFrom(ctx), rangeFrom(ctx.identifier().ID()));
     }
 
     @Override
@@ -252,7 +253,7 @@ public class Visitor {
         returnExpr = ctx.returnExpression.accept(exprVisitor);
       }
 
-      return new Block(blockScope, expressions, returnExpr);
+      return new Block(blockScope, expressions, returnExpr, rangeFrom(ctx));
     }
   }
 

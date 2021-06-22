@@ -7,7 +7,5 @@ public interface Expression {
     Type type();
 
     @JsonIgnore
-    default Range range() {
-        throw new IllegalStateException("Range not implemented for: " + this);
-    }
+    Range range();
 }
