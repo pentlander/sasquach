@@ -85,9 +85,9 @@ class BytecodeGeneratorTest {
         }
 
         private <T> T declResult(Type type, Expression expr) throws Exception {
-            var varDecl = new VariableDeclaration("bar", expr, 0, NR);
+            var varDecl = new VariableDeclaration("bar", expr, 0, NR, NR);
             var block = new Block(scope,
-                    List.of(varDecl), new Identifier("bar", type));
+                    List.of(varDecl), new Identifier("bar", type, NR), NR);
             var func = func(scope, "foo", List.of(), type, block);
             scope.addIdentifier(varDecl.toIdentifier());
 
@@ -125,7 +125,7 @@ class BytecodeGeneratorTest {
     @ParameterizedTest
     @CsvSource({"true, 10", "false, 5"})
     void ifExpression(String bool, int actualResult) throws Exception {
-        var ifExpr = new IfExpression(boolValue(bool), intValue("10"), intValue("5"));
+        var ifExpr = new IfExpression(boolValue(bool), intValue("10"), intValue("5"), NR);
         var func = func(scope, "foo", List.of(), BuiltinType.INT, ifExpr);
 
         var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
@@ -167,7 +167,7 @@ class BytecodeGeneratorTest {
     void intMathOperator(MathOperator mathOp, int actualResult) throws Exception {
         var paramA = param("a", BuiltinType.INT);
         var paramB = param("b", BuiltinType.INT);
-        var plus = new MathExpression(mathOp, paramA.toIdentifier(), paramB.toIdentifier());
+        var plus = new MathExpression(mathOp, paramA.toIdentifier(), paramB.toIdentifier(), NR);
         var func = func(scope, "foo", List.of(paramA, paramB), BuiltinType.INT, plus);
 
         var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
