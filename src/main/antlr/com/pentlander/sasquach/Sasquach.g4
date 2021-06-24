@@ -22,8 +22,9 @@ structType : '{' ID ':' type (',' ID ':' type)* '}' ;
 
 blockStatement locals [ int lastVarIndex ]: variableDeclaration[ $lastVarIndex++ ] | printStatement | expression ;
 
-variableDeclaration [ int index ] : VARIABLE identifier EQUALS expression ;
-identifier : ID ;
+variableDeclaration [ int index ] : VARIABLE ID EQUALS expression ;
+varReference : ID ;
+fieldName : ID ;
 printStatement : PRINT expression ;
 ifBlock : IF ifCondition=expression trueBlock=expression (ELSE falseBlock=expression)? ;
 functionCall : functionName LP expressionList RP ;
@@ -34,18 +35,18 @@ expression :
   | left=expression operator=(PLUS|MINUS) right=expression #binaryOperation
   | LP expression RP #parenExpression
   | left=expression operator=(EQ|NEQ|GE|GT|LE|LT) right=expression #compareExpression
-  | identifier '.' functionCall #functionAccess
-  | left=expression '.' right=identifier #fieldAccess
+  | varReference '.' functionCall #functionAccess
+  | left=expression '.' right=fieldName #fieldAccess
   | value #valueLiteral
   | struct #structLiteral
-  | identifier  #identifierExpression
+  | varReference  #varExpression
   | functionCall #functionExpression
   | ifBlock #ifExpression
   | block #blockExpression ;
 
 struct : '{' (structStatement) (',' structStatement)* '}' ;
 structStatement : use #useStatement
-  | identifier EQUALS (expression|function) #identifierStatement ;
+  | fieldName EQUALS (expression|function) #identifierStatement ;
 
 value : NUMBER #intLiteral
       | STRING #stringLiteral

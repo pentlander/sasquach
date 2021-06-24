@@ -4,7 +4,7 @@ import java.util.*;
 
 public class Scope {
     public static final Scope NULL_SCOPE = new Scope(new Metadata("null"));
-    private final List<Identifier> identifiers = new ArrayList<>();
+    private final Map<String, Type> identifiers = new LinkedHashMap<>();
     private final List<Function> functions = new ArrayList<>();
     private final Map<String, Use> useAliases = new LinkedHashMap<>();
     private final Metadata metadata;
@@ -18,7 +18,7 @@ public class Scope {
     public Scope(Metadata metadata, Scope parentScope) {
         this.metadata = metadata;
         this.parentScope = parentScope;
-        this.identifiers.addAll(parentScope.identifiers);
+        this.identifiers.putAll(parentScope.identifiers);
         this.useAliases.putAll(parentScope.useAliases);
     }
 
@@ -30,18 +30,16 @@ public class Scope {
         functions.add(function);
     }
 
-    public void addIdentifier(Identifier identifier) {
-        identifiers.add(identifier);
+    public void addIdentifier(Identifier identifier, Type type) {
+        identifiers.put(identifier.name(), type);
     }
 
     public void addUse(Use use) {
         useAliases.put(use.alias(), use);
     }
 
-    public Optional<Identifier> findIdentifier(String identifierName) {
-        return identifiers.stream()
-                .filter(id -> id.name().equals(identifierName))
-                .findFirst();
+    public Optional<Type> findIdentifierType(String identifierName) {
+        return Optional.ofNullable(identifiers.get(identifierName));
     }
 
     public Optional<Use> findUse(String useName) {
@@ -50,11 +48,14 @@ public class Scope {
     }
 
     public int findIdentifierIdx(String identifierName) {
-        for (int i = 0; i < identifiers.size(); i++) {
-            if (identifiers.get(i).name().equals(identifierName)) {
+        int i = 0;
+        for (var name : identifiers.keySet()) {
+            if (name.equals(identifierName)) {
                 return i;
             }
+            i++;
         }
+
         throw new NoSuchElementException(identifierName);
     }
 

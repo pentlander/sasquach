@@ -5,12 +5,23 @@ import org.antlr.v4.runtime.misc.Nullable;
 
 import java.util.List;
 
-public record Function(Scope scope, String name, FunctionSignature functionSignature, Expression expression,
-                       Range range) implements Expression {
+public record Function(Scope scope, Identifier id, FunctionSignature functionSignature, Expression expression) implements Expression {
+    public String name() {
+        return id.name();
+    }
 
     @Override
     public Type type() {
         return returnType();
+    }
+
+    @Override
+    public Range range() {
+        return nameRange().join(expression.range());
+    }
+
+    public Range.Single nameRange() {
+        return id.range();
     }
 
     public Type returnType() {

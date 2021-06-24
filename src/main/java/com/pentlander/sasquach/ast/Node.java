@@ -2,5 +2,6 @@ package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
 
-public record Identifier(String name, Range.Single range) {
+public interface Node {
+    Range range();
 }

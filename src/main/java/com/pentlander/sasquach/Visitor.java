@@ -67,11 +67,11 @@ public class Visitor {
 
   static class FunctionVisitor extends SasquachBaseVisitor<Function> {
     private final Scope scope;
-    private final String funcName;
+    private final Identifier id;
 
-    FunctionVisitor(Scope scope, String funcName) {
+    FunctionVisitor(Scope scope, Identifier id) {
       this.scope = scope;
-      this.funcName = funcName;
+      this.id = id;
     }
 
     @Override
@@ -80,11 +80,11 @@ public class Visitor {
           ctx.functionDeclaration().accept(new FunctionSignatureVisitor());
       funcSignature
           .parameters()
-          .forEach(param -> scope.addIdentifier(param.toIdentifier()));
+          .forEach(param -> scope.addIdentifier(param.id(), param.type()));
 
       var expr = ctx.expression().accept(new ExpressionVisitor(scope));
 
-      return new Function(scope, funcName, funcSignature, expr, rangeFrom(ctx));
+      return new Function(scope, id, funcSignature, expr);
     }
   }
 
@@ -96,8 +96,9 @@ public class Visitor {
     }
 
     @Override
-    public Expression visitIdentifier(IdentifierContext ctx) {
-      return scope.findIdentifier(ctx.getText()).orElseThrow();
+    public Expression visitVarReference(VarReferenceContext ctx) {
+      var name = ctx.getText();
+      return VarReference.of(name, scope.findIdentifierType(name).orElseThrow(), rangeFrom(ctx.ID()));
     }
 
     @Override
@@ -136,7 +137,8 @@ public class Visitor {
         arguments.add(argument);
       }
 
-      return new FunctionCall(funcName, function.functionSignature(), arguments, null, rangeFrom(ctx));
+      var id = new Identifier(funcName, rangeFrom(ctx.functionName().ID()));
+      return new FunctionCall(id, function.functionSignature(), arguments, null, rangeFrom(ctx));
     }
 
     @Override
@@ -167,12 +169,11 @@ public class Visitor {
 
     @Override
     public Expression visitVariableDeclaration(VariableDeclarationContext ctx) {
-      var idName = ctx.identifier().getText();
+      var idName = ctx.ID().getText();
       Expression expr = ctx.expression().accept(new ExpressionVisitor(scope));
-      var identifier = new Identifier(idName, expr.type(), rangeFrom(ctx.identifier().ID()));
-      scope.addIdentifier(identifier);
-      return new VariableDeclaration(identifier.name(), expr, ctx.index,
-              rangeFrom(ctx), rangeFrom(ctx.identifier().ID()));
+      var identifier = new Identifier(idName, rangeFrom(ctx.ID()));
+      scope.addIdentifier(identifier, expr.type());
+      return new VariableDeclaration(identifier, expr, ctx.index, rangeFrom(ctx));
     }
 
     @Override
@@ -183,12 +184,12 @@ public class Visitor {
     @Override
     public Expression visitFieldAccess(FieldAccessContext ctx) {
       var expr = ctx.expression().accept(this);
-      return new FieldAccess(expr, ctx.identifier().getText(), rangeFrom(ctx));
+      return FieldAccess.of(expr, ctx.fieldName().getText(), rangeFrom(ctx.fieldName().ID()));
     }
 
     @Override
     public Expression visitFunctionAccess(FunctionAccessContext ctx) {
-      var classAlias = ctx.identifier().getText();
+      var classAlias = ctx.varReference().getText();
       String funcName = ctx.functionCall().functionName().getText();
       List<ExpressionContext> argExpressions = ctx.functionCall().expressionList().expression();
       var arguments = new ArrayList<Expression>();
@@ -232,7 +233,8 @@ public class Visitor {
             throw new RuntimeException(e);
           }
         }
-        return new ForeignFunctionCall(name, arguments, methodDescriptor, callType, returnType,
+        var id = new Identifier(name, (Range.Single) foreignUse.range());
+        return new ForeignFunctionCall(id, arguments, methodDescriptor, callType, returnType,
                 classType.internalName(),
                 rangeFrom(ctx));
       }
@@ -327,15 +329,17 @@ public class Visitor {
       var fields = new ArrayList<Field>();
       var functions = new ArrayList<Function>();
       for (var structStatementCtx : ctx.structStatement()) {
-          if (structStatementCtx instanceof IdentifierStatementContext idCtx) {
-            var id = idCtx.identifier();
+        if (structStatementCtx instanceof IdentifierStatementContext idCtx) {
+            var fieldName = idCtx.fieldName();
+            var id = new Identifier(fieldName.getText(), rangeFrom(fieldName.ID()));
             var exprCtx = idCtx.expression();
             var funcCtx = idCtx.function();
+
             if (exprCtx != null) {
               var expr = exprCtx.accept(expressionVisitor);
-              fields.add(new Field(id.getText(), expr, rangeFrom(id)));
+              fields.add(new Field(id, expr));
             } else if (funcCtx != null) {
-              var func = funcCtx.accept(new FunctionVisitor(scope, id.getText()));
+              var func = funcCtx.accept(new FunctionVisitor(scope, id));
               scope.addFunction(func);
               functions.add(func);
             }
@@ -345,7 +349,6 @@ public class Visitor {
             int idx = importStr.lastIndexOf('/');
             var name = importStr.substring(idx + 1);
             if (useCtx.FOREIGN() != null) {
-              System.out.println("Found use");
               var use = new Use.Foreign(importStr, name, rangeFrom(useCtx));
               scope.addUse(use);
               useList.add(use);
@@ -370,19 +373,15 @@ public class Visitor {
       List<FunctionArgumentContext> paramsCtx = ctx.functionArgument();
       var params = new ArrayList<FunctionParameter>();
       for (FunctionArgumentContext paramCtx : paramsCtx) {
-        var param =
-                new FunctionParameter(
-                        paramCtx.ID().getText(),
-                        paramCtx.type().accept(typeVisitor),
-                        rangeFrom(paramCtx.ID()),
-                        (Range.Single) rangeFrom(paramCtx.type()));
+        var type = paramCtx.type().accept(typeVisitor);
+        var id = new Identifier(paramCtx.ID().getText(), rangeFrom(paramCtx.ID()));
+        var param = new FunctionParameter(id, type, (Range.Single) rangeFrom(paramCtx.type()));
         params.add(param);
       }
 
       return new FunctionSignature(
           params,
           ctx.type().accept(typeVisitor),
-          new Range.Single(new Position(1, 1), 1),
           rangeFrom(ctx));
     }
   }

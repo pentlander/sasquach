@@ -28,9 +28,18 @@ public record Struct(String name, List<Use> useList, List<Field> fields, List<Fu
     return type().typeName();
   }
 
-  public record Field(String name, Expression value, Range range) implements Expression {
+  public record Field(Identifier id, Expression value) implements Expression {
+    public String name() {
+      return id.name();
+    }
+
     public Type type() {
       return value.type();
+    }
+
+    @Override
+    public Range range() {
+      return id.range().join(value.range());
     }
   }
 

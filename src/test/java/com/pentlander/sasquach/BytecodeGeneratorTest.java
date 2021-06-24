@@ -90,11 +90,11 @@ class BytecodeGeneratorTest {
         }
 
         private <T> T declResult(Type type, Expression expr) throws Exception {
-            var varDecl = new VariableDeclaration("bar", expr, 0, NR, NR);
+            var varDecl = new VariableDeclaration(id("bar"), expr, 0, NR);
             var block = new Block(scope,
-                    List.of(varDecl), new Identifier("bar", type, NR), NR);
+                    List.of(varDecl), VarReference.of("bar", type, NR), NR);
             var func = func(scope, "foo", List.of(), type, block);
-            scope.addIdentifier(varDecl.toIdentifier());
+            scope.addIdentifier(varDecl.id(), varDecl.type());
 
             var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
             return invokeFirst(clazz, null);
@@ -106,7 +106,7 @@ class BytecodeGeneratorTest {
         @Test
         void constructor() throws Exception {
             var type = new ClassType( "java.lang.StringBuilder");
-            var call = new ForeignFunctionCall("<init>", List.of(stringValue("hi")), "(Ljava/lang/String;)V",
+            var call = new ForeignFunctionCall(id("<init>"), List.of(stringValue("hi")), "(Ljava/lang/String;)V",
                     FunctionCallType.SPECIAL,
                     type,
                     type.internalName(), NR);
@@ -123,7 +123,7 @@ class BytecodeGeneratorTest {
             var type = new ClassType( "java.nio.file.Path");
             List<Expression> args = List.of(stringValue("hi.txt"),
                     ArrayValue.ofElementType(BuiltinType.STRING, List.of(), NR));
-            var call = new ForeignFunctionCall("get", args, "(Ljava/lang/String;" +
+            var call = new ForeignFunctionCall(id("get"), args, "(Ljava/lang/String;" +
                     "[Ljava/lang/String;)" +
                     "Ljava/nio/file/Path;",
                     FunctionCallType.STATIC,
@@ -140,7 +140,7 @@ class BytecodeGeneratorTest {
         @Test
         void virtualFunc() throws Exception {
             List<Expression> args = List.of(stringValue("he"), stringValue("llo"));
-            var call = new ForeignFunctionCall("concat", args, "(Ljava/lang/String;)Ljava/lang/String;",
+            var call = new ForeignFunctionCall(id("concat"), args, "(Ljava/lang/String;)Ljava/lang/String;",
                     FunctionCallType.VIRTUAL,
                     BuiltinType.STRING,
                     "java/lang/String", NR);
@@ -156,7 +156,7 @@ class BytecodeGeneratorTest {
     @Test
     void functionCall() throws Exception {
         var calleeFunc = func(scope, "foo", List.of(), BuiltinType.INT, intValue("5"));
-        var callerFunc = func(scope, "baz", List.of(), BuiltinType.INT, new FunctionCall("foo",
+        var callerFunc = func(scope, "baz", List.of(), BuiltinType.INT, new FunctionCall(id("foo"),
                 calleeFunc.functionSignature(),  List.of(), null, NR));
 
         var clazz = genClass(compUnit(List.of(), List.of(), List.of(callerFunc, calleeFunc)));
@@ -167,7 +167,8 @@ class BytecodeGeneratorTest {
 
     @Test
     void structLiteralFields() throws Exception {
-        var boolField = new Struct.Field("f1", boolValue("true"), NR);
+        var id = id("f1");
+        var boolField = new Struct.Field(id, boolValue("true"));
         var struct = Struct.literalStruct(List.of(boolField), List.of(), NR);
         var func = func(scope, "foo", List.of(), struct.type(), struct);
 
@@ -196,7 +197,7 @@ class BytecodeGeneratorTest {
     void intCompareOperatorNotEquals(CompareOperator compareOp, boolean actualResult) throws Exception {
         var paramA = param("a", BuiltinType.INT);
         var paramB = param("b", BuiltinType.INT);
-        var compare = new CompareExpression(compareOp, paramA.toIdentifier(), paramB.toIdentifier(), NR);
+        var compare = new CompareExpression(compareOp, paramA.toReference(), paramB.toReference(), NR);
         var func = func(scope, "foo", List.of(paramA, paramB), BuiltinType.BOOLEAN, compare);
 
         var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
@@ -210,7 +211,7 @@ class BytecodeGeneratorTest {
     void intCompareOperatorEquals(CompareOperator compareOp, boolean actualResult) throws Exception {
         var paramA = param("a", BuiltinType.INT);
         var paramB = param("b", BuiltinType.INT);
-        var compare = new CompareExpression(compareOp, paramA.toIdentifier(), paramB.toIdentifier(), NR);
+        var compare = new CompareExpression(compareOp, paramA.toReference(), paramB.toReference(), NR);
         var func = func(scope, "foo", List.of(paramA, paramB), BuiltinType.BOOLEAN, compare);
 
         var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
@@ -224,7 +225,7 @@ class BytecodeGeneratorTest {
     void intMathOperator(MathOperator mathOp, int actualResult) throws Exception {
         var paramA = param("a", BuiltinType.INT);
         var paramB = param("b", BuiltinType.INT);
-        var plus = new MathExpression(mathOp, paramA.toIdentifier(), paramB.toIdentifier(), NR);
+        var plus = new MathExpression(mathOp, paramA.toReference(), paramB.toReference(), NR);
         var func = func(scope, "foo", List.of(paramA, paramB), BuiltinType.INT, plus);
 
         var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
@@ -234,8 +235,9 @@ class BytecodeGeneratorTest {
     }
 
     private FunctionParameter param(String name, Type type) {
-        var param = new FunctionParameter(name, type, NR, NR);
-        scope.addIdentifier(param.toIdentifier());
+        var id = id(name);
+        var param = new FunctionParameter(id, type, NR);
+        scope.addIdentifier(param.id(), type);
         return param;
     }
 
@@ -272,9 +274,13 @@ class BytecodeGeneratorTest {
                 new ModuleDeclaration(MOD_NAME, Struct.moduleStruct(MOD_NAME, useList, fields, functions, NR)));
     }
 
+    private static Identifier id(String name) {
+        return new Identifier(name, NR);
+    }
+
     private static Function func(Scope scope, String name, List<FunctionParameter> functionParameters,
                                  Type returnType, Expression expression) {
-        return new Function(scope, name, new FunctionSignature(functionParameters, returnType, NR, NR), expression, NR);
+        return new Function(scope, id(name), new FunctionSignature(functionParameters, returnType, NR), expression);
     }
 
     private static Value intValue(String value) {

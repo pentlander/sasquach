@@ -5,11 +5,10 @@ import org.antlr.v4.runtime.misc.Nullable;
 
 import java.util.List;
 
-public record FunctionCall(String name, FunctionSignature signature, List<Expression> arguments,
+public record FunctionCall(Identifier id, FunctionSignature signature, List<Expression> arguments,
                            @Nullable Type owner, Range range) implements Expression {
-
-    public String functionName() {
-        return name;
+    public String name() {
+        return id.name();
     }
 
     @Override

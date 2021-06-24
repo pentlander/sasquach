@@ -36,8 +36,8 @@ public class AstValidator {
         errors.add(new DuplicationError(
             "Function '%s' already defined in module '%s'".formatted(function.name(), module.name()),
             List.of(
-                existingFunction.functionSignature().nameRange(),
-                function.functionSignature().nameRange())));
+                existingFunction.nameRange(),
+                function.nameRange())));
       }
       // Check that func return expression matches the return type of the function
       if (function.returnExpression() != null
@@ -118,7 +118,8 @@ public class AstValidator {
     var errors = new ArrayList<Error>();
     paramNames.forEach((name, params) -> {
       if (params.size() > 1) {
-        errors.add(new DuplicationError("Parameter '%s' already defined in function '%s'".formatted(name, funcName), params.stream().map(FunctionParameter::identifierRange).toList()));
+        errors.add(new DuplicationError("Parameter '%s' already defined in function '%s'".formatted(name, funcName),
+                params.stream().map(param -> param.id().range()).toList()));
       }
     });
 
