@@ -1,5 +1,7 @@
 package com.pentlander.sasquach.ast;
 
+import com.pentlander.sasquach.type.Type;
+
 import java.util.*;
 
 public class Scope {

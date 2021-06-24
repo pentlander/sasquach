@@ -1,4 +1,4 @@
-package com.pentlander.sasquach.ast;
+package com.pentlander.sasquach.type;
 
 import java.lang.invoke.MethodHandles;
 

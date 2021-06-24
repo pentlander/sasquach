@@ -16,6 +16,10 @@ import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.pentlander.sasquach.type.BuiltinType;
+import com.pentlander.sasquach.type.ClassType;
+import com.pentlander.sasquach.type.StructType;
+import com.pentlander.sasquach.type.Type;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 
