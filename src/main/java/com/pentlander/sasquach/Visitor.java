@@ -105,14 +105,6 @@ public class Visitor {
     }
 
     @Override
-    public Expression visitValueLiteral(ValueLiteralContext ctx) {
-      String value = ctx.getText();
-      var visitor = new TypeVisitor();
-      Type type = ctx.accept(visitor);
-      return new Value(type, value, rangeFrom(ctx));
-    }
-
-    @Override
     public Expression visitParenExpression(ParenExpressionContext ctx) {
       return ctx.expression().accept(this);
     }
@@ -260,48 +252,43 @@ public class Visitor {
 
       return new Block(blockScope, expressions, returnExpr, rangeFrom(ctx));
     }
+
+    @Override
+    public Expression visitIntLiteral(IntLiteralContext ctx) {
+      return new Value(BuiltinType.INT, ctx.getText(), rangeFrom(ctx));
+    }
+
+    @Override
+    public Expression visitStringLiteral(StringLiteralContext ctx) {
+      return new Value(BuiltinType.STRING, ctx.getText(), rangeFrom(ctx));
+    }
+
+    @Override
+    public Expression visitBooleanLiteral(BooleanLiteralContext ctx) {
+      return new Value(BuiltinType.BOOLEAN, ctx.getText(), rangeFrom(ctx));
+    }
   }
 
-  static class TypeVisitor extends SasquachBaseVisitor<Type> {
+  static class TypeVisitor extends SasquachBaseVisitor<TypeNode> {
     @Override
-    public Type visitIntLiteral(IntLiteralContext ctx) {
-      return BuiltinType.INT;
+    public TypeNode visitPrimitiveType(PrimitiveTypeContext ctx) {
+      return new TypeNode(BuiltinType.fromString(ctx.getText()), rangeFrom(ctx));
     }
 
     @Override
-    public Type visitStringLiteral(StringLiteralContext ctx) {
-      return BuiltinType.STRING;
+    public TypeNode visitClassType(ClassTypeContext ctx) {
+      return new TypeNode(new ClassType(ctx.getText()), rangeFrom(ctx));
     }
 
     @Override
-    public Type visitBooleanLiteral(BooleanLiteralContext ctx) {
-      return BuiltinType.BOOLEAN;
-    }
-
-    @Override
-    public Type visitStructLiteral(StructLiteralContext ctx) {
-      return new StructType(Map.of());
-    }
-
-    @Override
-    public Type visitPrimitiveType(PrimitiveTypeContext ctx) {
-      return BuiltinType.fromString(ctx.getText());
-    }
-
-    @Override
-    public Type visitClassType(ClassTypeContext ctx) {
-      return new ClassType(ctx.getText());
-    }
-
-    @Override
-    public Type visitStructType(StructTypeContext ctx) {
+    public TypeNode visitStructType(StructTypeContext ctx) {
       var fields = new HashMap<String, Type>();
       for (int i = 0; i < ctx.ID().size(); i++) {
         var id = ctx.ID(i).getText();
-        var type = ctx.type(i).accept(this);
-        fields.put(id, type);
+        var typeNode = ctx.type(i).accept(this);
+        fields.put(id, typeNode.type());
       }
-      return new StructType(fields);
+      return new TypeNode(new StructType(fields), rangeFrom(ctx));
     }
   }
 

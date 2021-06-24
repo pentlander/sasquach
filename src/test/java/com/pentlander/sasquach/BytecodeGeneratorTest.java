@@ -239,7 +239,7 @@ class BytecodeGeneratorTest {
 
     private FunctionParameter param(String name, Type type) {
         var id = id(name);
-        var param = new FunctionParameter(id, type, NR);
+        var param = new FunctionParameter(id, new TypeNode(type, NR), NR);
         scope.addIdentifier(param.id(), type);
         return param;
     }
@@ -283,7 +283,9 @@ class BytecodeGeneratorTest {
 
     private static Function func(Scope scope, String name, List<FunctionParameter> functionParameters,
                                  Type returnType, Expression expression) {
-        return new Function(scope, id(name), new FunctionSignature(functionParameters, returnType, NR), expression);
+        return new Function(scope, id(name), new FunctionSignature(functionParameters, new TypeNode(returnType, NR),
+                NR),
+                expression);
     }
 
     private static Value intValue(String value) {
