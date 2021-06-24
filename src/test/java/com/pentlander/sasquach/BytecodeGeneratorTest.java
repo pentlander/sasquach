@@ -7,9 +7,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 
 import static com.pentlander.sasquach.ast.BinaryExpression.*;
+import static com.pentlander.sasquach.ast.ForeignFunctionCall.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class BytecodeGeneratorTest {
@@ -93,6 +98,58 @@ class BytecodeGeneratorTest {
 
             var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
             return invokeFirst(clazz, null);
+        }
+    }
+
+    @Nested
+    class ForeignFunctionCalls {
+        @Test
+        void constructor() throws Exception {
+            var type = new ClassType( "java.lang.StringBuilder");
+            var call = new ForeignFunctionCall("<init>", List.of(stringValue("hi")), "(Ljava/lang/String;)V",
+                    FunctionCallType.SPECIAL,
+                    type,
+                    type.internalName(), NR);
+            var func = func(scope, "baz", List.of(), type, call);
+
+            var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
+            StringBuilder result = invokeFirst(clazz, null);
+
+            assertThat(result.toString()).isEqualTo("hi");
+        }
+
+        @Test
+        void staticFunc() throws Exception {
+            var type = new ClassType( "java.nio.file.Path");
+            List<Expression> args = List.of(stringValue("hi.txt"),
+                    ArrayValue.ofElementType(BuiltinType.STRING, List.of(), NR));
+            var call = new ForeignFunctionCall("get", args, "(Ljava/lang/String;" +
+                    "[Ljava/lang/String;)" +
+                    "Ljava/nio/file/Path;",
+                    FunctionCallType.STATIC,
+                    type,
+                    "java/nio/file/Paths", NR);
+            var func = func(scope, "baz", List.of(), type, call);
+
+            var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
+            Path result = invokeFirst(clazz, null);
+
+            assertThat(result).isEqualTo(Paths.get("hi.txt"));
+        }
+
+        @Test
+        void virtualFunc() throws Exception {
+            List<Expression> args = List.of(stringValue("he"), stringValue("llo"));
+            var call = new ForeignFunctionCall("concat", args, "(Ljava/lang/String;)Ljava/lang/String;",
+                    FunctionCallType.VIRTUAL,
+                    BuiltinType.STRING,
+                    "java/lang/String", NR);
+            var func = func(scope, "baz", List.of(), BuiltinType.STRING, call);
+
+            var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
+            String result = invokeFirst(clazz, null);
+
+            assertThat(result).isEqualTo("hello");
         }
     }
 
@@ -188,9 +245,26 @@ class BytecodeGeneratorTest {
     }
 
     private Class<?> genClass(CompilationUnit compilationUnit) throws Exception {
+        return genClass(compilationUnit, false);
+    }
+
+    private Class<?> genClass(CompilationUnit compilationUnit, boolean dumpClasses) throws Exception {
         var result = new BytecodeGenerator().generateBytecode(compilationUnit);
+        if (dumpClasses) {
+            dumpGeneratedClasses(result.generatedBytecode());
+        }
         result.generatedBytecode().forEach(cl::addClass);
         return cl.loadClass(MOD_NAME);
+    }
+
+    private void dumpGeneratedClasses(Map<String, byte[]> generatedClasses) throws Exception {
+        var tempPath = Files.createTempDirectory("class_dump_");
+        for (Map.Entry<String, byte[]> entry : generatedClasses.entrySet()) {
+            String name = entry.getKey();
+            byte[] bytecode = entry.getValue();
+            Main.saveBytecodeToFile(tempPath, name, bytecode);
+        }
+        System.err.println("Dumped files to: " + tempPath);
     }
 
     private static CompilationUnit compUnit(List<Use> useList, List<Struct.Field> fields, List<Function> functions) {
@@ -209,5 +283,9 @@ class BytecodeGeneratorTest {
 
     private static Value boolValue(String value) {
         return new Value(BuiltinType.BOOLEAN, value, NR);
+    }
+
+    private static Value stringValue(String value) {
+        return new Value(BuiltinType.STRING, value, NR);
     }
 }

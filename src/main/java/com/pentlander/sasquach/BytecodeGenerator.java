@@ -200,6 +200,19 @@ class BytecodeGenerator implements Opcodes {
                         case VOID -> methodVisitor.visitInsn(ACONST_NULL);
                     }
                 }
+            } else if (expression instanceof ArrayValue arrayValue) {
+                // TODO: Support primitive arrays.
+                methodVisitor.visitIntInsn(BIPUSH, arrayValue.expressions().size());
+                methodVisitor.visitTypeInsn(ANEWARRAY, arrayValue.elementType().internalName());
+
+                var expressions = arrayValue.expressions();
+                for (int i = 0; i < expressions.size(); i++) {
+                    var expr = expressions.get(i);
+                    methodVisitor.visitInsn(DUP);
+                    methodVisitor.visitLdcInsn(i);
+                    generate(expr, scope);
+                    methodVisitor.visitInsn(AASTORE);
+                }
             } else if (expression instanceof FunctionCall funcCall) {
                 funcCall.arguments().forEach(arg -> generate(arg, scope));
                 String descriptor = DescriptorFactory.getMethodDescriptor(funcCall.signature());
@@ -267,9 +280,6 @@ class BytecodeGenerator implements Opcodes {
                     methodVisitor.visitInsn(DUP);
                 }
                 foreignFuncCall.arguments().forEach(arg -> generate(arg, scope));
-                if (foreignFuncCall.functionCallType() == FunctionCallType.VIRTUAL) {
-                    methodVisitor.visitInsn(DUP);
-                }
 
                 String descriptor = foreignFuncCall.methodDescriptor();
                 String owner = foreignFuncCall.owner();
@@ -317,7 +327,9 @@ class BytecodeGenerator implements Opcodes {
 
         private void generateBlock(Block block) {
             block.expressions().forEach(expr -> generate(expr, block.scope()));
-            generate(block.returnExpression(), block.scope());
+            if (block.returnExpression() != null) {
+                generate(block.returnExpression(), block.scope());
+            }
         }
     }
 

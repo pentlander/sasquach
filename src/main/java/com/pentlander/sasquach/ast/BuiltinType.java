@@ -1,7 +1,5 @@
 package com.pentlander.sasquach.ast;
 
-import com.pentlander.sasquach.Main;
-
 import java.util.Arrays;
 
 public enum BuiltinType implements Type {
@@ -51,6 +49,6 @@ public enum BuiltinType implements Type {
 
     @Override
     public String internalName() {
-        return descriptor();
+        return org.objectweb.asm.Type.getInternalName(typeClass);
     }
 }
