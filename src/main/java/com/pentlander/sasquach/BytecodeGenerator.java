@@ -4,6 +4,10 @@ import com.pentlander.sasquach.ast.*;
 
 import java.util.*;
 
+import com.pentlander.sasquach.type.BuiltinType;
+import com.pentlander.sasquach.type.ClassType;
+import com.pentlander.sasquach.type.StructType;
+import com.pentlander.sasquach.type.Type;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;

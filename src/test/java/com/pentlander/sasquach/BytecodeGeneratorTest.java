@@ -1,6 +1,9 @@
 package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.*;
+import com.pentlander.sasquach.type.BuiltinType;
+import com.pentlander.sasquach.type.ClassType;
+import com.pentlander.sasquach.type.Type;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
