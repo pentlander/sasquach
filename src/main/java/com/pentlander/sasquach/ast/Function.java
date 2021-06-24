@@ -29,7 +29,7 @@ public record Function(Scope scope, Identifier id, FunctionSignature functionSig
         return functionSignature.returnType();
     }
 
-    public List<FunctionParameter> arguments() {
+    public List<FunctionParameter> parameters() {
         return functionSignature.parameters();
     }
 

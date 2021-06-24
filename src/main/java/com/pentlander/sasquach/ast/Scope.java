@@ -6,7 +6,8 @@ import java.util.*;
 
 public class Scope {
     public static final Scope NULL_SCOPE = new Scope(new Metadata("null"));
-    private final Map<String, Type> identifiers = new LinkedHashMap<>();
+    private final Map<String, Identifier> identifiers = new HashMap<>();
+    private final Map<String, Type> identifierTypes = new LinkedHashMap<>();
     private final List<Function> functions = new ArrayList<>();
     private final Map<String, Use> useAliases = new LinkedHashMap<>();
     private final Metadata metadata;
@@ -21,6 +22,7 @@ public class Scope {
         this.metadata = metadata;
         this.parentScope = parentScope;
         this.identifiers.putAll(parentScope.identifiers);
+        this.identifierTypes.putAll(parentScope.identifierTypes);
         this.useAliases.putAll(parentScope.useAliases);
     }
 
@@ -33,14 +35,19 @@ public class Scope {
     }
 
     public void addIdentifier(Identifier identifier, Type type) {
-        identifiers.put(identifier.name(), type);
+        identifiers.put(identifier.name(), identifier);
+        identifierTypes.put(identifier.name(), type);
     }
 
     public void addUse(Use use) {
-        useAliases.put(use.alias(), use);
+        useAliases.put(use.alias().name(), use);
     }
 
     public Optional<Type> findIdentifierType(String identifierName) {
+        return Optional.ofNullable(identifierTypes.get(identifierName));
+    }
+
+    public Optional<Identifier> getIdentifier(String identifierName) {
         return Optional.ofNullable(identifiers.get(identifierName));
     }
 
@@ -51,7 +58,7 @@ public class Scope {
 
     public int findIdentifierIdx(String identifierName) {
         int i = 0;
-        for (var name : identifiers.keySet()) {
+        for (var name : identifierTypes.keySet()) {
             if (name.equals(identifierName)) {
                 return i;
             }

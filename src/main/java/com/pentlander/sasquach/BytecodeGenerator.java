@@ -339,11 +339,12 @@ class BytecodeGenerator implements Opcodes {
 
     static class DescriptorFactory {
         public static String getMethodDescriptor(Function function) {
-            return getMethodDescriptor(function.arguments(), function.type());
+            return getMethodDescriptor(function.functionSignature());
         }
 
         public static String getMethodDescriptor(FunctionSignature signature) {
-            return getMethodDescriptor(signature.parameters(), signature.returnType());
+            return getMethodDescriptor(signature.parameters().stream().map(FunctionParameter::toReference).toList(),
+                    signature.returnType());
         }
 
         public static String getMethodDescriptor(Collection<? extends Expression> parameters, Type returnType) {

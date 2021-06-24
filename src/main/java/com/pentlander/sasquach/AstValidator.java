@@ -50,7 +50,7 @@ public class AstValidator {
                         function.returnType().typeName()), function.returnExpression().range()));
       }
 
-      errors.addAll(validateFunctionParameters(function.name(), function.arguments()));
+      errors.addAll(validateFunctionParameters(function.name(), function.parameters()));
       errors.addAll(validateExpression(function.expression()));
     }
 

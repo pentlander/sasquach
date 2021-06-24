@@ -3,7 +3,6 @@ package com.pentlander.sasquach;
 import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
 import com.pentlander.sasquach.SasquachParser.CompareExpressionContext;
 import com.pentlander.sasquach.SasquachParser.FieldAccessContext;
-import com.pentlander.sasquach.SasquachParser.StructLiteralContext;
 import com.pentlander.sasquach.ast.*;
 import com.pentlander.sasquach.ast.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.BinaryExpression.CompareOperator;
@@ -185,7 +184,7 @@ public class Visitor {
     @Override
     public Expression visitFunctionAccess(FunctionAccessContext ctx) {
       var classAlias = ctx.varReference().getText();
-      String funcName = ctx.functionCall().functionName().getText();
+      String sourceFuncName = ctx.functionCall().functionName().getText();
       List<ExpressionContext> argExpressions = ctx.functionCall().expressionList().expression();
       var arguments = new ArrayList<Expression>();
       for (var argExpressionCtx : argExpressions) {
@@ -197,15 +196,15 @@ public class Visitor {
       if (use instanceof Use.Foreign foreignUse) {
         Type classType = new ClassType(foreignUse.qualifiedName());
         List<Class<?>> argClasses = arguments.stream().map(arg -> arg.type().typeClass()).collect(Collectors.toList());
-        String name = funcName;
+        String funcName = sourceFuncName;
         Type returnType = null;
         String methodDescriptor = null;
         FunctionCallType callType = null;
-        if (funcName.equals("new")) {
+        if (sourceFuncName.equals("new")) {
           returnType = classType;
           callType = FunctionCallType.SPECIAL;
           try {
-            name = "<init>";
+            funcName = "<init>";
             var handle = MethodHandles.lookup().findConstructor(classType.typeClass(), MethodType.methodType(void.class,
                     argClasses));
             methodDescriptor = handle.type().changeReturnType(void.class).toMethodDescriptorString();
@@ -214,7 +213,7 @@ public class Visitor {
           }
         } else {
           try {
-            var method = classType.typeClass().getMethod(funcName,
+            var method = classType.typeClass().getMethod(sourceFuncName,
                     argClasses.stream().skip(1).toList().toArray(new Class<?>[]{}));
             callType = Modifier.isStatic(method.getModifiers()) ? FunctionCallType.STATIC : FunctionCallType.VIRTUAL;
             var handle = MethodHandles.lookup().unreflect(method).type();
@@ -228,8 +227,9 @@ public class Visitor {
             throw new RuntimeException(e);
           }
         }
-        var id = new Identifier(name, (Range.Single) foreignUse.range());
-        return new ForeignFunctionCall(id, arguments, methodDescriptor, callType, returnType,
+        var classAliasId = new Identifier(classAlias, rangeFrom(ctx.varReference().ID()));
+        var funcId = new Identifier(funcName, (Range.Single) foreignUse.range());
+        return new ForeignFunctionCall(classAliasId, funcId, arguments, methodDescriptor, callType, returnType,
                 classType.internalName(),
                 rangeFrom(ctx));
       }
@@ -310,6 +310,8 @@ public class Visitor {
     }
 
     public static StructVisitor forLiteral(Scope parentScope) {
+      // TODO: Set the metadata at the end of the visitStruct func so struct methods work properly
+      // TODO: Figure out how to reference parent scope from struct literal
       return new StructVisitor(new Scope(new Metadata("null")), null, StructKind.LITERAL);
     }
 
@@ -337,9 +339,10 @@ public class Visitor {
             var useCtx = useStatementCtx.use();
             var importStr = useCtx.QUALIFIED_NAME().getText();
             int idx = importStr.lastIndexOf('/');
-            var name = importStr.substring(idx + 1);
+            var alias = importStr.substring(idx + 1);
             if (useCtx.FOREIGN() != null) {
-              var use = new Use.Foreign(importStr, name, rangeFrom(useCtx));
+              var aliasId = new Identifier(alias, rangeFrom(useCtx.QUALIFIED_NAME()));
+              var use = new Use.Foreign(importStr, aliasId, rangeFrom(useCtx));
               scope.addUse(use);
               useList.add(use);
             }
@@ -347,8 +350,8 @@ public class Visitor {
       }
 
       return switch (structKind) {
-        case LITERAL -> Struct.literalStruct(fields, functions, rangeFrom(ctx));
-        case MODULE -> Struct.moduleStruct(name, useList, fields, functions, rangeFrom(ctx));
+        case LITERAL -> Struct.literalStruct(scope, fields, functions, rangeFrom(ctx));
+        case MODULE -> Struct.moduleStruct(scope, name, useList, fields, functions, rangeFrom(ctx));
       };
     }
 

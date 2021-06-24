@@ -109,7 +109,8 @@ class BytecodeGeneratorTest {
         @Test
         void constructor() throws Exception {
             var type = new ClassType( "java.lang.StringBuilder");
-            var call = new ForeignFunctionCall(id("<init>"), List.of(stringValue("hi")), "(Ljava/lang/String;)V",
+            var call = new ForeignFunctionCall(id("StringBuilder"), id("<init>"), List.of(stringValue("hi")), "(Ljava" +
+                    "/lang/String;)V",
                     FunctionCallType.SPECIAL,
                     type,
                     type.internalName(), NR);
@@ -126,7 +127,7 @@ class BytecodeGeneratorTest {
             var type = new ClassType( "java.nio.file.Path");
             List<Expression> args = List.of(stringValue("hi.txt"),
                     ArrayValue.ofElementType(BuiltinType.STRING, List.of(), NR));
-            var call = new ForeignFunctionCall(id("get"), args, "(Ljava/lang/String;" +
+            var call = new ForeignFunctionCall(id("Path"), id("get"), args, "(Ljava/lang/String;" +
                     "[Ljava/lang/String;)" +
                     "Ljava/nio/file/Path;",
                     FunctionCallType.STATIC,
@@ -143,7 +144,8 @@ class BytecodeGeneratorTest {
         @Test
         void virtualFunc() throws Exception {
             List<Expression> args = List.of(stringValue("he"), stringValue("llo"));
-            var call = new ForeignFunctionCall(id("concat"), args, "(Ljava/lang/String;)Ljava/lang/String;",
+            var call = new ForeignFunctionCall(id("String"), id("concat"), args, "(Ljava/lang/String;)" +
+                    "Ljava/lang/String;",
                     FunctionCallType.VIRTUAL,
                     BuiltinType.STRING,
                     "java/lang/String", NR);
@@ -172,7 +174,7 @@ class BytecodeGeneratorTest {
     void structLiteralFields() throws Exception {
         var id = id("f1");
         var boolField = new Struct.Field(id, boolValue("true"));
-        var struct = Struct.literalStruct(List.of(boolField), List.of(), NR);
+        var struct = Struct.literalStruct(scope, List.of(boolField), List.of(), NR);
         var func = func(scope, "foo", List.of(), struct.type(), struct);
 
         var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
@@ -272,9 +274,9 @@ class BytecodeGeneratorTest {
         System.err.println("Dumped files to: " + tempPath);
     }
 
-    private static CompilationUnit compUnit(List<Use> useList, List<Struct.Field> fields, List<Function> functions) {
+    private CompilationUnit compUnit(List<Use> useList, List<Struct.Field> fields, List<Function> functions) {
         return new CompilationUnit(
-                new ModuleDeclaration(MOD_NAME, Struct.moduleStruct(MOD_NAME, useList, fields, functions, NR)));
+                new ModuleDeclaration(MOD_NAME, Struct.moduleStruct(scope, MOD_NAME, useList, fields, functions, NR)));
     }
 
     private static Identifier id(String name) {
