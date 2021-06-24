@@ -24,7 +24,6 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import static com.pentlander.sasquach.SasquachParser.*;
 import static com.pentlander.sasquach.ast.ForeignFunctionCall.*;
 import static com.pentlander.sasquach.ast.Struct.*;
-import static java.lang.invoke.MethodType.methodType;
 
 public class Visitor {
   public static Range rangeFrom(ParserRuleContext context) {
@@ -379,10 +378,7 @@ public class Visitor {
         params.add(param);
       }
 
-      return new FunctionSignature(
-          params,
-          ctx.type().accept(typeVisitor),
-          rangeFrom(ctx));
+      return new FunctionSignature(params, ctx.type().accept(typeVisitor), rangeFrom(ctx));
     }
   }
 }
