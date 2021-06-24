@@ -29,3 +29,22 @@ possibly tie into the Java interop to make mutable OO code more sane to deal wit
 How do we handle private in structs? It might only make sense to allow it in modules, since I 
 can't think of a usecase for private fields/funcs in anon structs. Should test this out more. 
 Maybe modules are still structs, but slightly special due to this. 
+
+# Example Future Code
+
+## Result Type
+```
+mod Result {
+  // Traditional variant types are represented as tuples or structs with atoms in the same
+  // position or field name. Possible to create sugar for this later.
+  type Ok[V] = (:ok, V),
+  type Err[E] = (:err, E),
+  
+  // Type with same name as module can be deduped, i.e. Result.Result -> Result
+  type Result[V, E] = Ok[V] | Err[E],
+  
+  // Constructor-like functions start with caps and match the type name conventionally
+  Ok = (value: V): Ok[V] -> (:ok, value),
+  Err = (error: E): Err[E] -> (:err, error),
+}
+```

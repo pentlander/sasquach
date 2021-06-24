@@ -49,7 +49,7 @@ public class Main {
         }
     }
 
-    private static void saveBytecodeToFile(Path outputDir, String className, byte[] byteCode) {
+    public static void saveBytecodeToFile(Path outputDir, String className, byte[] byteCode) {
         try  {
             var filepath = outputDir.resolve(className + ".class");
             Files.createDirectories(outputDir);
