@@ -2,13 +2,17 @@ package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
 
-public record FunctionParameter(String name, Type type, Range.Single identifierRange, Range.Single typeRange) implements Expression {
-    @Override
-    public Range range() {
-        return identifierRange.join(typeRange);
+public record FunctionParameter(Identifier id, Type type, Range.Single typeRange) implements Expression {
+    public String name() {
+        return id.name();
     }
 
-    public Identifier toIdentifier() {
-        return new Identifier(name, type, identifierRange);
+    @Override
+    public Range range() {
+        return id.range().join(typeRange);
+    }
+
+    public VarReference toReference() {
+        return new VarReference(id, type);
     }
 }

@@ -166,9 +166,9 @@ class BytecodeGenerator implements Opcodes {
                 } else {
                     methodVisitor.visitVarInsn(ASTORE, idx);
                 }
-            } else if (expression instanceof Identifier id) {
-                int idx = scope.findIdentifierIdx(id.name());
-                generateLoadVar(methodVisitor, id.type(), idx);
+            } else if (expression instanceof VarReference varReference) {
+                int idx = scope.findIdentifierIdx(varReference.name());
+                generateLoadVar(methodVisitor, varReference.type(), idx);
             } else if (expression instanceof Value value) {
                 var type = value.type();
                 var literal = value.value();
@@ -217,7 +217,7 @@ class BytecodeGenerator implements Opcodes {
                 funcCall.arguments().forEach(arg -> generate(arg, scope));
                 String descriptor = DescriptorFactory.getMethodDescriptor(funcCall.signature());
                 Type owner = Objects.requireNonNullElseGet(funcCall.owner(), () -> new ClassType(scope.getClassName()));
-                methodVisitor.visitMethodInsn(INVOKESTATIC, owner.internalName(), funcCall.functionName(), descriptor, false);
+                methodVisitor.visitMethodInsn(INVOKESTATIC, owner.internalName(), funcCall.name(), descriptor, false);
             } else if (expression instanceof BinaryExpression binExpr) {
                 generate(binExpr.left(), scope);
                 generate(binExpr.right(), scope);

@@ -2,7 +2,7 @@ package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
 
-public interface Use {
+public interface Use extends Node {
     String name();
     String alias();
 
