@@ -8,19 +8,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public record Struct(String name, List<Use> useList, List<Field> fields, List<Function> functions, Type type,
+public record Struct(Scope scope, String name, List<Use> useList, List<Field> fields, List<Function> functions,
+                     Type type,
                      StructKind structKind,
                      Range range) implements Expression {
 
-  public static Struct literalStruct(List<Field> fields, List<Function> functions, Range range) {
+  public static Struct literalStruct(Scope scope, List<Field> fields, List<Function> functions, Range range) {
     var type = new StructType(typeFromFields(fields));
-    return new Struct(type.typeName(), List.of(), fields, functions, type, StructKind.LITERAL, range);
+    return new Struct(scope, type.typeName(), List.of(), fields, functions, type, StructKind.LITERAL, range);
   }
 
-  public static Struct moduleStruct(String name, List<Use> useList, List<Field> fields, List<Function> functions,
+  public static Struct moduleStruct(Scope scope, String name, List<Use> useList, List<Field> fields,
+                                    List<Function> functions,
                                     Range range) {
     var type = new StructType(name, typeFromFields(fields));
-    return new Struct(name, useList, fields, functions, type, StructKind.MODULE, range);
+    return new Struct(scope, name, useList, fields, functions, type, StructKind.MODULE, range);
   }
 
   private static Map<String, Type> typeFromFields(List<Field> fields) {

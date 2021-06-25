@@ -30,6 +30,11 @@ How do we handle private in structs? It might only make sense to allow it in mod
 can't think of a usecase for private fields/funcs in anon structs. Should test this out more. 
 Maybe modules are still structs, but slightly special due to this. 
 
+## Compiler Pipeline
+ANTLR -> AST -> AstValidator -> TypeResolver -> BytecodeGeneration
+Should the AstValidator and TypeResolver be flipped? E.g. TypeResolver cannot resolve a VarReference 
+to a variable or function that hasn't been declared yet, so current order seems to make sense.
+
 # Example Future Code
 
 ## Result Type
