@@ -1,3 +1,16 @@
+# Design Choices
+
+## Module functions require types
+Top level functions on modules require type annotations. The main reasoning is that it greatly 
+simplifies the function compilation and linkage process. If the parameters and return types are 
+inferred, it means that a minor change in the code can alter a parameter type or the return type
+while the user is writing code even if they mean for it to be the same. This can cascade to other
+code dependent on the function, altering their types and rippling out further. Having a stable 
+type signature ensures those rippling effects only occur when the signature is actually changed,
+thus making the compiler friendlier to incremental changes and IDEs. It also makes type 
+resolution more parallelizable since there is no need to recursively resolve the types of other 
+functions being called.
+
 # To Investigate
 
 ## Indy for lazy anonymous struct creation
@@ -59,6 +72,7 @@ mod Result {
 ## Types
 * https://lobste.rs/s/9rrxbh/on_types#c_qanywm
 * https://old.reddit.com/r/ProgrammingLanguages/comments/nqm6rf/on_the_merits_of_low_hanging_fruit/h0cqvuy/
+* https://www.oilshell.org/blog/2020/04/release-0.8.pre4.html#dependency-inversion-leads-to-pure-interpreters
 
 ## IDE
 * https://rust-analyzer.github.io/blog/2020/07/20/three-architectures-for-responsive-ide.html
@@ -76,3 +90,12 @@ mod Result {
 ### invokedynamic
 * https://blogs.oracle.com/javamagazine/understanding-java-method-invocation-with-invokedynamic
 * https://blogs.oracle.com/javamagazine/behind-the-scenes-how-do-lambda-expressions-really-work-in-java
+* https://silo.tips/download/structural-typing-on-the-java-virtual-machine-with-invokedynamic
+* https://github.com/bpd/kale/blob/master/src/kale/runtime/Bootstrap.java
+* https://docs.oracle.com/en/java/javase/16/docs/api/jdk.dynalink/module-summary.html
+* https://github.com/fangyuchen86/jsr292-cookbook
+* http://wiki.jvmlangsummit.com/images/9/93/2011_Forax.pdf
+
+## Performance
+* https://blog.nelhage.com/post/reflections-on-performance/
+* https://blog.nelhage.com/post/why-sorbet-is-fast/
