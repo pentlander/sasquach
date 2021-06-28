@@ -53,3 +53,26 @@ mod Result {
   Err = (error: E): Err[E] -> (:err, error),
 }
 ```
+
+# References
+
+## Types
+* https://lobste.rs/s/9rrxbh/on_types#c_qanywm
+* https://old.reddit.com/r/ProgrammingLanguages/comments/nqm6rf/on_the_merits_of_low_hanging_fruit/h0cqvuy/
+
+## IDE
+* https://rust-analyzer.github.io/blog/2020/07/20/three-architectures-for-responsive-ide.html
+* https://www.youtube.com/watch?v=wSdV1M7n4gQ
+* https://www.youtube.com/watch?v=N6b44kMS6OM
+* https://www.youtube.com/watch?v=lubc8udiP_8&list=PLX8CzqL3ArzVnxC6PYxMlngEMv3W1pIkn&index=8
+* https://github.com/pikelet-lang/pikelet/issues/103
+
+## JVM Bytecode
+* Compiling for the JVM - https://docs.oracle.com/javase/specs/jvms/se16/html/jvms-3.html
+* Classfile format - https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html
+* JVM instruction set - https://docs.oracle.com/javase/specs/jvms/se16/html/jvms-6.html
+* https://wuciawe.github.io/jvm/2017/03/04/notes-on-jvm-bytecode.html
+
+### invokedynamic
+* https://blogs.oracle.com/javamagazine/understanding-java-method-invocation-with-invokedynamic
+* https://blogs.oracle.com/javamagazine/behind-the-scenes-how-do-lambda-expressions-really-work-in-java
