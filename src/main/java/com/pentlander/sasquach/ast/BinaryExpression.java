@@ -10,11 +10,6 @@ public interface BinaryExpression extends Expression {
     Expression left();
     Expression right();
 
-    @Override
-    default Type type() {
-        return left().type();
-    }
-
     enum MathOperator {
         PLUS("+"), MINUS("-"), TIMES("*"), DIVIDE("/");
 
@@ -56,9 +51,5 @@ public interface BinaryExpression extends Expression {
     record MathExpression(MathOperator operator, Expression left, Expression right, Range range) implements BinaryExpression {}
 
     record CompareExpression(CompareOperator compareOperator, Expression left, Expression right, Range range) implements BinaryExpression {
-        @Override
-        public Type type() {
-            return BuiltinType.BOOLEAN;
-        }
     }
 }

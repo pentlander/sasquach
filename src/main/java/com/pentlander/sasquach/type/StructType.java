@@ -14,7 +14,7 @@ public record StructType(String typeName, Map<String, Type> fieldTypes) implemen
 
   @Override
   public Class<?> typeClass() {
-    return null;
+    throw new IllegalStateException();
   }
 
   @Override

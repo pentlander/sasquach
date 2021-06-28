@@ -1,9 +1,7 @@
 package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.*;
-import com.pentlander.sasquach.type.BuiltinType;
-import com.pentlander.sasquach.type.ClassType;
-import com.pentlander.sasquach.type.Type;
+import com.pentlander.sasquach.type.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -16,21 +14,22 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 
+import static com.pentlander.sasquach.Fixtures.*;
 import static com.pentlander.sasquach.ast.BinaryExpression.*;
-import static com.pentlander.sasquach.ast.ForeignFunctionCall.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class BytecodeGeneratorTest {
-    private static final String MOD_NAME = "Test";
     private static final Range.Single NR = new Range.Single(new Position(1, 1), 1);
 
     private SasquachClassloader cl;
     private Scope scope;
+    private TypeResolver typeResolver;
 
     @BeforeEach
     void setUp() {
         cl = new SasquachClassloader();
-        scope = new Scope(new Metadata(MOD_NAME));
+        scope = Scope.topLevel(new Metadata(MOD_NAME));
+        typeResolver = new TypeResolver();
     }
 
     @ParameterizedTest
@@ -94,10 +93,10 @@ class BytecodeGeneratorTest {
 
         private <T> T declResult(Type type, Expression expr) throws Exception {
             var varDecl = new VariableDeclaration(id("bar"), expr, 0, NR);
+            scope.addIdentifier(varDecl.id());
             var block = new Block(scope,
-                    List.of(varDecl), VarReference.of("bar", type, NR), NR);
+                    List.of(varDecl), VarReference.of("bar", NR), NR);
             var func = func(scope, "foo", List.of(), type, block);
-            scope.addIdentifier(varDecl.id(), varDecl.type());
 
             var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
             return invokeFirst(clazz, null);
@@ -108,12 +107,12 @@ class BytecodeGeneratorTest {
     class ForeignFunctionCalls {
         @Test
         void constructor() throws Exception {
-            var type = new ClassType( "java.lang.StringBuilder");
-            var call = new ForeignFunctionCall(id("StringBuilder"), id("<init>"), List.of(stringValue("hi")), "(Ljava" +
-                    "/lang/String;)V",
-                    FunctionCallType.SPECIAL,
-                    type,
-                    type.internalName(), NR);
+            var className = "java.lang.StringBuilder";
+            var alias = "StringBuilder";
+            scope.addUse(new Use.Foreign(className, id(alias), NR));
+            var type = new ClassType(className);
+            var call = new ForeignFunctionCall(id(alias), id("new"), List.of(stringValue("hi")),
+                    NR);
             var func = func(scope, "baz", List.of(), type, call);
 
             var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
@@ -124,18 +123,15 @@ class BytecodeGeneratorTest {
 
         @Test
         void staticFunc() throws Exception {
+            scope.addUse(new Use.Foreign("java.nio.file.Paths", id("Paths"), NR));
             var type = new ClassType( "java.nio.file.Path");
             List<Expression> args = List.of(stringValue("hi.txt"),
                     ArrayValue.ofElementType(BuiltinType.STRING, List.of(), NR));
-            var call = new ForeignFunctionCall(id("Path"), id("get"), args, "(Ljava/lang/String;" +
-                    "[Ljava/lang/String;)" +
-                    "Ljava/nio/file/Path;",
-                    FunctionCallType.STATIC,
-                    type,
-                    "java/nio/file/Paths", NR);
+            var call = new ForeignFunctionCall(id("Paths"), id("get"), args,
+                    NR);
             var func = func(scope, "baz", List.of(), type, call);
 
-            var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
+            var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)), true);
             Path result = invokeFirst(clazz, null);
 
             assertThat(result).isEqualTo(Paths.get("hi.txt"));
@@ -143,12 +139,10 @@ class BytecodeGeneratorTest {
 
         @Test
         void virtualFunc() throws Exception {
+            scope.addUse(new Use.Foreign("java.lang.String", id("String"), NR));
             List<Expression> args = List.of(stringValue("he"), stringValue("llo"));
-            var call = new ForeignFunctionCall(id("String"), id("concat"), args, "(Ljava/lang/String;)" +
-                    "Ljava/lang/String;",
-                    FunctionCallType.VIRTUAL,
-                    BuiltinType.STRING,
-                    "java/lang/String", NR);
+            var call = new ForeignFunctionCall(id("String"), id("concat"), args,
+                    NR);
             var func = func(scope, "baz", List.of(), BuiltinType.STRING, call);
 
             var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
@@ -175,7 +169,7 @@ class BytecodeGeneratorTest {
         var id = id("f1");
         var boolField = new Struct.Field(id, boolValue("true"));
         var struct = Struct.literalStruct(scope, List.of(boolField), List.of(), NR);
-        var func = func(scope, "foo", List.of(), struct.type(), struct);
+        var func = func(scope, "foo", List.of(), typeResolver.resolveExprType(struct, scope), struct);
 
         var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
         Object result = invokeFirst(clazz, null);
@@ -242,7 +236,7 @@ class BytecodeGeneratorTest {
     private FunctionParameter param(String name, Type type) {
         var id = id(name);
         var param = new FunctionParameter(id, new TypeNode(type, NR), NR);
-        scope.addIdentifier(param.id(), type);
+        scope.addIdentifier(param.id());
         return param;
     }
 
@@ -256,7 +250,8 @@ class BytecodeGeneratorTest {
     }
 
     private Class<?> genClass(CompilationUnit compilationUnit, boolean dumpClasses) throws Exception {
-        var result = new BytecodeGenerator().generateBytecode(compilationUnit);
+        typeResolver.resolve(compilationUnit);
+        var result = new BytecodeGenerator(typeResolver).generateBytecode(compilationUnit);
         if (dumpClasses) {
             dumpGeneratedClasses(result.generatedBytecode());
         }
@@ -279,26 +274,4 @@ class BytecodeGeneratorTest {
                 new ModuleDeclaration(MOD_NAME, Struct.moduleStruct(scope, MOD_NAME, useList, fields, functions, NR)));
     }
 
-    private static Identifier id(String name) {
-        return new Identifier(name, NR);
-    }
-
-    private static Function func(Scope scope, String name, List<FunctionParameter> functionParameters,
-                                 Type returnType, Expression expression) {
-        return new Function(scope, id(name), new FunctionSignature(functionParameters, new TypeNode(returnType, NR),
-                NR),
-                expression);
-    }
-
-    private static Value intValue(String value) {
-        return new Value(BuiltinType.INT, value, NR);
-    }
-
-    private static Value boolValue(String value) {
-        return new Value(BuiltinType.BOOLEAN, value, NR);
-    }
-
-    private static Value stringValue(String value) {
-        return new Value(BuiltinType.STRING, value, NR);
-    }
 }

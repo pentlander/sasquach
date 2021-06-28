@@ -11,9 +11,4 @@ public record VariableDeclaration(Identifier id, Expression expression, int inde
     public Range.Single nameRange() {
         return id.range();
     }
-
-    @Override
-    public Type type() {
-        return expression.type();
-    }
 }

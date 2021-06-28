@@ -2,13 +2,13 @@ package com.pentlander.sasquach;
 
 import java.util.List;
 
-record Source(List<String> sourceLines) {
+public record Source(List<String> sourceLines) {
 
   static String underline(Range.Single range, int offset) {
     return " ".repeat(range.start().column() + offset) + "^".repeat(range.length());
   }
 
-  String highlight(Range range) {
+  public String highlight(Range range) {
     if (range instanceof Range.Single single){
       var lineStr = String.valueOf(range.start().line());
       return lineNumber(single.start().line())

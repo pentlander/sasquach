@@ -2,14 +2,22 @@ package com.pentlander.sasquach.type;
 
 import java.lang.invoke.MethodHandles;
 
-public record ClassType(String typeName) implements Type {
-    @Override
-    public Class<?> typeClass() {
+public record ClassType(Class<?> typeClass) implements Type {
+    public ClassType(String typeName) {
+        this(lookup(typeName));
+    }
+
+    private static Class<?> lookup(String typeName) {
         try {
             return MethodHandles.lookup().findClass(typeName.replace("/", "."));
         } catch (ClassNotFoundException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public String typeName() {
+        return typeClass.getName();
     }
 
     @Override
@@ -19,6 +27,6 @@ public record ClassType(String typeName) implements Type {
 
     @Override
     public String internalName() {
-        return typeName.replace(".", "/");
+        return typeName().replace(".", "/");
     }
 }

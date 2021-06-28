@@ -11,9 +11,4 @@ public record FunctionCall(Identifier id, FunctionSignature signature, List<Expr
     public String name() {
         return id.name();
     }
-
-    @Override
-    public Type type() {
-        return signature().returnType();
-    }
 }

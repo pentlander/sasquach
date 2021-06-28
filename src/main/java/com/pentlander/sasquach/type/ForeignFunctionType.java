@@ -1,13 +1,10 @@
 package com.pentlander.sasquach.type;
 
-import com.pentlander.sasquach.ast.ForeignFunctionCall;
+import com.pentlander.sasquach.ast.FunctionCallType;
 
-import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
-import java.util.List;
-import java.util.stream.Collectors;
 
-public record ForeignFunctionType(MethodType methodType, ForeignFunctionCall.FunctionCallType callType) implements Type {
+public record ForeignFunctionType(MethodType methodType, Type ownerType, FunctionCallType callType) implements Type {
     @Override
     public String typeName() {
         return methodType.toString();
