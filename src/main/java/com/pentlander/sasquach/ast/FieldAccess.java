@@ -17,10 +17,4 @@ public record FieldAccess(Expression expr, Identifier id) implements Expression 
   public Range range() {
     return expr.range().join(id.range());
   }
-
-  @Override
-  public Type type() {
-    var t = (StructType) expr.type();
-    return t.fieldTypes().get(fieldName());
-  }
 }

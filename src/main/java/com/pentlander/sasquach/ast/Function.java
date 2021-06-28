@@ -12,11 +12,6 @@ public record Function(Scope scope, Identifier id, FunctionSignature functionSig
     }
 
     @Override
-    public Type type() {
-        return returnType();
-    }
-
-    @Override
     public Range range() {
         return nameRange().join(expression.range());
     }

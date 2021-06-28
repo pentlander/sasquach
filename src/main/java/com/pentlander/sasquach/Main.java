@@ -1,18 +1,20 @@
 package com.pentlander.sasquach;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ser.FilterProvider;
 import com.pentlander.sasquach.ast.CompilationUnit;
-import java.io.FileOutputStream;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.pentlander.sasquach.type.TypeResolver;
 import org.antlr.v4.runtime.ANTLRFileStream;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
@@ -26,7 +28,6 @@ public class Main {
     public static void main(String[] args) throws Exception {
         try {
             var sasquachPath = Paths.get(args[0]);
-            var filename = sasquachPath.getFileName().toString();
             var compilationUnit = new Parser().getCompilationUnit(sasquachPath);
             var source = new Source(Files.readAllLines(sasquachPath));
             var validator = new AstValidator(compilationUnit, source);
@@ -38,11 +39,29 @@ public class Main {
                 System.exit(1);
             }
 
-            var bytecode = new BytecodeGenerator().generateBytecode(compilationUnit);
+            var resolver = new TypeResolver();
+            var typeErrors = resolver.resolve(compilationUnit);
+            if (!typeErrors.isEmpty()) {
+                for (Error typeError : typeErrors) {
+                    System.out.printf("error: %s\n", typeError.toPrettyString(source));
+                }
+                System.exit(1);
+            }
+
+            var bytecode = new BytecodeGenerator(resolver).generateBytecode(compilationUnit);
 //            System.out.println(
 //                OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(compilationUnit));
+            var outputPath = Paths.get("out");
+            Files.walkFileTree(outputPath, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                    throws IOException {
+                    Files.delete(file);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
             bytecode.generatedBytecode().forEach(
-                (name, byteCode) -> saveBytecodeToFile(Paths.get("out"), name, byteCode));
+                (name, byteCode) -> saveBytecodeToFile(outputPath, name, byteCode));
         } catch (Exception e) {
             System.err.println(e);
             e.printStackTrace();

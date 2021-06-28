@@ -2,28 +2,33 @@ package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.*;
 
+import java.lang.invoke.MethodHandle;
 import java.util.*;
 
-import com.pentlander.sasquach.type.BuiltinType;
-import com.pentlander.sasquach.type.ClassType;
-import com.pentlander.sasquach.type.StructType;
-import com.pentlander.sasquach.type.Type;
+import com.pentlander.sasquach.type.*;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
-import static com.pentlander.sasquach.ast.ForeignFunctionCall.*;
+import static com.pentlander.sasquach.BytecodeGenerator.ClassGenerator.constructorType;
+import static com.pentlander.sasquach.ast.FunctionCallType.*;
 import static com.pentlander.sasquach.ast.Struct.*;
 import static java.util.stream.Collectors.joining;
 
 class BytecodeGenerator implements Opcodes {
+    private final TypeFetcher typeFetcher;
+
+    BytecodeGenerator(TypeFetcher typeFetcher) {
+        this.typeFetcher = typeFetcher;
+    }
+
     record BytecodeResult(Map<String, byte[]> generatedBytecode) {
     }
 
     public BytecodeResult generateBytecode(CompilationUnit compilationUnit) throws Exception {
         ModuleDeclaration moduleDeclaration = compilationUnit.module();
-        var classGen = new ClassGenerator();
+        var classGen = new ClassGenerator(typeFetcher);
         var generatedBytecode = new HashMap<String, byte[]>();
         classGen.generate(moduleDeclaration).forEach((name, cw) -> generatedBytecode.put(name, cw.toByteArray()));
 
@@ -35,25 +40,45 @@ class BytecodeGenerator implements Opcodes {
         private static final int CLASS_VERSION = V16;
         private final ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
         private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
+        private final TypeFetcher typeFetcher;
+
+        ClassGenerator(TypeFetcher typeFetcher) {
+            this.typeFetcher = typeFetcher;
+        }
 
         public Map<String, ClassWriter> generate(ModuleDeclaration moduleDeclaration) {
             generateStruct(moduleDeclaration.struct());
             return generatedClasses;
         }
 
+        private Type type(Expression expression) {
+            return typeFetcher.getType(expression);
+        }
+
+        private Type type(Identifier identifier) {
+            return typeFetcher.getType(identifier);
+        }
+
+        static FunctionType constructorType(String ownerName, List<Field> fields,
+            TypeFetcher typeFetcher) {
+            return new FunctionType(ownerName, fields.stream().map(typeFetcher::getType).toList(),
+                BuiltinType.VOID);
+        }
+
         private void generateStruct(Struct struct) {
-            var name = struct.name();
-            generatedClasses.put(name, classWriter);
-            classWriter.visit(CLASS_VERSION, ACC_PUBLIC, name, null, "java/lang/Object", null);
+            var structName = type(struct).typeName();
+            generatedClasses.put(structName, classWriter);
+            classWriter.visit(CLASS_VERSION, ACC_PUBLIC, structName, null, "java/lang/Object", null);
             List<Field> fields = struct.fields();
             // Generate fields
             for (var field : fields) {
-                var fv = classWriter.visitField(ACC_PUBLIC + ACC_FINAL, field.name(), field.type().descriptor(), null, null);
+                var fv = classWriter.visitField(ACC_PUBLIC + ACC_FINAL, field.name(), type(field).descriptor(),
+                        null, null);
                 fv.visitEnd();
             }
 
             // Generate constructor
-            var initDescriptor = DescriptorFactory.getMethodDescriptor(fields, BuiltinType.VOID);
+            var initDescriptor = constructorType(structName, fields, typeFetcher).descriptor();
             var mv = classWriter.visitMethod(ACC_PUBLIC, "<init>", initDescriptor, null, null);
             mv.visitCode();
             mv.visitVarInsn(ALOAD, 0);
@@ -63,8 +88,8 @@ class BytecodeGenerator implements Opcodes {
             for (int i = 0; i < fields.size(); i++) {
                 var field = fields.get(i);
                 mv.visitVarInsn(ALOAD, 0);
-                ExpressionGenerator.generateLoadVar(mv, field.type(), i + 1);
-                mv.visitFieldInsn(PUTFIELD, name, field.name(), field.type().descriptor());
+                ExpressionGenerator.generateLoadVar(mv, type(field), i + 1);
+                mv.visitFieldInsn(PUTFIELD, structName, field.name(), type(field).descriptor());
             }
             mv.visitInsn(RETURN);
 
@@ -72,15 +97,15 @@ class BytecodeGenerator implements Opcodes {
                 var field = classWriter.visitField(
                         ACC_PUBLIC + ACC_FINAL + ACC_STATIC,
                         INSTANCE_FIELD,
-                        struct.type().descriptor(),
+                        type(struct).descriptor(),
                         null,
                         null);
                 field.visitEnd();
 
                 var smv = classWriter.visitMethod(ACC_STATIC, "<clinit>", "()V", null, null);
                 smv.visitCode();
-                new ExpressionGenerator(smv).generateStructInit(struct, Scope.NULL_SCOPE);
-                smv.visitFieldInsn(PUTSTATIC, name, INSTANCE_FIELD, struct.type().descriptor());
+                new ExpressionGenerator(smv, typeFetcher).generateStructInit(struct, Scope.NULL_SCOPE);
+                smv.visitFieldInsn(PUTSTATIC, structName, INSTANCE_FIELD, type(struct).descriptor());
                 smv.visitInsn(RETURN);
                 smv.visitMaxs(-1, -1);
                 smv.visitEnd();
@@ -95,14 +120,14 @@ class BytecodeGenerator implements Opcodes {
         }
 
         private void generateFunction(ClassWriter classWriter, Function function) {
-            String descriptor = DescriptorFactory.getMethodDescriptor(function);
-            MethodVisitor methodVisitor = classWriter.visitMethod(ACC_PUBLIC + ACC_STATIC, function.name(), descriptor, null, null);
+            var funcType = type(function.id());
+            var methodVisitor = classWriter.visitMethod(ACC_PUBLIC + ACC_STATIC, function.name(), funcType.descriptor(), null, null);
             methodVisitor.visitCode();
-            var exprGenerator = new ExpressionGenerator(methodVisitor);
+            var exprGenerator = new ExpressionGenerator(methodVisitor, typeFetcher);
             var returnExpr = function.returnExpression();
             if (returnExpr != null) {
                 exprGenerator.generate(returnExpr, function.scope());
-                Type type = returnExpr.type();
+                Type type = type(returnExpr);
                 if (type instanceof BuiltinType builtinType) {
                     int opcode = switch (builtinType) {
                         case BOOLEAN, INT, CHAR, BYTE, SHORT -> IRETURN;
@@ -130,12 +155,23 @@ class BytecodeGenerator implements Opcodes {
     }
 
     static class ExpressionGenerator {
-        private final MethodVisitor methodVisitor;
         private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
+        private final MethodVisitor methodVisitor;
+        private final TypeFetcher typeFetcher;
 
-        ExpressionGenerator(MethodVisitor methodVisitor) {
+        ExpressionGenerator(MethodVisitor methodVisitor, TypeFetcher typeFetcher) {
             this.methodVisitor = methodVisitor;
+            this.typeFetcher = typeFetcher;
         }
+
+        private Type type(Expression expression) {
+            return typeFetcher.getType(expression);
+        }
+
+        private Type type(Identifier identifier) {
+            return typeFetcher.getType(identifier);
+        }
+
 
         public Map<String, ClassWriter> getGeneratedClasses() {
             return Map.copyOf(generatedClasses);
@@ -146,14 +182,14 @@ class BytecodeGenerator implements Opcodes {
                 methodVisitor.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
                 var expr = printStatement.expression();
                 generate(expr, scope);
-                String descriptor = "(%s)V".formatted(expr.type().descriptor());
+                String descriptor = "(%s)V".formatted(type(expr).descriptor());
                 ClassType owner = new ClassType("java.io.PrintStream");
                 methodVisitor.visitMethodInsn(INVOKEVIRTUAL, owner.internalName(), "println", descriptor, false);
             } else if (expression instanceof VariableDeclaration varDecl) {
                 var varDeclExpr = varDecl.expression();
                 int idx = scope.findIdentifierIdx(varDecl.name());
                 generate(varDeclExpr, scope);
-                var type = varDeclExpr.type();
+                var type = type(varDeclExpr);
                 if (type instanceof BuiltinType builtinType) {
                     Integer opcode = switch (builtinType) {
                         case BOOLEAN, INT, BYTE, CHAR, SHORT -> ISTORE;
@@ -172,9 +208,9 @@ class BytecodeGenerator implements Opcodes {
                 }
             } else if (expression instanceof VarReference varReference) {
                 int idx = scope.findIdentifierIdx(varReference.name());
-                generateLoadVar(methodVisitor, varReference.type(), idx);
+                generateLoadVar(methodVisitor, type(varReference), idx);
             } else if (expression instanceof Value value) {
-                var type = value.type();
+                var type = type(value);
                 var literal = value.value();
                 if (type instanceof BuiltinType builtinType) {
                     switch (builtinType) {
@@ -219,9 +255,9 @@ class BytecodeGenerator implements Opcodes {
                 }
             } else if (expression instanceof FunctionCall funcCall) {
                 funcCall.arguments().forEach(arg -> generate(arg, scope));
-                String descriptor = DescriptorFactory.getMethodDescriptor(funcCall.signature());
-                Type owner = Objects.requireNonNullElseGet(funcCall.owner(), () -> new ClassType(scope.getClassName()));
-                methodVisitor.visitMethodInsn(INVOKESTATIC, owner.internalName(), funcCall.name(), descriptor, false);
+                var funcType = (FunctionType) type(scope.findFunction(funcCall.name()).id());
+                methodVisitor.visitMethodInsn(INVOKESTATIC, funcType.ownerName(), funcCall.name(),
+                    funcType.descriptor(), false);
             } else if (expression instanceof BinaryExpression binExpr) {
                 generate(binExpr.left(), scope);
                 generate(binExpr.right(), scope);
@@ -263,13 +299,13 @@ class BytecodeGenerator implements Opcodes {
                 generate(ifExpr.falseExpression(), scope);
                 methodVisitor.visitLabel(endLabel);
             } else if (expression instanceof Struct struct) {
-                var classGen = new ClassGenerator();
+                var classGen = new ClassGenerator(typeFetcher);
                 classGen.generateStruct(struct);
                 generatedClasses.putAll(classGen.getGeneratedClasses());
 
                 generateStructInit(struct, scope);
             } else if (expression instanceof FieldAccess fieldAccess) {
-                if (fieldAccess.expr().type() instanceof StructType structType) {
+                if (type(fieldAccess.expr()) instanceof StructType structType) {
                     generate(fieldAccess.expr(), scope);
                     methodVisitor.visitFieldInsn(GETFIELD, structType.typeName(), fieldAccess.fieldName(), structType.fieldTypes().get(fieldAccess.fieldName()).descriptor());
                 } else {
@@ -279,31 +315,35 @@ class BytecodeGenerator implements Opcodes {
             } else if (expression instanceof Block block) {
                 generateBlock(block);
             } else if (expression instanceof ForeignFunctionCall foreignFuncCall) {
-                if (foreignFuncCall.functionCallType() == FunctionCallType.SPECIAL) {
-                    methodVisitor.visitTypeInsn(NEW, foreignFuncCall.owner());
+                var foreignFuncCallType = typeFetcher.getType(foreignFuncCall.classAlias(), foreignFuncCall.functionName());
+                String owner = foreignFuncCallType.ownerType().internalName();
+                if (foreignFuncCallType.callType() == SPECIAL) {
+                    methodVisitor.visitTypeInsn(NEW, owner);
                     methodVisitor.visitInsn(DUP);
                 }
                 foreignFuncCall.arguments().forEach(arg -> generate(arg, scope));
 
-                String descriptor = foreignFuncCall.methodDescriptor();
-                String owner = foreignFuncCall.owner();
-                int opCode = switch (foreignFuncCall.functionCallType()) {
+                var foreignFuncType = typeFetcher.getType(foreignFuncCall.classAlias(), foreignFuncCall.functionName());
+                int opCode = switch (foreignFuncCallType.callType()) {
                     case SPECIAL -> INVOKESPECIAL;
                     case STATIC -> INVOKESTATIC;
                     case VIRTUAL -> INVOKEVIRTUAL;
                 };
-                methodVisitor.visitMethodInsn(opCode, owner, foreignFuncCall.name(), descriptor, false);
+                var funcName = foreignFuncCall.name().equals("new") ? "<init>" : foreignFuncCall.name();
+                methodVisitor.visitMethodInsn(opCode, owner, funcName, foreignFuncType.descriptor(), false);
             } else {
                 throw new IllegalStateException("Unrecognized expression: " + expression);
             }
         }
 
         private void generateStructInit(Struct struct, Scope scope) {
-            methodVisitor.visitTypeInsn(NEW, struct.name());
+            var structName = type(struct).typeName();
+            methodVisitor.visitTypeInsn(NEW, structName);
             methodVisitor.visitInsn(DUP);
             struct.fields().forEach(field -> generate(field.value(), scope));
-            var initDescriptor = DescriptorFactory.getMethodDescriptor(struct.fields(), BuiltinType.VOID);
-            methodVisitor.visitMethodInsn(INVOKESPECIAL, struct.name(), "<init>", initDescriptor, false);
+            var initDescriptor =
+                constructorType(structName, struct.fields(), typeFetcher).descriptor();
+            methodVisitor.visitMethodInsn(INVOKESPECIAL, structName, "<init>", initDescriptor, false);
         }
 
         private static void generateLoadVar(MethodVisitor methodVisitor, Type type, int idx) {
@@ -334,24 +374,6 @@ class BytecodeGenerator implements Opcodes {
             if (block.returnExpression() != null) {
                 generate(block.returnExpression(), block.scope());
             }
-        }
-    }
-
-    static class DescriptorFactory {
-        public static String getMethodDescriptor(Function function) {
-            return getMethodDescriptor(function.functionSignature());
-        }
-
-        public static String getMethodDescriptor(FunctionSignature signature) {
-            return getMethodDescriptor(signature.parameters().stream().map(FunctionParameter::toReference).toList(),
-                    signature.returnType());
-        }
-
-        public static String getMethodDescriptor(Collection<? extends Expression> parameters, Type returnType) {
-            String paramDescriptor = parameters.stream()
-                    .map(param -> param.type().descriptor())
-                    .collect(joining("", "(", ")"));
-            return paramDescriptor + returnType.descriptor();
         }
     }
 }

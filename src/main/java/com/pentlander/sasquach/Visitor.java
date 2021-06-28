@@ -9,11 +9,7 @@ import com.pentlander.sasquach.ast.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.ast.BinaryExpression.MathOperator;
 import com.pentlander.sasquach.ast.Struct.Field;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
-import java.lang.reflect.Modifier;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
@@ -25,16 +21,15 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
 import static com.pentlander.sasquach.SasquachParser.*;
-import static com.pentlander.sasquach.ast.ForeignFunctionCall.*;
 import static com.pentlander.sasquach.ast.Struct.*;
 
 public class Visitor {
   public static Range rangeFrom(ParserRuleContext context) {
-    Token start = context.start;
-    Token end = context.stop;
+    Token start = context.getStart();
+    Token end = context.getStop();
     var pos = new Position(start.getLine(), start.getCharPositionInLine());
     if (start.getLine() == end.getLine()) {
-      return new Range.Single(pos, start.getText().length());
+      return new Range.Single(pos, end.getCharPositionInLine() - start.getCharPositionInLine() + 1);
     }
     return new Range.Multi(
         pos, new Position(end.getLine(), end.getCharPositionInLine() + end.getText().length()));
@@ -82,7 +77,7 @@ public class Visitor {
           ctx.functionDeclaration().accept(new FunctionSignatureVisitor());
       funcSignature
           .parameters()
-          .forEach(param -> scope.addIdentifier(param.id(), param.type()));
+          .forEach(param -> scope.addIdentifier(param.id()));
 
       var expr = ctx.expression().accept(new ExpressionVisitor(scope));
 
@@ -100,7 +95,7 @@ public class Visitor {
     @Override
     public Expression visitVarReference(VarReferenceContext ctx) {
       var name = ctx.getText();
-      return VarReference.of(name, scope.findIdentifierType(name).orElseThrow(), rangeFrom(ctx.ID()));
+      return VarReference.of(name, rangeFrom(ctx.ID()));
     }
 
     @Override
@@ -166,7 +161,7 @@ public class Visitor {
       var idName = ctx.ID().getText();
       Expression expr = ctx.expression().accept(new ExpressionVisitor(scope));
       var identifier = new Identifier(idName, rangeFrom(ctx.ID()));
-      scope.addIdentifier(identifier, expr.type());
+      scope.addIdentifier(identifier);
       return new VariableDeclaration(identifier, expr, ctx.index, rangeFrom(ctx));
     }
 
@@ -194,51 +189,16 @@ public class Visitor {
       }
       var use = scope.findUse(classAlias).orElseThrow();
       if (use instanceof Use.Foreign foreignUse) {
-        Type classType = new ClassType(foreignUse.qualifiedName());
-        List<Class<?>> argClasses = arguments.stream().map(arg -> arg.type().typeClass()).collect(Collectors.toList());
-        String funcName = sourceFuncName;
-        Type returnType = null;
-        String methodDescriptor = null;
-        FunctionCallType callType = null;
-        if (sourceFuncName.equals("new")) {
-          returnType = classType;
-          callType = FunctionCallType.SPECIAL;
-          try {
-            funcName = "<init>";
-            var handle = MethodHandles.lookup().findConstructor(classType.typeClass(), MethodType.methodType(void.class,
-                    argClasses));
-            methodDescriptor = handle.type().changeReturnType(void.class).toMethodDescriptorString();
-          } catch (NoSuchMethodException|IllegalAccessException e) {
-            throw new RuntimeException(e);
-          }
-        } else {
-          try {
-            var method = classType.typeClass().getMethod(sourceFuncName,
-                    argClasses.stream().skip(1).toList().toArray(new Class<?>[]{}));
-            callType = Modifier.isStatic(method.getModifiers()) ? FunctionCallType.STATIC : FunctionCallType.VIRTUAL;
-            var handle = MethodHandles.lookup().unreflect(method).type();
-            if (callType == FunctionCallType.VIRTUAL) {
-              // Drop the "this" for the call since it's implied by the owner
-              handle = handle.dropParameterTypes(0, 1);
-            }
-            methodDescriptor = handle.toMethodDescriptorString();
-            returnType = new ClassType(handle.returnType().getName());
-          } catch (NoSuchMethodException|IllegalAccessException e) {
-            throw new RuntimeException(e);
-          }
-        }
         var classAliasId = new Identifier(classAlias, rangeFrom(ctx.varReference().ID()));
-        var funcId = new Identifier(funcName, (Range.Single) foreignUse.range());
-        return new ForeignFunctionCall(classAliasId, funcId, arguments, methodDescriptor, callType, returnType,
-                classType.internalName(),
-                rangeFrom(ctx));
+        var funcId = new Identifier(sourceFuncName, (Range.Single) foreignUse.range());
+        return new ForeignFunctionCall(classAliasId, funcId, arguments, rangeFrom(ctx));
       }
       throw new IllegalStateException();
     }
 
     @Override
     public Expression visitBlock(BlockContext ctx) {
-      var blockScope = new Scope(scope);
+      var blockScope = Scope.forBlock(scope);
       var exprVisitor = new ExpressionVisitor(blockScope);
       List<Expression> expressions =
               ctx.blockStatement().stream()
@@ -306,13 +266,13 @@ public class Visitor {
     }
 
     public static StructVisitor forModule(String name) {
-      return new StructVisitor(new Scope(new Metadata(name)), name, StructKind.MODULE);
+      return new StructVisitor(Scope.topLevel(new Metadata(name)), name, StructKind.MODULE);
     }
 
     public static StructVisitor forLiteral(Scope parentScope) {
       // TODO: Set the metadata at the end of the visitStruct func so struct methods work properly
       // TODO: Figure out how to reference parent scope from struct literal
-      return new StructVisitor(new Scope(new Metadata("null")), null, StructKind.LITERAL);
+      return new StructVisitor(Scope.topLevel(new Metadata("null")), null, StructKind.LITERAL);
     }
 
     @Override

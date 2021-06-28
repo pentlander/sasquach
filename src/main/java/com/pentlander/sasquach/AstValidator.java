@@ -39,16 +39,6 @@ public class AstValidator {
                 existingFunction.nameRange(),
                 function.nameRange())));
       }
-      // Check that func return expression matches the return type of the function
-      if (function.returnExpression() != null
-          && !function.returnType().equals(function.returnExpression().type())) {
-        errors.add(
-            new TypeMismatchError(
-                "Return value of type '%s' does not match function return type '%s'"
-                    .formatted(
-                        exprTypeName(function.returnExpression()),
-                        function.returnType().typeName()), function.returnExpression().range()));
-      }
 
       errors.addAll(validateFunctionParameters(function.name(), function.parameters()));
       errors.addAll(validateExpression(function.expression()));
@@ -80,15 +70,6 @@ public class AstValidator {
                   funcCall.arguments().size(),
                   source.highlight(funcCall.range()),
                   source.highlight(funcCall.signature().range()))));
-        } else {
-          for (int i = 0; i < params.size(); i++) {
-            var arg = funcCall.arguments().get(i);
-            var param = params.get(i);
-            if (!arg.type().equals(param.type())) {
-              errors.add(new TypeMismatchError("Expected arg of type '%s', but found type '%s'".formatted(param.type().typeName(),
-                      exprTypeName(arg)), arg.range()));
-            }
-          }
         }
       } else if (expr instanceof VariableDeclaration varDecl) {
         variables.computeIfAbsent(varDecl.name(), k -> new ArrayList<>()).add(varDecl);
@@ -105,7 +86,7 @@ public class AstValidator {
     return errors;
   }
 
-  record SizeMismatchError(String message, Range range) implements Error {
+  record SizeMismatchError(String message, Range range) implements RangedError {
     @Override
     public String toPrettyString(Source source) {
       return message + "\n" + source.highlight(null);
@@ -126,21 +107,12 @@ public class AstValidator {
     return errors;
   }
 
-  private String exprTypeName(Expression expression) {
-    return expression.type().typeName();
-  }
-
-  record TypeMismatchError(String message, Range range) implements Error {
+  record DuplicationError(String message, List<Range.Single> ranges) implements RangedError {
     @Override
-    public String toPrettyString(Source source) {
-      return """
-          %s
-          %s
-          """.formatted(message, source.highlight(range));
+    public Range range() {
+      return ranges.get(0);
     }
-  }
 
-  record DuplicationError(String message, List<Range.Single> ranges) implements Error {
     @Override
     public String toPrettyString(Source source) {
       var firstRange = ranges.get(0);

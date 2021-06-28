@@ -1,45 +1,29 @@
 package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.type.StructType;
-import com.pentlander.sasquach.type.Type;
 
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
-public record Struct(Scope scope, String name, List<Use> useList, List<Field> fields, List<Function> functions,
-                     Type type,
+public record Struct(Scope scope, Optional<String> name, List<Use> useList, List<Field> fields,
+                     List<Function> functions,
                      StructKind structKind,
                      Range range) implements Expression {
 
   public static Struct literalStruct(Scope scope, List<Field> fields, List<Function> functions, Range range) {
-    var type = new StructType(typeFromFields(fields));
-    return new Struct(scope, type.typeName(), List.of(), fields, functions, type, StructKind.LITERAL, range);
+    return new Struct(scope, Optional.empty(), List.of(), fields, functions, StructKind.LITERAL, range);
   }
 
   public static Struct moduleStruct(Scope scope, String name, List<Use> useList, List<Field> fields,
                                     List<Function> functions,
                                     Range range) {
-    var type = new StructType(name, typeFromFields(fields));
-    return new Struct(scope, name, useList, fields, functions, type, StructKind.MODULE, range);
-  }
-
-  private static Map<String, Type> typeFromFields(List<Field> fields) {
-    return fields.stream().collect(Collectors.toMap(Field::name, Field::type));
-  }
-
-  public String name() {
-    return type().typeName();
+    return new Struct(scope, Optional.of(name), useList, fields, functions, StructKind.MODULE, range);
   }
 
   public record Field(Identifier id, Expression value) implements Expression {
     public String name() {
       return id.name();
-    }
-
-    public Type type() {
-      return value.type();
     }
 
     @Override

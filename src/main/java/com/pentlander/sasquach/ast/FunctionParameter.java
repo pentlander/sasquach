@@ -18,6 +18,6 @@ public record FunctionParameter(Identifier id, TypeNode typeNode, Range.Single t
     }
 
     public VarReference toReference() {
-        return new VarReference(id, type());
+        return new VarReference(id);
     }
 }
