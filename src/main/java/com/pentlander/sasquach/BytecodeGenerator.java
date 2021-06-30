@@ -2,19 +2,25 @@ package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.*;
 
-import java.lang.invoke.MethodHandle;
+import com.pentlander.sasquach.runtime.StructBase;
+import com.pentlander.sasquach.runtime.StructDispatch;
+import java.lang.invoke.CallSite;
+import java.lang.invoke.MethodHandles.Lookup;
+import java.lang.invoke.MethodType;
 import java.util.*;
 
 import com.pentlander.sasquach.type.*;
+import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
+import static com.pentlander.sasquach.BytecodeGenerator.ClassGenerator.STRUCT_BASE_INTERNAL_NAME;
 import static com.pentlander.sasquach.BytecodeGenerator.ClassGenerator.constructorType;
 import static com.pentlander.sasquach.ast.FunctionCallType.*;
 import static com.pentlander.sasquach.ast.Struct.*;
-import static java.util.stream.Collectors.joining;
 
 class BytecodeGenerator implements Opcodes {
     private final TypeFetcher typeFetcher;
@@ -36,9 +42,12 @@ class BytecodeGenerator implements Opcodes {
     }
 
     static class ClassGenerator {
+        static final String STRUCT_BASE_INTERNAL_NAME =
+            new ClassType(StructBase.class).internalName();
         private static final String INSTANCE_FIELD = "INSTANCE";
         private static final int CLASS_VERSION = V16;
-        private final ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
+        private final ClassWriter classWriter =
+            new ClassWriter(ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
         private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
         private final TypeFetcher typeFetcher;
 
@@ -68,7 +77,8 @@ class BytecodeGenerator implements Opcodes {
         private void generateStruct(Struct struct) {
             var structName = type(struct).typeName();
             generatedClasses.put(structName, classWriter);
-            classWriter.visit(CLASS_VERSION, ACC_PUBLIC, structName, null, "java/lang/Object", null);
+            classWriter.visit(CLASS_VERSION, ACC_PUBLIC, structName, null, "java/lang/Object",
+                new String[] {STRUCT_BASE_INTERNAL_NAME});
             List<Field> fields = struct.fields();
             // Generate fields
             for (var field : fields) {
@@ -307,7 +317,16 @@ class BytecodeGenerator implements Opcodes {
             } else if (expression instanceof FieldAccess fieldAccess) {
                 if (type(fieldAccess.expr()) instanceof StructType structType) {
                     generate(fieldAccess.expr(), scope);
-                    methodVisitor.visitFieldInsn(GETFIELD, structType.typeName(), fieldAccess.fieldName(), structType.fieldTypes().get(fieldAccess.fieldName()).descriptor());
+                    var fieldDescriptor =
+                        structType.fieldTypes().get(fieldAccess.fieldName()).descriptor();
+                    var desc = MethodType.methodType(CallSite.class, List.of(Lookup.class,
+                        String.class,
+                        MethodType.class)).descriptorString();
+                    var handle = new Handle(H_INVOKESTATIC,
+                        new ClassType(StructDispatch.class).internalName(), "bootstrap", desc,
+                        false);
+                    methodVisitor.visitInvokeDynamicInsn(fieldAccess.fieldName(),
+                        "(L%s;)%s".formatted(STRUCT_BASE_INTERNAL_NAME, fieldDescriptor), handle);
                 } else {
                     throw new IllegalStateException();
                 }

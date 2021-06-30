@@ -1,9 +1,10 @@
 package com.pentlander.sasquach.type;
 
 import java.util.Arrays;
+import java.util.NoSuchElementException;
 
 public enum BuiltinType implements Type {
-    BOOLEAN("bool", boolean.class, "Z"),
+    BOOLEAN("boolean", boolean.class, "Z"),
     INT("int", int.class, "I"),
     CHAR("char", char.class, "C"),
     BYTE("byte", byte.class, "B"),
@@ -29,7 +30,7 @@ public enum BuiltinType implements Type {
         return Arrays.stream(BuiltinType.values())
                 .filter(type -> type.name.equals(value))
                 .findFirst()
-                .orElseThrow();
+                .orElseThrow(() -> new NoSuchElementException(value));
     }
 
     @Override

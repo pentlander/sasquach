@@ -10,6 +10,7 @@ import com.pentlander.sasquach.ast.Struct.Field;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -177,6 +178,22 @@ class TypeResolverTest {
       assertErrorRange(call);
     }
 
+  }
+
+  @Nested
+  class StructTypeTest {
+    @Test
+    void structWithExtraFieldsIsAssignable() {
+      var argFields = List
+          .of(new Field(id("foo"), stringValue("str")), new Field(id("bar"), intValue("10")),
+              new Field(id("baz"), boolValue("true")));
+      var struct = Struct.literalStruct(scope, argFields, List.of(), range());
+      var argType = resolveExpr(struct);
+
+      var paramType = new StructType(Map.of("foo", BuiltinType.STRING, "bar", BuiltinType.INT));
+
+      assertThat(argType.isAssignableTo(paramType)).isTrue();
+    }
   }
 
   private Type resolveExpr(Expression expr) {

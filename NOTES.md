@@ -48,6 +48,9 @@ ANTLR -> AST -> AstValidator -> TypeResolver -> BytecodeGeneration
 Should the AstValidator and TypeResolver be flipped? E.g. TypeResolver cannot resolve a VarReference 
 to a variable or function that hasn't been declared yet, so current order seems to make sense.
 
+## Affine types
+Essentially meant variable that can be used at most once. Might instead want vars that can be used exactly once. These types are useful for concurrency and IO management, e.g. once a File is passed into a function it can't be used again in the current scope.
+
 # Example Future Code
 
 ## Result Type
@@ -73,6 +76,7 @@ mod Result {
 * https://lobste.rs/s/9rrxbh/on_types#c_qanywm
 * https://old.reddit.com/r/ProgrammingLanguages/comments/nqm6rf/on_the_merits_of_low_hanging_fruit/h0cqvuy/
 * https://www.oilshell.org/blog/2020/04/release-0.8.pre4.html#dependency-inversion-leads-to-pure-interpreters
+* Row Polymorphism - https://news.ycombinator.com/item?id=13047934
 
 ## IDE
 * https://rust-analyzer.github.io/blog/2020/07/20/three-architectures-for-responsive-ide.html
