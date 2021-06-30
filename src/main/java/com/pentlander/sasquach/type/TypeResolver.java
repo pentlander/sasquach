@@ -164,10 +164,10 @@ public class TypeResolver implements TypeFetcher {
             for (int i = 0; i < argTypes.size(); i++) {
                 var argType = argTypes.get(i);
                 var paramType = funcType.parameterTypes().get(i);
-                if (!argType.equals(paramType)) {
+                if (!argType.isAssignableTo(paramType)) {
                     return addError(new TypeMismatchError(
                         "Argument type '%s' does not match parameter type '%s'"
-                            .formatted(argType.typeName(), paramType.typeName()),
+                            .formatted(argType.toPrettyString(), paramType.toPrettyString()),
                         funcCall.arguments().get(i).range()));
                 }
             }

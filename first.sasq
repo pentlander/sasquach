@@ -1,8 +1,8 @@
-first {
+First {
     use foreign java/io/File,
 
     gee = (arg: { bar: int, foo: string }, otherArg: string): void -> {
-        let toPrint = if (arg.bar < 0) arg.foo else otherArg
+        let toPrint = if (arg.bar > 0) arg.foo else otherArg
         print toPrint
     },
 
@@ -10,10 +10,13 @@ first {
 
     main = (args: string[]): void -> {
         let second = { baze = "something else", func = (str: string): void -> { print str } }
-        let first = { foo = "hi", bar = 45 }
+        let first = { foo = "first", bar = 45 }
+        let third = { fooz = "third", bar = 45, baz = 10 }
         let baz = "hi"
         let file = File.new("test")
         File.exists(file)
-        gee(first, second.baze)
+        gee(first, "testing")
+        gee(first, "testing")
+        gee(third, "testing")
     }
 }

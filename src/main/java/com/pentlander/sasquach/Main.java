@@ -60,6 +60,18 @@ public class Main {
                     return FileVisitResult.CONTINUE;
                 }
             });
+            // TODO: Come up with non-hacky way to copy over the runtime files
+            var runtimePath = Paths.get("build/classes/java/main/com/pentlander/sasquach/runtime/");
+            Files.walkFileTree(runtimePath, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                    throws IOException {
+                    var outPath = outputPath.resolve("com/pentlander/sasquach/runtime/");
+                    Files.createDirectories(outPath);
+                    Files.copy(file, outPath.resolve(file.getFileName()));
+                    return FileVisitResult.CONTINUE;
+                }
+            });
             bytecode.generatedBytecode().forEach(
                 (name, byteCode) -> saveBytecodeToFile(outputPath, name, byteCode));
         } catch (Exception e) {

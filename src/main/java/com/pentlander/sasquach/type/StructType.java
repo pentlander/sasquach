@@ -1,5 +1,8 @@
 package com.pentlander.sasquach.type;
 
+import static java.util.stream.Collectors.joining;
+
+import com.pentlander.sasquach.runtime.StructBase;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -19,11 +22,27 @@ public record StructType(String typeName, Map<String, Type> fieldTypes) implemen
 
   @Override
   public String descriptor() {
-    return "L%s;".formatted(internalName());
+    return "L%s;".formatted(StructBase.class.getName().replace('.', '/'));
+//    return "L%s;".formatted(internalName());
   }
 
   @Override
   public String internalName() {
     return typeName().replace(".", "/");
+  }
+
+  @Override
+  public boolean isAssignableTo(Type other) {
+    if (other instanceof StructType structType) {
+      return fieldTypes().entrySet().containsAll(structType.fieldTypes().entrySet());
+    }
+    return false;
+  }
+
+  @Override
+  public String toPrettyString() {
+    return typeName().startsWith("AnonStruct$") ? fieldTypes().entrySet().stream()
+        .map(e -> e.getKey() + ": " + e.getValue().toPrettyString())
+        .collect(joining(", ", "{ ", " }")) : typeName();
   }
 }
