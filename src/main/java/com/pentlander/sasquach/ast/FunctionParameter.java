@@ -3,7 +3,7 @@ package com.pentlander.sasquach.ast;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.type.Type;
 
-public record FunctionParameter(Identifier id, TypeNode typeNode, Range.Single typeRange) implements Node {
+public record FunctionParameter(Identifier id, TypeNode typeNode) implements Node {
     public String name() {
         return id.name();
     }
@@ -14,7 +14,7 @@ public record FunctionParameter(Identifier id, TypeNode typeNode, Range.Single t
 
     @Override
     public Range range() {
-        return id.range().join(typeRange);
+        return id.range().join(typeNode.range());
     }
 
     public VarReference toReference() {

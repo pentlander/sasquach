@@ -1,13 +1,16 @@
 package com.pentlander.sasquach.ast;
 
-import com.pentlander.sasquach.type.Type;
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.OptionalInt;
 
 public class Scope {
     public static final Scope NULL_SCOPE = topLevel(new Metadata("null"));
-    private final Map<String, Identifier> identifiers = new HashMap<>();
-    private final Map<String, Type> identifierTypes = new LinkedHashMap<>();
+    private final Map<String, Identifier> localIdentifiers = new LinkedHashMap<>();
     private final List<Function> functions = new ArrayList<>();
     private final Map<String, Use> useAliases = new LinkedHashMap<>();
     private final Metadata metadata;
@@ -20,8 +23,7 @@ public class Scope {
 
     public static Scope forBlock(Scope parentScope) {
         var scope =  new Scope(parentScope.metadata, parentScope);
-        scope.identifiers.putAll(parentScope.identifiers);
-        scope.identifierTypes.putAll(parentScope.identifierTypes);
+        scope.localIdentifiers.putAll(parentScope.localIdentifiers);
         scope.useAliases.putAll(parentScope.useAliases);
         return scope;
     }
@@ -34,32 +36,32 @@ public class Scope {
         functions.add(function);
     }
 
-    public void addIdentifier(Identifier identifier) {
-        identifiers.put(identifier.name(), identifier);
+    public void addLocalIdentifier(Identifier identifier) {
+        localIdentifiers.put(identifier.name(), identifier);
     }
 
     public void addUse(Use use) {
         useAliases.put(use.alias().name(), use);
     }
 
-    public Optional<Identifier> getIdentifier(String identifierName) {
-        return Optional.ofNullable(identifiers.get(identifierName));
+    public Optional<Identifier> getLocalIdentifier(String identifierName) {
+        return Optional.ofNullable(localIdentifiers.get(identifierName));
     }
 
     public Optional<Use> findUse(String useName) {
         return Optional.ofNullable(useAliases.get(useName));
     }
 
-    public int findIdentifierIdx(String identifierName) {
+    public OptionalInt findLocalIdentifierIdx(String identifierName) {
         int i = 0;
-        for (var name : identifiers.keySet()) {
+        for (var name : localIdentifiers.keySet()) {
             if (name.equals(identifierName)) {
-                return i;
+                return OptionalInt.of(i);
             }
             i++;
         }
 
-        throw new NoSuchElementException(identifierName);
+        return OptionalInt.empty();
     }
 
     public Function findFunction(String functionName) {

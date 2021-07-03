@@ -10,13 +10,13 @@ import java.lang.invoke.MethodType;
 import java.util.*;
 
 import com.pentlander.sasquach.type.*;
-import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
+import static com.pentlander.sasquach.BytecodeGenerator.ClassGenerator.INSTANCE_FIELD;
 import static com.pentlander.sasquach.BytecodeGenerator.ClassGenerator.STRUCT_BASE_INTERNAL_NAME;
 import static com.pentlander.sasquach.BytecodeGenerator.ClassGenerator.constructorType;
 import static com.pentlander.sasquach.ast.FunctionCallType.*;
@@ -33,10 +33,11 @@ class BytecodeGenerator implements Opcodes {
     }
 
     public BytecodeResult generateBytecode(CompilationUnit compilationUnit) throws Exception {
-        ModuleDeclaration moduleDeclaration = compilationUnit.module();
-        var classGen = new ClassGenerator(typeFetcher);
         var generatedBytecode = new HashMap<String, byte[]>();
-        classGen.generate(moduleDeclaration).forEach((name, cw) -> generatedBytecode.put(name, cw.toByteArray()));
+        for (var moduleDeclaration : compilationUnit.modules()) {
+            var classGen = new ClassGenerator(typeFetcher);
+            classGen.generate(moduleDeclaration).forEach((name, cw) -> generatedBytecode.put(name, cw.toByteArray()));
+        }
 
         return new BytecodeResult(generatedBytecode);
     }
@@ -44,7 +45,7 @@ class BytecodeGenerator implements Opcodes {
     static class ClassGenerator {
         static final String STRUCT_BASE_INTERNAL_NAME =
             new ClassType(StructBase.class).internalName();
-        private static final String INSTANCE_FIELD = "INSTANCE";
+        static final String INSTANCE_FIELD = "INSTANCE";
         private static final int CLASS_VERSION = V16;
         private final ClassWriter classWriter =
             new ClassWriter(ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
@@ -75,7 +76,7 @@ class BytecodeGenerator implements Opcodes {
         }
 
         private void generateStruct(Struct struct) {
-            var structName = type(struct).typeName();
+            var structName = type(struct).internalName();
             generatedClasses.put(structName, classWriter);
             classWriter.visit(CLASS_VERSION, ACC_PUBLIC, structName, null, "java/lang/Object",
                 new String[] {STRUCT_BASE_INTERNAL_NAME});
@@ -197,7 +198,7 @@ class BytecodeGenerator implements Opcodes {
                 methodVisitor.visitMethodInsn(INVOKEVIRTUAL, owner.internalName(), "println", descriptor, false);
             } else if (expression instanceof VariableDeclaration varDecl) {
                 var varDeclExpr = varDecl.expression();
-                int idx = scope.findIdentifierIdx(varDecl.name());
+                int idx = scope.findLocalIdentifierIdx(varDecl.name()).orElseThrow();
                 generate(varDeclExpr, scope);
                 var type = type(varDeclExpr);
                 if (type instanceof BuiltinType builtinType) {
@@ -217,8 +218,14 @@ class BytecodeGenerator implements Opcodes {
                     methodVisitor.visitVarInsn(ASTORE, idx);
                 }
             } else if (expression instanceof VarReference varReference) {
-                int idx = scope.findIdentifierIdx(varReference.name());
-                generateLoadVar(methodVisitor, type(varReference), idx);
+                var name = varReference.name();
+                scope.findLocalIdentifierIdx(name)
+                    .ifPresentOrElse(idx -> generateLoadVar(methodVisitor, type(varReference), idx),
+                        () -> scope.findUse(name).ifPresent(use -> methodVisitor.visitFieldInsn(
+                            GETSTATIC,
+                            use.qualifiedName(),
+                            INSTANCE_FIELD,
+                            type(varReference).descriptor())));
             } else if (expression instanceof Value value) {
                 var type = type(value);
                 var literal = value.value();
@@ -263,10 +270,11 @@ class BytecodeGenerator implements Opcodes {
                     generate(expr, scope);
                     methodVisitor.visitInsn(AASTORE);
                 }
-            } else if (expression instanceof FunctionCall funcCall) {
+            } else if (expression instanceof LocalFunctionCall funcCall) {
                 funcCall.arguments().forEach(arg -> generate(arg, scope));
                 var funcType = (FunctionType) type(scope.findFunction(funcCall.name()).id());
-                methodVisitor.visitMethodInsn(INVOKESTATIC, funcType.ownerName(), funcCall.name(),
+                methodVisitor.visitMethodInsn(INVOKESTATIC, funcType.internalOwnerName(),
+                    funcCall.name(),
                     funcType.descriptor(), false);
             } else if (expression instanceof BinaryExpression binExpr) {
                 generate(binExpr.left(), scope);
@@ -334,7 +342,7 @@ class BytecodeGenerator implements Opcodes {
             } else if (expression instanceof Block block) {
                 generateBlock(block);
             } else if (expression instanceof ForeignFunctionCall foreignFuncCall) {
-                var foreignFuncCallType = typeFetcher.getType(foreignFuncCall.classAlias(), foreignFuncCall.functionName());
+                var foreignFuncCallType = typeFetcher.getType(foreignFuncCall.classAlias(), foreignFuncCall.functionId());
                 String owner = foreignFuncCallType.ownerType().internalName();
                 if (foreignFuncCallType.callType() == SPECIAL) {
                     methodVisitor.visitTypeInsn(NEW, owner);
@@ -342,7 +350,7 @@ class BytecodeGenerator implements Opcodes {
                 }
                 foreignFuncCall.arguments().forEach(arg -> generate(arg, scope));
 
-                var foreignFuncType = typeFetcher.getType(foreignFuncCall.classAlias(), foreignFuncCall.functionName());
+                var foreignFuncType = typeFetcher.getType(foreignFuncCall.classAlias(), foreignFuncCall.functionId());
                 int opCode = switch (foreignFuncCallType.callType()) {
                     case SPECIAL -> INVOKESPECIAL;
                     case STATIC -> INVOKESTATIC;
@@ -350,13 +358,22 @@ class BytecodeGenerator implements Opcodes {
                 };
                 var funcName = foreignFuncCall.name().equals("new") ? "<init>" : foreignFuncCall.name();
                 methodVisitor.visitMethodInsn(opCode, owner, funcName, foreignFuncType.descriptor(), false);
+            } else if (expression instanceof StructFunctionCall structFuncCall) {
+//                generate(structFuncCall.structExpression(), scope);
+                structFuncCall.arguments().forEach(arg -> generate(arg, scope));
+                var structType = (StructType) type(structFuncCall.structExpression());
+                var funcType = (FunctionType) Objects
+                    .requireNonNull(structType.fieldTypes().get(structFuncCall.name()));
+                methodVisitor.visitMethodInsn(INVOKESTATIC, funcType.internalOwnerName(),
+                    structFuncCall.functionId().name(),
+                    funcType.descriptor(), false);
             } else {
                 throw new IllegalStateException("Unrecognized expression: " + expression);
             }
         }
 
         private void generateStructInit(Struct struct, Scope scope) {
-            var structName = type(struct).typeName();
+            var structName = type(struct).internalName();
             methodVisitor.visitTypeInsn(NEW, structName);
             methodVisitor.visitInsn(DUP);
             struct.fields().forEach(field -> generate(field.value(), scope));

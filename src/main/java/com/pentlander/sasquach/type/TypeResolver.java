@@ -9,9 +9,9 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static java.util.Objects.*;
+import static java.util.stream.Collectors.*;
 import static java.util.stream.Collectors.joining;
 
 public class TypeResolver implements TypeFetcher {
@@ -19,18 +19,18 @@ public class TypeResolver implements TypeFetcher {
     private final Map<Identifier, Type> idTypes = new HashMap<>();
     private final Map<Expression, Type> exprTypes = new HashMap<>();
     /** Used to handle the resolution of function owner types. */
-    private final Map<String, StructType> structTypes = new HashMap<>();
+    private final Map<String, StructType> moduleTypes = new HashMap<>();
     private final Map<QualifiedFunctionId, ForeignFunctionType> foreignFuncTypes = new HashMap<>();
     private final List<RangedError> errors = new ArrayList<>();
 
     @Override
     public Type getType(Expression expression) {
-        return requireNonNull(exprTypes.get(expression));
+        return requireNonNull(exprTypes.get(expression), expression::toString);
     }
 
     @Override
     public Type getType(Identifier identifier) {
-        return requireNonNull(idTypes.get(identifier));
+        return requireNonNull(idTypes.get(identifier), "Not found: " + identifier);
     }
 
     @Override
@@ -46,8 +46,7 @@ public class TypeResolver implements TypeFetcher {
     }
 
     public List<RangedError> resolve(CompilationUnit compilationUnit) {
-        var struct = compilationUnit.module().struct();
-        resolveExprType(struct, struct.scope());
+        compilationUnit.modules().forEach(this::resolveNodeType);
         return getErrors();
     }
 
@@ -78,7 +77,11 @@ public class TypeResolver implements TypeFetcher {
 
     Type resolveNodeType(Node node) {
         Type type;
-        if (node instanceof Function func) {
+        if (node instanceof ModuleDeclaration moduleDecl) {
+            var struct = moduleDecl.struct();
+            type = resolveExprType(struct, struct.scope());
+            moduleTypes.put(moduleDecl.name(), (StructType) type);
+        } else if (node instanceof Function func) {
             type = resolveFuncType(func);
         } else if (node instanceof FunctionParameter funcParam) {
             type = funcParam.type();
@@ -86,6 +89,9 @@ public class TypeResolver implements TypeFetcher {
         } else if (node instanceof Use.Foreign useForeign) {
             type = new ClassType(useForeign.qualifiedName());
             putIdType(useForeign.alias(), type);
+        } else if (node instanceof Use.Module useModule) {
+          type = requireNonNull(moduleTypes.get(useModule.qualifiedName().replace("/", ".")),
+              "Not found: " + useModule);
         } else {
             throw new IllegalStateException();
         }
@@ -111,8 +117,9 @@ public class TypeResolver implements TypeFetcher {
             putIdType(varDecl.id(), resolveExprType(varDecl.expression(), scope));
             type = BuiltinType.VOID;
         } else if (expr instanceof VarReference varRef) {
-            type = scope.getIdentifier(varRef.name()).flatMap(this::getIdType)
-                .orElseThrow(() -> new IllegalStateException("Id not found: " + varRef));
+            var name = varRef.name();
+            type = scope.getLocalIdentifier(name).flatMap(this::getIdType)
+                .or(() -> scope.findUse(name).map(this::resolveNodeType)).orElseThrow();
         } else if (expr instanceof BinaryExpression binExpr) {
             var leftType = resolveExprType(binExpr.left(), scope);
             var rightType = resolveExprType(binExpr.right(), scope);
@@ -158,20 +165,7 @@ public class TypeResolver implements TypeFetcher {
         } else if (expr instanceof ForeignFunctionCall foreignFuncCall) {
             type = resolveForeignFunctionCall(scope, foreignFuncCall);
         } else if (expr instanceof FunctionCall funcCall) {
-            var argTypes = funcCall.arguments().stream().map(arg -> resolveExprType(arg, scope)).toList();
-            var func = scope.findFunction(funcCall.name());
-            var funcType = resolveFuncType(func);
-            for (int i = 0; i < argTypes.size(); i++) {
-                var argType = argTypes.get(i);
-                var paramType = funcType.parameterTypes().get(i);
-                if (!argType.isAssignableTo(paramType)) {
-                    return addError(new TypeMismatchError(
-                        "Argument type '%s' does not match parameter type '%s'"
-                            .formatted(argType.toPrettyString(), paramType.toPrettyString()),
-                        funcCall.arguments().get(i).range()));
-                }
-            }
-            type = funcType.returnType();
+            type = resolveFunctionCall(scope, funcCall);
         } else if (expr instanceof IfExpression ifExpr) {
             var condtype = resolveExprType(ifExpr.condition(), scope);
             if (!(condtype instanceof BuiltinType builtinType) || builtinType != BuiltinType.BOOLEAN) {
@@ -198,15 +192,12 @@ public class TypeResolver implements TypeFetcher {
             type = BuiltinType.VOID;
         } else if (expr instanceof Struct struct) {
             var structScope = struct.scope();
-            struct.functions().forEach(this::resolveNodeType);
-            var fieldTypes = struct.fields()
-                    .stream()
-                    .peek(field -> resolveExprType(field, structScope))
-                    .collect(Collectors.toMap(Struct.Field::name, field -> requireNonNull(exprTypes.get(field))));
-            var structType =
-                struct.name().map(name -> new StructType(name, fieldTypes)).orElse(new StructType(fieldTypes));
-            structTypes.put(structType.typeName(), structType);
-            type = structType;
+            var fieldTypes = new HashMap<String, Type>();
+            struct.functions().forEach(func -> fieldTypes.put(func.name(), resolveNodeType(func)));
+            struct.fields().forEach(
+                field -> fieldTypes.put(field.name(), resolveExprType(field, structScope)));
+            type = struct.name().map(name -> new StructType(name, fieldTypes))
+                .orElse(new StructType(fieldTypes));
         } else if (expr instanceof Struct.Field field) {
             type = resolveExprType(field.value(), scope);
         } else {
@@ -218,6 +209,61 @@ public class TypeResolver implements TypeFetcher {
         return type;
     }
 
+    private Type resolveFunctionCall(Scope scope, FunctionCall funcCall) {
+        FunctionType funcType;
+        if (funcCall instanceof LocalFunctionCall localFuncCall) {
+            var func = scope.findFunction(localFuncCall.name());
+            funcType = resolveFuncType(func);
+        } else if (funcCall instanceof StructFunctionCall structFuncCall) {
+            var exprType = resolveExprType(structFuncCall.structExpression(), scope);
+            if (exprType instanceof StructType structType) {
+                var funcName = structFuncCall.functionId().name();
+                var fieldType = structType.fieldTypes().get(funcName);
+                if (fieldType instanceof FunctionType fieldFuncType) {
+                    funcType = fieldFuncType;
+                } else if (fieldType == null) {
+                    return addError(new TypeMismatchError(
+                        "Struct of type '%s' has no field named '%s'".formatted(structType.toPrettyString(), funcName),
+                        structFuncCall.range()));
+                } else {
+                    return addError(new TypeMismatchError(
+                        "Field '%s' of type '%s' is not a function".formatted(funcName, fieldType.toPrettyString()),
+                        structFuncCall.functionId().range()));
+                }
+            } else {
+                return addError(new TypeMismatchError(
+                    "Expected field access on type struct, found type '%s'"
+                        .formatted(exprType.toPrettyString()),
+                    structFuncCall.structExpression().range()));
+            }
+        } else {
+            throw new IllegalStateException(funcCall.toString());
+        }
+
+        var argTypes = funcCall.arguments().stream().map(arg -> resolveExprType(arg, scope)).toList();
+        var paramTypes = funcType.parameterTypes();
+        // Handle mismatch between arg count and parameter count
+        if (argTypes.size() != paramTypes.size()) {
+            return addError(new TypeMismatchError(
+                "Function '%s' expects %s arguments but found %s"
+                    .formatted(funcCall.name(), paramTypes.size(), funcCall.arguments().size()),
+                funcCall.range()));
+        }
+        // Handle mismatch between arg types and parameter types
+        for (int i = 0; i < argTypes.size(); i++) {
+            var argType = argTypes.get(i);
+            var paramType = paramTypes.get(i);
+            if (!argType.isAssignableTo(paramType)) {
+                return addError(new TypeMismatchError(
+                    "Argument type '%s' does not match parameter type '%s'"
+                        .formatted(argType.toPrettyString(), paramType.toPrettyString()),
+                    funcCall.arguments().get(i).range()));
+            }
+        }
+
+        return funcType.returnType();
+    }
+
     private Type resolveForeignFunctionCall(Scope scope,
         ForeignFunctionCall funcCall) {
         var use = scope.findUse(funcCall.classAlias().name())
@@ -225,11 +271,11 @@ public class TypeResolver implements TypeFetcher {
         var classType = resolveNodeType(use);
         List<Class<?>> argClasses = funcCall.arguments().stream()
             .map(arg -> resolveExprType(arg, scope).typeClass())
-            .collect(Collectors.toList());
+            .collect(toList());
         var argTypes = argClasses.stream()
             .map(Class::getName)
             .collect(joining(", ", "(", ")"));
-        var funcName = funcCall.functionName().name();
+        var funcName = funcCall.functionId().name();
 
         try {
             if (funcName.equals("new")) {
@@ -270,7 +316,7 @@ public class TypeResolver implements TypeFetcher {
     private void putForeignFuncType(ForeignFunctionCall foreignFunctionCall,
         ForeignFunctionType foreignFunctionType) {
         foreignFuncTypes.put(new QualifiedFunctionId(foreignFunctionCall.classAlias(),
-            foreignFunctionCall.functionName()), foreignFunctionType);
+            foreignFunctionCall.functionId()), foreignFunctionType);
     }
 
     private Type addError(RangedError error) {
@@ -341,5 +387,5 @@ public class TypeResolver implements TypeFetcher {
         }
     }
 
-    private static class UnknownTypeException extends RuntimeException {}
+    static class UnknownTypeException extends RuntimeException {}
 }

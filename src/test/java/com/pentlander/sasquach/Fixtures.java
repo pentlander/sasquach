@@ -19,6 +19,13 @@ public class Fixtures {
         return new Identifier(name, range());
     }
 
+    public static QualifiedIdentifier qualId(String name) {
+        if (name.contains(".")) {
+            throw new IllegalStateException("Qualified name separated by '/' not '.': " + name);
+        }
+        return new QualifiedIdentifier(name, range());
+    }
+
     public static Function func(Scope scope, String name, List<FunctionParameter> functionParameters,
                                 Type returnType, Expression expression) {
         var function = new Function(
@@ -34,11 +41,23 @@ public class Fixtures {
         return new Value(BuiltinType.INT, value, range());
     }
 
+    public static Value intValue(int value) {
+        return new Value(BuiltinType.INT, String.valueOf(value), range());
+    }
+
     public static Value boolValue(String value) {
         return new Value(BuiltinType.BOOLEAN, value, range());
     }
 
+    public static Value boolValue(boolean value) {
+        return new Value(BuiltinType.BOOLEAN, String.valueOf(value), range());
+    }
+
     public static Value stringValue(String value) {
         return new Value(BuiltinType.STRING, value, range());
+    }
+
+    public static TypeNode typeNode(Type type) {
+        return new TypeNode(type, range());
     }
 }

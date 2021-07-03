@@ -1,7 +1,6 @@
 package com.pentlander.sasquach.ast;
 
-public record CompilationUnit(ModuleDeclaration module) {
-    public String getClassName() {
-        return module.name();
-    }
+import java.util.List;
+
+public record CompilationUnit(List<ModuleDeclaration> modules) {
 }

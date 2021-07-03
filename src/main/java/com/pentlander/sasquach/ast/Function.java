@@ -6,7 +6,8 @@ import org.antlr.v4.runtime.misc.Nullable;
 
 import java.util.List;
 
-public record Function(Scope scope, Identifier id, FunctionSignature functionSignature, Expression expression) implements Expression {
+public record Function(Scope scope, Identifier id, FunctionSignature functionSignature,
+                       Expression expression) implements Expression {
     public String name() {
         return id.name();
     }

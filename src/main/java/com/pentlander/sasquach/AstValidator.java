@@ -5,9 +5,8 @@ import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.Expression;
 import com.pentlander.sasquach.ast.Function;
 
-import com.pentlander.sasquach.ast.FunctionCall;
+import com.pentlander.sasquach.ast.LocalFunctionCall;
 import com.pentlander.sasquach.ast.FunctionParameter;
-import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.VariableDeclaration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,23 +24,22 @@ public class AstValidator {
 
   List<Error> validate() {
     var errors = new ArrayList<Error>();
-    ModuleDeclaration module = compilationUnit.module();
-    List<Function> functions = module.struct().functions();
-    var functionNames = new HashMap<String, Function>();
+    for (var module : compilationUnit.modules()) {
+      List<Function> functions = module.struct().functions();
+      var functionNames = new HashMap<String, Function>();
 
-    for (Function function : functions) {
-      Function existingFunction = functionNames.put(function.name(), function);
-      // Check if there are multiple functions with the same name
-      if (existingFunction != null) {
-        errors.add(new DuplicationError(
-            "Function '%s' already defined in module '%s'".formatted(function.name(), module.name()),
-            List.of(
-                existingFunction.nameRange(),
-                function.nameRange())));
+      for (Function function : functions) {
+        Function existingFunction = functionNames.put(function.name(), function);
+        // Check if there are multiple functions with the same name
+        if (existingFunction != null) {
+          errors.add(new DuplicationError("Function '%s' already defined in modules '%s'"
+              .formatted(function.name(), module.name()),
+              List.of(existingFunction.nameRange(), function.nameRange())));
+        }
+
+        errors.addAll(validateFunctionParameters(function.name(), function.parameters()));
+        errors.addAll(validateExpression(function.expression()));
       }
-
-      errors.addAll(validateFunctionParameters(function.name(), function.parameters()));
-      errors.addAll(validateExpression(function.expression()));
     }
 
     return errors;
@@ -60,18 +58,7 @@ public class AstValidator {
     var errors = new ArrayList<Error>();
     var variables = new HashMap<String, List<VariableDeclaration>>();
     for (var expr : block.expressions()) {
-      if (expr instanceof FunctionCall funcCall) {
-        var params = funcCall.signature().parameters();
-        if (funcCall.arguments().size() != params.size()) {
-          errors.add(new BasicError(
-              "Function '%s' expects %s arguments but found %s\n%s\nnote: function defined here\n%s".formatted(
-                  funcCall.name(),
-                  params.size(),
-                  funcCall.arguments().size(),
-                  source.highlight(funcCall.range()),
-                  source.highlight(funcCall.signature().range()))));
-        }
-      } else if (expr instanceof VariableDeclaration varDecl) {
+      if (expr instanceof VariableDeclaration varDecl) {
         variables.computeIfAbsent(varDecl.name(), k -> new ArrayList<>()).add(varDecl);
       }
     }
