@@ -28,4 +28,8 @@ public record FunctionType(String ownerName, List<Type> parameterTypes, Type ret
     public String internalName() {
         throw new IllegalStateException();
     }
+
+    public String internalOwnerName() {
+        return ownerName().replace('.', '/');
+    }
 }

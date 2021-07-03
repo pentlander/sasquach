@@ -7,6 +7,7 @@ import com.pentlander.sasquach.ast.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.ast.BinaryExpression.MathExpression;
 import com.pentlander.sasquach.ast.BinaryExpression.MathOperator;
 import com.pentlander.sasquach.ast.Struct.Field;
+import com.pentlander.sasquach.ast.Use.Module;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
@@ -52,7 +53,7 @@ class TypeResolverTest {
     var varId = id("foo");
 
     var declType = resolveExpr(new VariableDeclaration(varId, stringValue("hi"), 0, range()));
-    scope.addIdentifier(varId);
+    scope.addLocalIdentifier(varId);
     var refType = resolveExpr(new VarReference(id("foo")));
 
     assertThat(declType).isEqualTo(BuiltinType.VOID);
@@ -124,7 +125,7 @@ class TypeResolverTest {
   class ForeignFuncCall {
     @Test
     void constructor() {
-      scope.addUse(new Use.Foreign("java.io.File", id("File"), range()));
+      scope.addUse(new Use.Foreign(qualId("java/io/File"), id("File"), range()));
       var call = new ForeignFunctionCall(id("File"), id("new"), List.of(stringValue("foo.txt")),
           range());
 
@@ -135,7 +136,7 @@ class TypeResolverTest {
 
     @Test
     void staticFunc() {
-      scope.addUse(new Use.Foreign("java.nio.file.Paths", id("Paths"), range()));
+      scope.addUse(new Use.Foreign(qualId("java/nio/file/Paths"), id("Paths"), range()));
       var call = new ForeignFunctionCall(id("Paths"), id("get"),
           List.of(stringValue("foo.txt"),
               ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())), range());
@@ -147,7 +148,7 @@ class TypeResolverTest {
 
     @Test
     void virtualFunc() {
-      scope.addUse(new Use.Foreign("java.lang.String", id("String"), range()));
+      scope.addUse(new Use.Foreign(qualId("java/lang/String"), id("String"), range()));
       var call = new ForeignFunctionCall(id("String"), id("concat"),
           List.of(stringValue("foo"), stringValue("bar")), range());
 
@@ -158,7 +159,7 @@ class TypeResolverTest {
 
     @Test
     void constructorNotFound() {
-      scope.addUse(new Use.Foreign("java.io.File", id("File"), range()));
+      scope.addUse(new Use.Foreign(qualId("java/io/File"), id("File"), range()));
       var call = new ForeignFunctionCall(id("File"), id("new"),
           List.of(intValue("45"), intValue("10")), range());
 
@@ -169,7 +170,7 @@ class TypeResolverTest {
 
     @Test
     void staticFuncNotFound() {
-      scope.addUse(new Use.Foreign("java.nio.file.Paths", id("Paths"), range()));
+      scope.addUse(new Use.Foreign(qualId("java/nio/file/Paths"), id("Paths"), range()));
       var call = new ForeignFunctionCall(id("Paths"), id("get"), List.of(intValue("10"),
           ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())), range());
 
@@ -178,6 +179,121 @@ class TypeResolverTest {
       assertErrorRange(call);
     }
 
+  }
+
+  @Nested
+  class FunctionCallTest {
+    private final Identifier funcId = id("foo");
+    private Function func;
+
+    @BeforeEach
+    void setUp() {
+      func = new Function(scope,
+          funcId,
+          new FunctionSignature(List
+              .of(param("arg1", BuiltinType.STRING), param("arg2", BuiltinType.INT)),
+              typeNode(BuiltinType.BOOLEAN),
+              range()),
+          boolValue(true));
+    }
+
+    private FunctionParameter param(String name, Type type) {
+      return new FunctionParameter(id(name), typeNode(type));
+    }
+
+    @Nested
+    class Local {
+      @BeforeEach
+      void setUp() {
+        scope.addFunction(func);
+      }
+
+      @Test
+      void call() {
+        var call = new LocalFunctionCall(id("foo"),
+            List.of(stringValue("test"), intValue(10)),
+            range());
+
+        var type = resolveExpr(call);
+
+        assertThat(type).isEqualTo(BuiltinType.BOOLEAN);
+      }
+
+      @Test
+      void callBadArgCount() {
+        var callRange = range();
+        var call = new LocalFunctionCall(id("foo"), List.of(stringValue("test")), callRange);
+
+        resolveExpr(call);
+
+        assertErrorRange(callRange);
+      }
+
+      @Test
+      void callBadArgType() {
+        var badArg = stringValue("other");
+        var call = new LocalFunctionCall(id("foo"), List.of(stringValue("test"), badArg), range());
+
+        resolveExpr(call);
+
+        assertErrorRange(badArg.range());
+      }
+    }
+
+    @Nested
+    class StructCall {
+      private final List<Expression> args = List.of(stringValue("test"), intValue(1));
+
+      @Test
+      void call() {
+        var qualifiedName = "base/MyMod";
+        var structScope = Scope.topLevel(new Metadata(qualifiedName));
+        var struct = Struct
+            .moduleStruct(structScope, qualifiedName, List.of(), List.of(), List.of(func), range());
+        scope.addUse(new Use.Module(qualId(qualifiedName), id("MyMod"), range()));
+        var call = new StructFunctionCall(struct, id("foo"), args, range());
+
+        var type = resolveExpr(call);
+
+        assertThat(type).isEqualTo(BuiltinType.BOOLEAN);
+      }
+
+      @Test
+      void callExprNotStruct() {
+        var expr = intValue(10);
+        var call = new StructFunctionCall(expr, id("foo"), args, range());
+
+        resolveExpr(call);
+
+        assertErrorRange(expr);
+      }
+
+      @Test
+      void callFieldNotFunction() {
+        var struct = Struct
+            .literalStruct(Scope.forBlock(scope), List.of(new Field(id("foo"), intValue(10))), List.of(), range());
+        var callFuncId = id("foo");
+        var call = new StructFunctionCall(struct, callFuncId, args, range());
+
+        resolveExpr(call);
+
+        assertErrorRange(callFuncId);
+      }
+
+      @Test
+      void callNoField() {
+        var qualifiedName = "base/MyMod";
+        var structScope = Scope.topLevel(new Metadata(qualifiedName));
+        var struct = Struct
+            .moduleStruct(structScope, qualifiedName, List.of(), List.of(), List.of(func), range());
+        scope.addUse(new Use.Module(qualId(qualifiedName), id("MyMod"), range()));
+        var call = new StructFunctionCall(struct, id("bar"), args, range());
+
+        resolveExpr(call);
+
+        assertErrorRange(call);
+      }
+    }
   }
 
   @Nested

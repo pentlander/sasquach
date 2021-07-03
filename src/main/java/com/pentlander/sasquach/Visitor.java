@@ -45,20 +45,33 @@ public class Visitor {
   }
 
   static class CompilationUnitVisitor extends SasquachBaseVisitor<CompilationUnit> {
+    private final String packageName;
+
+    CompilationUnitVisitor(String packageName) {
+      this.packageName = packageName;
+    }
+
     @Override
     public CompilationUnit visitCompilationUnit(CompilationUnitContext ctx) {
-      ModuleVisitor moduleVisitor = new ModuleVisitor();
-      ModuleDeclaration module = ctx.moduleDeclaration().accept(moduleVisitor);
-      return new CompilationUnit(module);
+      var modules = ctx.moduleDeclaration().stream()
+          .map(moduleDecl -> moduleDecl.accept(new ModuleVisitor(packageName))).toList();
+      return new CompilationUnit(modules);
     }
   }
 
   static class ModuleVisitor extends SasquachBaseVisitor<ModuleDeclaration> {
+    private final String packageName;
+
+    ModuleVisitor(String packageName) {
+      this.packageName = packageName;
+    }
+
     @Override
     public ModuleDeclaration visitModuleDeclaration(ModuleDeclarationContext ctx) {
-      String name = ctx.moduleName().getText();
+      String name = packageName + "." + ctx.moduleName().getText();
       var struct = ctx.struct().accept(StructVisitor.forModule(name));
-      return new ModuleDeclaration(name, struct);
+      return new ModuleDeclaration(new Identifier(name, rangeFrom(ctx.moduleName().ID())), struct,
+          rangeFrom(ctx));
     }
   }
 
@@ -77,7 +90,7 @@ public class Visitor {
           ctx.functionDeclaration().accept(new FunctionSignatureVisitor());
       funcSignature
           .parameters()
-          .forEach(param -> scope.addIdentifier(param.id()));
+          .forEach(param -> scope.addLocalIdentifier(param.id()));
 
       var expr = ctx.expression().accept(new ExpressionVisitor(scope));
 
@@ -116,18 +129,11 @@ public class Visitor {
     @Override
     public Expression visitFunctionCall(FunctionCallContext ctx) {
       String funcName = ctx.functionName().getText();
-      var function = scope.findFunction(funcName);
-      List<ExpressionContext> argExpressions = ctx.expressionList().expression();
-
-      var arguments = new ArrayList<Expression>();
-      for (var argExpressionCtx : argExpressions) {
-        var visitor = new ExpressionVisitor(scope);
-        Expression argument = argExpressionCtx.accept(visitor);
-        arguments.add(argument);
-      }
+      var arguments = ctx.expressionList().expression().stream()
+          .map(argCtx -> argCtx.accept(new ExpressionVisitor(scope))).toList();
 
       var id = new Identifier(funcName, rangeFrom(ctx.functionName().ID()));
-      return new FunctionCall(id, function.functionSignature(), arguments, null, rangeFrom(ctx));
+      return new LocalFunctionCall(id, arguments, rangeFrom(ctx));
     }
 
     @Override
@@ -161,7 +167,7 @@ public class Visitor {
       var idName = ctx.ID().getText();
       Expression expr = ctx.expression().accept(new ExpressionVisitor(scope));
       var identifier = new Identifier(idName, rangeFrom(ctx.ID()));
-      scope.addIdentifier(identifier);
+      scope.addLocalIdentifier(identifier);
       return new VariableDeclaration(identifier, expr, ctx.index, rangeFrom(ctx));
     }
 
@@ -178,20 +184,24 @@ public class Visitor {
 
     @Override
     public Expression visitFunctionAccess(FunctionAccessContext ctx) {
-      var classAlias = ctx.varReference().getText();
       String sourceFuncName = ctx.functionCall().functionName().getText();
-      List<ExpressionContext> argExpressions = ctx.functionCall().expressionList().expression();
+      var argExpressions = ctx.functionCall().expressionList().expression();
       var arguments = new ArrayList<Expression>();
       for (var argExpressionCtx : argExpressions) {
         var visitor = new ExpressionVisitor(scope);
         Expression argument = argExpressionCtx.accept(visitor);
         arguments.add(argument);
       }
+
+      var varReference = (VarReference) ctx.varReference().accept(this);
+      var classAlias = varReference.id().name();
       var use = scope.findUse(classAlias).orElseThrow();
-      if (use instanceof Use.Foreign foreignUse) {
-        var classAliasId = new Identifier(classAlias, rangeFrom(ctx.varReference().ID()));
-        var funcId = new Identifier(sourceFuncName, (Range.Single) foreignUse.range());
+      var classAliasId = varReference.id();
+      var funcId = new Identifier(sourceFuncName, (Range.Single) use.range());
+      if (use instanceof Use.Foreign) {
         return new ForeignFunctionCall(classAliasId, funcId, arguments, rangeFrom(ctx));
+      } else if (use instanceof Use.Module) {
+        return new StructFunctionCall(varReference, funcId, arguments, rangeFrom(ctx));
       }
       throw new IllegalStateException();
     }
@@ -297,16 +307,21 @@ public class Visitor {
             }
           } else if (structStatementCtx instanceof UseStatementContext useStatementCtx) {
             var useCtx = useStatementCtx.use();
-            var importStr = useCtx.QUALIFIED_NAME().getText();
-            int idx = importStr.lastIndexOf('/');
-            var alias = importStr.substring(idx + 1);
+            var qualifiedName = useCtx.qualifiedName().getText();
+            var qualifiedNameIds = useCtx.qualifiedName().ID();
+            var aliasNode = qualifiedNameIds.get(qualifiedNameIds.size() - 1);
+            var aliasId = new Identifier(aliasNode.getText(), rangeFrom(aliasNode));
+            var qualifiedId = new QualifiedIdentifier(qualifiedName,
+                (Range.Single) rangeFrom(useCtx.qualifiedName()));
+            Use use;
             if (useCtx.FOREIGN() != null) {
-              var aliasId = new Identifier(alias, rangeFrom(useCtx.QUALIFIED_NAME()));
-              var use = new Use.Foreign(importStr, aliasId, rangeFrom(useCtx));
-              scope.addUse(use);
-              useList.add(use);
-            }
-          }
+                use = new Use.Foreign(qualifiedId, aliasId, rangeFrom(useCtx));
+              } else {
+                use = new Use.Module(qualifiedId, aliasId, rangeFrom(useCtx));
+              }
+            scope.addUse(use);
+            useList.add(use);
+        }
       }
 
       return switch (structKind) {
@@ -328,7 +343,7 @@ public class Visitor {
       for (FunctionArgumentContext paramCtx : paramsCtx) {
         var type = paramCtx.type().accept(typeVisitor);
         var id = new Identifier(paramCtx.ID().getText(), rangeFrom(paramCtx.ID()));
-        var param = new FunctionParameter(id, type, (Range.Single) rangeFrom(paramCtx.type()));
+        var param = new FunctionParameter(id, type);
         params.add(param);
       }
 

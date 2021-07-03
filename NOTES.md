@@ -77,6 +77,7 @@ mod Result {
 * https://old.reddit.com/r/ProgrammingLanguages/comments/nqm6rf/on_the_merits_of_low_hanging_fruit/h0cqvuy/
 * https://www.oilshell.org/blog/2020/04/release-0.8.pre4.html#dependency-inversion-leads-to-pure-interpreters
 * Row Polymorphism - https://news.ycombinator.com/item?id=13047934
+* Row inference - https://gilmi.me/blog/post/2021/04/10/giml-typing-records
 
 ## IDE
 * https://rust-analyzer.github.io/blog/2020/07/20/three-architectures-for-responsive-ide.html
@@ -103,3 +104,4 @@ mod Result {
 ## Performance
 * https://blog.nelhage.com/post/reflections-on-performance/
 * https://blog.nelhage.com/post/why-sorbet-is-fast/
+* https://shipilev.net/blog/2015/black-magic-method-dispatch/

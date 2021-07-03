@@ -93,7 +93,7 @@ class BytecodeGeneratorTest {
 
         private <T> T declResult(Type type, Expression expr) throws Exception {
             var varDecl = new VariableDeclaration(id("bar"), expr, 0, NR);
-            scope.addIdentifier(varDecl.id());
+            scope.addLocalIdentifier(varDecl.id());
             var block = new Block(scope,
                     List.of(varDecl), VarReference.of("bar", NR), NR);
             var func = func(scope, "foo", List.of(), type, block);
@@ -107,9 +107,9 @@ class BytecodeGeneratorTest {
     class ForeignFunctionCalls {
         @Test
         void constructor() throws Exception {
-            var className = "java.lang.StringBuilder";
+            var className = "java/lang/StringBuilder";
             var alias = "StringBuilder";
-            scope.addUse(new Use.Foreign(className, id(alias), NR));
+            scope.addUse(new Use.Foreign(qualId(className), id(alias), NR));
             var type = new ClassType(className);
             var call = new ForeignFunctionCall(id(alias), id("new"), List.of(stringValue("hi")),
                     NR);
@@ -123,7 +123,7 @@ class BytecodeGeneratorTest {
 
         @Test
         void staticFunc() throws Exception {
-            scope.addUse(new Use.Foreign("java.nio.file.Paths", id("Paths"), NR));
+            scope.addUse(new Use.Foreign(qualId("java/nio/file/Paths"), id("Paths"), NR));
             var type = new ClassType( "java.nio.file.Path");
             List<Expression> args = List.of(stringValue("hi.txt"),
                     ArrayValue.ofElementType(BuiltinType.STRING, List.of(), NR));
@@ -139,7 +139,7 @@ class BytecodeGeneratorTest {
 
         @Test
         void virtualFunc() throws Exception {
-            scope.addUse(new Use.Foreign("java.lang.String", id("String"), NR));
+            scope.addUse(new Use.Foreign(qualId("java/lang/String"), id("String"), NR));
             List<Expression> args = List.of(stringValue("he"), stringValue("llo"));
             var call = new ForeignFunctionCall(id("String"), id("concat"), args,
                     NR);
@@ -155,8 +155,8 @@ class BytecodeGeneratorTest {
     @Test
     void functionCall() throws Exception {
         var calleeFunc = func(scope, "foo", List.of(), BuiltinType.INT, intValue("5"));
-        var callerFunc = func(scope, "baz", List.of(), BuiltinType.INT, new FunctionCall(id("foo"),
-                calleeFunc.functionSignature(),  List.of(), null, NR));
+        var callerFunc = func(scope, "baz", List.of(), BuiltinType.INT, new LocalFunctionCall(id("foo"),
+            List.of(), NR));
 
         var clazz = genClass(compUnit(List.of(), List.of(), List.of(callerFunc, calleeFunc)));
         int result = invokeFirst(clazz, null);
@@ -235,8 +235,8 @@ class BytecodeGeneratorTest {
 
     private FunctionParameter param(String name, Type type) {
         var id = id(name);
-        var param = new FunctionParameter(id, new TypeNode(type, NR), NR);
-        scope.addIdentifier(param.id());
+        var param = new FunctionParameter(id, new TypeNode(type, NR));
+        scope.addLocalIdentifier(param.id());
         return param;
     }
 
@@ -270,8 +270,8 @@ class BytecodeGeneratorTest {
     }
 
     private CompilationUnit compUnit(List<Use> useList, List<Struct.Field> fields, List<Function> functions) {
-        return new CompilationUnit(
-                new ModuleDeclaration(MOD_NAME, Struct.moduleStruct(scope, MOD_NAME, useList, fields, functions, NR)));
+        return new CompilationUnit(List.of(new ModuleDeclaration(id(MOD_NAME),
+            Struct.moduleStruct(scope, MOD_NAME, useList, fields, functions, NR), NR)));
     }
 
 }

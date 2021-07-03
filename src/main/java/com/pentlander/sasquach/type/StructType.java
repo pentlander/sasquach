@@ -6,6 +6,9 @@ import com.pentlander.sasquach.runtime.StructBase;
 import java.util.Map;
 import java.util.Map.Entry;
 
+/**
+ * @param fieldTypes Field types include any value type, as well as functions.
+ */
 public record StructType(String typeName, Map<String, Type> fieldTypes) implements Type {
   public StructType(Map<String, Type> fieldTypes) {
     this("AnonStruct$" + hashFieldTypes(fieldTypes), fieldTypes);

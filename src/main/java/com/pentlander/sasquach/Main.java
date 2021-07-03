@@ -82,8 +82,8 @@ public class Main {
 
     public static void saveBytecodeToFile(Path outputDir, String className, byte[] byteCode) {
         try  {
-            var filepath = outputDir.resolve(className + ".class");
-            Files.createDirectories(outputDir);
+            var filepath = outputDir.resolve(className.replace('.' ,'/') + ".class");
+            Files.createDirectories(filepath.getParent());
             Files.write(filepath, byteCode);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -115,7 +115,8 @@ public class Main {
                 var parser = new SasquachParser(tokenStream);
                 parser.addErrorListener(errorListener);
 
-                var visitor = new Visitor.CompilationUnitVisitor();
+                var packageName = filePath.getFileName().toString().split("\\.")[0];
+                var visitor = new Visitor.CompilationUnitVisitor(packageName);
                 return parser.compilationUnit().accept(visitor);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

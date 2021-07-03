@@ -1,12 +1,13 @@
 grammar Sasquach;
 
 // parser rules
-compilationUnit : moduleDeclaration EOF;
+compilationUnit : moduleDeclaration+ EOF;
 moduleDeclaration : moduleName struct ;
 
 moduleName: ID;
 
-use: USE FOREIGN? QUALIFIED_NAME ;
+qualifiedName : ID ('/' ID)+;
+use: USE FOREIGN? qualifiedName ;
 
 block : '{' (blockStatement)*? (returnExpression=expression)? '}' ;
 function : functionDeclaration expression ;
@@ -17,7 +18,7 @@ functionArgument [ int index ] : ID ':' type ;
 
 type : primitiveType | classType | structType ;
 primitiveType : 'boolean' | 'string' ('[' ']')* | 'char' | 'byte' | 'int' | 'long' | 'float' | 'double' | 'void' ;
-classType : QUALIFIED_NAME ;
+classType : qualifiedName ;
 structType : '{' ID ':' type (',' ID ':' type)* '}' ;
 
 blockStatement locals [ int lastVarIndex ]: variableDeclaration[ $lastVarIndex++ ] | printStatement | expression ;
@@ -88,5 +89,4 @@ RP       : ')' ;
 
 // Identifiers
 ID : [a-zA-Z][a-zA-Z0-9]* ;
-QUALIFIED_NAME : ID ('/' ID)+;
 WS : [ \t\n\r]+ -> skip ;
