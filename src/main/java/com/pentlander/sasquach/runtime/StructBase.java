@@ -1,4 +1,3 @@
 package com.pentlander.sasquach.runtime;
 
-public interface StructBase {
-}
+public interface StructBase {}

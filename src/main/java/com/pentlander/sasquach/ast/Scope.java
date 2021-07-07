@@ -8,7 +8,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalInt;
 
-public class Scope {
+public class Scope implements ScopeReader, ScopeWriter {
     public static final Scope NULL_SCOPE = topLevel(new Metadata("null"));
     private final Map<String, Identifier> localIdentifiers = new LinkedHashMap<>();
     private final List<Function> functions = new ArrayList<>();

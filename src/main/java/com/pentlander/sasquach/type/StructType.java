@@ -20,7 +20,7 @@ public record StructType(String typeName, Map<String, Type> fieldTypes) implemen
 
   @Override
   public Class<?> typeClass() {
-    throw new IllegalStateException();
+    return StructBase.class;
   }
 
   @Override

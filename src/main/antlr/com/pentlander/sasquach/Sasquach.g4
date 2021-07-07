@@ -2,14 +2,14 @@ grammar Sasquach;
 
 // parser rules
 compilationUnit : moduleDeclaration+ EOF;
-moduleDeclaration : moduleName struct ;
+moduleDeclaration : moduleName struct NL* ;
 
 moduleName: ID;
 
 qualifiedName : ID ('/' ID)+;
 use: USE FOREIGN? qualifiedName ;
 
-block : '{' (blockStatement)*? (returnExpression=expression)? '}' ;
+block : '{' NL* blockStatement (NL blockStatement)*  NL* '}' ;
 function : functionDeclaration expression ;
 functionDeclaration locals [ int paramIndex ] : '(' (functionArgument[ $paramIndex++ ])?
     (',' functionArgument[ $paramIndex++ ])* '):' type '->' ;
@@ -19,35 +19,38 @@ functionArgument [ int index ] : ID ':' type ;
 type : primitiveType | classType | structType ;
 primitiveType : 'boolean' | 'string' ('[' ']')* | 'char' | 'byte' | 'int' | 'long' | 'float' | 'double' | 'void' ;
 classType : qualifiedName ;
-structType : '{' ID ':' type (',' ID ':' type)* '}' ;
+structType : '{' NL* ID ':' NL* type (',' NL* ID ':' NL* type)* NL* '}' ;
 
 blockStatement locals [ int lastVarIndex ]: variableDeclaration[ $lastVarIndex++ ] | printStatement | expression ;
 
 variableDeclaration [ int index ] : VARIABLE ID EQUALS expression ;
 varReference : ID ;
-fieldName : ID ;
+memberName : ID ;
+foreignName: ID ;
 printStatement : PRINT expression ;
 ifBlock : IF ifCondition=expression trueBlock=expression (ELSE falseBlock=expression)? ;
-functionCall : functionName LP expressionList RP ;
+functionCall : functionName application ;
 
-expressionList : (expression)? (',' expression)* ;
+expressionList : expression (',' expression)* ;
+application :  LP expressionList RP ;
+
 expression :
     left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
   | left=expression operator=(PLUS|MINUS) right=expression #binaryOperation
   | LP expression RP #parenExpression
   | left=expression operator=(EQ|NEQ|GE|GT|LE|LT) right=expression #compareExpression
-  | varReference '.' functionCall #functionAccess
-  | left=expression '.' right=fieldName #fieldAccess
   | value #valueLiteral
   | struct #structLiteral
   | varReference  #varExpression
   | functionCall #functionExpression
   | ifBlock #ifExpression
+  | foreignName '#' memberName (application)? #foreignMemberAccessExpression
+  | expression '.' memberName (application)? #memberAccessExpression
   | block #blockExpression ;
 
-struct : '{' (structStatement) (',' structStatement)* '}' ;
+struct : '{' NL* structStatement (',' NL* structStatement)* NL* '}' ;
 structStatement : use #useStatement
-  | fieldName EQUALS (expression|function) #identifierStatement ;
+  | memberName EQUALS (expression|function) #identifierStatement ;
 
 value : NUMBER #intLiteral
       | STRING #stringLiteral
@@ -89,4 +92,5 @@ RP       : ')' ;
 
 // Identifiers
 ID : [a-zA-Z][a-zA-Z0-9]* ;
-WS : [ \t\n\r]+ -> skip ;
+NL : '\n' | 'r' '\n'? ;
+WS : [ \t]+ -> skip ;

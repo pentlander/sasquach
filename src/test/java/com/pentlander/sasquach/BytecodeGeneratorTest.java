@@ -2,6 +2,7 @@ package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.*;
 import com.pentlander.sasquach.type.*;
+import java.io.PrintStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -95,7 +96,7 @@ class BytecodeGeneratorTest {
             var varDecl = new VariableDeclaration(id("bar"), expr, 0, NR);
             scope.addLocalIdentifier(varDecl.id());
             var block = new Block(scope,
-                    List.of(varDecl), VarReference.of("bar", NR), NR);
+                    List.of(varDecl, VarReference.of("bar", NR)), NR);
             var func = func(scope, "foo", List.of(), type, block);
 
             var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
@@ -149,6 +150,21 @@ class BytecodeGeneratorTest {
             String result = invokeFirst(clazz, null);
 
             assertThat(result).isEqualTo("hello");
+        }
+    }
+
+    @Nested
+    class ForeignFieldAccessTest {
+        @Test
+        void staticField() throws Exception {
+            scope.addUse(new Use.Foreign(qualId("java/lang/System"), id("System"), NR));
+            var fieldAccess = new ForeignFieldAccess(id("System"), id("out"));
+            var func = func(scope, "foo", List.of(), new ClassType(PrintStream.class), fieldAccess);
+
+            var clazz = genClass(compUnit(func));
+            PrintStream ps = invokeFirst(clazz, null);
+
+            assertThat(ps).isEqualTo(System.out);
         }
     }
 
@@ -274,4 +290,7 @@ class BytecodeGeneratorTest {
             Struct.moduleStruct(scope, MOD_NAME, useList, fields, functions, NR), NR)));
     }
 
+    private CompilationUnit compUnit(Function function) {
+        return compUnit(List.of(), List.of(), List.of(function));
+    }
 }
