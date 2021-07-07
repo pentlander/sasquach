@@ -22,6 +22,7 @@ public class TypeResolver implements TypeFetcher {
     private final Map<String, StructType> moduleTypes = new HashMap<>();
     private final Map<QualifiedFunctionId, ForeignFunctionType> foreignFuncTypes = new HashMap<>();
     private final List<RangedError> errors = new ArrayList<>();
+    private Node nodeResolving = null;
 
     @Override
     public Type getType(Expression expression) {
@@ -46,7 +47,11 @@ public class TypeResolver implements TypeFetcher {
     }
 
     public List<RangedError> resolve(CompilationUnit compilationUnit) {
-        compilationUnit.modules().forEach(this::resolveNodeType);
+        try {
+            compilationUnit.modules().forEach(this::resolveNodeType);
+        } catch (RuntimeException e) {
+            throw new TypeResolutionException("Failed at node: " + nodeResolving, e);
+        }
         return getErrors();
     }
 
@@ -76,6 +81,7 @@ public class TypeResolver implements TypeFetcher {
     }
 
     Type resolveNodeType(Node node) {
+        nodeResolving = node;
         Type type;
         if (node instanceof ModuleDeclaration moduleDecl) {
             var struct = moduleDecl.struct();
@@ -108,6 +114,7 @@ public class TypeResolver implements TypeFetcher {
     }
 
     public Type resolveExprType(Expression expr, Scope scope) {
+        nodeResolving = expr;
         Type type = exprTypes.get(expr);
         if (type != null) return type;
 
@@ -141,11 +148,7 @@ public class TypeResolver implements TypeFetcher {
             type = new ArrayType(arrayVal.elementType());
         } else if (expr instanceof Block block) {
             block.expressions().forEach(e -> resolveExprType(e, block.scope()));
-            if (block.returnExpression() != null) {
-                type = resolveExprType(block.returnExpression(), block.scope());
-            } else {
-                type = BuiltinType.VOID;
-            }
+            type = resolveExprType(block.returnExpression(), block.scope());
         } else if (expr instanceof FieldAccess fieldAccess) {
             var exprType = resolveExprType(fieldAccess.expr(), scope);
             if (exprType instanceof StructType structType) {
@@ -162,6 +165,8 @@ public class TypeResolver implements TypeFetcher {
               type = addError(new TypeMismatchError("Can only access fields on struct types, "
                   + "found type '%s'".formatted(exprType), expr.range()));
             }
+        } else if (expr instanceof ForeignFieldAccess foreignFieldAccess) {
+            type = resolveForeignFieldAccess(scope, foreignFieldAccess);
         } else if (expr instanceof ForeignFunctionCall foreignFuncCall) {
             type = resolveForeignFunctionCall(scope, foreignFuncCall);
         } else if (expr instanceof FunctionCall funcCall) {
@@ -214,7 +219,7 @@ public class TypeResolver implements TypeFetcher {
         if (funcCall instanceof LocalFunctionCall localFuncCall) {
             var func = scope.findFunction(localFuncCall.name());
             funcType = resolveFuncType(func);
-        } else if (funcCall instanceof StructFunctionCall structFuncCall) {
+        } else if (funcCall instanceof MemberFunctionCall structFuncCall) {
             var exprType = resolveExprType(structFuncCall.structExpression(), scope);
             if (exprType instanceof StructType structType) {
                 var funcName = structFuncCall.functionId().name();
@@ -264,11 +269,36 @@ public class TypeResolver implements TypeFetcher {
         return funcType.returnType();
     }
 
+    private Type resolveForeignFieldAccess(Scope scope, ForeignFieldAccess fieldAccess) {
+        var classAlias = fieldAccess.classAlias();
+        var use = scope.findUse(classAlias.name());
+        if (use.isEmpty()) {
+            return addError(new ImportMissingError("Missing import for class '%s'"
+                .formatted(classAlias.name()), fieldAccess.range()));
+        }
+
+        var classType = resolveNodeType(use.get());
+        try {
+            var field = classType.typeClass().getField(fieldAccess.fieldName());
+            var accessKind = Modifier.isStatic(field.getModifiers()) ? FieldAccessKind.STATIC
+                : FieldAccessKind.INSTANCE;
+            return new ForeignFieldType(builtinOrClassType(field.getType()), classType, accessKind);
+        } catch (NoSuchFieldException e) {
+            return addError(new TypeLookupError(
+                "No field '%s' found on class '%s'"
+                    .formatted(fieldAccess.fieldName(), classType.typeClass().getName()),
+                fieldAccess.range()));
+        }
+    }
+
     private Type resolveForeignFunctionCall(Scope scope,
         ForeignFunctionCall funcCall) {
-        var use = scope.findUse(funcCall.classAlias().name())
-            .orElseThrow(() -> new NoSuchElementException(funcCall.classAlias().toString()));
-        var classType = resolveNodeType(use);
+        var use = scope.findUse(funcCall.classAlias().name());
+        if (use.isEmpty()) {
+            return addError(new ImportMissingError("Missing import for class '%s'"
+                .formatted(funcCall.classAlias().name()), funcCall.range()));
+        }
+        var classType = resolveNodeType(use.get());
         List<Class<?>> argClasses = funcCall.arguments().stream()
             .map(arg -> resolveExprType(arg, scope).typeClass())
             .collect(toList());
@@ -290,7 +320,13 @@ public class TypeResolver implements TypeFetcher {
                 for (var method : classType.typeClass().getMethods()) {
                     if (method.getName().equals(funcName)) {
                         var methodType = MethodHandles.lookup().unreflect(method).type();
-                        if (methodType.parameterList().equals(argClasses)) {
+                        boolean argsMatchParams = true;
+                        for (int i = 0; i < methodType.parameterCount(); i++) {
+                            argsMatchParams =
+                                methodType.parameterType(i).isAssignableFrom(argClasses.get(i));
+                            if (!argsMatchParams) break;
+                        }
+                        if (argsMatchParams) {
                             var callType = Modifier.isStatic(method.getModifiers())
                                 ? FunctionCallType.STATIC : FunctionCallType.VIRTUAL;
                             if (callType == FunctionCallType.VIRTUAL) {
@@ -365,6 +401,16 @@ public class TypeResolver implements TypeFetcher {
         }
     }
 
+    record ImportMissingError(String message, Range range) implements RangedError {
+        @Override
+        public String toPrettyString(Source source) {
+            return """
+                    %s
+                    %s
+                    """.formatted(message, source.highlight(range));
+        }
+    }
+
     static class UnknownType implements Type {
         @Override
         public String typeName() {
@@ -388,4 +434,10 @@ public class TypeResolver implements TypeFetcher {
     }
 
     static class UnknownTypeException extends RuntimeException {}
+
+    static class TypeResolutionException extends RuntimeException {
+        public TypeResolutionException(String message, Exception cause) {
+            super(message, cause);
+        }
+    }
 }

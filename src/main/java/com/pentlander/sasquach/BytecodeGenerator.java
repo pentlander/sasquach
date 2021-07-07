@@ -93,7 +93,11 @@ class BytecodeGenerator implements Opcodes {
             var mv = classWriter.visitMethod(ACC_PUBLIC, "<init>", initDescriptor, null, null);
             mv.visitCode();
             mv.visitVarInsn(ALOAD, 0);
-            mv.visitMethodInsn(INVOKESPECIAL, new ClassType("java.lang.Object").internalName(), "<init>", "()V", false);
+            mv.visitMethodInsn(INVOKESPECIAL,
+                new ClassType(Object.class).internalName(),
+                "<init>",
+                "()V",
+                false);
 
             // Set fields in constructor
             for (int i = 0; i < fields.size(); i++) {
@@ -341,6 +345,14 @@ class BytecodeGenerator implements Opcodes {
 
             } else if (expression instanceof Block block) {
                 generateBlock(block);
+            } else if (expression instanceof ForeignFieldAccess fieldAccess) {
+                var fieldType = (ForeignFieldType) typeFetcher.getType(fieldAccess);
+                var opCode = switch (fieldType.accessKind()) {
+                    case INSTANCE -> GETFIELD;
+                    case STATIC -> GETSTATIC;
+                };
+                methodVisitor.visitFieldInsn(opCode, fieldType.ownerType().internalName(),
+                    fieldAccess.fieldName(), fieldType.descriptor());
             } else if (expression instanceof ForeignFunctionCall foreignFuncCall) {
                 var foreignFuncCallType = typeFetcher.getType(foreignFuncCall.classAlias(), foreignFuncCall.functionId());
                 String owner = foreignFuncCallType.ownerType().internalName();
@@ -358,7 +370,7 @@ class BytecodeGenerator implements Opcodes {
                 };
                 var funcName = foreignFuncCall.name().equals("new") ? "<init>" : foreignFuncCall.name();
                 methodVisitor.visitMethodInsn(opCode, owner, funcName, foreignFuncType.descriptor(), false);
-            } else if (expression instanceof StructFunctionCall structFuncCall) {
+            } else if (expression instanceof MemberFunctionCall structFuncCall) {
 //                generate(structFuncCall.structExpression(), scope);
                 structFuncCall.arguments().forEach(arg -> generate(arg, scope));
                 var structType = (StructType) type(structFuncCall.structExpression());
@@ -407,9 +419,6 @@ class BytecodeGenerator implements Opcodes {
 
         private void generateBlock(Block block) {
             block.expressions().forEach(expr -> generate(expr, block.scope()));
-            if (block.returnExpression() != null) {
-                generate(block.returnExpression(), block.scope());
-            }
         }
     }
 }

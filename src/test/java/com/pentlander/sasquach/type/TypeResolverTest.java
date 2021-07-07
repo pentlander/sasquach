@@ -7,7 +7,6 @@ import com.pentlander.sasquach.ast.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.ast.BinaryExpression.MathExpression;
 import com.pentlander.sasquach.ast.BinaryExpression.MathOperator;
 import com.pentlander.sasquach.ast.Struct.Field;
-import com.pentlander.sasquach.ast.Use.Module;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
@@ -251,7 +250,7 @@ class TypeResolverTest {
         var struct = Struct
             .moduleStruct(structScope, qualifiedName, List.of(), List.of(), List.of(func), range());
         scope.addUse(new Use.Module(qualId(qualifiedName), id("MyMod"), range()));
-        var call = new StructFunctionCall(struct, id("foo"), args, range());
+        var call = new MemberFunctionCall(struct, id("foo"), args, range());
 
         var type = resolveExpr(call);
 
@@ -261,7 +260,7 @@ class TypeResolverTest {
       @Test
       void callExprNotStruct() {
         var expr = intValue(10);
-        var call = new StructFunctionCall(expr, id("foo"), args, range());
+        var call = new MemberFunctionCall(expr, id("foo"), args, range());
 
         resolveExpr(call);
 
@@ -273,7 +272,7 @@ class TypeResolverTest {
         var struct = Struct
             .literalStruct(Scope.forBlock(scope), List.of(new Field(id("foo"), intValue(10))), List.of(), range());
         var callFuncId = id("foo");
-        var call = new StructFunctionCall(struct, callFuncId, args, range());
+        var call = new MemberFunctionCall(struct, callFuncId, args, range());
 
         resolveExpr(call);
 
@@ -287,7 +286,7 @@ class TypeResolverTest {
         var struct = Struct
             .moduleStruct(structScope, qualifiedName, List.of(), List.of(), List.of(func), range());
         scope.addUse(new Use.Module(qualId(qualifiedName), id("MyMod"), range()));
-        var call = new StructFunctionCall(struct, id("bar"), args, range());
+        var call = new MemberFunctionCall(struct, id("bar"), args, range());
 
         resolveExpr(call);
 

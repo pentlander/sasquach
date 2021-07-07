@@ -5,6 +5,8 @@ Math {
 First {
     use first/Math,
     use foreign java/io/File,
+    use foreign java/io/PrintStream,
+    use foreign java/lang/System,
 
     gee = (arg: { bar: int, foo: string }, otherArg: string): void -> {
         let toPrint = if (arg.bar > 0) arg.foo else otherArg
@@ -19,8 +21,9 @@ First {
         let third = { foo = "third", bar = 45, baz = 10 }
         let baz = "hi"
         print Math.plus(3, 4)
-        let file = File.new("test")
-        File.exists(file)
+        let file = File#new("test")
+        File#exists(file)
+        PrintStream#println(System#out, second)
         gee(first, "testing")
         gee(first, "testing")
         gee(third, "testing")

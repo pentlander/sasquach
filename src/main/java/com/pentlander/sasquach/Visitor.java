@@ -2,7 +2,6 @@ package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
 import com.pentlander.sasquach.SasquachParser.CompareExpressionContext;
-import com.pentlander.sasquach.SasquachParser.FieldAccessContext;
 import com.pentlander.sasquach.ast.*;
 import com.pentlander.sasquach.ast.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.BinaryExpression.CompareOperator;
@@ -129,8 +128,7 @@ public class Visitor {
     @Override
     public Expression visitFunctionCall(FunctionCallContext ctx) {
       String funcName = ctx.functionName().getText();
-      var arguments = ctx.expressionList().expression().stream()
-          .map(argCtx -> argCtx.accept(new ExpressionVisitor(scope))).toList();
+      var arguments = args(ctx.application());
 
       var id = new Identifier(funcName, rangeFrom(ctx.functionName().ID()));
       return new LocalFunctionCall(id, arguments, rangeFrom(ctx));
@@ -176,34 +174,32 @@ public class Visitor {
       return ctx.accept(StructVisitor.forLiteral(scope));
     }
 
-    @Override
-    public Expression visitFieldAccess(FieldAccessContext ctx) {
-      var expr = ctx.expression().accept(this);
-      return FieldAccess.of(expr, ctx.fieldName().getText(), rangeFrom(ctx.fieldName().ID()));
+    private List<Expression> args(ApplicationContext ctx) {
+      return ctx.expressionList().expression().stream().map(argCtx -> argCtx.accept(this)).toList();
     }
 
     @Override
-    public Expression visitFunctionAccess(FunctionAccessContext ctx) {
-      String sourceFuncName = ctx.functionCall().functionName().getText();
-      var argExpressions = ctx.functionCall().expressionList().expression();
-      var arguments = new ArrayList<Expression>();
-      for (var argExpressionCtx : argExpressions) {
-        var visitor = new ExpressionVisitor(scope);
-        Expression argument = argExpressionCtx.accept(visitor);
-        arguments.add(argument);
+    public Expression visitMemberAccessExpression(MemberAccessExpressionContext ctx) {
+      var expr = ctx.expression().accept(this);
+      var memberId = new Identifier(ctx.memberName().getText(), rangeFrom(ctx.memberName().ID()));
+      if (ctx.application() != null) {
+        var arguments = args(ctx.application());
+        return new MemberFunctionCall(expr, memberId, arguments, rangeFrom(ctx));
+      } else {
+        return new FieldAccess(expr, memberId);
       }
+    }
 
-      var varReference = (VarReference) ctx.varReference().accept(this);
-      var classAlias = varReference.id().name();
-      var use = scope.findUse(classAlias).orElseThrow();
-      var classAliasId = varReference.id();
-      var funcId = new Identifier(sourceFuncName, (Range.Single) use.range());
-      if (use instanceof Use.Foreign) {
-        return new ForeignFunctionCall(classAliasId, funcId, arguments, rangeFrom(ctx));
-      } else if (use instanceof Use.Module) {
-        return new StructFunctionCall(varReference, funcId, arguments, rangeFrom(ctx));
+    @Override
+    public Expression visitForeignMemberAccessExpression(ForeignMemberAccessExpressionContext ctx) {
+      var classAliasId = new Identifier(ctx.foreignName().getText(), rangeFrom(ctx.foreignName().ID()));
+      var memberId = new Identifier(ctx.memberName().getText(), rangeFrom(ctx.memberName().ID()));
+      if (ctx.application() != null) {
+        var arguments = args(ctx.application());
+        return new ForeignFunctionCall(classAliasId, memberId, arguments, rangeFrom(ctx));
+      } else {
+        return new ForeignFieldAccess(classAliasId, memberId);
       }
-      throw new IllegalStateException();
     }
 
     @Override
@@ -214,13 +210,7 @@ public class Visitor {
               ctx.blockStatement().stream()
                       .map(blockCtx -> blockCtx.accept(exprVisitor))
                       .toList();
-
-      Expression returnExpr = null;
-      if (ctx.returnExpression != null) {
-        returnExpr = ctx.returnExpression.accept(exprVisitor);
-      }
-
-      return new Block(blockScope, expressions, returnExpr, rangeFrom(ctx));
+      return new Block(blockScope, expressions, rangeFrom(ctx));
     }
 
     @Override
@@ -292,7 +282,7 @@ public class Visitor {
       var functions = new ArrayList<Function>();
       for (var structStatementCtx : ctx.structStatement()) {
         if (structStatementCtx instanceof IdentifierStatementContext idCtx) {
-            var fieldName = idCtx.fieldName();
+            var fieldName = idCtx.memberName();
             var id = new Identifier(fieldName.getText(), rangeFrom(fieldName.ID()));
             var exprCtx = idCtx.expression();
             var funcCtx = idCtx.function();
