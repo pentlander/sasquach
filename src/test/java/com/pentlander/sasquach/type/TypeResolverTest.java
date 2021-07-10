@@ -307,7 +307,7 @@ class TypeResolverTest {
 
       var paramType = new StructType(Map.of("foo", BuiltinType.STRING, "bar", BuiltinType.INT));
 
-      assertThat(argType.isAssignableTo(paramType)).isTrue();
+      assertThat(paramType.isAssignableFrom(argType)).isTrue();
     }
   }
 

@@ -11,19 +11,23 @@ use: USE FOREIGN? qualifiedName ;
 
 block : '{' NL* blockStatement (NL blockStatement)*  NL* '}' ;
 function : functionDeclaration expression ;
-functionDeclaration locals [ int paramIndex ] : '(' (functionArgument[ $paramIndex++ ])?
-    (',' functionArgument[ $paramIndex++ ])* '):' type '->' ;
+functionDeclaration :
+    ('[' typeIdentifier (',' typeIdentifier)* ']')?
+    functionParameterList ':' type '->' ;
 functionName : ID ;
-functionArgument [ int index ] : ID ':' type ;
+functionArgument : ID ':' type ;
+functionParameterList : '(' (functionArgument)? (',' functionArgument)* ')' ;
 
-type : primitiveType | classType | structType ;
+type : primitiveType | classType | structType | typeIdentifier | functionType ;
 primitiveType : 'boolean' | 'string' ('[' ']')* | 'char' | 'byte' | 'int' | 'long' | 'float' | 'double' | 'void' ;
 classType : qualifiedName ;
 structType : '{' NL* ID ':' NL* type (',' NL* ID ':' NL* type)* NL* '}' ;
+functionType : functionParameterList '->' type ;
 
-blockStatement locals [ int lastVarIndex ]: variableDeclaration[ $lastVarIndex++ ] | printStatement | expression ;
+blockStatement : variableDeclaration | printStatement | expression ;
 
-variableDeclaration [ int index ] : VARIABLE ID EQUALS expression ;
+variableDeclaration : VARIABLE ID EQUALS expression ;
+typeIdentifier: ID ;
 varReference : ID ;
 memberName : ID ;
 foreignName: ID ;
