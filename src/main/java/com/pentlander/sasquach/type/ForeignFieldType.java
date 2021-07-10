@@ -22,7 +22,7 @@ public record ForeignFieldType(Type type, Type ownerType, FieldAccessKind access
   }
 
   @Override
-  public boolean isAssignableTo(Type other) {
-    return type.isAssignableTo(other);
+  public boolean isAssignableFrom(Type other) {
+    return type.isAssignableFrom(other);
   }
 }

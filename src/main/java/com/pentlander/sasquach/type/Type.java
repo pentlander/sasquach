@@ -9,7 +9,7 @@ public interface Type {
 
     String internalName();
 
-    default boolean isAssignableTo(Type other) {
+    default boolean isAssignableFrom(Type other) {
         return this.equals(other);
     }
 

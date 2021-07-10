@@ -2,8 +2,14 @@ Math {
     plus = (a: int, b: int): int -> a + b
 }
 
+Option {
+    some = [T](value: T): { value: T } -> { value = value },
+    map = [T, U](option: { value: T }, mapper: { map: (input: T) -> U }): { value: U } -> { value = mapper.map(option.value) }
+}
+
 First {
     use first/Math,
+    use first/Option,
     use foreign java/io/File,
     use foreign java/io/PrintStream,
     use foreign java/lang/System,
@@ -16,16 +22,11 @@ First {
     bar = (boo: string): string -> "doo",
 
     main = (args: string[]): void -> {
-        let second = { baze = "something else", func = (str: string): void -> { print str } }
-        let first = { foo = "first", bar = 45 }
-        let third = { foo = "third", bar = 45, baz = 10 }
-        let baz = "hi"
-        print Math.plus(3, 4)
-        let file = File#new("test")
-        File#exists(file)
-        PrintStream#println(System#out, second)
-        gee(first, "testing")
-        gee(first, "testing")
+        let third = { foo = "third", bar = 45 }
+        let optStr = Option.some("an option")
+        let optInt = Option.map(optStr, { map = (input: string): int -> 10 })
+        print optInt.value
+        PrintStream#println(System#out, optInt.value)
         gee(third, "testing")
     }
 }

@@ -9,13 +9,17 @@ import java.util.Map.Entry;
 /**
  * @param fieldTypes Field types include any value type, as well as functions.
  */
-public record StructType(String typeName, Map<String, Type> fieldTypes) implements Type {
+public record StructType(String typeName, Map<String, Type> fieldTypes) implements ParameterizedType {
   public StructType(Map<String, Type> fieldTypes) {
     this("AnonStruct$" + hashFieldTypes(fieldTypes), fieldTypes);
   }
 
   private static String hashFieldTypes(Map<String, Type> fieldTypes) {
     return Integer.toHexString(fieldTypes.entrySet().stream().sorted(Entry.comparingByKey()).toList().hashCode());
+  }
+
+  public Type fieldType(String fieldName) {
+    return fieldTypes().get(fieldName);
   }
 
   @Override
@@ -35,9 +39,17 @@ public record StructType(String typeName, Map<String, Type> fieldTypes) implemen
   }
 
   @Override
-  public boolean isAssignableTo(Type other) {
+  public boolean isAssignableFrom(Type other) {
     if (other instanceof StructType structType) {
-      return fieldTypes().entrySet().containsAll(structType.fieldTypes().entrySet());
+      for (var entry : fieldTypes.entrySet()) {
+        var name = entry.getKey();
+        var type = entry.getValue();
+        var otherType = structType.fieldTypes().get(name);
+        if (otherType == null || !type.isAssignableFrom(otherType)) {
+          return false;
+        }
+      }
+      return true;
     }
     return false;
   }

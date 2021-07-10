@@ -51,13 +51,18 @@ class BytecodeGenerator implements Opcodes {
             new ClassWriter(ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
         private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
         private final TypeFetcher typeFetcher;
+        private Node nodeProcessing;
 
         ClassGenerator(TypeFetcher typeFetcher) {
             this.typeFetcher = typeFetcher;
         }
 
         public Map<String, ClassWriter> generate(ModuleDeclaration moduleDeclaration) {
-            generateStruct(moduleDeclaration.struct());
+            try {
+                generateStruct(moduleDeclaration.struct());
+            } catch (RuntimeException e) {
+                throw new CodeGenerationException(nodeProcessing, e);
+            }
             return generatedClasses;
         }
 
@@ -71,11 +76,13 @@ class BytecodeGenerator implements Opcodes {
 
         static FunctionType constructorType(String ownerName, List<Field> fields,
             TypeFetcher typeFetcher) {
-            return new FunctionType(ownerName, fields.stream().map(typeFetcher::getType).toList(),
+            return new FunctionType(
+                fields.stream().map(typeFetcher::getType).toList(),
                 BuiltinType.VOID);
         }
 
         private void generateStruct(Struct struct) {
+            nodeProcessing = struct;
             var structName = type(struct).internalName();
             generatedClasses.put(structName, classWriter);
             classWriter.visit(CLASS_VERSION, ACC_PUBLIC, structName, null, "java/lang/Object",
@@ -135,13 +142,14 @@ class BytecodeGenerator implements Opcodes {
         }
 
         private void generateFunction(ClassWriter classWriter, Function function) {
+            nodeProcessing = function;
             var funcType = type(function.id());
             var methodVisitor = classWriter.visitMethod(ACC_PUBLIC + ACC_STATIC, function.name(), funcType.descriptor(), null, null);
             methodVisitor.visitCode();
             var exprGenerator = new ExpressionGenerator(methodVisitor, typeFetcher);
             var returnExpr = function.returnExpression();
             if (returnExpr != null) {
-                exprGenerator.generate(returnExpr, function.scope());
+                exprGenerator.generateExpr(returnExpr, function.scope());
                 Type type = type(returnExpr);
                 if (type instanceof BuiltinType builtinType) {
                     int opcode = switch (builtinType) {
@@ -173,6 +181,7 @@ class BytecodeGenerator implements Opcodes {
         private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
         private final MethodVisitor methodVisitor;
         private final TypeFetcher typeFetcher;
+        private Node nodeProcessing;
 
         ExpressionGenerator(MethodVisitor methodVisitor, TypeFetcher typeFetcher) {
             this.methodVisitor = methodVisitor;
@@ -192,7 +201,16 @@ class BytecodeGenerator implements Opcodes {
             return Map.copyOf(generatedClasses);
         }
 
-        public void generate(Expression expression, Scope scope) {
+        public void generateExpr(Expression expression, Scope scope) {
+            try {
+                generate(expression, scope);
+            } catch (RuntimeException e) {
+                throw new CodeGenerationException(nodeProcessing, e);
+            }
+        }
+
+        private void generate(Expression expression, Scope scope) {
+            nodeProcessing = expression;
             if (expression instanceof PrintStatement printStatement) {
                 methodVisitor.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
                 var expr = printStatement.expression();
@@ -277,7 +295,8 @@ class BytecodeGenerator implements Opcodes {
             } else if (expression instanceof LocalFunctionCall funcCall) {
                 funcCall.arguments().forEach(arg -> generate(arg, scope));
                 var funcType = (FunctionType) type(scope.findFunction(funcCall.name()).id());
-                methodVisitor.visitMethodInsn(INVOKESTATIC, funcType.internalOwnerName(),
+                var ownerName = scope.getClassName().replace('.', '/');
+                methodVisitor.visitMethodInsn(INVOKESTATIC, ownerName,
                     funcCall.name(),
                     funcType.descriptor(), false);
             } else if (expression instanceof BinaryExpression binExpr) {
@@ -331,11 +350,11 @@ class BytecodeGenerator implements Opcodes {
                     generate(fieldAccess.expr(), scope);
                     var fieldDescriptor =
                         structType.fieldTypes().get(fieldAccess.fieldName()).descriptor();
-                    var desc = MethodType.methodType(CallSite.class, List.of(Lookup.class,
-                        String.class,
-                        MethodType.class)).descriptorString();
+                    var desc = MethodType.methodType(
+                        CallSite.class,
+                        List.of(Lookup.class, String.class, MethodType.class)).descriptorString();
                     var handle = new Handle(H_INVOKESTATIC,
-                        new ClassType(StructDispatch.class).internalName(), "bootstrap", desc,
+                        new ClassType(StructDispatch.class).internalName(), "bootstrapField", desc,
                         false);
                     methodVisitor.visitInvokeDynamicInsn(fieldAccess.fieldName(),
                         "(L%s;)%s".formatted(STRUCT_BASE_INTERNAL_NAME, fieldDescriptor), handle);
@@ -371,14 +390,22 @@ class BytecodeGenerator implements Opcodes {
                 var funcName = foreignFuncCall.name().equals("new") ? "<init>" : foreignFuncCall.name();
                 methodVisitor.visitMethodInsn(opCode, owner, funcName, foreignFuncType.descriptor(), false);
             } else if (expression instanceof MemberFunctionCall structFuncCall) {
-//                generate(structFuncCall.structExpression(), scope);
+                generate(structFuncCall.structExpression(), scope);
                 structFuncCall.arguments().forEach(arg -> generate(arg, scope));
                 var structType = (StructType) type(structFuncCall.structExpression());
                 var funcType = (FunctionType) Objects
                     .requireNonNull(structType.fieldTypes().get(structFuncCall.name()));
-                methodVisitor.visitMethodInsn(INVOKESTATIC, funcType.internalOwnerName(),
-                    structFuncCall.functionId().name(),
-                    funcType.descriptor(), false);
+                var desc = MethodType.methodType(
+                    CallSite.class,
+                    List.of(Lookup.class, String.class, MethodType.class)).descriptorString();
+                var handle = new Handle(
+                    H_INVOKESTATIC,
+                    new ClassType(StructDispatch.class).internalName(),
+                    "bootstrapMethod",
+                    desc,
+                    false);
+                methodVisitor.visitInvokeDynamicInsn(structFuncCall.name(),
+                    funcType.descriptorWith(0, new ClassType(StructBase.class)), handle);
             } else {
                 throw new IllegalStateException("Unrecognized expression: " + expression);
             }
@@ -388,7 +415,7 @@ class BytecodeGenerator implements Opcodes {
             var structName = type(struct).internalName();
             methodVisitor.visitTypeInsn(NEW, structName);
             methodVisitor.visitInsn(DUP);
-            struct.fields().forEach(field -> generate(field.value(), scope));
+            struct.fields().forEach(field -> generateExpr(field.value(), scope));
             var initDescriptor =
                 constructorType(structName, struct.fields(), typeFetcher).descriptor();
             methodVisitor.visitMethodInsn(INVOKESPECIAL, structName, "<init>", initDescriptor, false);
@@ -419,6 +446,12 @@ class BytecodeGenerator implements Opcodes {
 
         private void generateBlock(Block block) {
             block.expressions().forEach(expr -> generate(expr, block.scope()));
+        }
+    }
+
+    static class CodeGenerationException extends RuntimeException {
+        CodeGenerationException(Node node, Exception cause) {
+            super(node.toString(), cause);
         }
     }
 }

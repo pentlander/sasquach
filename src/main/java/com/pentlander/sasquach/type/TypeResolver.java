@@ -74,8 +74,9 @@ public class TypeResolver implements TypeFetcher {
             // continue without knowing the type of the expression body. This will have to be
             // revisited when lambdas are implemented since they will not require type annotations.
         }
-        var ownerName = requireNonNull(func.scope().getClassName());
-        var funcType = new FunctionType(ownerName, paramTypes, func.returnType());
+        var typeParams = func.functionSignature().typeParameters().stream().map(TypeNode::type)
+            .map(NamedType.class::cast).toList();
+        var funcType = new FunctionType(paramTypes, typeParams, func.returnType());
         putIdType(func.id(), funcType);
         return funcType;
     }
@@ -126,6 +127,7 @@ public class TypeResolver implements TypeFetcher {
         } else if (expr instanceof VarReference varRef) {
             var name = varRef.name();
             type = scope.getLocalIdentifier(name).flatMap(this::getIdType)
+                .or(() -> scope.getNamedType(name).map(TypeNode::type))
                 .or(() -> scope.findUse(name).map(this::resolveNodeType)).orElseThrow();
         } else if (expr instanceof BinaryExpression binExpr) {
             var leftType = resolveExprType(binExpr.left(), scope);
@@ -202,7 +204,11 @@ public class TypeResolver implements TypeFetcher {
             struct.fields().forEach(
                 field -> fieldTypes.put(field.name(), resolveExprType(field, structScope)));
             type = struct.name().map(name -> new StructType(name, fieldTypes))
-                .orElse(new StructType(fieldTypes));
+                .orElseGet(() -> {
+                    var structType = new StructType(fieldTypes);
+                    struct.scope().setMetadata(new Metadata(structType.typeName()));
+                    return structType;
+                });
         } else if (expr instanceof Struct.Field field) {
             type = resolveExprType(field.value(), scope);
         } else {
@@ -254,11 +260,15 @@ public class TypeResolver implements TypeFetcher {
                     .formatted(funcCall.name(), paramTypes.size(), funcCall.arguments().size()),
                 funcCall.range()));
         }
+
+        var typeUnifier = new TypeUnifier();
         // Handle mismatch between arg types and parameter types
         for (int i = 0; i < argTypes.size(); i++) {
             var argType = argTypes.get(i);
             var paramType = paramTypes.get(i);
-            if (!argType.isAssignableTo(paramType)) {
+
+            paramType = typeUnifier.unify(paramType, argType);
+            if (!paramType.isAssignableFrom(argType)) {
                 return addError(new TypeMismatchError(
                     "Argument type '%s' does not match parameter type '%s'"
                         .formatted(argType.toPrettyString(), paramType.toPrettyString()),
@@ -266,7 +276,7 @@ public class TypeResolver implements TypeFetcher {
             }
         }
 
-        return funcType.returnType();
+        return typeUnifier.resolve(funcType.returnType());
     }
 
     private Type resolveForeignFieldAccess(Scope scope, ForeignFieldAccess fieldAccess) {
@@ -320,6 +330,7 @@ public class TypeResolver implements TypeFetcher {
                 for (var method : classType.typeClass().getMethods()) {
                     if (method.getName().equals(funcName)) {
                         var methodType = MethodHandles.lookup().unreflect(method).type();
+                        if (methodType.parameterCount() != argClasses.size()) continue;
                         boolean argsMatchParams = true;
                         for (int i = 0; i < methodType.parameterCount(); i++) {
                             argsMatchParams =

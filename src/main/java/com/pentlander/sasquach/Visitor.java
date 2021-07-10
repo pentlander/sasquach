@@ -8,6 +8,8 @@ import com.pentlander.sasquach.ast.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.ast.BinaryExpression.MathOperator;
 import com.pentlander.sasquach.ast.Struct.Field;
 
+import com.pentlander.sasquach.type.FunctionType;
+import com.pentlander.sasquach.type.NamedType;
 import java.util.*;
 
 import com.pentlander.sasquach.type.BuiltinType;
@@ -79,14 +81,16 @@ public class Visitor {
     private final Identifier id;
 
     FunctionVisitor(Scope scope, Identifier id) {
-      this.scope = scope;
+      this.scope = Scope.forBlock(scope);
       this.id = id;
     }
 
     @Override
     public Function visitFunction(FunctionContext ctx) {
       FunctionSignature funcSignature =
-          ctx.functionDeclaration().accept(new FunctionSignatureVisitor());
+          functionDeclaration(ctx.functionDeclaration());
+      funcSignature.typeParameters()
+          .forEach(param -> scope.addNamedType(param.type().typeName(), param));
       funcSignature
           .parameters()
           .forEach(param -> scope.addLocalIdentifier(param.id()));
@@ -94,6 +98,21 @@ public class Visitor {
       var expr = ctx.expression().accept(new ExpressionVisitor(scope));
 
       return new Function(scope, id, funcSignature, expr);
+    }
+
+    private FunctionSignature functionDeclaration(FunctionDeclarationContext ctx) {
+      var typeVisitor = new TypeVisitor(scope);
+
+      var params = parameterList(typeVisitor, ctx.functionParameterList());
+
+      var typeParams = ctx.typeIdentifier().stream()
+          .map(typeParamCtx -> new TypeNode(new NamedType(typeParamCtx.ID().getText()),
+              rangeFrom(typeParamCtx.ID()))).toList();
+
+      return new FunctionSignature(params,
+          typeParams,
+          ctx.type().accept(typeVisitor),
+          rangeFrom(ctx));
     }
   }
 
@@ -166,7 +185,7 @@ public class Visitor {
       Expression expr = ctx.expression().accept(new ExpressionVisitor(scope));
       var identifier = new Identifier(idName, rangeFrom(ctx.ID()));
       scope.addLocalIdentifier(identifier);
-      return new VariableDeclaration(identifier, expr, ctx.index, rangeFrom(ctx));
+      return new VariableDeclaration(identifier, expr, 1, rangeFrom(ctx));
     }
 
     @Override
@@ -230,6 +249,12 @@ public class Visitor {
   }
 
   static class TypeVisitor extends SasquachBaseVisitor<TypeNode> {
+    private final Scope scope;
+
+    TypeVisitor(Scope scope) {
+      this.scope = scope;
+    }
+
     @Override
     public TypeNode visitPrimitiveType(PrimitiveTypeContext ctx) {
       return new TypeNode(BuiltinType.fromString(ctx.getText()), rangeFrom(ctx));
@@ -241,14 +266,29 @@ public class Visitor {
     }
 
     @Override
+    public TypeNode visitTypeIdentifier(TypeIdentifierContext ctx) {
+      return new TypeNode(new NamedType(ctx.getText()), rangeFrom(ctx));
+    }
+
+    @Override
     public TypeNode visitStructType(StructTypeContext ctx) {
       var fields = new HashMap<String, Type>();
       for (int i = 0; i < ctx.ID().size(); i++) {
         var id = ctx.ID(i).getText();
-        var typeNode = ctx.type(i).accept(this);
+        var typeNode = ctx.type(i).accept(new TypeVisitor(Scope.forStructType(scope)));
         fields.put(id, typeNode.type());
       }
       return new TypeNode(new StructType(fields), rangeFrom(ctx));
+    }
+
+    @Override
+    public TypeNode visitFunctionType(FunctionTypeContext ctx) {
+      var params = parameterList(this, ctx.functionParameterList());
+      var type = new FunctionType(
+          params.stream().map(FunctionParameter::type).toList(),
+          List.of(),
+          ctx.type().accept(this).type());
+      return new TypeNode(type, rangeFrom(ctx));
     }
   }
 
@@ -272,7 +312,7 @@ public class Visitor {
     public static StructVisitor forLiteral(Scope parentScope) {
       // TODO: Set the metadata at the end of the visitStruct func so struct methods work properly
       // TODO: Figure out how to reference parent scope from struct literal
-      return new StructVisitor(Scope.topLevel(new Metadata("null")), null, StructKind.LITERAL);
+      return new StructVisitor(Scope.forStructLiteral(parentScope), null, StructKind.LITERAL);
     }
 
     @Override
@@ -322,22 +362,19 @@ public class Visitor {
 
   }
 
-  static class FunctionSignatureVisitor extends SasquachBaseVisitor<FunctionSignature> {
-    @Override
-    public FunctionSignature visitFunctionDeclaration(
-        FunctionDeclarationContext ctx) {
-      var typeVisitor = new TypeVisitor();
+  private static Identifier id(TerminalNode node) {
+    return new Identifier(node.getText(), rangeFrom(node));
+  }
 
-      List<FunctionArgumentContext> paramsCtx = ctx.functionArgument();
-      var params = new ArrayList<FunctionParameter>();
-      for (FunctionArgumentContext paramCtx : paramsCtx) {
-        var type = paramCtx.type().accept(typeVisitor);
-        var id = new Identifier(paramCtx.ID().getText(), rangeFrom(paramCtx.ID()));
-        var param = new FunctionParameter(id, type);
-        params.add(param);
-      }
-
-      return new FunctionSignature(params, ctx.type().accept(typeVisitor), rangeFrom(ctx));
+  private static List<FunctionParameter> parameterList(TypeVisitor typeVisitor,
+      FunctionParameterListContext ctx) {
+    var params = new ArrayList<FunctionParameter>();
+    for (FunctionArgumentContext paramCtx : ctx.functionArgument()) {
+      var type = paramCtx.type().accept(typeVisitor);
+      var id = new Identifier(paramCtx.ID().getText(), rangeFrom(paramCtx.ID()));
+      var param = new FunctionParameter(id, type);
+      params.add(param);
     }
+    return params;
   }
 }
