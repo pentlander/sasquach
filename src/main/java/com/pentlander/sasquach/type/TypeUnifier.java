@@ -1,15 +1,21 @@
 package com.pentlander.sasquach.type;
 
-import static java.util.Objects.requireNonNull;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Resolves type parameters by unifying type variables with concrete types.
+ */
 public class TypeUnifier {
-  /** Map of type variables to their resolved types. */
+  /**
+   * Map of type variables to their resolved types.
+   */
   private final Map<NamedType, Type> unifiedTypes = new HashMap<>();
 
+  /**
+   * Resolves the type by replacing any type variables in a parameterized type with a concrete one.
+   */
   public Type resolve(Type type) {
     if (type instanceof ParameterizedType paramType) {
       if (paramType instanceof NamedType namedType) {
@@ -28,6 +34,9 @@ public class TypeUnifier {
     return type;
   }
 
+  /**
+   * Unifies a the destination type with the soure type.
+   */
   public Type unify(Type destType, Type sourceType) {
     if (destType instanceof ParameterizedType destParamType) {
       unify(destParamType, sourceType);

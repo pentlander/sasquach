@@ -7,15 +7,21 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 /**
- * @param fieldTypes Field types include any value type, as well as functions.
+ * Type of a struct.
+ *
+ * @param fieldTypes Map of field names to types. Field types include any value type, as well as
+ *                   functions.
  */
-public record StructType(String typeName, Map<String, Type> fieldTypes) implements ParameterizedType {
+public record StructType(String typeName, Map<String, Type> fieldTypes) implements
+    ParameterizedType {
   public StructType(Map<String, Type> fieldTypes) {
     this("AnonStruct$" + hashFieldTypes(fieldTypes), fieldTypes);
   }
 
   private static String hashFieldTypes(Map<String, Type> fieldTypes) {
-    return Integer.toHexString(fieldTypes.entrySet().stream().sorted(Entry.comparingByKey()).toList().hashCode());
+    return Integer
+        .toHexString(fieldTypes.entrySet().stream().sorted(Entry.comparingByKey()).toList()
+            .hashCode());
   }
 
   public Type fieldType(String fieldName) {

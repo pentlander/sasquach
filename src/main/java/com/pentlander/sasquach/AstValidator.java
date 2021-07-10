@@ -1,18 +1,20 @@
 package com.pentlander.sasquach;
 
-import com.pentlander.sasquach.ast.Block;
 import com.pentlander.sasquach.ast.CompilationUnit;
-import com.pentlander.sasquach.ast.Expression;
-import com.pentlander.sasquach.ast.Function;
-
-import com.pentlander.sasquach.ast.LocalFunctionCall;
 import com.pentlander.sasquach.ast.FunctionParameter;
-import com.pentlander.sasquach.ast.VariableDeclaration;
+import com.pentlander.sasquach.ast.expression.Block;
+import com.pentlander.sasquach.ast.expression.Expression;
+import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
+
+/**
+ * Validates the structure of the abstract syntax tree.
+ */
 public class AstValidator {
   private final CompilationUnit compilationUnit;
   private final Source source;
@@ -22,6 +24,11 @@ public class AstValidator {
     this.source = source;
   }
 
+  /**
+   * Validate the AST struct.
+   *
+   * @return list of errors from the AST validation.
+   */
   List<Error> validate() {
     var errors = new ArrayList<Error>();
     for (var module : compilationUnit.modules()) {
@@ -32,8 +39,9 @@ public class AstValidator {
         Function existingFunction = functionNames.put(function.name(), function);
         // Check if there are multiple functions with the same name
         if (existingFunction != null) {
-          errors.add(new DuplicationError("Function '%s' already defined in modules '%s'"
-              .formatted(function.name(), module.name()),
+          errors.add(new DuplicationError(
+              "Function '%s' already defined in modules '%s'"
+                  .formatted(function.name(), module.name()),
               List.of(existingFunction.nameRange(), function.nameRange())));
         }
 
@@ -66,7 +74,8 @@ public class AstValidator {
     variables.forEach((name, vars) -> {
       if (vars.size() > 1) {
         errors.add(new DuplicationError(
-            "Variable '%s' already defined in block".formatted(name), vars.stream().map(VariableDeclaration::nameRange).toList()));
+            "Variable '%s' already defined in block".formatted(name),
+            vars.stream().map(VariableDeclaration::nameRange).toList()));
       }
     });
 
@@ -80,14 +89,16 @@ public class AstValidator {
     }
   }
 
-  private List<Error> validateFunctionParameters(String funcName, List<FunctionParameter> funcParameters) {
-    var paramNames =
-        funcParameters.stream().collect(Collectors.groupingBy(FunctionParameter::name));
+  private List<Error> validateFunctionParameters(String funcName,
+      List<FunctionParameter> funcParameters) {
+    var paramNames = funcParameters.stream()
+        .collect(Collectors.groupingBy(FunctionParameter::name));
     var errors = new ArrayList<Error>();
     paramNames.forEach((name, params) -> {
       if (params.size() > 1) {
-        errors.add(new DuplicationError("Parameter '%s' already defined in function '%s'".formatted(name, funcName),
-                params.stream().map(param -> param.id().range()).toList()));
+        errors.add(new DuplicationError(
+            "Parameter '%s' already defined in function '%s'".formatted(name, funcName),
+            params.stream().map(param -> param.id().range()).toList()));
       }
     });
 
@@ -103,15 +114,14 @@ public class AstValidator {
     @Override
     public String toPrettyString(Source source) {
       var firstRange = ranges.get(0);
-      var restHighlights = ranges.stream()
-          .skip(1)
+      var restHighlights = ranges.stream().skip(1)
           .map(range -> source.highlight(range) + " other appearance here")
           .collect(Collectors.joining("\n"));
-      return  """
-         %s
-         %s first appearance here
-         %s
-         """.formatted(message, source.highlight(firstRange), restHighlights);
+      return """
+          %s
+          %s first appearance here
+          %s
+          """.formatted(message, source.highlight(firstRange), restHighlights);
     }
   }
 }

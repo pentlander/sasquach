@@ -1,29 +1,81 @@
 package com.pentlander.sasquach;
 
+import static com.pentlander.sasquach.SasquachParser.ApplicationContext;
+import static com.pentlander.sasquach.SasquachParser.BinaryOperationContext;
+import static com.pentlander.sasquach.SasquachParser.BlockContext;
+import static com.pentlander.sasquach.SasquachParser.ClassTypeContext;
+import static com.pentlander.sasquach.SasquachParser.CompilationUnitContext;
+import static com.pentlander.sasquach.SasquachParser.ForeignMemberAccessExpressionContext;
+import static com.pentlander.sasquach.SasquachParser.FunctionArgumentContext;
+import static com.pentlander.sasquach.SasquachParser.FunctionCallContext;
+import static com.pentlander.sasquach.SasquachParser.FunctionContext;
+import static com.pentlander.sasquach.SasquachParser.FunctionDeclarationContext;
+import static com.pentlander.sasquach.SasquachParser.FunctionParameterListContext;
+import static com.pentlander.sasquach.SasquachParser.FunctionTypeContext;
+import static com.pentlander.sasquach.SasquachParser.IdentifierStatementContext;
+import static com.pentlander.sasquach.SasquachParser.IfExpressionContext;
+import static com.pentlander.sasquach.SasquachParser.IntLiteralContext;
+import static com.pentlander.sasquach.SasquachParser.MemberAccessExpressionContext;
+import static com.pentlander.sasquach.SasquachParser.ModuleDeclarationContext;
+import static com.pentlander.sasquach.SasquachParser.ParenExpressionContext;
+import static com.pentlander.sasquach.SasquachParser.PrimitiveTypeContext;
+import static com.pentlander.sasquach.SasquachParser.PrintStatementContext;
+import static com.pentlander.sasquach.SasquachParser.StringLiteralContext;
+import static com.pentlander.sasquach.SasquachParser.StructContext;
+import static com.pentlander.sasquach.SasquachParser.StructTypeContext;
+import static com.pentlander.sasquach.SasquachParser.TypeIdentifierContext;
+import static com.pentlander.sasquach.SasquachParser.UseStatementContext;
+import static com.pentlander.sasquach.SasquachParser.VarReferenceContext;
+import static com.pentlander.sasquach.SasquachParser.VariableDeclarationContext;
+import static com.pentlander.sasquach.ast.expression.Struct.StructKind;
+
 import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
 import com.pentlander.sasquach.SasquachParser.CompareExpressionContext;
-import com.pentlander.sasquach.ast.*;
-import com.pentlander.sasquach.ast.BinaryExpression.CompareExpression;
-import com.pentlander.sasquach.ast.BinaryExpression.CompareOperator;
-import com.pentlander.sasquach.ast.BinaryExpression.MathOperator;
-import com.pentlander.sasquach.ast.Struct.Field;
-
-import com.pentlander.sasquach.type.FunctionType;
-import com.pentlander.sasquach.type.NamedType;
-import java.util.*;
-
+import com.pentlander.sasquach.ast.CompilationUnit;
+import com.pentlander.sasquach.ast.FunctionParameter;
+import com.pentlander.sasquach.ast.FunctionSignature;
+import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Metadata;
+import com.pentlander.sasquach.ast.ModuleDeclaration;
+import com.pentlander.sasquach.ast.QualifiedIdentifier;
+import com.pentlander.sasquach.ast.Scope;
+import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.Use;
+import com.pentlander.sasquach.ast.expression.BinaryExpression;
+import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
+import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
+import com.pentlander.sasquach.ast.expression.BinaryExpression.MathOperator;
+import com.pentlander.sasquach.ast.expression.Block;
+import com.pentlander.sasquach.ast.expression.Expression;
+import com.pentlander.sasquach.ast.expression.FieldAccess;
+import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
+import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
+import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.IfExpression;
+import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
+import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
+import com.pentlander.sasquach.ast.expression.PrintStatement;
+import com.pentlander.sasquach.ast.expression.Struct;
+import com.pentlander.sasquach.ast.expression.Struct.Field;
+import com.pentlander.sasquach.ast.expression.Value;
+import com.pentlander.sasquach.ast.expression.VarReference;
+import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
+import com.pentlander.sasquach.type.FunctionType;
+import com.pentlander.sasquach.type.NamedType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
-
 import org.antlr.v4.runtime.tree.TerminalNode;
 
-import static com.pentlander.sasquach.SasquachParser.*;
-import static com.pentlander.sasquach.ast.Struct.*;
-
+/**
+ * Visitor that parses the source code into an abstract syntax tree.
+ */
 public class Visitor {
   public static Range rangeFrom(ParserRuleContext context) {
     Token start = context.getStart();
@@ -33,12 +85,14 @@ public class Visitor {
       return new Range.Single(pos, end.getCharPositionInLine() - start.getCharPositionInLine() + 1);
     }
     return new Range.Multi(
-        pos, new Position(end.getLine(), end.getCharPositionInLine() + end.getText().length()));
+        pos,
+        new Position(end.getLine(), end.getCharPositionInLine() + end.getText().length()));
   }
 
   public static Range.Single rangeFrom(Token token) {
     return new Range.Single(
-        new Position(token.getLine(), token.getCharPositionInLine()), token.getText().length());
+        new Position(token.getLine(), token.getCharPositionInLine()),
+        token.getText().length());
   }
 
   public static Range.Single rangeFrom(TerminalNode node) {
@@ -71,7 +125,8 @@ public class Visitor {
     public ModuleDeclaration visitModuleDeclaration(ModuleDeclarationContext ctx) {
       String name = packageName + "." + ctx.moduleName().getText();
       var struct = ctx.struct().accept(StructVisitor.forModule(name));
-      return new ModuleDeclaration(new Identifier(name, rangeFrom(ctx.moduleName().ID())), struct,
+      return new ModuleDeclaration(new Identifier(name, rangeFrom(ctx.moduleName().ID())),
+          struct,
           rangeFrom(ctx));
     }
   }
@@ -87,13 +142,10 @@ public class Visitor {
 
     @Override
     public Function visitFunction(FunctionContext ctx) {
-      FunctionSignature funcSignature =
-          functionDeclaration(ctx.functionDeclaration());
+      FunctionSignature funcSignature = functionDeclaration(ctx.functionDeclaration());
       funcSignature.typeParameters()
           .forEach(param -> scope.addNamedType(param.type().typeName(), param));
-      funcSignature
-          .parameters()
-          .forEach(param -> scope.addLocalIdentifier(param.id()));
+      funcSignature.parameters().forEach(param -> scope.addLocalIdentifier(param.id()));
 
       var expr = ctx.expression().accept(new ExpressionVisitor(scope));
 
@@ -141,7 +193,10 @@ public class Visitor {
       var leftExpr = ctx.left.accept(visitor);
       var rightExpr = ctx.right.accept(visitor);
       return new BinaryExpression.MathExpression(
-          MathOperator.fromString(operatorString), leftExpr, rightExpr, rangeFrom(ctx));
+          MathOperator.fromString(operatorString),
+          leftExpr,
+          rightExpr,
+          rangeFrom(ctx));
     }
 
     @Override
@@ -158,7 +213,10 @@ public class Visitor {
       var leftExpr = ctx.left.accept(this);
       var rightExpr = ctx.right.accept(this);
       return new CompareExpression(
-          CompareOperator.fromString(ctx.operator.getText()), leftExpr, rightExpr, rangeFrom(ctx));
+          CompareOperator.fromString(ctx.operator.getText()),
+          leftExpr,
+          rightExpr,
+          rangeFrom(ctx));
     }
 
     @Override
@@ -211,7 +269,9 @@ public class Visitor {
 
     @Override
     public Expression visitForeignMemberAccessExpression(ForeignMemberAccessExpressionContext ctx) {
-      var classAliasId = new Identifier(ctx.foreignName().getText(), rangeFrom(ctx.foreignName().ID()));
+      var classAliasId = new Identifier(
+          ctx.foreignName().getText(),
+          rangeFrom(ctx.foreignName().ID()));
       var memberId = new Identifier(ctx.memberName().getText(), rangeFrom(ctx.memberName().ID()));
       if (ctx.application() != null) {
         var arguments = args(ctx.application());
@@ -225,10 +285,8 @@ public class Visitor {
     public Expression visitBlock(BlockContext ctx) {
       var blockScope = Scope.forBlock(scope);
       var exprVisitor = new ExpressionVisitor(blockScope);
-      List<Expression> expressions =
-              ctx.blockStatement().stream()
-                      .map(blockCtx -> blockCtx.accept(exprVisitor))
-                      .toList();
+      List<Expression> expressions = ctx.blockStatement().stream()
+          .map(blockCtx -> blockCtx.accept(exprVisitor)).toList();
       return new Block(blockScope, expressions, rangeFrom(ctx));
     }
 
@@ -284,8 +342,7 @@ public class Visitor {
     @Override
     public TypeNode visitFunctionType(FunctionTypeContext ctx) {
       var params = parameterList(this, ctx.functionParameterList());
-      var type = new FunctionType(
-          params.stream().map(FunctionParameter::type).toList(),
+      var type = new FunctionType(params.stream().map(FunctionParameter::type).toList(),
           List.of(),
           ctx.type().accept(this).type());
       return new TypeNode(type, rangeFrom(ctx));
@@ -322,35 +379,35 @@ public class Visitor {
       var functions = new ArrayList<Function>();
       for (var structStatementCtx : ctx.structStatement()) {
         if (structStatementCtx instanceof IdentifierStatementContext idCtx) {
-            var fieldName = idCtx.memberName();
-            var id = new Identifier(fieldName.getText(), rangeFrom(fieldName.ID()));
-            var exprCtx = idCtx.expression();
-            var funcCtx = idCtx.function();
+          var fieldName = idCtx.memberName();
+          var id = new Identifier(fieldName.getText(), rangeFrom(fieldName.ID()));
+          var exprCtx = idCtx.expression();
+          var funcCtx = idCtx.function();
 
-            if (exprCtx != null) {
-              var expr = exprCtx.accept(expressionVisitor);
-              fields.add(new Field(id, expr));
-            } else if (funcCtx != null) {
-              var func = funcCtx.accept(new FunctionVisitor(scope, id));
-              scope.addFunction(func);
-              functions.add(func);
-            }
-          } else if (structStatementCtx instanceof UseStatementContext useStatementCtx) {
-            var useCtx = useStatementCtx.use();
-            var qualifiedName = useCtx.qualifiedName().getText();
-            var qualifiedNameIds = useCtx.qualifiedName().ID();
-            var aliasNode = qualifiedNameIds.get(qualifiedNameIds.size() - 1);
-            var aliasId = new Identifier(aliasNode.getText(), rangeFrom(aliasNode));
-            var qualifiedId = new QualifiedIdentifier(qualifiedName,
-                (Range.Single) rangeFrom(useCtx.qualifiedName()));
-            Use use;
-            if (useCtx.FOREIGN() != null) {
-                use = new Use.Foreign(qualifiedId, aliasId, rangeFrom(useCtx));
-              } else {
-                use = new Use.Module(qualifiedId, aliasId, rangeFrom(useCtx));
-              }
-            scope.addUse(use);
-            useList.add(use);
+          if (exprCtx != null) {
+            var expr = exprCtx.accept(expressionVisitor);
+            fields.add(new Field(id, expr));
+          } else if (funcCtx != null) {
+            var func = funcCtx.accept(new FunctionVisitor(scope, id));
+            scope.addFunction(func);
+            functions.add(func);
+          }
+        } else if (structStatementCtx instanceof UseStatementContext useStatementCtx) {
+          var useCtx = useStatementCtx.use();
+          var qualifiedName = useCtx.qualifiedName().getText();
+          var qualifiedNameIds = useCtx.qualifiedName().ID();
+          var aliasNode = qualifiedNameIds.get(qualifiedNameIds.size() - 1);
+          var aliasId = new Identifier(aliasNode.getText(), rangeFrom(aliasNode));
+          var qualifiedId = new QualifiedIdentifier(qualifiedName,
+              (Range.Single) rangeFrom(useCtx.qualifiedName()));
+          Use use;
+          if (useCtx.FOREIGN() != null) {
+            use = new Use.Foreign(qualifiedId, aliasId, rangeFrom(useCtx));
+          } else {
+            use = new Use.Module(qualifiedId, aliasId, rangeFrom(useCtx));
+          }
+          scope.addUse(use);
+          useList.add(use);
         }
       }
 
