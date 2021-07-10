@@ -9,9 +9,13 @@ import java.lang.invoke.MethodType;
 import java.util.HashMap;
 import java.util.Map;
 
-public class StructDispatch {
-  // Ultimately the method type looks like (Struct): FieldType. The field name is embedded in the
-  // CallSite
+/**
+ * Class that handle dynamic dispatch on structs via invokedynamic.
+ */
+public final class StructDispatch {
+  /**
+   * Handles dispatch on struct field access.
+   */
   private static class FieldDispatcher {
     private final String fieldName;
     private final Class<?> returnType;
@@ -36,19 +40,23 @@ public class StructDispatch {
     }
 
     CallSite buildCallSite() throws NoSuchMethodException, IllegalAccessException {
-      var mh = MethodHandles.lookup().findVirtual(getClass(), "get",
-          MethodType.methodType(Object.class, StructBase.class)).bindTo(this);
+      // Ultimately the method type looks like (Struct): FieldType. The field name is embedded in the
+      // CallSite
+      var mh = MethodHandles.lookup()
+          .findVirtual(getClass(), "get", MethodType.methodType(Object.class, StructBase.class))
+          .bindTo(this);
       return new ConstantCallSite(mh.asType(MethodType.methodType(returnType, StructBase.class)));
     }
   }
 
+  /**
+   * Handles dispatch on struct functions.
+   */
   private static class MethodDispatcher {
-    private final String methodName;
     private final MethodType methodType;
     private final Map<Class<?>, MethodHandle> lookupTable = new HashMap<>();
 
-    private MethodDispatcher(String methodName, MethodType methodType) {
-      this.methodName = methodName;
+    private MethodDispatcher(MethodType methodType) {
       this.methodType = methodType;
     }
 
@@ -72,13 +80,16 @@ public class StructDispatch {
             break;
           }
         }
-        if (matches) return MethodHandles.lookup().unreflect(method);
+        if (matches) {
+          return MethodHandles.lookup().unreflect(method);
+        }
       }
       throw new NoSuchMethodException();
     }
 
     CallSite buildCallSite() throws NoSuchMethodException, IllegalAccessException {
-      var mh = MethodHandles.lookup().findVirtual(getClass(), "invoke",
+      var mh = MethodHandles.lookup().findVirtual(getClass(),
+          "invoke",
           MethodType.methodType(Object.class, StructBase.class, Object[].class)).bindTo(this)
           .asVarargsCollector(Object[].class);
       return new ConstantCallSite(mh.asType(methodType));
@@ -90,8 +101,8 @@ public class StructDispatch {
     return new FieldDispatcher(invokedName, invokedType.returnType()).buildCallSite();
   }
 
-  public static CallSite bootstrapMethod(Lookup caller, String invokedName, MethodType invokedType)
+  public static CallSite bootstrapMethod(Lookup caller, MethodType invokedType)
       throws NoSuchMethodException, IllegalAccessException {
-    return new MethodDispatcher(invokedName, invokedType).buildCallSite();
+    return new MethodDispatcher(invokedType).buildCallSite();
   }
 }

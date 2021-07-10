@@ -1,19 +1,49 @@
 package com.pentlander.sasquach.type;
 
+/**
+ * Represents the type of an expression.
+ */
 public interface Type {
-    String typeName();
+  /**
+   * Name of the type.
+   */
+  String typeName();
 
-    Class<?> typeClass();
+  /**
+   * Class of the type.
+   * <p>
+   * The class cannot always be resolved for a type. For instance, a function doesn't have a
+   * canonical class representation, also a struct's class does not exist until bytecode generation
+   * time.
+   * </p>
+   */
+  Class<?> typeClass();
 
-    String descriptor();
+  /**
+   * Descriptor string for the type.
+   * <p>Example: (Ljava/lang/String;I)Z</p>
+   */
+  String descriptor();
 
-    String internalName();
+  /**
+   * Internal name for a class.
+   * <p>
+   * Equivalent to a fully qualified name with '.' replaces with '/'. Example: java/lang/String
+   * </p>
+   */
+  String internalName();
 
-    default boolean isAssignableFrom(Type other) {
-        return this.equals(other);
-    }
+  /**
+   * Determines if this type is assignable from the other type.
+   */
+  default boolean isAssignableFrom(Type other) {
+    return this.equals(other);
+  }
 
-    default String toPrettyString() {
-        return typeName();
-    }
+  /**
+   * Returns a prettified string that matches the type in source code.
+   */
+  default String toPrettyString() {
+    return typeName();
+  }
 }

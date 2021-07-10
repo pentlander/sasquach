@@ -1,6 +1,9 @@
 package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.*;
+import com.pentlander.sasquach.ast.expression.Expression;
+import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.Type;
 

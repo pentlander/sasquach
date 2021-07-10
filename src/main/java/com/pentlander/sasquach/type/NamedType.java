@@ -1,6 +1,8 @@
 package com.pentlander.sasquach.type;
 
-/** Late binding type that is only known to the TypeResolver. */
+/**
+ * Late binding type that is only known to the TypeResolver.
+ */
 public record NamedType(String name) implements ParameterizedType {
   @Override
   public String typeName() {
@@ -19,7 +21,6 @@ public record NamedType(String name) implements ParameterizedType {
 
   @Override
   public String descriptor() {
-//    throw new IllegalStateException(this.toString());
     return "Ljava/lang/Object;";
   }
 

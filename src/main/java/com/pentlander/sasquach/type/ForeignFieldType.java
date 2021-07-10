@@ -1,6 +1,10 @@
 package com.pentlander.sasquach.type;
 
-public record ForeignFieldType(Type type, Type ownerType, FieldAccessKind accessKind) implements Type {
+/**
+ * Type a foreign field access.
+ */
+public record ForeignFieldType(Type type, Type ownerType, FieldAccessKind accessKind) implements
+    Type {
   @Override
   public String typeName() {
     return type.typeName();

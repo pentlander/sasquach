@@ -1,6 +1,18 @@
 package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.*;
+import com.pentlander.sasquach.ast.expression.ArrayValue;
+import com.pentlander.sasquach.ast.expression.Block;
+import com.pentlander.sasquach.ast.expression.Expression;
+import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
+import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
+import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.IfExpression;
+import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
+import com.pentlander.sasquach.ast.expression.Struct;
+import com.pentlander.sasquach.ast.expression.Value;
+import com.pentlander.sasquach.ast.expression.VarReference;
+import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.type.*;
 import java.io.PrintStream;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,7 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.pentlander.sasquach.Fixtures.*;
-import static com.pentlander.sasquach.ast.BinaryExpression.*;
+import static com.pentlander.sasquach.ast.expression.BinaryExpression.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class BytecodeGeneratorTest {

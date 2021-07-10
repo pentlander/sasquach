@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.ast;
 
+import com.pentlander.sasquach.ast.expression.Function;
 import java.util.Optional;
 import java.util.OptionalInt;
 
