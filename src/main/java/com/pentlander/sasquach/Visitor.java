@@ -201,11 +201,9 @@ public class Visitor {
 
     @Override
     public Expression visitFunctionCall(FunctionCallContext ctx) {
-      String funcName = ctx.functionName().getText();
       var arguments = args(ctx.application());
 
-      var id = new Identifier(funcName, rangeFrom(ctx.functionName().ID()));
-      return new LocalFunctionCall(id, arguments, rangeFrom(ctx));
+      return new LocalFunctionCall(id(ctx.functionName().ID()), arguments, rangeFrom(ctx));
     }
 
     @Override
@@ -239,11 +237,9 @@ public class Visitor {
 
     @Override
     public Expression visitVariableDeclaration(VariableDeclarationContext ctx) {
-      var idName = ctx.ID().getText();
       Expression expr = ctx.expression().accept(new ExpressionVisitor(scope));
-      var identifier = new Identifier(idName, rangeFrom(ctx.ID()));
-      scope.addLocalIdentifier(identifier);
-      return new VariableDeclaration(identifier, expr, 1, rangeFrom(ctx));
+      scope.addLocalIdentifier(id(ctx.ID()));
+      return new VariableDeclaration(id(ctx.ID()), expr, 1, rangeFrom(ctx));
     }
 
     @Override
@@ -258,7 +254,7 @@ public class Visitor {
     @Override
     public Expression visitMemberAccessExpression(MemberAccessExpressionContext ctx) {
       var expr = ctx.expression().accept(this);
-      var memberId = new Identifier(ctx.memberName().getText(), rangeFrom(ctx.memberName().ID()));
+      var memberId = id(ctx.memberName().ID());
       if (ctx.application() != null) {
         var arguments = args(ctx.application());
         return new MemberFunctionCall(expr, memberId, arguments, rangeFrom(ctx));
@@ -269,10 +265,8 @@ public class Visitor {
 
     @Override
     public Expression visitForeignMemberAccessExpression(ForeignMemberAccessExpressionContext ctx) {
-      var classAliasId = new Identifier(
-          ctx.foreignName().getText(),
-          rangeFrom(ctx.foreignName().ID()));
-      var memberId = new Identifier(ctx.memberName().getText(), rangeFrom(ctx.memberName().ID()));
+      var classAliasId = id(ctx.foreignName().ID());
+      var memberId = id(ctx.memberName().ID());
       if (ctx.application() != null) {
         var arguments = args(ctx.application());
         return new ForeignFunctionCall(classAliasId, memberId, arguments, rangeFrom(ctx));
@@ -380,7 +374,7 @@ public class Visitor {
       for (var structStatementCtx : ctx.structStatement()) {
         if (structStatementCtx instanceof IdentifierStatementContext idCtx) {
           var fieldName = idCtx.memberName();
-          var id = new Identifier(fieldName.getText(), rangeFrom(fieldName.ID()));
+          var id = id(fieldName.ID());
           var exprCtx = idCtx.expression();
           var funcCtx = idCtx.function();
 
@@ -397,7 +391,7 @@ public class Visitor {
           var qualifiedName = useCtx.qualifiedName().getText();
           var qualifiedNameIds = useCtx.qualifiedName().ID();
           var aliasNode = qualifiedNameIds.get(qualifiedNameIds.size() - 1);
-          var aliasId = new Identifier(aliasNode.getText(), rangeFrom(aliasNode));
+          var aliasId = id(aliasNode);
           var qualifiedId = new QualifiedIdentifier(qualifiedName,
               (Range.Single) rangeFrom(useCtx.qualifiedName()));
           Use use;
@@ -428,8 +422,7 @@ public class Visitor {
     var params = new ArrayList<FunctionParameter>();
     for (FunctionArgumentContext paramCtx : ctx.functionArgument()) {
       var type = paramCtx.type().accept(typeVisitor);
-      var id = new Identifier(paramCtx.ID().getText(), rangeFrom(paramCtx.ID()));
-      var param = new FunctionParameter(id, type);
+      var param = new FunctionParameter(id(paramCtx.ID()), type);
       params.add(param);
     }
     return params;

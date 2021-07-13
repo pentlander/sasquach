@@ -6,6 +6,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -53,10 +54,12 @@ public final class StructDispatch {
    * Handles dispatch on struct functions.
    */
   private static class MethodDispatcher {
+    private final String methodName;
     private final MethodType methodType;
     private final Map<Class<?>, MethodHandle> lookupTable = new HashMap<>();
 
-    private MethodDispatcher(MethodType methodType) {
+    private MethodDispatcher(String methodName, MethodType methodType) {
+      this.methodName = methodName;
       this.methodType = methodType;
     }
 
@@ -69,9 +72,11 @@ public final class StructDispatch {
       return handle.invokeWithArguments(args);
     }
 
-    private static MethodHandle findMethod(StructBase struct, Object[] args)
+    private MethodHandle findMethod(StructBase struct, Object[] args)
         throws IllegalAccessException, NoSuchMethodException {
       for (var method : struct.getClass().getMethods()) {
+        if (!method.getName().equals(methodName)) continue;
+
         var paramTypes = method.getParameterTypes();
         boolean matches = true;
         for (int i = 0; i < args.length; i++) {
@@ -84,7 +89,7 @@ public final class StructDispatch {
           return MethodHandles.lookup().unreflect(method);
         }
       }
-      throw new NoSuchMethodException();
+      throw new NoSuchMethodException("No method with params matching: " + Arrays.toString(args));
     }
 
     CallSite buildCallSite() throws NoSuchMethodException, IllegalAccessException {
@@ -101,8 +106,8 @@ public final class StructDispatch {
     return new FieldDispatcher(invokedName, invokedType.returnType()).buildCallSite();
   }
 
-  public static CallSite bootstrapMethod(Lookup caller, MethodType invokedType)
+  public static CallSite bootstrapMethod(Lookup caller, String invokedName, MethodType invokedType)
       throws NoSuchMethodException, IllegalAccessException {
-    return new MethodDispatcher(invokedType).buildCallSite();
+    return new MethodDispatcher(invokedName, invokedType).buildCallSite();
   }
 }
