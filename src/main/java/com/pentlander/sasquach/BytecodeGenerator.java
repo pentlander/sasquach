@@ -78,7 +78,7 @@ class BytecodeGenerator implements Opcodes {
         ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
     private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
     private final TypeFetcher typeFetcher;
-    private Node nodeProcessing;
+    private Node contextNode;
 
     ClassGenerator(TypeFetcher typeFetcher) {
       this.typeFetcher = typeFetcher;
@@ -88,9 +88,13 @@ class BytecodeGenerator implements Opcodes {
       try {
         generateStruct(moduleDeclaration.struct());
       } catch (RuntimeException e) {
-        throw new CodeGenerationException(nodeProcessing, e);
+        throw new CodeGenerationException(contextNode, e);
       }
       return generatedClasses;
+    }
+
+    private void addContextNode(Node node) {
+      contextNode = node;
     }
 
     private Type type(Expression expression) {
@@ -106,11 +110,11 @@ class BytecodeGenerator implements Opcodes {
     }
 
     private void generateStruct(Struct struct) {
-      nodeProcessing = struct;
+      addContextNode(struct);
       var structName = type(struct).internalName();
       generatedClasses.put(structName, classWriter);
       classWriter.visit(CLASS_VERSION,
-          ACC_PUBLIC,
+          ACC_PUBLIC + ACC_FINAL,
           structName,
           null,
           "java/lang/Object",
@@ -143,6 +147,7 @@ class BytecodeGenerator implements Opcodes {
       }
       mv.visitInsn(RETURN);
 
+      // Add a static INSTANCE field of the struct to make a singleton class.
       if (struct.structKind() == StructKind.MODULE) {
         var field = classWriter.visitField(ACC_PUBLIC + ACC_FINAL + ACC_STATIC,
             INSTANCE_FIELD,
@@ -169,7 +174,7 @@ class BytecodeGenerator implements Opcodes {
     }
 
     private void generateFunction(ClassWriter classWriter, Function function) {
-      nodeProcessing = function;
+      addContextNode(function);
       var funcType = type(function.id());
       var methodVisitor = classWriter
           .visitMethod(ACC_PUBLIC + ACC_STATIC, function.name(), funcType.descriptor(), null, null);
@@ -212,7 +217,7 @@ class BytecodeGenerator implements Opcodes {
     private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
     private final MethodVisitor methodVisitor;
     private final TypeFetcher typeFetcher;
-    private Node nodeProcessing;
+    private Node contextNode;
 
     ExpressionGenerator(MethodVisitor methodVisitor, TypeFetcher typeFetcher) {
       this.methodVisitor = methodVisitor;
@@ -227,6 +232,9 @@ class BytecodeGenerator implements Opcodes {
       return typeFetcher.getType(identifier);
     }
 
+    private void addContextNode(Node node) {
+      contextNode = node;
+    }
 
     public Map<String, ClassWriter> getGeneratedClasses() {
       return Map.copyOf(generatedClasses);
@@ -236,12 +244,12 @@ class BytecodeGenerator implements Opcodes {
       try {
         generate(expression, scope);
       } catch (RuntimeException e) {
-        throw new CodeGenerationException(nodeProcessing, e);
+        throw new CodeGenerationException(contextNode, e);
       }
     }
 
     private void generate(Expression expression, Scope scope) {
-      nodeProcessing = expression;
+      addContextNode(expression);
       if (expression instanceof PrintStatement printStatement) {
         methodVisitor.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
         var expr = printStatement.expression();
@@ -325,7 +333,7 @@ class BytecodeGenerator implements Opcodes {
         }
       } else if (expression instanceof LocalFunctionCall funcCall) {
         funcCall.arguments().forEach(arg -> generate(arg, scope));
-        var funcType = (FunctionType) type(scope.findFunction(funcCall.name()).id());
+        var funcType = type(scope.findFunction(funcCall.name()).id());
         var ownerName = scope.getClassName().replace('.', '/');
         methodVisitor.visitMethodInsn(INVOKESTATIC,
             ownerName,

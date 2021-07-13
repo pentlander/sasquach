@@ -5,7 +5,6 @@ import com.pentlander.sasquach.ast.FunctionParameter;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Scope;
-import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.type.Type;
 import org.antlr.v4.runtime.misc.Nullable;
 

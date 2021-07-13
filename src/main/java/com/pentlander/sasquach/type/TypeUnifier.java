@@ -40,8 +40,9 @@ public class TypeUnifier {
   public Type unify(Type destType, Type sourceType) {
     if (destType instanceof ParameterizedType destParamType) {
       unify(destParamType, sourceType);
+      return sourceType;
     }
-    return sourceType;
+    return destType;
   }
 
   private void unify(ParameterizedType destType, Type sourceType) {

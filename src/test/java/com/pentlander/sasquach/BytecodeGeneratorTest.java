@@ -9,10 +9,13 @@ import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
+import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
 import com.pentlander.sasquach.ast.expression.Struct;
+import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
+import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.type.*;
 import java.io.PrintStream;
 import org.junit.jupiter.api.BeforeEach;
@@ -196,14 +199,79 @@ class BytecodeGeneratorTest {
     void structLiteralFields() throws Exception {
         var id = id("f1");
         var boolField = new Struct.Field(id, boolValue("true"));
-        var struct = Struct.literalStruct(scope, List.of(boolField), List.of(), NR);
+        var struct = literalStruct(scope, List.of(boolField), List.of());
         var func = func(scope, "foo", List.of(), typeResolver.resolveExprType(struct, scope), struct);
 
-        var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
+        var clazz = genClass(compUnit(func));
         Object result = invokeFirst(clazz, null);
         var boolValue = (boolean) result.getClass().getField("f1").get(result);
 
         assertThat(boolValue).isTrue();
+    }
+
+    @Test
+    void structLiteralFunctions() throws Exception {
+        var structScope = Scope.forStructLiteral(scope);
+        var structFunc = new Function(
+            structScope, id("member"),
+            new FunctionSignature(List.of(), new TypeNode(BuiltinType.STRING, range()), range()),
+            stringValue("string"));
+        var struct = Struct.literalStruct(structScope, List.of(), List.of(structFunc), range());
+        var memberFuncCall = new MemberFunctionCall(struct, id("member"), List.of(), range());
+        var func = func(
+            scope,
+            "foo",
+            List.of(),
+            BuiltinType.STRING,
+            memberFuncCall);
+
+        var clazz = genClass(compUnit(func), true);
+        String result = invokeFirst(clazz, null);
+
+        assertThat(result).isEqualTo("string");
+    }
+
+    @Nested
+    class Parameterized {
+        @Test
+        void singleGenericClass() throws Exception {
+            var boxParam = param("box", new StructType(Map.of("value", new NamedType("T"))));
+            var boxValueParam = param("boxValue", new NamedType("U"));
+            var parameterizedFuncScope = Scope.forBlock(scope);
+            var parameterizedFuncExpr = literalStruct(
+                parameterizedFuncScope,
+                List.of(new Field(id("value"), new VarReference(id("boxValue")))),
+                List.of());
+            var parameterizedFunc = func(
+                scope,
+                "foo",
+                List.of(boxParam, boxValueParam),
+                List.of(new NamedType("T"), new NamedType("U")),
+                new StructType(Map.of("value", new NamedType("U"))),
+                parameterizedFuncExpr);
+            parameterizedFunc.scope().addNamedType("T", typeNode(new NamedType("T")));
+            parameterizedFunc.scope().addNamedType("U", typeNode(new NamedType("U")));
+            var callerFunc = func(
+                scope,
+                "baz",
+                List.of(),
+                new StructType(Map.of("value", new NamedType("U"))),
+                new LocalFunctionCall(id("foo"),
+                    List.of(literalStruct(scope,
+                        List.of(new Field(id("value"), intValue(10))),
+                        List.of()), stringValue("ten")),
+                    NR));
+
+            var compUnit = compUnit(List.of(), List.of(), List.of(callerFunc, parameterizedFunc));
+            typeResolver.resolve(compUnit);
+            var result = new BytecodeGenerator(typeResolver).generateBytecode(compUnit);
+            result.generatedBytecode().forEach(cl::addClass);
+            var clazz =  cl.loadClass(MOD_NAME);
+            Object box = invokeName(clazz, "baz", null);
+
+            assertThat(result.generatedBytecode()).hasSize(3);
+            assertThat(box).isInstanceOf(StructBase.class);
+        }
     }
 
 
@@ -271,6 +339,16 @@ class BytecodeGeneratorTest {
     @SuppressWarnings("unchecked")
     private <T> T invokeFirst(Class<?> clazz, Object obj, Object... args) throws Exception {
         return (T) clazz.getMethods()[0].invoke(obj, args);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T invokeName(Class<?> clazz, String name, Object obj, Object... args) throws Exception {
+         for (var method : clazz.getMethods()) {
+             if (method.getName().equals(name)) {
+                 return (T) method.invoke(obj, args);
+             }
+         }
+         throw new NoSuchMethodException();
     }
 
     private Class<?> genClass(CompilationUnit compilationUnit) throws Exception {

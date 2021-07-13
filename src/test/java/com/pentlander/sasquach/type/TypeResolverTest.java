@@ -102,8 +102,7 @@ class TypeResolverTest {
   class FieldAccessExpr {
     @Test
     void accessStruct() {
-      var struct = Struct.literalStruct(scope, List.of(new Field(id("foo"), intValue("10"))),
-          List.of(), range());
+      var struct = literalStruct(scope, List.of(new Field(id("foo"), intValue("10"))), List.of());
       var type = resolveExpr(new FieldAccess(struct, id("foo")));
 
       assertThat(type).isEqualTo(BuiltinType.INT);
@@ -111,8 +110,7 @@ class TypeResolverTest {
 
     @Test
     void accessStructWithoutField() {
-      var struct = Struct.literalStruct(scope, List.of(new Field(id("baz"), intValue("10"))),
-          List.of(), range());
+      var struct = literalStruct(scope, List.of(new Field(id("baz"), intValue("10"))), List.of());
       var access = new FieldAccess(struct, id("foo"));
 
       resolveExpr(access);
@@ -243,9 +241,10 @@ class TypeResolverTest {
         var badArg = stringValue("other");
         var call = new LocalFunctionCall(id("foo"), List.of(stringValue("test"), badArg), range());
 
-        resolveExpr(call);
+        var t = resolveExpr(call);
 
-        assertErrorRange(badArg.range());
+        System.out.println(t);
+        assertErrorRange(badArg);
       }
     }
 
@@ -280,7 +279,8 @@ class TypeResolverTest {
       @Test
       void callFieldNotFunction() {
         var struct = Struct
-            .literalStruct(Scope.forBlock(scope), List.of(new Field(id("foo"), intValue(10))), List.of(), range());
+            .literalStruct(Scope.forStructLiteral(scope), List.of(new Field(id("foo"), intValue(10))), List.of()
+                , range());
         var callFuncId = id("foo");
         var call = new MemberFunctionCall(struct, callFuncId, args, range());
 
@@ -312,7 +312,7 @@ class TypeResolverTest {
       var argFields = List
           .of(new Field(id("foo"), stringValue("str")), new Field(id("bar"), intValue("10")),
               new Field(id("baz"), boolValue("true")));
-      var struct = Struct.literalStruct(scope, argFields, List.of(), range());
+      var struct = literalStruct(scope, argFields, List.of());
       var argType = resolveExpr(struct);
 
       var paramType = new StructType(Map.of("foo", BuiltinType.STRING, "bar", BuiltinType.INT));

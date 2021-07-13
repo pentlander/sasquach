@@ -59,7 +59,7 @@ public class Scope implements ScopeReader, ScopeWriter {
    */
   public void setMetadata(Metadata metadata) {
     if (this.metadata != null) {
-      throw new IllegalStateException("Failed to set metadata: " + metadata);
+      throw new IllegalStateException("Metadata already exists: " + this.metadata);
     }
     this.metadata = metadata;
   }
