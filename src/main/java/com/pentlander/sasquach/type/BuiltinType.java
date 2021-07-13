@@ -7,19 +7,17 @@ import java.util.NoSuchElementException;
  * Literal types built into the JVM.
  */
 public enum BuiltinType implements Type {
-  BOOLEAN("boolean", boolean.class, "Z"), INT("int", int.class, "I"), CHAR(
-      "char",
-      char.class,
-      "C"), BYTE("byte", byte.class, "B"), SHORT("short", short.class, "S"), LONG(
-      "long",
-      long.class,
-      "J"), FLOAT("float", float.class, "F"), DOUBLE("double", double.class, "D"), STRING(
-      "string",
-      String.class,
-      "Ljava/lang/String;"), STRING_ARR("string[]", String[].class, "[Ljava/lang/String;"), VOID(
-      "void",
-      void.class,
-      "V");
+  BOOLEAN("Boolean", boolean.class, "Z"),
+  INT("Int", int.class, "I"),
+  CHAR("Char", char.class, "C"),
+  BYTE("Byte", byte.class, "B"),
+  SHORT( "Short", short.class, "S"),
+  LONG("Long", long.class, "J"),
+  FLOAT("Float", float.class, "F"),
+  DOUBLE( "Double", double.class, "D"),
+  STRING("String", String.class, "Ljava/lang/String;"),
+  STRING_ARR( "String[]", String[].class, "[Ljava/lang/String;"),
+  VOID("Void", void.class, "V");
 
   private final String name;
   private final Class<?> typeClass;

@@ -59,7 +59,7 @@ class BytecodeGenerator implements Opcodes {
 
   record BytecodeResult(Map<String, byte[]> generatedBytecode) {}
 
-  public BytecodeResult generateBytecode(CompilationUnit compilationUnit) throws Exception {
+  public BytecodeResult generateBytecode(CompilationUnit compilationUnit) {
     var generatedBytecode = new HashMap<String, byte[]>();
     for (var moduleDeclaration : compilationUnit.modules()) {
       var classGen = new ClassGenerator(typeFetcher);
@@ -111,11 +111,11 @@ class BytecodeGenerator implements Opcodes {
 
     private void generateStruct(Struct struct) {
       addContextNode(struct);
-      var structName = type(struct).internalName();
-      generatedClasses.put(structName, classWriter);
+      var structType = type(struct);
+      generatedClasses.put(structType.typeName(), classWriter);
       classWriter.visit(CLASS_VERSION,
           ACC_PUBLIC + ACC_FINAL,
-          structName,
+          structType.internalName(),
           null,
           "java/lang/Object",
           new String[]{STRUCT_BASE_INTERNAL_NAME});
@@ -143,7 +143,7 @@ class BytecodeGenerator implements Opcodes {
         var field = fields.get(i);
         mv.visitVarInsn(ALOAD, 0);
         ExpressionGenerator.generateLoadVar(mv, type(field), i + 1);
-        mv.visitFieldInsn(PUTFIELD, structName, field.name(), type(field).descriptor());
+        mv.visitFieldInsn(PUTFIELD, structType.internalName(), field.name(), type(field).descriptor());
       }
       mv.visitInsn(RETURN);
 
@@ -159,7 +159,7 @@ class BytecodeGenerator implements Opcodes {
         var smv = classWriter.visitMethod(ACC_STATIC, "<clinit>", "()V", null, null);
         smv.visitCode();
         new ExpressionGenerator(smv, typeFetcher).generateStructInit(struct, Scope.NULL_SCOPE);
-        smv.visitFieldInsn(PUTSTATIC, structName, INSTANCE_FIELD, type(struct).descriptor());
+        smv.visitFieldInsn(PUTSTATIC, structType.internalName(), INSTANCE_FIELD, type(struct).descriptor());
         smv.visitInsn(RETURN);
         smv.visitMaxs(-1, -1);
         smv.visitEnd();

@@ -13,13 +13,13 @@ block : '{' NL* blockStatement (NL blockStatement)*  NL* '}' ;
 function : functionDeclaration expression ;
 functionDeclaration :
     ('[' typeIdentifier (',' typeIdentifier)* ']')?
-    functionParameterList ':' type '->' ;
+    functionParameterList ':' type '->' NL* ;
 functionName : ID ;
 functionArgument : ID ':' type ;
 functionParameterList : '(' (functionArgument)? (',' functionArgument)* ')' ;
 
 type : primitiveType | classType | structType | typeIdentifier | functionType ;
-primitiveType : 'boolean' | 'string' ('[' ']')* | 'char' | 'byte' | 'int' | 'long' | 'float' | 'double' | 'void' ;
+primitiveType : 'Boolean' | 'String' ('[' ']')* | 'Char' | 'Byte' | 'Int' | 'Long' | 'Float' | 'Double' | 'void' ;
 classType : qualifiedName ;
 structType : '{' NL* ID ':' NL* type (',' NL* ID ':' NL* type)* NL* '}' ;
 functionType : functionParameterList '->' type ;
