@@ -1,6 +1,7 @@
 package com.pentlander.sasquach;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pentlander.sasquach.BytecodeGenerator.BytecodeResult;
 import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.type.TypeResolver;
 import java.io.IOException;
@@ -13,7 +14,9 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import org.antlr.v4.runtime.ANTLRFileStream;
+import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonTokenStream;
@@ -24,31 +27,11 @@ public class Main {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   public static void main(String[] args) throws Exception {
+    Source source = null;
     try {
       var sasquachPath = Paths.get(args[0]);
-      var compilationUnit = new Parser().getCompilationUnit(sasquachPath);
-      var source = new Source(Files.readAllLines(sasquachPath));
-      var validator = new AstValidator(compilationUnit, source);
-      var compileErrors = validator.validate();
-      if (!compileErrors.isEmpty()) {
-        for (Error compileError : compileErrors) {
-          System.out.printf("error: %s\n", compileError.toPrettyString(source));
-        }
-        System.exit(1);
-      }
-
-      var resolver = new TypeResolver();
-      var typeErrors = resolver.resolve(compilationUnit);
-      if (!typeErrors.isEmpty()) {
-        for (Error typeError : typeErrors) {
-          System.out.printf("error: %s\n", typeError.toPrettyString(source));
-        }
-        System.exit(1);
-      }
-
-      var bytecode = new BytecodeGenerator(resolver).generateBytecode(compilationUnit);
-//            System.out.println(
-//                OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(compilationUnit));
+      source = Source.fromPath(sasquachPath);
+      var bytecode = compile(source);
       var outputPath = Paths.get("out");
       Files.walkFileTree(outputPath, new SimpleFileVisitor<>() {
         @Override
@@ -70,9 +53,54 @@ public class Main {
       });
       bytecode.generatedBytecode()
           .forEach((name, byteCode) -> saveBytecodeToFile(outputPath, name, byteCode));
+    } catch (CompilationException e) {
+      printErrors(Objects.requireNonNull(source), e.errors());
     } catch (Exception e) {
       System.err.println(e);
       e.printStackTrace();
+    }
+  }
+
+  public static BytecodeResult compile(Source source) throws CompilationException {
+    var compilationUnit = new Parser().getCompilationUnit(source);
+    var validator = new AstValidator(compilationUnit, source);
+    var compileErrors = validator.validate();
+    if (!compileErrors.isEmpty()) throw new CompilationException(source, compileErrors);
+
+    var resolver = new TypeResolver();
+    var typeErrors = resolver.resolve(compilationUnit);
+    if (!typeErrors.isEmpty()) throw new CompilationException(source, typeErrors);
+
+    return new BytecodeGenerator(resolver).generateBytecode(compilationUnit);
+  }
+
+  public static class CompilationException extends Exception {
+    private final List<? extends Error> errors;
+
+    public CompilationException(Source source, List<? extends Error> errors) {
+      super(errorMessage(source, errors));
+      this.errors = errors;
+    }
+
+    private static String errorMessage(Source source, List<? extends Error> errors) {
+      StringBuilder stringBuilder = new StringBuilder();
+      for (Error compileError : errors) {
+        stringBuilder.append("error: %s\n".formatted(compileError.toPrettyString(source)));
+      }
+      return stringBuilder.toString();
+    }
+
+    public List<? extends Error> errors() {
+      return errors;
+    }
+  }
+
+  static void printErrors(Source source, List<? extends Error> errors) {
+    if (!errors.isEmpty()) {
+      for (Error compileError : errors) {
+        System.out.printf("error: %s\n", compileError.toPrettyString(source));
+      }
+      System.exit(1);
     }
   }
 
@@ -100,25 +128,19 @@ public class Main {
     }
   }
 
-  static class Parser {
-    public CompilationUnit getCompilationUnit(Path filePath) {
-      try {
-        CharStream charStream = new ANTLRFileStream(filePath.toAbsolutePath().toString());
-        var errorListener = new SasquachTreeWalkErrorListener();
-        var lexer = new SasquachLexer(charStream);
-        lexer.addErrorListener(errorListener);
+  public static class Parser {
+    public CompilationUnit getCompilationUnit(Source source) {
+      CharStream charStream = new ANTLRInputStream(String.join("\n", source.sourceLines()));
+      var lexer = new SasquachLexer(charStream);
+      var errorListener = new SasquachTreeWalkErrorListener();
+      lexer.addErrorListener(errorListener);
 
-        var tokenStream = new CommonTokenStream(lexer);
-        var parser = new SasquachParser(tokenStream);
-        parser.addErrorListener(errorListener);
+      var tokenStream = new CommonTokenStream(lexer);
+      var parser = new SasquachParser(tokenStream);
+      parser.addErrorListener(errorListener);
 
-        var packageName = filePath.getFileName().toString().split("\\.")[0];
-        var visitor = new Visitor.CompilationUnitVisitor(packageName);
-        return parser.compilationUnit().accept(visitor);
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
+      var visitor = new Visitor.CompilationUnitVisitor(source.packageName());
+      return parser.compilationUnit().accept(visitor);
     }
   }
-
 }
