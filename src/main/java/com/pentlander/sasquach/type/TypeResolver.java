@@ -159,7 +159,7 @@ public class TypeResolver implements TypeFetcher {
       type = BuiltinType.VOID;
     } else if (expr instanceof VarReference varRef) {
       var name = varRef.name();
-      type = scope.getLocalIdentifier(name).flatMap(this::getIdType)
+      type = scope.getLocalIdentifier(varRef).flatMap(this::getIdType)
           .or(() -> scope.getNamedType(name).map(TypeNode::type))
           .or(() -> scope.findUse(name).map(this::resolveNodeType)).orElseThrow();
     } else if (expr instanceof BinaryExpression binExpr) {

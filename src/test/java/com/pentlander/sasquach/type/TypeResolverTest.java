@@ -61,8 +61,9 @@ class TypeResolverTest {
   void varReference() {
     var varId = id("foo");
 
-    var declType = resolveExpr(new VariableDeclaration(varId, stringValue("hi"), 0, range()));
-    scope.addLocalIdentifier(varId);
+    var varDecl = new VariableDeclaration(varId, stringValue("hi"), 0, range());
+    var declType = resolveExpr(varDecl);
+    scope.addLocalIdentifier(varDecl);
     var refType = resolveExpr(new VarReference(id("foo")));
 
     assertThat(declType).isEqualTo(BuiltinType.VOID);

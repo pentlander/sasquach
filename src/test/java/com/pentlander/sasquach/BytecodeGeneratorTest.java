@@ -109,7 +109,7 @@ class BytecodeGeneratorTest {
 
         private <T> T declResult(Type type, Expression expr) throws Exception {
             var varDecl = new VariableDeclaration(id("bar"), expr, 0, NR);
-            scope.addLocalIdentifier(varDecl.id());
+            scope.addLocalIdentifier(varDecl);
             var block = new Block(scope,
                     List.of(varDecl, VarReference.of("bar", NR)), NR);
             var func = func(scope, "foo", List.of(), type, block);
@@ -332,7 +332,7 @@ class BytecodeGeneratorTest {
     private FunctionParameter param(String name, Type type) {
         var id = id(name);
         var param = new FunctionParameter(id, new TypeNode(type, NR));
-        scope.addLocalIdentifier(param.id());
+        scope.addLocalIdentifier(param);
         return param;
     }
 

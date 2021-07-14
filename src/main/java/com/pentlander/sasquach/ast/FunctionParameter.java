@@ -1,13 +1,14 @@
 package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.type.Type;
 
 /**
  * Function parameter name with a type.
  */
-public record FunctionParameter(Identifier id, TypeNode typeNode) implements Node {
+public record FunctionParameter(Identifier id, TypeNode typeNode) implements LocalVariable {
   /**
    * Name of the parameter variable.
    */

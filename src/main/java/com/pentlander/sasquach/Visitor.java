@@ -145,7 +145,7 @@ public class Visitor {
       FunctionSignature funcSignature = functionDeclaration(ctx.functionDeclaration());
       funcSignature.typeParameters()
           .forEach(param -> scope.addNamedType(param.type().typeName(), param));
-      funcSignature.parameters().forEach(param -> scope.addLocalIdentifier(param.id()));
+      funcSignature.parameters().forEach(param -> scope.addLocalIdentifier(param));
 
       var expr = ctx.expression().accept(new ExpressionVisitor(scope));
 
@@ -238,8 +238,9 @@ public class Visitor {
     @Override
     public Expression visitVariableDeclaration(VariableDeclarationContext ctx) {
       Expression expr = ctx.expression().accept(new ExpressionVisitor(scope));
-      scope.addLocalIdentifier(id(ctx.ID()));
-      return new VariableDeclaration(id(ctx.ID()), expr, 1, rangeFrom(ctx));
+      var varDecl = new VariableDeclaration(id(ctx.ID()), expr, 1, rangeFrom(ctx));
+      scope.addLocalIdentifier(varDecl);
+      return varDecl;
     }
 
     @Override

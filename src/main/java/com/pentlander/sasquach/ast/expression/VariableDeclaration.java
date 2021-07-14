@@ -5,7 +5,7 @@ import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.expression.Expression;
 
 public record VariableDeclaration(Identifier id, Expression expression, int index,
-                                  Range range) implements Expression {
+                                  Range range) implements Expression, LocalVariable {
   public String name() {
     return id.name();
   }

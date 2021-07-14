@@ -1,6 +1,8 @@
 package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.VarReference;
+import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -13,7 +15,7 @@ import java.util.OptionalInt;
 /**
  * Contains identifiers, functions, imports, and types that are limited to the scope.
  */
-public class Scope implements ScopeReader, ScopeWriter {
+public class Scope {
   public static final Scope NULL_SCOPE = topLevel(new Metadata("null"));
   private final Map<String, Identifier> localIdentifiers = new LinkedHashMap<>();
   private final List<Function> functions = new ArrayList<>();
@@ -75,8 +77,16 @@ public class Scope implements ScopeReader, ScopeWriter {
    * Add a local identifier to the current scope.
    * <p>This includes function parameters and variables declared withing the scope.</p>
    */
-  public void addLocalIdentifier(Identifier identifier) {
-    localIdentifiers.put(identifier.name(), identifier);
+  public void addLocalIdentifier(VariableDeclaration variableDeclaration) {
+    localIdentifiers.put(variableDeclaration.name(), variableDeclaration.id());
+  }
+
+  /**
+   * Add a local identifier to the current scope.
+   * <p>This includes function parameters and variables declared withing the scope.</p>
+   */
+  public void addLocalIdentifier(FunctionParameter functionParameter) {
+    localIdentifiers.put(functionParameter.name(), functionParameter.id());
   }
 
   /**
@@ -96,8 +106,8 @@ public class Scope implements ScopeReader, ScopeWriter {
   /**
    * Get the {@link com.pentlander.sasquach.ast.Identifier} that corresponds to the given name.
    */
-  public Optional<Identifier> getLocalIdentifier(String identifierName) {
-    return Optional.ofNullable(localIdentifiers.get(identifierName));
+  public Optional<Identifier> getLocalIdentifier(VarReference varReference) {
+    return Optional.ofNullable(localIdentifiers.get(varReference.name()));
   }
 
   /**
