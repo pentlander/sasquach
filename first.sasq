@@ -1,5 +1,5 @@
 Math {
-    plus = (a: int, b: int): int -> a + b
+    plus = (a: Int, b: Int): Int -> a + b
 }
 
 Option {
@@ -14,17 +14,17 @@ First {
     use foreign java/io/PrintStream,
     use foreign java/lang/System,
 
-    gee = (arg: { bar: int, foo: string }, otherArg: string): void -> {
+    gee = (arg: { bar: Int, foo: String }, otherArg: String): Void -> {
         let toPrint = if (arg.bar > 0) arg.foo else otherArg
         print toPrint
     },
 
-    bar = (boo: string): string -> "doo",
+    bar = (boo: String): String -> "doo",
 
-    main = (args: string[]): void -> {
+    main = (args: String[]): Void -> {
         let third = { foo = "third", bar = 45 }
         let optStr = Option.some("an option")
-        let optInt = Option.map(optStr, { map = (input: string): int -> 10 })
+        let optInt = Option.map(optStr, { map = (input: String): Int -> 10 })
         print optInt.value
         PrintStream#println(System#out, optInt.value)
         gee(third, "testing")

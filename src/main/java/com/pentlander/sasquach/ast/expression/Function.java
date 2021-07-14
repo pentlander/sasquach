@@ -1,17 +1,24 @@
 package com.pentlander.sasquach.ast.expression;
 
+import static java.util.Objects.requireNonNull;
+
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.FunctionParameter;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Scope;
 import com.pentlander.sasquach.type.Type;
-import org.antlr.v4.runtime.misc.Nullable;
+import io.soabase.recordbuilder.core.RecordBuilder;
 
 import java.util.List;
 
+@RecordBuilder
 public record Function(Scope scope, Identifier id, FunctionSignature functionSignature,
                        Expression expression) implements Expression {
+  public Function {
+    requireNonNull(id);
+    requireNonNull(functionSignature);
+  }
+
   public String name() {
     return id.name();
   }
@@ -31,10 +38,5 @@ public record Function(Scope scope, Identifier id, FunctionSignature functionSig
 
   public List<FunctionParameter> parameters() {
     return functionSignature.parameters();
-  }
-
-  @Nullable
-  public Expression returnExpression() {
-    return expression;
   }
 }

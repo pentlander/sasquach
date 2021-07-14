@@ -32,7 +32,7 @@ import static com.pentlander.sasquach.ast.expression.Struct.StructKind;
 import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
 import com.pentlander.sasquach.SasquachParser.CompareExpressionContext;
 import com.pentlander.sasquach.ast.CompilationUnit;
-import com.pentlander.sasquach.ast.FunctionParameter;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Metadata;
@@ -123,9 +123,9 @@ public class Visitor {
 
     @Override
     public ModuleDeclaration visitModuleDeclaration(ModuleDeclarationContext ctx) {
-      String name = packageName + "." + ctx.moduleName().getText();
+      String name = packageName + "/" + ctx.moduleName().getText();
       var struct = ctx.struct().accept(StructVisitor.forModule(name));
-      return new ModuleDeclaration(new Identifier(name, rangeFrom(ctx.moduleName().ID())),
+      return new ModuleDeclaration(new QualifiedIdentifier(name, rangeFrom(ctx.moduleName().ID())),
           struct,
           rangeFrom(ctx));
     }
@@ -145,7 +145,7 @@ public class Visitor {
       FunctionSignature funcSignature = functionDeclaration(ctx.functionDeclaration());
       funcSignature.typeParameters()
           .forEach(param -> scope.addNamedType(param.type().typeName(), param));
-      funcSignature.parameters().forEach(param -> scope.addLocalIdentifier(param.id()));
+      funcSignature.parameters().forEach(param -> scope.addLocalIdentifier(param));
 
       var expr = ctx.expression().accept(new ExpressionVisitor(scope));
 
@@ -238,8 +238,9 @@ public class Visitor {
     @Override
     public Expression visitVariableDeclaration(VariableDeclarationContext ctx) {
       Expression expr = ctx.expression().accept(new ExpressionVisitor(scope));
-      scope.addLocalIdentifier(id(ctx.ID()));
-      return new VariableDeclaration(id(ctx.ID()), expr, 1, rangeFrom(ctx));
+      var varDecl = new VariableDeclaration(id(ctx.ID()), expr, rangeFrom(ctx));
+      scope.addLocalIdentifier(varDecl);
+      return varDecl;
     }
 
     @Override

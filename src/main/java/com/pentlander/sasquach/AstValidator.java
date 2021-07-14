@@ -1,7 +1,7 @@
 package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.CompilationUnit;
-import com.pentlander.sasquach.ast.FunctionParameter;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;

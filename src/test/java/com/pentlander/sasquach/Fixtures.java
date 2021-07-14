@@ -3,6 +3,7 @@ package com.pentlander.sasquach;
 import com.pentlander.sasquach.ast.*;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Value;
@@ -25,9 +26,6 @@ public class Fixtures {
     }
 
     public static QualifiedIdentifier qualId(String name) {
-        if (name.contains(".")) {
-            throw new IllegalStateException("Qualified name separated by '/' not '.': " + name);
-        }
         return new QualifiedIdentifier(name, range());
     }
 
@@ -46,6 +44,10 @@ public class Fixtures {
             range()), expression);
         scope.addFunction(function);
         return function;
+    }
+
+    public static Function voidFunc(Scope scope, String name, Expression expression) {
+        return func(scope, name, List.of(), BuiltinType.VOID, expression);
     }
 
     public static Struct literalStruct(Scope parentScope, List<Field> fields,

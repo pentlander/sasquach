@@ -112,7 +112,7 @@ class BytecodeGenerator implements Opcodes {
     private void generateStruct(Struct struct) {
       addContextNode(struct);
       var structType = type(struct);
-      generatedClasses.put(structType.typeName(), classWriter);
+      generatedClasses.put(structType.typeName().replace('/', '.'), classWriter);
       classWriter.visit(CLASS_VERSION,
           ACC_PUBLIC + ACC_FINAL,
           structType.internalName(),
@@ -180,7 +180,7 @@ class BytecodeGenerator implements Opcodes {
           .visitMethod(ACC_PUBLIC + ACC_STATIC, function.name(), funcType.descriptor(), null, null);
       methodVisitor.visitCode();
       var exprGenerator = new ExpressionGenerator(methodVisitor, typeFetcher);
-      var returnExpr = function.returnExpression();
+      var returnExpr = function.expression();
       if (returnExpr != null) {
         exprGenerator.generateExpr(returnExpr, function.scope());
         Type type = type(returnExpr);

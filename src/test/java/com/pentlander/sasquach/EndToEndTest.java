@@ -15,7 +15,7 @@ public class EndToEndTest {
           plus = (): Int -> 3 + 4
         }
         """);
-    var clazz = compileClass(source, "main.Main");
+    var clazz = compileClass(source, "main/Main");
     int sum = invokeName(clazz, "plus", null);
 
     assertThat(sum).isEqualTo(7);
@@ -31,7 +31,7 @@ public class EndToEndTest {
           main = (): { value: Int } -> map("foobar", { map = (inp: String): Int -> 10 })
         }
         """);
-    var clazz = compileClass(source, "main.Main");
+    var clazz = compileClass(source, "main/Main");
     Object boxedInt = invokeName(clazz, "main", null);
 
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
@@ -42,7 +42,7 @@ public class EndToEndTest {
     var bytecode = compile(source);
     var cl = new SasquachClassloader();
     bytecode.generatedBytecode().forEach(cl::addClass);
-    return cl.loadClass(qualifiedName);
+    return cl.loadClass(qualifiedName.replace('/', '.'));
   }
 
   @SuppressWarnings("unchecked")

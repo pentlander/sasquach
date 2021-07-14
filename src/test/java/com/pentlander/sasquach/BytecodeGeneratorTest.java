@@ -7,6 +7,7 @@ import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
@@ -108,8 +109,8 @@ class BytecodeGeneratorTest {
         }
 
         private <T> T declResult(Type type, Expression expr) throws Exception {
-            var varDecl = new VariableDeclaration(id("bar"), expr, 0, NR);
-            scope.addLocalIdentifier(varDecl.id());
+            var varDecl = new VariableDeclaration(id("bar"), expr, NR);
+            scope.addLocalIdentifier(varDecl);
             var block = new Block(scope,
                     List.of(varDecl, VarReference.of("bar", NR)), NR);
             var func = func(scope, "foo", List.of(), type, block);
@@ -332,7 +333,7 @@ class BytecodeGeneratorTest {
     private FunctionParameter param(String name, Type type) {
         var id = id(name);
         var param = new FunctionParameter(id, new TypeNode(type, NR));
-        scope.addLocalIdentifier(param.id());
+        scope.addLocalIdentifier(param);
         return param;
     }
 
@@ -376,7 +377,7 @@ class BytecodeGeneratorTest {
     }
 
     private CompilationUnit compUnit(List<Use> useList, List<Struct.Field> fields, List<Function> functions) {
-        return new CompilationUnit(List.of(new ModuleDeclaration(id(MOD_NAME),
+        return new CompilationUnit(List.of(new ModuleDeclaration(qualId(MOD_NAME),
             Struct.moduleStruct(scope, MOD_NAME, useList, fields, functions, NR), NR)));
     }
 

@@ -19,7 +19,7 @@ functionArgument : ID ':' type ;
 functionParameterList : '(' (functionArgument)? (',' functionArgument)* ')' ;
 
 type : primitiveType | classType | structType | typeIdentifier | functionType ;
-primitiveType : 'Boolean' | 'String' ('[' ']')* | 'Char' | 'Byte' | 'Int' | 'Long' | 'Float' | 'Double' | 'void' ;
+primitiveType : 'Boolean' | 'String' ('[' ']')* | 'Char' | 'Byte' | 'Int' | 'Long' | 'Float' | 'Double' | 'Void' ;
 classType : qualifiedName ;
 structType : '{' NL* ID ':' NL* type (',' NL* ID ':' NL* type)* NL* '}' ;
 functionType : functionParameterList '->' type ;
