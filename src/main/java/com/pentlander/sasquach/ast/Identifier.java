@@ -5,4 +5,4 @@ import com.pentlander.sasquach.Range;
 /**
  * An unqualified identifier.
  */
-public record Identifier(String name, Range.Single range) implements Node {}
+public record Identifier(String name, Range.Single range) implements Node, Id {}

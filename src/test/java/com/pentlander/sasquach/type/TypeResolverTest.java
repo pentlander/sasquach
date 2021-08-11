@@ -8,6 +8,7 @@ import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathOperator;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Expression;
@@ -61,7 +62,7 @@ class TypeResolverTest {
   void varReference() {
     var varId = id("foo");
 
-    var varDecl = new VariableDeclaration(varId, stringValue("hi"), 0, range());
+    var varDecl = new VariableDeclaration(varId, stringValue("hi"), range());
     var declType = resolveExpr(varDecl);
     scope.addLocalIdentifier(varDecl);
     var refType = resolveExpr(new VarReference(id("foo")));

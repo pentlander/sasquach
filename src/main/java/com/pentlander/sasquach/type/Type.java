@@ -3,7 +3,8 @@ package com.pentlander.sasquach.type;
 /**
  * Represents the type of an expression.
  */
-public interface Type {
+public sealed interface Type permits ArrayType, BuiltinType, ClassType, ForeignFieldType,
+    ForeignFunctionType, ParameterizedType, TypeResolver.UnknownType {
   /**
    * Name of the type.
    */

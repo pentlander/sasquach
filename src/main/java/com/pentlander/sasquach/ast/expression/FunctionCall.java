@@ -5,7 +5,8 @@ import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.expression.Expression;
 import java.util.List;
 
-public interface FunctionCall extends Expression {
+public sealed interface FunctionCall extends Expression permits ForeignFunctionCall,
+    LocalFunctionCall, MemberFunctionCall {
   Identifier functionId();
 
   default String name() {
@@ -13,6 +14,10 @@ public interface FunctionCall extends Expression {
   }
 
   List<Expression> arguments();
+
+  default int argumentCount() {
+    return arguments().size();
+  }
 
   Range range();
 }

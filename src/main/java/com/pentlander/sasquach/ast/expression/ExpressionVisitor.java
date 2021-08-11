@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.ast.expression;
 
 import com.pentlander.sasquach.ast.Node;
+import com.pentlander.sasquach.ast.expression.Struct.Field;
 
 public interface ExpressionVisitor<T> {
   T defaultValue();
@@ -14,8 +15,28 @@ public interface ExpressionVisitor<T> {
       return visit(block);
     } else if (expr instanceof FieldAccess fieldAccess) {
       return visit(fieldAccess);
+    } else if (expr instanceof Field field) {
+      return visit(field);
     } else if (expr instanceof ForeignFieldAccess fieldAccess) {
       return visit(fieldAccess);
+    } else if (expr instanceof FunctionCall funcCall) {
+      return visit(funcCall);
+    } else if (expr instanceof Function func) {
+      return visit(func);
+    } else if (expr instanceof IfExpression ifExpr) {
+      return visit(ifExpr);
+    } else if (expr instanceof PrintStatement printStatement) {
+      return visit(printStatement);
+    } else if (expr instanceof Struct struct) {
+      return visit(struct);
+    } else if (expr instanceof Value value) {
+      return visit(value);
+    } else if (expr instanceof VariableDeclaration variableDeclaration) {
+      return visit(variableDeclaration);
+    } else if (expr instanceof VarReference varReference) {
+      return visit(varReference);
+    } else {
+      throw new IllegalStateException();
     }
   }
 
@@ -38,6 +59,10 @@ public interface ExpressionVisitor<T> {
       }
     }
     return defaultValue();
+  }
+
+  default T visit(Field field) {
+    return visit(field.value());
   }
 
   default T visit(FieldAccess fieldAccess) {
@@ -63,9 +88,18 @@ public interface ExpressionVisitor<T> {
       return visit(localFuncCall);
     } else if (functionCall instanceof MemberFunctionCall memberFuncCall) {
       return visit(memberFuncCall);
+    } else if (functionCall instanceof ForeignFunctionCall foreignFunctionCall) {
+      return visit(foreignFunctionCall);
     } else {
       throw new IllegalStateException();
     }
+  }
+
+  default T visit(IfExpression ifExpression) {
+    visit(ifExpression.condition());
+    visit(ifExpression.trueExpression());
+    visit(ifExpression.falseExpression());
+    return defaultValue();
   }
 
   T visit(LocalFunctionCall localFunctionCall);

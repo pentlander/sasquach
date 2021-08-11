@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.type.Type;
 import java.util.List;
 

@@ -4,7 +4,7 @@ import com.pentlander.sasquach.Range;
 
 import java.util.NoSuchElementException;
 
-public interface BinaryExpression extends Expression {
+public sealed interface BinaryExpression extends Expression {
   Expression left();
 
   Expression right();

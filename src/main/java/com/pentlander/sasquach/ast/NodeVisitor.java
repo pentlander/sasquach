@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.ast.expression.Expression;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
 
 public interface NodeVisitor<T> {
   default T visit(Node node) {

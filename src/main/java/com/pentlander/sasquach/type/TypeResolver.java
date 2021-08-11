@@ -8,7 +8,7 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.CompilationUnit;
-import com.pentlander.sasquach.ast.FunctionParameter;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.InvocationKind;
 import com.pentlander.sasquach.ast.Metadata;
@@ -95,12 +95,12 @@ public class TypeResolver implements TypeFetcher {
     var paramTypes = func.functionSignature().parameters().stream().map(this::resolveNodeType)
         .toList();
     try {
-      var resolvedReturnType = resolveExprType(func.returnExpression(), func.scope());
+      var resolvedReturnType = resolveExprType(func.expression(), func.scope());
       if (!resolvedReturnType.equals(func.returnType())) {
         addError(new TypeMismatchError(
             "Type of function return expression '%s' does not match return type of function '%s'"
                 .formatted(resolvedReturnType.typeName(), func.returnType().typeName()),
-            func.returnExpression().range()));
+            func.expression().range()));
       }
     } catch (UnknownTypeException ignored) {
       // Encountering an unknown type means that the type resolution can no longer proceed
@@ -131,7 +131,7 @@ public class TypeResolver implements TypeFetcher {
       type = new ClassType(useForeign.qualifiedName());
       putIdType(useForeign.alias(), type);
     } else if (node instanceof Use.Module useModule) {
-      type = requireNonNull(moduleTypes.get(useModule.qualifiedName().replace("/", ".")),
+      type = requireNonNull(moduleTypes.get(useModule.qualifiedName()),
           "Not found: " + useModule);
     } else {
       throw new IllegalStateException();
@@ -446,7 +446,7 @@ public class TypeResolver implements TypeFetcher {
     }
   }
 
-  static class UnknownType implements Type {
+  static final class UnknownType implements Type {
     @Override
     public String typeName() {
       throw new UnknownTypeException();
