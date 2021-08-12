@@ -5,7 +5,7 @@ import com.pentlander.sasquach.Range;
 /**
  * An import declaration.
  */
-public interface Use extends Node {
+public sealed interface Use extends Node {
 
   /**
    * Fully qualified identifier of the module or class. Qualified imports use '/' as a separator .

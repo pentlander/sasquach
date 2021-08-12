@@ -7,37 +7,22 @@ public interface ExpressionVisitor<T> {
   T defaultValue();
 
   default T visit(Expression expr) {
-    if (expr instanceof ArrayValue arrayValue) {
-      return visit(arrayValue);
-    } else if (expr instanceof BinaryExpression binExpr) {
-      return visit(binExpr);
-    } else if (expr instanceof Block block) {
-      return visit(block);
-    } else if (expr instanceof FieldAccess fieldAccess) {
-      return visit(fieldAccess);
-    } else if (expr instanceof Field field) {
-      return visit(field);
-    } else if (expr instanceof ForeignFieldAccess fieldAccess) {
-      return visit(fieldAccess);
-    } else if (expr instanceof FunctionCall funcCall) {
-      return visit(funcCall);
-    } else if (expr instanceof Function func) {
-      return visit(func);
-    } else if (expr instanceof IfExpression ifExpr) {
-      return visit(ifExpr);
-    } else if (expr instanceof PrintStatement printStatement) {
-      return visit(printStatement);
-    } else if (expr instanceof Struct struct) {
-      return visit(struct);
-    } else if (expr instanceof Value value) {
-      return visit(value);
-    } else if (expr instanceof VariableDeclaration variableDeclaration) {
-      return visit(variableDeclaration);
-    } else if (expr instanceof VarReference varReference) {
-      return visit(varReference);
-    } else {
-      throw new IllegalStateException();
-    }
+    return switch (expr) {
+      case ArrayValue arrayValue -> visit(arrayValue);
+      case BinaryExpression binExpr -> visit(binExpr);
+      case Block block -> visit(block);
+      case FieldAccess fieldAccess -> visit(fieldAccess);
+      case Field field -> visit(field);
+      case ForeignFieldAccess fieldAccess -> visit(fieldAccess);
+      case FunctionCall funcCall -> visit(funcCall);
+      case Function func -> visit(func);
+      case IfExpression ifExpr -> visit(ifExpr);
+      case PrintStatement printStatement -> visit(printStatement);
+      case Struct struct -> visit(struct);
+      case Value value -> visit(value);
+      case VariableDeclaration variableDeclaration -> visit(variableDeclaration);
+      case VarReference varReference -> visit(varReference);
+    };
   }
 
   default T visit(ArrayValue arrayValue) {
@@ -84,15 +69,11 @@ public interface ExpressionVisitor<T> {
 
   default T visit(FunctionCall functionCall) {
     functionCall.arguments().forEach(this::visit);
-    if (functionCall instanceof LocalFunctionCall localFuncCall) {
-      return visit(localFuncCall);
-    } else if (functionCall instanceof MemberFunctionCall memberFuncCall) {
-      return visit(memberFuncCall);
-    } else if (functionCall instanceof ForeignFunctionCall foreignFunctionCall) {
-      return visit(foreignFunctionCall);
-    } else {
-      throw new IllegalStateException();
-    }
+    return switch (functionCall) {
+      case LocalFunctionCall localFuncCall -> visit(localFuncCall);
+      case MemberFunctionCall memberFuncCall -> visit(memberFuncCall);
+      case ForeignFunctionCall foreignFunctionCall -> visit(foreignFunctionCall);
+    };
   }
 
   default T visit(IfExpression ifExpression) {

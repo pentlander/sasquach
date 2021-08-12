@@ -18,18 +18,20 @@ public class TypeUnifier {
    */
   public Type resolve(Type type) {
     if (type instanceof ParameterizedType paramType) {
-      if (paramType instanceof NamedType namedType) {
-        return unifiedTypes.getOrDefault(namedType, namedType);
-      } else if (paramType instanceof FunctionType funcType) {
-        var paramTypes = funcType.parameterTypes().stream().map(this::resolve).toList();
-        var returnType = resolve(funcType.returnType());
-        return new FunctionType(paramTypes, List.of(), returnType);
-      } else if (paramType instanceof StructType structType) {
-        var fieldTypes = new HashMap<String, Type>();
-        structType.fieldTypes()
-            .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType)));
-        return new StructType(fieldTypes);
-      }
+      return switch (paramType) {
+        case NamedType namedType -> unifiedTypes.getOrDefault(namedType, namedType);
+        case FunctionType funcType -> {
+          var paramTypes = funcType.parameterTypes().stream().map(this::resolve).toList();
+          var returnType = resolve(funcType.returnType());
+          yield new FunctionType(paramTypes, List.of(), returnType);
+        }
+        case StructType structType -> {
+          var fieldTypes = new HashMap<String, Type>();
+          structType.fieldTypes()
+              .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType)));
+          yield new StructType(fieldTypes);
+        }
+      };
     }
     return type;
   }
@@ -46,35 +48,38 @@ public class TypeUnifier {
   }
 
   private void unify(ParameterizedType destType, Type sourceType) {
-    if (destType instanceof NamedType namedType) {
-      var unifiedType = unifiedTypes.get(namedType);
-      if (unifiedType != null && !unifiedType.equals(sourceType)) {
-        throw new UnificationException(destType, sourceType);
-      }
-      unifiedTypes.put(namedType, sourceType);
-    } else if (destType instanceof FunctionType destFuncType
-        && sourceType instanceof FunctionType sourceFuncType) {
-      var paramCount = destFuncType.parameterTypes().size();
-      if (paramCount != sourceFuncType.parameterTypes().size()) {
-        throw new UnificationException(destType, sourceType);
-      }
-
-      for (int i = 0; i < paramCount; i++) {
-        var destParamType = destFuncType.parameterTypes().get(i);
-        var sourceParamType = sourceFuncType.parameterTypes().get(i);
-        unify(destParamType, sourceParamType);
-      }
-      unify(destFuncType.returnType(), sourceFuncType.returnType());
-    } else if (destType instanceof StructType destStructType
-        && sourceType instanceof StructType sourceStructType) {
-      for (var entry : destStructType.fieldTypes().entrySet()) {
-        var destFieldType = entry.getValue();
-        var sourceFieldType = sourceStructType.fieldType(entry.getKey());
-        if (sourceFieldType == null) {
+    switch (destType) {
+      case NamedType namedType -> {
+        var unifiedType = unifiedTypes.get(namedType);
+        if (unifiedType != null && !unifiedType.equals(sourceType)) {
           throw new UnificationException(destType, sourceType);
         }
-        unify(destFieldType, sourceFieldType);
+        unifiedTypes.put(namedType, sourceType);
       }
+      case FunctionType destFuncType && sourceType instanceof FunctionType sourceFuncType -> {
+        var paramCount = destFuncType.parameterTypes().size();
+        if (paramCount != sourceFuncType.parameterTypes().size()) {
+          throw new UnificationException(destType, sourceType);
+        }
+
+        for (int i = 0; i < paramCount; i++) {
+          var destParamType = destFuncType.parameterTypes().get(i);
+          var sourceParamType = sourceFuncType.parameterTypes().get(i);
+          unify(destParamType, sourceParamType);
+        }
+        unify(destFuncType.returnType(), sourceFuncType.returnType());
+      }
+      case StructType destStructType && sourceType instanceof StructType sourceStructType -> {
+        for (var entry : destStructType.fieldTypes().entrySet()) {
+          var destFieldType = entry.getValue();
+          var sourceFieldType = sourceStructType.fieldType(entry.getKey());
+          if (sourceFieldType == null) {
+            throw new UnificationException(destType, sourceType);
+          }
+          unify(destFieldType, sourceFieldType);
+        }
+      }
+      default -> throw new IllegalStateException("Unexpected value: " + destType);
     }
   }
 

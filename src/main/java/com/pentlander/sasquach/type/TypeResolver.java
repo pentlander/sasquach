@@ -118,23 +118,24 @@ public class TypeResolver implements TypeFetcher {
   Type resolveNodeType(Node node) {
     nodeResolving = node;
     Type type;
-    if (node instanceof ModuleDeclaration moduleDecl) {
-      var struct = moduleDecl.struct();
-      type = resolveExprType(struct, struct.scope());
-      moduleTypes.put(moduleDecl.name(), (StructType) type);
-    } else if (node instanceof Function func) {
-      type = resolveFuncType(func);
-    } else if (node instanceof FunctionParameter funcParam) {
-      type = funcParam.type();
-      putIdType(funcParam.id(), type);
-    } else if (node instanceof Use.Foreign useForeign) {
-      type = new ClassType(useForeign.qualifiedName());
-      putIdType(useForeign.alias(), type);
-    } else if (node instanceof Use.Module useModule) {
-      type = requireNonNull(moduleTypes.get(useModule.qualifiedName()),
+    switch (node) {
+      case ModuleDeclaration moduleDecl -> {
+        var struct = moduleDecl.struct();
+        type = resolveExprType(struct, struct.scope());
+        moduleTypes.put(moduleDecl.name(), (StructType) type);
+      }
+      case Function func -> type = resolveFuncType(func);
+      case FunctionParameter funcParam -> {
+        type = funcParam.type();
+        putIdType(funcParam.id(), type);
+      }
+      case Use.Foreign useForeign -> {
+        type = new ClassType(useForeign.qualifiedName());
+        putIdType(useForeign.alias(), type);
+      }
+      case Use.Module useModule -> type = requireNonNull(moduleTypes.get(useModule.qualifiedName()),
           "Not found: " + useModule);
-    } else {
-      throw new IllegalStateException();
+      case null, default -> throw new IllegalStateException();
     }
 
     return type;
@@ -152,99 +153,103 @@ public class TypeResolver implements TypeFetcher {
           return type;
       }
 
-    if (expr instanceof Value value) {
-      type = value.type();
-    } else if (expr instanceof VariableDeclaration varDecl) {
-      putIdType(varDecl.id(), resolveExprType(varDecl.expression(), scope));
-      type = BuiltinType.VOID;
-    } else if (expr instanceof VarReference varRef) {
-      var name = varRef.name();
-      type = scope.getLocalIdentifier(varRef).flatMap(this::getIdType)
-          .or(() -> scope.getNamedType(name).map(TypeNode::type))
-          .or(() -> scope.findUse(name).map(this::resolveNodeType)).orElseThrow();
-    } else if (expr instanceof BinaryExpression binExpr) {
-      var leftType = resolveExprType(binExpr.left(), scope);
-      var rightType = resolveExprType(binExpr.right(), scope);
-      if (!leftType.equals(rightType)) {
-        errors.add(new TypeMismatchError(
-            "Type '%s' of left side does not match type '%s' of right side"
-                .formatted(leftType.typeName(), rightType.typeName()),
-            binExpr.range()));
-      }
-      if (binExpr instanceof BinaryExpression.CompareExpression) {
-        type = BuiltinType.BOOLEAN;
-      } else if (binExpr instanceof BinaryExpression.MathExpression) {
-        type = leftType;
-      } else {
-        throw new IllegalStateException("Unknown binary expression: " + binExpr);
-      }
-    } else if (expr instanceof ArrayValue arrayVal) {
-      // TODO: Asert expression types are equal to element type
-      arrayVal.expressions().forEach(e -> resolveExprType(e, scope));
-      type = new ArrayType(arrayVal.elementType());
-    } else if (expr instanceof Block block) {
-      block.expressions().forEach(e -> resolveExprType(e, block.scope()));
-      type = resolveExprType(block.returnExpression(), block.scope());
-    } else if (expr instanceof FieldAccess fieldAccess) {
-      var exprType = resolveExprType(fieldAccess.expr(), scope);
-      if (exprType instanceof StructType structType) {
-        var fieldType = structType.fieldTypes().get(fieldAccess.fieldName());
-        if (fieldType != null) {
-          type = fieldType;
-        } else {
-          type = addError(new TypeMismatchError("Type '%s' does not contain field '%s'"
-              .formatted(structType.typeName(), fieldAccess.fieldName()), fieldAccess.range()));
-        }
-      } else {
-        type = addError(new TypeMismatchError(
-            "Can only access fields on struct types, " + "found type '%s'".formatted(exprType),
-            expr.range()));
-      }
-    } else if (expr instanceof ForeignFieldAccess foreignFieldAccess) {
-      type = resolveForeignFieldAccess(scope, foreignFieldAccess);
-    } else if (expr instanceof ForeignFunctionCall foreignFuncCall) {
-      type = resolveForeignFunctionCall(scope, foreignFuncCall);
-    } else if (expr instanceof FunctionCall funcCall) {
-      type = resolveFunctionCall(scope, funcCall);
-    } else if (expr instanceof IfExpression ifExpr) {
-      var condtype = resolveExprType(ifExpr.condition(), scope);
-      if (!(condtype instanceof BuiltinType builtinType) || builtinType != BuiltinType.BOOLEAN) {
-        return addError(new TypeMismatchError(
-            "Expected type '%s' for if condition, but found type '%s'"
-                .formatted(BuiltinType.BOOLEAN.typeClass(), condtype.typeName()),
-            ifExpr.condition().range()));
-      }
-      var trueType = resolveExprType(ifExpr.trueExpression(), scope);
-      if (ifExpr.falseExpression() != null) {
-        var falseType = resolveExprType(ifExpr.falseExpression(), scope);
-        if (!trueType.equals(falseType)) {
-          return addError(new TypeMismatchError(
-              "Type of else expression '%s' must match type of if expression '%s'"
-                  .formatted(trueType.typeName(), falseType.typeName()),
-              ifExpr.falseExpression().range()));
-        }
-        type = trueType;
-      } else {
+    switch (expr) {
+      case Value value -> type = value.type();
+      case VariableDeclaration varDecl -> {
+        putIdType(varDecl.id(), resolveExprType(varDecl.expression(), scope));
         type = BuiltinType.VOID;
       }
-    } else if (expr instanceof PrintStatement printStatement) {
-      resolveExprType(printStatement.expression(), scope);
-      type = BuiltinType.VOID;
-    } else if (expr instanceof Struct struct) {
-      var structScope = struct.scope();
-      var fieldTypes = new HashMap<String, Type>();
-      struct.functions().forEach(func -> fieldTypes.put(func.name(), resolveNodeType(func)));
-      struct.fields()
-          .forEach(field -> fieldTypes.put(field.name(), resolveExprType(field, structScope)));
-      type = struct.name().map(name -> new StructType(name, fieldTypes)).orElseGet(() -> {
-        var structType = new StructType(fieldTypes);
-        struct.scope().setMetadata(new Metadata(structType.typeName()));
-        return structType;
-      });
-    } else if (expr instanceof Struct.Field field) {
-      type = resolveExprType(field.value(), scope);
-    } else {
-      throw new IllegalStateException("Unhandled expression: " + expr);
+      case VarReference varRef -> {
+        var name = varRef.name();
+        type = scope.getLocalIdentifier(varRef).flatMap(this::getIdType)
+            .or(() -> scope.getNamedType(name).map(TypeNode::type))
+            .or(() -> scope.findUse(name).map(this::resolveNodeType)).orElseThrow();
+      }
+      case BinaryExpression binExpr -> {
+        var leftType = resolveExprType(binExpr.left(), scope);
+        var rightType = resolveExprType(binExpr.right(), scope);
+        if (!leftType.equals(rightType)) {
+          errors.add(new TypeMismatchError("Type '%s' of left side does not match type '%s' of right side".formatted(leftType.typeName(),
+              rightType.typeName()),
+              binExpr.range()));
+        }
+        type = switch (binExpr) {
+          case BinaryExpression.CompareExpression b -> BuiltinType.BOOLEAN;
+          case BinaryExpression.MathExpression b -> leftType;
+        };
+      }
+      case ArrayValue arrayVal -> {
+        // TODO: Asert expression types are equal to element type
+        arrayVal.expressions().forEach(e -> resolveExprType(e, scope));
+        type = new ArrayType(arrayVal.elementType());
+      }
+      case Block block -> {
+        block.expressions().forEach(e -> resolveExprType(e, block.scope()));
+        type = resolveExprType(block.returnExpression(), block.scope());
+      }
+      case FieldAccess fieldAccess -> {
+        var exprType = resolveExprType(fieldAccess.expr(), scope);
+        if (exprType instanceof StructType structType) {
+          var fieldType = structType.fieldTypes().get(fieldAccess.fieldName());
+          if (fieldType != null) {
+            type = fieldType;
+          } else {
+            type = addError(new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(
+                structType.typeName(),
+                fieldAccess.fieldName()), fieldAccess.range()));
+          }
+        } else {
+          type = addError(new TypeMismatchError(
+              "Can only access fields on struct types, " + "found type '%s'".formatted(exprType),
+              expr.range()));
+        }
+      }
+      case ForeignFieldAccess foreignFieldAccess -> type = resolveForeignFieldAccess(
+          scope,
+          foreignFieldAccess);
+      case ForeignFunctionCall foreignFuncCall -> type = resolveForeignFunctionCall(
+          scope,
+          foreignFuncCall);
+      case FunctionCall funcCall -> type = resolveFunctionCall(scope, funcCall);
+      case IfExpression ifExpr -> {
+        var condtype = resolveExprType(ifExpr.condition(), scope);
+        if (!(condtype instanceof BuiltinType builtinType) || builtinType != BuiltinType.BOOLEAN) {
+          return addError(new TypeMismatchError("Expected type '%s' for if condition, but found type '%s'".formatted(BuiltinType.BOOLEAN.typeClass(),
+              condtype.typeName()),
+              ifExpr.condition().range()));
+        }
+        var trueType = resolveExprType(ifExpr.trueExpression(), scope);
+        if (ifExpr.falseExpression() != null) {
+          var falseType = resolveExprType(ifExpr.falseExpression(), scope);
+          if (!trueType.equals(falseType)) {
+            return addError(new TypeMismatchError("Type of else expression '%s' must match type of if expression '%s'".formatted(
+                trueType.typeName(),
+                falseType.typeName()),
+                ifExpr.falseExpression().range()));
+          }
+          type = trueType;
+        } else {
+          type = BuiltinType.VOID;
+        }
+      }
+      case PrintStatement printStatement -> {
+        resolveExprType(printStatement.expression(), scope);
+        type = BuiltinType.VOID;
+      }
+      case Struct struct -> {
+        var structScope = struct.scope();
+        var fieldTypes = new HashMap<String, Type>();
+        struct.functions().forEach(func -> fieldTypes.put(func.name(), resolveNodeType(func)));
+        struct.fields()
+            .forEach(field -> fieldTypes.put(field.name(), resolveExprType(field, structScope)));
+        type = struct.name().map(name -> new StructType(name, fieldTypes)).orElseGet(() -> {
+          var structType = new StructType(fieldTypes);
+          struct.scope().setMetadata(new Metadata(structType.typeName()));
+          return structType;
+        });
+      }
+      case Struct.Field field -> type = resolveExprType(field.value(), scope);
+      case null, default -> throw new IllegalStateException("Unhandled expression: " + expr);
     }
 
     putExprType(expr, requireNonNull(type, () -> "Null expression type for: %s".formatted(expr)));
@@ -252,33 +257,35 @@ public class TypeResolver implements TypeFetcher {
   }
 
   private Type resolveFunctionCall(Scope scope, FunctionCall funcCall) {
-    FunctionType funcType;
-    if (funcCall instanceof LocalFunctionCall localFuncCall) {
-      var func = scope.findFunction(localFuncCall.name());
-      funcType = resolveFuncType(func);
-    } else if (funcCall instanceof MemberFunctionCall structFuncCall) {
-      var exprType = resolveExprType(structFuncCall.structExpression(), scope);
-      if (exprType instanceof StructType structType) {
-        var funcName = structFuncCall.functionId().name();
-        var fieldType = structType.fieldTypes().get(funcName);
-        if (fieldType instanceof FunctionType fieldFuncType) {
-          funcType = fieldFuncType;
-        } else if (fieldType == null) {
-          return addError(new TypeMismatchError("Struct of type '%s' has no field named '%s'"
-              .formatted(structType.toPrettyString(), funcName), structFuncCall.range()));
-        } else {
-          return addError(new TypeMismatchError("Field '%s' of type '%s' is not a function"
-              .formatted(funcName, fieldType.toPrettyString()),
-              structFuncCall.functionId().range()));
-        }
-      } else {
-        return addError(new TypeMismatchError(
-            "Expected field access on type struct, found type '%s'"
-                .formatted(exprType.toPrettyString()),
-            structFuncCall.structExpression().range()));
+    FunctionType funcType = null;
+    switch (funcCall) {
+      case LocalFunctionCall localFuncCall -> {
+        var func = scope.findFunction(localFuncCall.name());
+        funcType = resolveFuncType(func);
       }
-    } else {
-      throw new IllegalStateException(funcCall.toString());
+      case MemberFunctionCall structFuncCall -> {
+        var exprType = resolveExprType(structFuncCall.structExpression(), scope);
+        if (exprType instanceof StructType structType) {
+          var funcName = structFuncCall.functionId().name();
+          var fieldType = structType.fieldTypes().get(funcName);
+          if (fieldType instanceof FunctionType fieldFuncType) {
+            funcType = fieldFuncType;
+          } else if (fieldType == null) {
+            return addError(new TypeMismatchError("Struct of type '%s' has no field named '%s'".formatted(
+                structType.toPrettyString(),
+                funcName), structFuncCall.range()));
+          } else {
+            return addError(new TypeMismatchError("Field '%s' of type '%s' is not a function".formatted(
+                funcName,
+                fieldType.toPrettyString()), structFuncCall.functionId().range()));
+          }
+        } else {
+          return addError(new TypeMismatchError(
+              "Expected field access on type struct, found type '%s'".formatted(exprType.toPrettyString()),
+              structFuncCall.structExpression().range()));
+        }
+      }
+      case ForeignFunctionCall f -> throw new IllegalStateException(f.toString());
     }
 
     var argTypes = funcCall.arguments().stream().map(arg -> resolveExprType(arg, scope)).toList();

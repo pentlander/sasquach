@@ -5,21 +5,15 @@ import com.pentlander.sasquach.ast.expression.FunctionParameter;
 
 public interface NodeVisitor<T> {
   default T visit(Node node) {
-    if (node instanceof FunctionParameter funcParam) {
-      return visit(funcParam);
-    } else if (node instanceof FunctionSignature funcSig) {
-      return visit(funcSig);
-    } else if (node instanceof ModuleDeclaration modDecl) {
-      return visit(modDecl);
-    } else if (node instanceof TypeNode typeNode) {
-      return visit(typeNode);
-    } else if (node instanceof Use use) {
-      return visit(use);
-    } else if (node instanceof Expression expression) {
-      return visit(expression);
-    } else {
-      throw new IllegalStateException();
-    }
+    return switch (node) {
+      case FunctionParameter funcParam -> visit(funcParam);
+      case FunctionSignature funcSig -> visit(funcSig);
+      case ModuleDeclaration modDecl -> visit(modDecl);
+      case TypeNode typeNode -> visit(typeNode);
+      case Use use -> visit(use);
+      case Expression expression -> visit(expression);
+      case null, default -> throw new IllegalStateException();
+    };
   }
 
   default T visit(FunctionParameter functionParameter) {
@@ -39,13 +33,10 @@ public interface NodeVisitor<T> {
   T visit(TypeNode typeNode);
 
   default T visit(Use use) {
-    if (use instanceof Use.Module useModule) {
-      return visit(useModule);
-    } else if (use instanceof Use.Foreign useForeign) {
-      return visit(useForeign);
-    } else {
-      throw new IllegalStateException();
-    }
+    return switch (use) {
+      case Use.Module useModule -> visit(useModule);
+      case Use.Foreign useForeign -> visit(useForeign);
+    };
   }
 
   T visit(Use.Module use);

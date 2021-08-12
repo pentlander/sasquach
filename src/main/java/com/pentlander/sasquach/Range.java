@@ -3,7 +3,7 @@ package com.pentlander.sasquach;
 /**
  * Range of text in source code.
  */
-public interface Range {
+public sealed interface Range {
   /**
    * Starting source code position.
    */

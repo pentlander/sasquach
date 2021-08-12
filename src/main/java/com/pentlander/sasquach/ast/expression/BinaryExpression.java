@@ -6,7 +6,6 @@ import java.util.NoSuchElementException;
 
 public sealed interface BinaryExpression extends Expression {
   Expression left();
-
   Expression right();
 
   enum MathOperator {

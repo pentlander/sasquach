@@ -12,21 +12,22 @@ repositories {
 }
 
 java {
+    modularity.inferModulePath.set(true)
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(17))
     }
 }
 
 dependencies {
-    antlr("org.antlr:antlr4:4.5")
+    antlr("org.antlr:antlr4:4.9.2")
     annotationProcessor("io.soabase.record-builder:record-builder-processor:22")
 
     compileOnly("io.soabase.record-builder:record-builder-core:22")
 
-    implementation("org.ow2.asm:asm:9.1")
-    implementation("com.fasterxml.jackson.core:jackson-core:2.12.2")
-    implementation("com.fasterxml.jackson.core:jackson-annotations:2.12.2")
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.12.2")
+    implementation("org.ow2.asm:asm:9.2")
+    implementation("com.fasterxml.jackson.core:jackson-core:2.12.4")
+    implementation("com.fasterxml.jackson.core:jackson-annotations:2.12.4")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.12.4")
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.7.2")
     testImplementation("org.junit.jupiter:junit-jupiter-params")
@@ -36,16 +37,16 @@ dependencies {
 }
 
 tasks.withType<JavaCompile>().configureEach {
-    options.isIncremental = false
     options.compilerArgs.add("--enable-preview")
 }
 
 tasks.withType<JavaExec>().configureEach {
-//    jvmArgs?.add("--enable-preview")
+    jvmArgs("--enable-preview")
 }
 
 tasks.getByName<Test>("test") {
     useJUnitPlatform()
+    jvmArgs("--enable-preview")
 }
 
 tasks.generateGrammarSource {

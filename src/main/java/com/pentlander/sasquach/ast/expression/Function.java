@@ -7,8 +7,8 @@ import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Scope;
 import com.pentlander.sasquach.type.Type;
-import io.soabase.recordbuilder.core.RecordBuilder;
 
+import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 
 @RecordBuilder
