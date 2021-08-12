@@ -250,205 +250,232 @@ class BytecodeGenerator implements Opcodes {
 
     private void generate(Expression expression, Scope scope) {
       addContextNode(expression);
-      if (expression instanceof PrintStatement printStatement) {
-        methodVisitor.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
-        var expr = printStatement.expression();
-        generate(expr, scope);
-        String descriptor = "(%s)V".formatted(type(expr).descriptor());
-        ClassType owner = new ClassType("java.io.PrintStream");
-        methodVisitor
-            .visitMethodInsn(INVOKEVIRTUAL, owner.internalName(), "println", descriptor, false);
-      } else if (expression instanceof VariableDeclaration varDecl) {
-        var varDeclExpr = varDecl.expression();
-        int idx = scope.findLocalIdentifierIdx(varDecl.name()).orElseThrow();
-        generate(varDeclExpr, scope);
-        var type = type(varDeclExpr);
-        if (type instanceof BuiltinType builtinType) {
-          Integer opcode = switch (builtinType) {
-            case BOOLEAN, INT, BYTE, CHAR, SHORT -> ISTORE;
-            case LONG -> LSTORE;
-            case FLOAT -> FSTORE;
-            case DOUBLE -> DSTORE;
-            case STRING -> ASTORE;
-            case STRING_ARR -> AASTORE;
-            case VOID -> null;
-          };
-          if (opcode != null) {
-            methodVisitor.visitVarInsn(opcode, idx);
-          }
-        } else {
-          methodVisitor.visitVarInsn(ASTORE, idx);
-        }
-      } else if (expression instanceof VarReference varReference) {
-        var name = varReference.name();
-        scope.findLocalIdentifierIdx(name)
-            .ifPresentOrElse(idx -> generateLoadVar(methodVisitor, type(varReference), idx),
-                () -> scope.findUse(name).ifPresent(use -> methodVisitor.visitFieldInsn(GETSTATIC,
-                    use.qualifiedName(),
-                    INSTANCE_FIELD,
-                    type(varReference).descriptor())));
-      } else if (expression instanceof Value value) {
-        var type = type(value);
-        var literal = value.value();
-        if (type instanceof BuiltinType builtinType) {
-          switch (builtinType) {
-            case BOOLEAN -> {
-              boolean boolValue = Boolean.parseBoolean(literal);
-              methodVisitor.visitIntInsn(BIPUSH, boolValue ? 1 : 0);
-            }
-            case INT, CHAR, BYTE, SHORT -> {
-              int intValue = Integer.parseInt(literal);
-              methodVisitor.visitIntInsn(BIPUSH, intValue);
-            }
-            case LONG -> {
-              long longValue = Long.parseLong(literal);
-              methodVisitor.visitLdcInsn(longValue);
-            }
-            case FLOAT -> {
-              float floatValue = Float.parseFloat(literal);
-              methodVisitor.visitLdcInsn(floatValue);
-            }
-            case DOUBLE -> {
-              double doubleValue = Double.parseDouble(literal);
-              methodVisitor.visitLdcInsn(doubleValue);
-            }
-            case STRING -> methodVisitor.visitLdcInsn(literal.replace("\"", ""));
-            case STRING_ARR -> {
-            }
-            case VOID -> methodVisitor.visitInsn(ACONST_NULL);
-          }
-        }
-      } else if (expression instanceof ArrayValue arrayValue) {
-        // TODO: Support primitive arrays.
-        methodVisitor.visitIntInsn(BIPUSH, arrayValue.expressions().size());
-        methodVisitor.visitTypeInsn(ANEWARRAY, arrayValue.elementType().internalName());
-
-        var expressions = arrayValue.expressions();
-        for (int i = 0; i < expressions.size(); i++) {
-          var expr = expressions.get(i);
-          methodVisitor.visitInsn(DUP);
-          methodVisitor.visitLdcInsn(i);
+      switch (expression) {
+        case PrintStatement printStatement -> {
+          methodVisitor.visitFieldInsn(
+              GETSTATIC,
+              "java/lang/System",
+              "out",
+              "Ljava/io/PrintStream;");
+          var expr = printStatement.expression();
           generate(expr, scope);
-          methodVisitor.visitInsn(AASTORE);
+          String descriptor = "(%s)V".formatted(type(expr).descriptor());
+          ClassType owner = new ClassType("java.io.PrintStream");
+          methodVisitor.visitMethodInsn(
+              INVOKEVIRTUAL,
+              owner.internalName(),
+              "println",
+              descriptor,
+              false);
         }
-      } else if (expression instanceof LocalFunctionCall funcCall) {
-        funcCall.arguments().forEach(arg -> generate(arg, scope));
-        var funcType = type(scope.findFunction(funcCall.name()).id());
-        var ownerName = scope.getClassName().replace('.', '/');
-        methodVisitor.visitMethodInsn(INVOKESTATIC,
-            ownerName,
-            funcCall.name(),
-            funcType.descriptor(),
-            false);
-      } else if (expression instanceof BinaryExpression binExpr) {
-        generate(binExpr.left(), scope);
-        generate(binExpr.right(), scope);
-        if (expression instanceof BinaryExpression.MathExpression mathExpr) {
-          int opcode = switch (mathExpr.operator()) {
-            case PLUS -> IADD;
-            case MINUS -> ISUB;
-            case TIMES -> IMUL;
-            case DIVIDE -> IDIV;
-          };
-          methodVisitor.visitInsn(opcode);
-        } else if (expression instanceof BinaryExpression.CompareExpression cmpExpr) {
-          int opCode = switch (cmpExpr.compareOperator()) {
-            case EQ -> IF_ICMPEQ;
-            case NE -> IF_ICMPNE;
-            case GE -> IF_ICMPGE;
-            case LE -> IF_ICMPLE;
-            case LT -> IF_ICMPLT;
-            case GT -> IF_ICMPGT;
-          };
+        case VariableDeclaration varDecl -> {
+          var varDeclExpr = varDecl.expression();
+          int idx = scope.findLocalIdentifierIdx(varDecl.name()).orElseThrow();
+          generate(varDeclExpr, scope);
+          var type = type(varDeclExpr);
+          if (type instanceof BuiltinType builtinType) {
+            Integer opcode = switch (builtinType) {
+              case BOOLEAN, INT, BYTE, CHAR, SHORT -> ISTORE;
+              case LONG -> LSTORE;
+              case FLOAT -> FSTORE;
+              case DOUBLE -> DSTORE;
+              case STRING -> ASTORE;
+              case STRING_ARR -> AASTORE;
+              case VOID -> null;
+            };
+            if (opcode != null) {
+              methodVisitor.visitVarInsn(opcode, idx);
+            }
+          } else {
+            methodVisitor.visitVarInsn(ASTORE, idx);
+          }
+        }
+        case VarReference varReference -> {
+          var name = varReference.name();
+          scope.findLocalIdentifierIdx(name).ifPresentOrElse(idx -> generateLoadVar(methodVisitor, type(varReference), idx),
+              () -> scope.findUse(name).ifPresent(use -> methodVisitor.visitFieldInsn(GETSTATIC,
+                  use.qualifiedName(),
+                  INSTANCE_FIELD,
+                  type(varReference).descriptor())));
+        }
+        case Value value -> {
+          var type = type(value);
+          var literal = value.value();
+          if (type instanceof BuiltinType builtinType) {
+            switch (builtinType) {
+              case BOOLEAN -> {
+                boolean boolValue = Boolean.parseBoolean(literal);
+                methodVisitor.visitIntInsn(BIPUSH, boolValue ? 1 : 0);
+              }
+              case INT, CHAR, BYTE, SHORT -> {
+                int intValue = Integer.parseInt(literal);
+                methodVisitor.visitIntInsn(BIPUSH, intValue);
+              }
+              case LONG -> {
+                long longValue = Long.parseLong(literal);
+                methodVisitor.visitLdcInsn(longValue);
+              }
+              case FLOAT -> {
+                float floatValue = Float.parseFloat(literal);
+                methodVisitor.visitLdcInsn(floatValue);
+              }
+              case DOUBLE -> {
+                double doubleValue = Double.parseDouble(literal);
+                methodVisitor.visitLdcInsn(doubleValue);
+              }
+              case STRING -> methodVisitor.visitLdcInsn(literal.replace("\"", ""));
+              case STRING_ARR -> {
+              }
+              case VOID -> methodVisitor.visitInsn(ACONST_NULL);
+            }
+          }
+        }
+        case ArrayValue arrayValue -> {
+          // TODO: Support primitive arrays.
+          methodVisitor.visitIntInsn(BIPUSH, arrayValue.expressions().size());
+          methodVisitor.visitTypeInsn(ANEWARRAY, arrayValue.elementType().internalName());
 
-          var trueLabel = new Label();
+          var expressions = arrayValue.expressions();
+          for (int i = 0; i < expressions.size(); i++) {
+            var expr = expressions.get(i);
+            methodVisitor.visitInsn(DUP);
+            methodVisitor.visitLdcInsn(i);
+            generate(expr, scope);
+            methodVisitor.visitInsn(AASTORE);
+          }
+        }
+        case LocalFunctionCall funcCall -> {
+          funcCall.arguments().forEach(arg -> generate(arg, scope));
+          var funcType = type(scope.findFunction(funcCall.name()).id());
+          var ownerName = scope.getClassName().replace('.', '/');
+          methodVisitor.visitMethodInsn(INVOKESTATIC,
+              ownerName,
+              funcCall.name(),
+              funcType.descriptor(),
+              false);
+        }
+        case BinaryExpression binExpr -> {
+          generate(binExpr.left(), scope);
+          generate(binExpr.right(), scope);
+          switch (binExpr) {
+            case BinaryExpression.MathExpression mathExpr -> {
+              int opcode = switch (mathExpr.operator()) {
+                case PLUS -> IADD;
+                case MINUS -> ISUB;
+                case TIMES -> IMUL;
+                case DIVIDE -> IDIV;
+              };
+              methodVisitor.visitInsn(opcode);
+            }
+            case BinaryExpression.CompareExpression cmpExpr -> {
+              int opCode = switch (cmpExpr.compareOperator()) {
+                case EQ -> IF_ICMPEQ;
+                case NE -> IF_ICMPNE;
+                case GE -> IF_ICMPGE;
+                case LE -> IF_ICMPLE;
+                case LT -> IF_ICMPLT;
+                case GT -> IF_ICMPGT;
+              };
+              var trueLabel = new Label();
+              var endLabel = new Label();
+              methodVisitor.visitJumpInsn(opCode, trueLabel);
+              methodVisitor.visitInsn(ICONST_0);
+              methodVisitor.visitJumpInsn(GOTO, endLabel);
+              methodVisitor.visitLabel(trueLabel);
+              methodVisitor.visitInsn(ICONST_1);
+              methodVisitor.visitLabel(endLabel);
+            }
+          }
+        }
+        case IfExpression ifExpr -> {
+          generate(ifExpr.condition(), scope);
+          var falseLabel = new Label();
           var endLabel = new Label();
-          methodVisitor.visitJumpInsn(opCode, trueLabel);
-          methodVisitor.visitInsn(ICONST_0);
+          methodVisitor.visitJumpInsn(IFEQ, falseLabel);
+          generate(ifExpr.trueExpression(), scope);
           methodVisitor.visitJumpInsn(GOTO, endLabel);
-          methodVisitor.visitLabel(trueLabel);
-          methodVisitor.visitInsn(ICONST_1);
+          methodVisitor.visitLabel(falseLabel);
+          generate(ifExpr.falseExpression(), scope);
           methodVisitor.visitLabel(endLabel);
         }
-      } else if (expression instanceof IfExpression ifExpr) {
-        generate(ifExpr.condition(), scope);
-        var falseLabel = new Label();
-        var endLabel = new Label();
-        methodVisitor.visitJumpInsn(IFEQ, falseLabel);
-        generate(ifExpr.trueExpression(), scope);
-        methodVisitor.visitJumpInsn(GOTO, endLabel);
-        methodVisitor.visitLabel(falseLabel);
-        generate(ifExpr.falseExpression(), scope);
-        methodVisitor.visitLabel(endLabel);
-      } else if (expression instanceof Struct struct) {
-        var classGen = new ClassGenerator(typeFetcher);
-        classGen.generateStruct(struct);
-        generatedClasses.putAll(classGen.getGeneratedClasses());
+        case Struct struct -> {
+          var classGen = new ClassGenerator(typeFetcher);
+          classGen.generateStruct(struct);
+          generatedClasses.putAll(classGen.getGeneratedClasses());
 
-        generateStructInit(struct, scope);
-      } else if (expression instanceof FieldAccess fieldAccess) {
-        if (type(fieldAccess.expr()) instanceof StructType structType) {
-          generate(fieldAccess.expr(), scope);
-          var fieldDescriptor = structType.fieldTypes().get(fieldAccess.fieldName()).descriptor();
+          generateStructInit(struct, scope);
+        }
+        case FieldAccess fieldAccess -> {
+          if (type(fieldAccess.expr()) instanceof StructType structType) {
+            generate(fieldAccess.expr(), scope);
+            var fieldDescriptor = structType.fieldTypes().get(fieldAccess.fieldName()).descriptor();
+            var handle = new Handle(H_INVOKESTATIC,
+                new ClassType(StructDispatch.class).internalName(),
+                "bootstrapField",
+                BOOTSTRAP_DESCRIPTOR,
+                false);
+            methodVisitor.visitInvokeDynamicInsn(fieldAccess.fieldName(),
+                "(L%s;)%s".formatted(STRUCT_BASE_INTERNAL_NAME, fieldDescriptor),
+                handle);
+          } else {
+            throw new IllegalStateException();
+          }
+        }
+        case Block block -> generateBlock(block);
+        case ForeignFieldAccess fieldAccess -> {
+          var fieldType = (ForeignFieldType) typeFetcher.getType(fieldAccess);
+          var opCode = switch (fieldType.accessKind()) {
+            case INSTANCE -> GETFIELD;
+            case STATIC -> GETSTATIC;
+          };
+          methodVisitor.visitFieldInsn(opCode,
+              fieldType.ownerType().internalName(),
+              fieldAccess.fieldName(),
+              fieldType.descriptor());
+        }
+        case ForeignFunctionCall foreignFuncCall -> {
+          var foreignFuncCallType = typeFetcher.getType(
+              foreignFuncCall.classAlias(),
+              foreignFuncCall.functionId());
+          String owner = foreignFuncCallType.ownerType().internalName();
+          if (foreignFuncCallType.callType() == SPECIAL) {
+            methodVisitor.visitTypeInsn(NEW, owner);
+            methodVisitor.visitInsn(DUP);
+          }
+          foreignFuncCall.arguments().forEach(arg -> generate(arg, scope));
+
+          var foreignFuncType = typeFetcher.getType(
+              foreignFuncCall.classAlias(),
+              foreignFuncCall.functionId());
+          int opCode = switch (foreignFuncCallType.callType()) {
+            case SPECIAL -> INVOKESPECIAL;
+            case STATIC -> INVOKESTATIC;
+            case VIRTUAL -> INVOKEVIRTUAL;
+          };
+          var funcName = foreignFuncCall.name().equals("new") ? "<init>" : foreignFuncCall.name();
+          methodVisitor.visitMethodInsn(
+              opCode,
+              owner,
+              funcName,
+              foreignFuncType.descriptor(),
+              false);
+        }
+        case MemberFunctionCall structFuncCall -> {
+          generate(structFuncCall.structExpression(), scope);
+          structFuncCall.arguments().forEach(arg -> generate(arg, scope));
+          var structType = (StructType) type(structFuncCall.structExpression());
+          var funcType = (FunctionType) Objects.requireNonNull(structType.fieldTypes()
+              .get(structFuncCall.name()));
           var handle = new Handle(H_INVOKESTATIC,
               new ClassType(StructDispatch.class).internalName(),
-              "bootstrapField",
+              "bootstrapMethod",
               BOOTSTRAP_DESCRIPTOR,
               false);
-          methodVisitor.visitInvokeDynamicInsn(fieldAccess.fieldName(),
-              "(L%s;)%s".formatted(STRUCT_BASE_INTERNAL_NAME, fieldDescriptor),
+          methodVisitor.visitInvokeDynamicInsn(structFuncCall.name(),
+              funcType.descriptorWith(0, new ClassType(StructBase.class)),
               handle);
-        } else {
-          throw new IllegalStateException();
         }
-
-      } else if (expression instanceof Block block) {
-        generateBlock(block);
-      } else if (expression instanceof ForeignFieldAccess fieldAccess) {
-        var fieldType = (ForeignFieldType) typeFetcher.getType(fieldAccess);
-        var opCode = switch (fieldType.accessKind()) {
-          case INSTANCE -> GETFIELD;
-          case STATIC -> GETSTATIC;
-        };
-        methodVisitor.visitFieldInsn(opCode,
-            fieldType.ownerType().internalName(),
-            fieldAccess.fieldName(),
-            fieldType.descriptor());
-      } else if (expression instanceof ForeignFunctionCall foreignFuncCall) {
-        var foreignFuncCallType = typeFetcher
-            .getType(foreignFuncCall.classAlias(), foreignFuncCall.functionId());
-        String owner = foreignFuncCallType.ownerType().internalName();
-        if (foreignFuncCallType.callType() == SPECIAL) {
-          methodVisitor.visitTypeInsn(NEW, owner);
-          methodVisitor.visitInsn(DUP);
-        }
-        foreignFuncCall.arguments().forEach(arg -> generate(arg, scope));
-
-        var foreignFuncType = typeFetcher
-            .getType(foreignFuncCall.classAlias(), foreignFuncCall.functionId());
-        int opCode = switch (foreignFuncCallType.callType()) {
-          case SPECIAL -> INVOKESPECIAL;
-          case STATIC -> INVOKESTATIC;
-          case VIRTUAL -> INVOKEVIRTUAL;
-        };
-        var funcName = foreignFuncCall.name().equals("new") ? "<init>" : foreignFuncCall.name();
-        methodVisitor.visitMethodInsn(opCode, owner, funcName, foreignFuncType.descriptor(), false);
-      } else if (expression instanceof MemberFunctionCall structFuncCall) {
-        generate(structFuncCall.structExpression(), scope);
-        structFuncCall.arguments().forEach(arg -> generate(arg, scope));
-        var structType = (StructType) type(structFuncCall.structExpression());
-        var funcType = (FunctionType) Objects
-            .requireNonNull(structType.fieldTypes().get(structFuncCall.name()));
-        var handle = new Handle(H_INVOKESTATIC,
-            new ClassType(StructDispatch.class).internalName(),
-            "bootstrapMethod",
-            BOOTSTRAP_DESCRIPTOR,
-            false);
-        methodVisitor.visitInvokeDynamicInsn(structFuncCall.name(),
-            funcType.descriptorWith(0, new ClassType(StructBase.class)),
-            handle);
-      } else {
-        throw new IllegalStateException("Unrecognized expression: " + expression);
+        case default -> throw new IllegalStateException("Unrecognized expression: " + expression);
       }
     }
 

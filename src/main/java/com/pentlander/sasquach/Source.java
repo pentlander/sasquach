@@ -25,14 +25,14 @@ public record Source(String packageName, List<String> sourceLines) {
   }
 
   public String highlight(Range range) {
-    if (range instanceof Range.Single single) {
-      var lineStr = String.valueOf(range.start().line());
-      return lineNumber(single.start().line()) + sourceLines.get(range.start().line() - 1) + '\n'
-          + underline(single, lineStr.length() + 2);
-    } else if (range instanceof Range.Multi multi) {
-      return getNumberedLines(multi);
-    }
-    throw new IllegalStateException();
+    return switch (range) {
+      case Range.Single single -> {
+        var lineStr = String.valueOf(range.start().line());
+        yield lineNumber(single.start().line()) + sourceLines.get(range.start().line() - 1) + '\n'
+            + underline(single, lineStr.length() + 2);
+      }
+      case Range.Multi multi -> getNumberedLines(multi);
+    };
   }
 
   private int lineNumberWidth() {
@@ -49,16 +49,16 @@ public record Source(String packageName, List<String> sourceLines) {
 
   public String getNumberedLines(Range range) {
     Position start = range.start();
-    if (range instanceof Range.Single) {
-      return lineNumber(start.line()) + sourceLines.get(start.line() - 1);
-    } else if (range instanceof Range.Multi multiRange) {
-      Position end = multiRange.end();
-      var builder = new StringBuilder();
-      for (int i = start.line() - 1; i < end.line(); i++) {
-        builder.append(lineNumber(i)).append(sourceLines.get(i)).append('\n');
+    return switch (range) {
+      case Range.Single r -> lineNumber(start.line()) + sourceLines.get(start.line() - 1);
+      case Range.Multi multiRange -> {
+        Position end = multiRange.end();
+        var builder = new StringBuilder();
+        for (int i = start.line() - 1; i < end.line(); i++) {
+          builder.append(lineNumber(i)).append(sourceLines.get(i)).append('\n');
+        }
+        yield builder.toString();
       }
-      return builder.toString();
-    }
-    throw new IllegalStateException();
+    };
   }
 }
