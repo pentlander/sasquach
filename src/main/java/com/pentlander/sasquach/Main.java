@@ -1,8 +1,10 @@
 package com.pentlander.sasquach;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pentlander.sasquach.BytecodeGenerator.BytecodeResult;
+import com.pentlander.sasquach.backend.BytecodeGenerator;
+import com.pentlander.sasquach.backend.BytecodeResult;
 import com.pentlander.sasquach.ast.CompilationUnit;
+import com.pentlander.sasquach.name.ModuleResolver;
 import com.pentlander.sasquach.type.TypeResolver;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -15,7 +17,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import org.antlr.v4.runtime.ANTLRFileStream;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
@@ -67,11 +68,15 @@ public class Main {
     var compileErrors = validator.validate();
     if (!compileErrors.isEmpty()) throw new CompilationException(source, compileErrors);
 
-    var resolver = new TypeResolver();
-    var typeErrors = resolver.resolve(compilationUnit);
+    var nameResolver = new ModuleResolver();
+    var nameErrors = nameResolver.resolveCompilationUnit(compilationUnit);
+    if (!nameErrors.isEmpty()) throw new CompilationException(source, compileErrors);
+
+    var typeResolver = new TypeResolver();
+    var typeErrors = typeResolver.resolve(compilationUnit);
     if (!typeErrors.isEmpty()) throw new CompilationException(source, typeErrors);
 
-    return new BytecodeGenerator(resolver).generateBytecode(compilationUnit);
+    return new BytecodeGenerator(nameResolver, typeResolver).generateBytecode(compilationUnit);
   }
 
   public static class CompilationException extends Exception {

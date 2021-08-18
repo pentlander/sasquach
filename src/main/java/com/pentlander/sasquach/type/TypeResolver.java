@@ -58,7 +58,7 @@ public class TypeResolver implements TypeFetcher {
 
   @Override
   public Type getType(Expression expression) {
-    return requireNonNull(exprTypes.get(expression), expression::toString);
+    return requireNonNull(exprTypes.get(expression), expression::toPrettyString);
   }
 
   @Override

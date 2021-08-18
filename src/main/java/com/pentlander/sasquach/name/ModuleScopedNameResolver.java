@@ -10,7 +10,6 @@ import com.pentlander.sasquach.ast.Use.Module;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.Struct;
-import com.pentlander.sasquach.name.MemberScopedNameResolver.ResolutionResult;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -20,23 +19,30 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class ModuleScopedNameResolver  {
-  private final Resolver<String, ModuleDeclaration> moduleResolver = k -> null;
   private final Map<String, ModuleDeclaration> moduleImports = new HashMap<>();
   private final Map<String, Class<?>> foreignClasses = new HashMap<>();
   private final Map<String, Struct.Field> fields = new HashMap<>();
   private final Map<Struct.Field, ResolutionResult> fieldResults = new HashMap<>();
   private final Map<String, Function> functions = new HashMap<>();
   private final Map<Function, ResolutionResult> functionResults = new HashMap<>();
-  private final ModuleDeclaration module;
   private final List<RangedError> errors = new ArrayList<>();
 
-  public ModuleScopedNameResolver(ModuleDeclaration module) {
+  private final ModuleDeclaration module;
+  private final ModuleResolver moduleResolver;
+  private ResolutionResult resolutionResult = ResolutionResult.empty();
+
+  public ModuleScopedNameResolver(ModuleDeclaration module, ModuleResolver moduleResolver) {
     this.module = module;
+    this.moduleResolver = moduleResolver;
   }
 
-  public List<RangedError> resolve() {
+  public ModuleDeclaration moduleDeclaration() {
+    return module;
+  }
+
+  public ResolutionResult resolve() {
     new Visitor().visit(module);
-    return errors;
+    return resolutionResult.withErrors(errors);
   }
 
   public ResolutionResult getResolver(Struct.Field field) {
@@ -47,7 +53,7 @@ public class ModuleScopedNameResolver  {
     return Objects.requireNonNull(functionResults.get(function));
   }
 
-  class Visitor implements NodeVisitor<Void> {
+  private class Visitor implements NodeVisitor<Void> {
     @Override
     public Void visit(TypeNode typeNode) {
       return null;
@@ -55,8 +61,8 @@ public class ModuleScopedNameResolver  {
 
     @Override
     public Void visit(Module use) {
-      var module = moduleResolver.resolve(use.id().name());
-      var existingImport = moduleImports.put(use.alias().name(), module.orElseThrow());
+      var module = moduleResolver.resolveModule(use.id().name());
+      var existingImport = moduleImports.put(use.alias().name(), module.moduleDeclaration());
       if (existingImport != null) {
         errors.add(new DuplicateNameError(use.id(), existingImport.id()));
       }
@@ -93,13 +99,13 @@ public class ModuleScopedNameResolver  {
         for (var field : struct.fields()) {
           var resolver = new MemberScopedNameResolver(ModuleScopedNameResolver.this);
           var result = resolver.resolve(field);
-          errors.addAll(result.errors());
+          resolutionResult = resolutionResult.merge(result);
           fieldResults.put(field, result);
         }
         for (var function : struct.functions()) {
           var resolver = new MemberScopedNameResolver(ModuleScopedNameResolver.this);
           var result = resolver.resolve(function);
-          errors.addAll(result.errors());
+          resolutionResult = resolutionResult.merge(result);
           functionResults.put(function, result);
         }
       }
@@ -107,23 +113,19 @@ public class ModuleScopedNameResolver  {
     }
   }
 
-  public Optional<Class<?>> resolveForeignClass(String classAlias) {
+  Optional<Class<?>> resolveForeignClass(String classAlias) {
     return Optional.ofNullable(foreignClasses.get(classAlias));
   }
 
-  public Optional<ModuleDeclaration> resolveModule(String moduleAlias) {
+  Optional<ModuleDeclaration> resolveModule(String moduleAlias) {
     return Optional.ofNullable(moduleImports.get(moduleAlias));
   }
 
-  public Optional<Function> resolveFunction(String functionName) {
+  Optional<Function> resolveFunction(String functionName) {
     return Optional.ofNullable(functions.get(functionName));
   }
 
-  public Optional<Struct.Field> resolveField(String fieldName) {
+  Optional<Struct.Field> resolveField(String fieldName) {
     return Optional.ofNullable(fields.get(fieldName));
-  }
-
-  interface Resolver<K, V> {
-    Optional<V> resolve(K key);
   }
 }

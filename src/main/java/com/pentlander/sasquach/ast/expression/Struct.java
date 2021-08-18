@@ -6,12 +6,14 @@ import static java.util.Objects.requireNonNullElse;
 import com.pentlander.sasquach.Range;
 
 import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Scope;
 import com.pentlander.sasquach.ast.Use;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RecordBuilder
 public record Struct(Scope scope, Optional<String> name, List<Use> useList, List<Field> fields,
@@ -56,6 +58,15 @@ public record Struct(Scope scope, Optional<String> name, List<Use> useList, List
         range);
   }
 
+  @Override
+  public String toPrettyString() {
+    return "{" + useList().stream().map(Node::toPrettyString)
+        .collect(Collectors.joining(", ", "", " ")) + fields().stream()
+        .map(Field::toPrettyString).collect(Collectors.joining(", ", "", " "))
+        + functions().stream().map(Function::toPrettyString)
+        .collect(Collectors.joining(", ", "", " ")) + "}";
+  }
+
   public record Field(Identifier id, Expression value) implements Expression {
     public String name() {
       return id.name();
@@ -64,6 +75,11 @@ public record Struct(Scope scope, Optional<String> name, List<Use> useList, List
     @Override
     public Range range() {
       return id.range().join(value.range());
+    }
+
+    @Override
+    public String toPrettyString() {
+      return id().name() + " = " + value().toPrettyString();
     }
   }
 
