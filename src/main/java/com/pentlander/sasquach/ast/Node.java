@@ -13,4 +13,8 @@ public sealed interface Node permits FunctionSignature, Identifier, ModuleDeclar
    * Range in the source code that this node can be found.
    */
   Range range();
+
+  default String toPrettyString() {
+    return toString();
+  }
 }

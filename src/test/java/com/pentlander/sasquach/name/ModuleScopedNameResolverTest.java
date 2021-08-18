@@ -6,26 +6,24 @@ import static com.pentlander.sasquach.Fixtures.range;
 import static com.pentlander.sasquach.Fixtures.stringValue;
 import static com.pentlander.sasquach.Fixtures.voidFunc;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.QualifiedIdentifier;
 import com.pentlander.sasquach.ast.Scope;
 import com.pentlander.sasquach.ast.Use;
-import com.pentlander.sasquach.ast.Use.Module;
-import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.Struct;
-import com.pentlander.sasquach.ast.expression.StructBuilder;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class ModuleScopedNameResolverTest {
+  ModuleResolver moduleResolver;
   ModuleScopedNameResolver resolver;
 
   @BeforeEach
   void setUp() {
+    moduleResolver = mock(ModuleResolver.class);
   }
 
   @Test
@@ -37,7 +35,7 @@ class ModuleScopedNameResolverTest {
                     id("System"),
                     range()))
             ).range(range()).build(), range());
-    resolver = new ModuleScopedNameResolver(modDecl);
+    resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
     resolver.resolve();
 
     assertThat(resolver.resolveForeignClass("System").get()).isEqualTo(System.class);
@@ -51,7 +49,7 @@ class ModuleScopedNameResolverTest {
             .fields(List.of(field))
             .range(range())
             .build(), range());
-    resolver = new ModuleScopedNameResolver(modDecl);
+    resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
     resolver.resolve();
 
     var resolvedField = resolver.resolveField("foo").get();
@@ -67,7 +65,7 @@ class ModuleScopedNameResolverTest {
             .functions(List.of(function))
             .range(range())
             .build(), range());
-    resolver = new ModuleScopedNameResolver(modDecl);
+    resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
     resolver.resolve();
 
     var resolvedFunction = resolver.resolveFunction("foo").get();

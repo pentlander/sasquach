@@ -6,4 +6,9 @@ import com.pentlander.sasquach.type.Type;
 /**
  * Type that is represented in the source code.
  */
-public record TypeNode(Type type, Range range) implements Node {}
+public record TypeNode(Type type, Range range) implements Node {
+  @Override
+  public String toPrettyString() {
+    return type().toPrettyString();
+  }
+}

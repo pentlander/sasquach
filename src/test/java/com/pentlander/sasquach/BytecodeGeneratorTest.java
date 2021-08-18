@@ -16,6 +16,8 @@ import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
+import com.pentlander.sasquach.backend.BytecodeGenerator;
+import com.pentlander.sasquach.name.ModuleResolver;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.type.*;
 import java.io.PrintStream;
@@ -41,12 +43,14 @@ class BytecodeGeneratorTest {
     private SasquachClassloader cl;
     private Scope scope;
     private TypeResolver typeResolver;
+    private ModuleResolver nameResolver;
 
     @BeforeEach
     void setUp() {
         cl = new SasquachClassloader();
         scope = Scope.topLevel(new Metadata(MOD_NAME));
         typeResolver = new TypeResolver();
+        nameResolver = new ModuleResolver();
     }
 
     @ParameterizedTest
@@ -104,7 +108,7 @@ class BytecodeGeneratorTest {
             assertThat(result).isNull();
         }
 
-        private <T> T declResult(Type type, String value) throws Exception {
+        private <T> T declResult(BuiltinType type, String value) throws Exception {
             return declResult(type, new Value(type, value, NR));
         }
 
@@ -265,7 +269,8 @@ class BytecodeGeneratorTest {
 
             var compUnit = compUnit(List.of(), List.of(), List.of(callerFunc, parameterizedFunc));
             typeResolver.resolve(compUnit);
-            var result = new BytecodeGenerator(typeResolver).generateBytecode(compUnit);
+            nameResolver.resolveCompilationUnit(compUnit);
+            var result = new BytecodeGenerator(nameResolver, typeResolver).generateBytecode(compUnit);
             result.generatedBytecode().forEach(cl::addClass);
             var clazz =  cl.loadClass(MOD_NAME);
             Object box = invokeName(clazz, "baz", null);
@@ -358,7 +363,8 @@ class BytecodeGeneratorTest {
 
     private Class<?> genClass(CompilationUnit compilationUnit, boolean dumpClasses) throws Exception {
         typeResolver.resolve(compilationUnit);
-        var result = new BytecodeGenerator(typeResolver).generateBytecode(compilationUnit);
+        nameResolver.resolveCompilationUnit(compilationUnit);
+        var result = new BytecodeGenerator(nameResolver, typeResolver).generateBytecode(compilationUnit);
         if (dumpClasses) {
             dumpGeneratedClasses(result.generatedBytecode());
         }

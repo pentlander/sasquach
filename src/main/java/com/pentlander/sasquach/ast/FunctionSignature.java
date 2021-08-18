@@ -4,6 +4,7 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.type.Type;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Type signature of a function, including the function parameters, type parameters, and return
@@ -18,5 +19,11 @@ public record FunctionSignature(List<FunctionParameter> parameters, List<TypeNod
 
   public Type returnType() {
     return returnTypeNode.type();
+  }
+
+  @Override
+  public String toPrettyString() {
+    return parameters().stream().map(param -> param.name() + ": " + param.type().toPrettyString()).collect(
+        Collectors.joining(", ", "(", ")")) + ": " + returnTypeNode.toPrettyString();
   }
 }

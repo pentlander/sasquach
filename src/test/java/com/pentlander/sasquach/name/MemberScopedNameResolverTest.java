@@ -96,6 +96,8 @@ class MemberScopedNameResolverTest {
         .expression(stringValue("hi"))
         .build();
     when(modResolver.resolveFunction("test")).thenReturn(Optional.of(func));
+    when(modResolver.moduleDeclaration()).thenReturn(new ModuleDeclaration(qualId("foo/bar"),
+        null, range()));
 
     var funcCall = new LocalFunctionCall(id("test"), List.of(), range());
     var function = FunctionBuilder.builder().id(id("main"))
@@ -106,7 +108,7 @@ class MemberScopedNameResolverTest {
     var result = memberResolver.resolve(function);
     var localFunc = result.getLocalFunction(funcCall);
 
-    assertThat(localFunc).isEqualTo(func);
+    assertThat(localFunc.function()).isEqualTo(func);
   }
 
 

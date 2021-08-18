@@ -16,4 +16,9 @@ public record VarReference(Identifier id) implements Expression {
   public Range range() {
     return id.range();
   }
+
+  @Override
+  public String toPrettyString() {
+    return id().name();
+  }
 }

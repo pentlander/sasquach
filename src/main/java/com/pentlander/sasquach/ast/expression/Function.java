@@ -39,4 +39,9 @@ public record Function(Scope scope, Identifier id, FunctionSignature functionSig
   public List<FunctionParameter> parameters() {
     return functionSignature.parameters();
   }
+
+  public String toPrettyString() {
+    return "%s = %s -> %s".formatted(id().name(), functionSignature.toPrettyString(),
+        expression.toPrettyString());
+  }
 }
