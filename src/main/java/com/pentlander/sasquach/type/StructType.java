@@ -36,7 +36,6 @@ public record StructType(String typeName, Map<String, Type> fieldTypes) implemen
   @Override
   public String descriptor() {
     return "L%s;".formatted(StructBase.class.getName().replace('.', '/'));
-//    return "L%s;".formatted(internalName());
   }
 
   @Override

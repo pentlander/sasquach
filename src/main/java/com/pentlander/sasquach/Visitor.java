@@ -225,8 +225,7 @@ public class Visitor {
     @Override
     public Expression visitVariableDeclaration(VariableDeclarationContext ctx) {
       Expression expr = ctx.expression().accept(new ExpressionVisitor());
-      var varDecl = new VariableDeclaration(id(ctx.ID()), expr, rangeFrom(ctx));
-      return varDecl;
+      return new VariableDeclaration(id(ctx.ID()), expr, rangeFrom(ctx));
     }
 
     @Override

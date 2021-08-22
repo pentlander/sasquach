@@ -20,6 +20,7 @@ import java.util.Objects;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
@@ -70,13 +71,10 @@ public class Main {
 
     var nameResolver = new ModuleResolver();
     var nameResolutionResult = nameResolver.resolveCompilationUnit(compilationUnit);
-    if (!nameResolutionResult.errors().isEmpty()) {
-      throw new CompilationException(source, compileErrors);
-    }
+    nameResolutionResult.errors().throwIfNotEmpty(source);
 
     var typeResolver = new TypeResolver(nameResolutionResult);
-    var typeErrors = typeResolver.resolve(compilationUnit);
-    if (!typeErrors.isEmpty()) throw new CompilationException(source, typeErrors);
+    typeResolver.resolve(compilationUnit).throwIfNotEmpty(source);
 
     return new BytecodeGenerator(nameResolver, typeResolver).generateBytecode(compilationUnit);
   }
@@ -137,7 +135,7 @@ public class Main {
 
   public static class Parser {
     public CompilationUnit getCompilationUnit(Source source) {
-      CharStream charStream = new ANTLRInputStream(String.join("\n", source.sourceLines()));
+      CharStream charStream = CharStreams.fromString(String.join("\n", source.sourceLines()));
       var lexer = new SasquachLexer(charStream);
       var errorListener = new SasquachTreeWalkErrorListener();
       lexer.addErrorListener(errorListener);

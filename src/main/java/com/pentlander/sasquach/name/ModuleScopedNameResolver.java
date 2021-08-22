@@ -2,6 +2,7 @@ package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.InternalCompilerException;
 import com.pentlander.sasquach.RangedError;
+import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NodeVisitor;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -27,7 +28,7 @@ public class ModuleScopedNameResolver  {
   private final Map<String, Function> functions = new HashMap<>();
   private final Map<Use.Foreign, Class<?>> foreignUseClasses = new HashMap<>();
   private final Map<Function, ResolutionResult> functionResults = new HashMap<>();
-  private final List<RangedError> errors = new ArrayList<>();
+  private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
   private final ModuleDeclaration module;
   private final ModuleResolver moduleResolver;
@@ -44,7 +45,7 @@ public class ModuleScopedNameResolver  {
 
   public ResolutionResult resolve() {
     new Visitor().visit(module);
-    return resolutionResult.withForeignUseClasses(foreignUseClasses).withErrors(errors);
+    return resolutionResult.withForeignUseClasses(foreignUseClasses).withErrors(errors.build());
   }
 
   public ResolutionResult getResolver(Struct.Field field) {
