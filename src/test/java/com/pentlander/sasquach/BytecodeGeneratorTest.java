@@ -352,7 +352,7 @@ class BytecodeGeneratorTest {
 
     private Class<?> genClass(CompilationUnit compilationUnit, boolean dumpClasses) throws Exception {
         var resolutionResult = nameResolver.resolveCompilationUnit(compilationUnit);
-        if (!resolutionResult.errors().isEmpty()) {
+        if (!resolutionResult.errors().errors().isEmpty()) {
             throw new IllegalStateException(resolutionResult.errors().toString());
         }
         typeResolver = new TypeResolver(resolutionResult);

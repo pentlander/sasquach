@@ -3,7 +3,7 @@ package com.pentlander.sasquach.name;
 import static java.util.Objects.*;
 
 import com.pentlander.sasquach.InternalCompilerException;
-import com.pentlander.sasquach.RangedError;
+import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
@@ -22,7 +22,6 @@ import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -56,12 +55,12 @@ public class MemberScopedNameResolver {
   private final ModuleScopedNameResolver moduleScopedNameResolver;
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses = new HashMap<>();
   private final Map<ForeignFunctionCall, List<Executable>> foreignFunctions = new HashMap<>();
-  private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls = new HashMap<LocalFunctionCall, QualifiedFunction>();
+  private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls = new HashMap<>();
   private final Map<VarReference, LocalVariable> localVarReferences = new LinkedHashMap<>();
   private final Map<VarReference, ModuleDeclaration> moduleReferences = new HashMap<>();
   private final Map<LocalVariable, Integer> localVariableIndex = new HashMap<>();
   private final Deque<Map<String, LocalVariable>> localVariableStacks = new ArrayDeque<>();
-  private final List<RangedError> errors = new ArrayList<>();
+  private final RangedErrorList.Builder errors = RangedErrorList.builder();
   private final Visitor visitor = new Visitor();
 
 
@@ -96,7 +95,7 @@ public class MemberScopedNameResolver {
         varReferences,
         localVariableIndex,
         Map.of(),
-        errors);
+        errors.build());
   }
 
   // Need to check that there isn't already a local function or module alias with this name
@@ -242,9 +241,7 @@ public class MemberScopedNameResolver {
     @Override
     public Void visit(Node node) {
       switch (node) {
-        case FunctionSignature functionSignature-> {
-          System.out.println("Visisted func sig: " + functionSignature.toPrettyString());
-        }
+        case FunctionSignature functionSignature-> System.out.println("Visisted func sig: " + functionSignature.toPrettyString());
         case FunctionParameter functionParameter -> System.out.println();
         case default -> throw new IllegalStateException("Unable to handle: " + node);
       }

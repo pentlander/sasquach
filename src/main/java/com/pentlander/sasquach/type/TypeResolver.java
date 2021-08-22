@@ -6,6 +6,7 @@ import static java.util.stream.Collectors.toList;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
+import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
@@ -85,13 +86,13 @@ public class TypeResolver implements TypeFetcher {
 
   public record QualifiedFunctionId(Identifier classAlias, Identifier functionName) {}
 
-  public List<RangedError> resolve(CompilationUnit compilationUnit) {
+  public RangedErrorList resolve(CompilationUnit compilationUnit) {
     try {
       compilationUnit.modules().forEach(this::resolveNodeType);
     } catch (RuntimeException e) {
       throw new TypeResolutionException("Failed at node: " + nodeResolving, e);
     }
-    return getErrors();
+    return new RangedErrorList(getErrors());
   }
 
   FunctionType resolveFuncType(Function func) {
@@ -176,7 +177,8 @@ public class TypeResolver implements TypeFetcher {
         var leftType = resolveExprType(binExpr.left());
         var rightType = resolveExprType(binExpr.right());
         if (!leftType.equals(rightType)) {
-          errors.add(new TypeMismatchError("Type '%s' of left side does not match type '%s' of right side".formatted(leftType.typeName(),
+          yield addError(new TypeMismatchError(("Type '%s' of left side does not match type "
+              + "'%s' ofight side").formatted(leftType.typeName(),
               rightType.typeName()),
               binExpr.range()));
         }
@@ -194,23 +196,7 @@ public class TypeResolver implements TypeFetcher {
         block.expressions().forEach(this::resolveExprType);
         yield resolveExprType(block.returnExpression());
       }
-      case FieldAccess fieldAccess -> {
-        var exprType = resolveExprType(fieldAccess.expr());
-        if (exprType instanceof StructType structType) {
-          var fieldType = structType.fieldTypes().get(fieldAccess.fieldName());
-          if (fieldType != null) {
-            yield fieldType;
-          } else {
-            yield addError(new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(
-                structType.typeName(),
-                fieldAccess.fieldName()), fieldAccess.range()));
-          }
-        } else {
-          yield addError(new TypeMismatchError(
-              "Can only access fields on struct types, " + "found type '%s'".formatted(exprType),
-              expr.range()));
-        }
-      }
+      case FieldAccess fieldAccess -> resolveFieldAccess(fieldAccess);
       case ForeignFieldAccess foreignFieldAccess -> resolveForeignFieldAccess(foreignFieldAccess);
       case ForeignFunctionCall foreignFuncCall -> resolveForeignFunctionCall(
           foreignFuncCall);
@@ -228,7 +214,7 @@ public class TypeResolver implements TypeFetcher {
           var falseType = resolveExprType(ifExpr.falseExpression());
           if (!trueType.equals(falseType)) {
             yield addError(new TypeMismatchError(("Type of else expression '%s' must match type "
-                + "of ifxpression '%s'").formatted(
+                + "of if expression '%s'").formatted(
                 trueType.typeName(),
                 falseType.typeName()),
                 ifExpr.falseExpression().range()));
@@ -247,10 +233,8 @@ public class TypeResolver implements TypeFetcher {
         struct.functions().forEach(func -> fieldTypes.put(func.name(), resolveNodeType(func)));
         struct.fields()
             .forEach(field -> fieldTypes.put(field.name(), resolveExprType(field)));
-        yield struct.name().map(name -> new StructType(name, fieldTypes)).orElseGet(() -> {
-          var structType = new StructType(fieldTypes);
-          return structType;
-        });
+        yield struct.name().map(name -> new StructType(name, fieldTypes))
+            .orElseGet(() -> new StructType(fieldTypes));
       }
       case Struct.Field field -> resolveExprType(field.value());
       case null, default -> throw new IllegalStateException("Unhandled expression: " + expr);
@@ -258,6 +242,24 @@ public class TypeResolver implements TypeFetcher {
 
     putExprType(expr, requireNonNull(type, () -> "Null expression type for: %s".formatted(expr)));
     return type;
+  }
+
+  private Type resolveFieldAccess(FieldAccess fieldAccess) {
+    var exprType = resolveExprType(fieldAccess.expr());
+    if (exprType instanceof StructType structType) {
+      var fieldType = structType.fieldTypes().get(fieldAccess.fieldName());
+      if (fieldType != null) {
+        return fieldType;
+      } else {
+        return addError(new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(
+            structType.typeName(),
+            fieldAccess.fieldName()), fieldAccess.range()));
+      }
+    }
+
+    return addError(new TypeMismatchError(
+        "Can only access fields on struct types, " + "found type '%s'".formatted(exprType),
+        fieldAccess.range()));
   }
 
   private Type resolveFunctionCall(FunctionCall funcCall) {
@@ -292,7 +294,7 @@ public class TypeResolver implements TypeFetcher {
       case ForeignFunctionCall f -> throw new IllegalStateException(f.toString());
     }
 
-    var argTypes = funcCall.arguments().stream().map(arg -> resolveExprType(arg)).toList();
+    var argTypes = funcCall.arguments().stream().map(this::resolveExprType).toList();
     var paramTypes = funcType.parameterTypes();
     // Handle mismatch between arg count and parameter count
     if (argTypes.size() != paramTypes.size()) {
@@ -341,17 +343,10 @@ public class TypeResolver implements TypeFetcher {
     List<Class<?>> argClasses = funcCall.arguments().stream()
         .map(arg -> resolveExprType(arg).typeClass()).collect(toList());
     var argTypes = argClasses.stream().map(Class::getName).collect(joining(", ", "(", ")"));
-
-    if (funcCandidates.isEmpty()) {
-      return addError(new TypeLookupError(
-          "No method '%s' found on class '%s' matching argument types '%s'"
-              .formatted(funcCall.name(), "foo", argTypes),
-          funcCall.range()));
-    }
-
     var classType = new ClassType(funcCandidates.get(0).getDeclaringClass());
 
     try {
+      var lookup = MethodHandles.lookup();
       for (var exec : funcCandidates) {
         var paramClasses = Arrays.asList(exec.getParameterTypes());
         if (argsMatchParams(paramClasses, argClasses)) {
@@ -359,7 +354,7 @@ public class TypeResolver implements TypeFetcher {
             case Method method -> {
               var callType = Modifier.isStatic(exec.getModifiers()) ? InvocationKind.STATIC
                   : InvocationKind.VIRTUAL;
-              var methodType = MethodHandles.lookup().unreflect(method).type();
+              var methodType = lookup.unreflect(method).type();
               if (callType == InvocationKind.VIRTUAL) {
                 // Drop the "this" for the call since it's implied by the owner
                 methodType = methodType.dropParameterTypes(0, 1);
@@ -369,10 +364,9 @@ public class TypeResolver implements TypeFetcher {
             }
             case Constructor<?> constructor -> {
               var callType = InvocationKind.SPECIAL;
-              var methodType = MethodHandles.lookup().unreflectConstructor(constructor).type()
+              var methodType = lookup.unreflectConstructor(constructor).type()
                   .changeReturnType(void.class);
-              putForeignFuncType(
-                  funcCall,
+              putForeignFuncType(funcCall,
                   new ForeignFunctionType(methodType, classType, callType));
               yield classType;
             }
@@ -429,16 +423,6 @@ public class TypeResolver implements TypeFetcher {
   }
 
   record TypeLookupError(String message, Range range) implements RangedError {
-    @Override
-    public String toPrettyString(Source source) {
-      return """
-          %s
-          %s
-          """.formatted(message, source.highlight(range));
-    }
-  }
-
-  record ImportMissingError(String message, Range range) implements RangedError {
     @Override
     public String toPrettyString(Source source) {
       return """

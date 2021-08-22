@@ -3,6 +3,7 @@ package com.pentlander.sasquach.name;
 import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.RangedError;
+import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.Use.Foreign;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
@@ -27,20 +28,20 @@ public class ResolutionResult {
       Map.of(),
       Map.of(),
       Map.of(),
-      List.of());
+      new RangedErrorList(List.of()));
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses;
   private final Map<ForeignFunctionCall, List<Executable>> foreignFunctions;
   private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls;
   private final Map<VarReference, ReferenceDeclaration> varReferences;
   private final Map<LocalVariable, Integer> varIndexes;
   private final Map<Use.Foreign, Class<?>> foreignUseClasses;
-  private final List<RangedError> errors;
+  private final RangedErrorList errors;
 
   public ResolutionResult(Map<ForeignFieldAccess, Field> foreignFieldAccesses,
       Map<ForeignFunctionCall, List<Executable>> foreignFunctions,
       Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls,
       Map<VarReference, ReferenceDeclaration> varReferences, Map<LocalVariable, Integer> varIndexes,
-      Map<Foreign, Class<?>> foreignUseClasses, List<RangedError> errors) {
+      Map<Foreign, Class<?>> foreignUseClasses, RangedErrorList errors) {
     this.foreignFieldAccesses = foreignFieldAccesses;
     this.foreignFunctions = foreignFunctions;
     this.localFunctionCalls = localFunctionCalls;
@@ -50,23 +51,19 @@ public class ResolutionResult {
     this.errors = errors;
   }
 
-  public ResolutionResult withErrors(List<RangedError> errors) {
-    var mergedErrors = new ArrayList<>(this.errors);
-    mergedErrors.addAll(errors);
+  public ResolutionResult withErrors(RangedErrorList errors) {
     return new ResolutionResult(foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
         varReferences,
-        varIndexes, foreignUseClasses, mergedErrors);
+        varIndexes, foreignUseClasses, this.errors.concat(errors));
   }
 
   public ResolutionResult withForeignUseClasses(Map<Use.Foreign, Class<?>> foreignUseClasses) {
-    var mergedErrors = new ArrayList<>(this.errors);
-    mergedErrors.addAll(errors);
     return new ResolutionResult(foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
-        varReferences, varIndexes, foreignUseClasses, mergedErrors);
+        varReferences, varIndexes, foreignUseClasses, errors);
   }
 
   public static ResolutionResult empty() {
@@ -97,18 +94,18 @@ public class ResolutionResult {
     return requireNonNull(foreignUseClasses.get(foreignUse));
   }
 
-  public List<RangedError> errors() {
+  public RangedErrorList errors() {
     return errors;
   }
 
   public ResolutionResult merge(ResolutionResult other) {
-    var mergedErrors = new ArrayList<>(errors);
-    mergedErrors.addAll(other.errors);
     return new ResolutionResult(merged(foreignFieldAccesses, other.foreignFieldAccesses),
         merged(foreignFunctions, other.foreignFunctions),
         merged(localFunctionCalls, other.localFunctionCalls),
         merged(varReferences, other.varReferences),
-        merged(varIndexes, other.varIndexes), foreignUseClasses, mergedErrors);
+        merged(varIndexes, other.varIndexes),
+        foreignUseClasses,
+        errors.concat(other.errors));
   }
 
   private <K, V> Map<K, V> merged(Map<K, V> mapA, Map<K, V> mapB) {
@@ -172,7 +169,7 @@ public class ResolutionResult {
           foreignFunctions,
           localFunctionCalls,
           varReferences,
-          varIndexes, foreignUseClasses, errors);
+          varIndexes, foreignUseClasses, new RangedErrorList(errors));
     }
   }
 }
