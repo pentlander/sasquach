@@ -22,6 +22,8 @@ import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -87,11 +89,13 @@ public class MemberScopedNameResolver {
     moduleReferences.forEach((varRef, mod) -> varReferences.put(varRef,
         new ReferenceDeclaration.Module(mod)));
 
-    return new ResolutionResult(foreignFieldAccesses,
+    return new ResolutionResult(
+        foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
         varReferences,
         localVariableIndex,
+        Map.of(),
         errors);
   }
 
@@ -153,7 +157,9 @@ public class MemberScopedNameResolver {
             var isConstructor = funcName.equals("new");
             var executables = isConstructor ? clazz.getConstructors() : clazz.getMethods();
             for (var executable : executables) {
-              if (executable.getParameterCount() == foreignFunctionCall.argumentCount() && (
+              var paramCount = executable.getParameterCount();
+              paramCount += isConstructor || Modifier.isStatic(executable.getModifiers()) ? 0 : 1;
+              if (paramCount == foreignFunctionCall.argumentCount() && (
                   isConstructor || funcName.equals(executable.getName()))) {
                 matchingExecutables.add(executable);
               }
@@ -194,6 +200,17 @@ public class MemberScopedNameResolver {
       return null;
     }
 
+    @Override
+    public Void visit(Function function) {
+      pushScope();
+      visit(function.functionSignature());
+      return visit(function.expression());
+    }
+
+    private void visit(FunctionSignature funcSignature) {
+      funcSignature.parameters().forEach(MemberScopedNameResolver.this::addLocalVariable);
+    }
+
     private Optional<LocalVariable> resolveLocalVar(VarReference varReference) {
       for (var localVars : localVariableStacks) {
         var localVar = localVars.get(varReference.name());
@@ -226,7 +243,7 @@ public class MemberScopedNameResolver {
     public Void visit(Node node) {
       switch (node) {
         case FunctionSignature functionSignature-> {
-          System.out.println();
+          System.out.println("Visisted func sig: " + functionSignature.toPrettyString());
         }
         case FunctionParameter functionParameter -> System.out.println();
         case default -> throw new IllegalStateException("Unable to handle: " + node);

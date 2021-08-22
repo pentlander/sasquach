@@ -1,10 +1,9 @@
 package com.pentlander.sasquach.ast.expression;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.Scope;
 import java.util.List;
 
-public record Block(Scope scope, List<Expression> expressions, Range range) implements Expression {
+public record Block(List<Expression> expressions, Range range) implements Expression {
 
   public Expression returnExpression() {
     var size = expressions.size();

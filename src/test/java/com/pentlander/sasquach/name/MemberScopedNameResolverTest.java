@@ -13,7 +13,6 @@ import static org.mockito.Mockito.when;
 import com.pentlander.sasquach.Fixtures;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
-import com.pentlander.sasquach.ast.Scope;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
@@ -27,7 +26,6 @@ import com.pentlander.sasquach.type.BuiltinType;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.Random;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -48,7 +46,7 @@ class MemberScopedNameResolverTest {
     var varDeclC = new VariableDeclaration(id("c"), varReference, range());
     var function = FunctionBuilder.builder().id(id("main"))
         .functionSignature(new FunctionSignature(List.of(), typeNode(BuiltinType.VOID), range()))
-        .expression(new Block(Scope.NULL_SCOPE, List.of(varDeclA, varDeclB, varDeclC), range()))
+        .expression(new Block(List.of(varDeclA, varDeclB, varDeclC), range()))
         .build();
     var memberResolver = new MemberScopedNameResolver(modResolver);
     var result = memberResolver.resolve(function);
@@ -65,7 +63,7 @@ class MemberScopedNameResolverTest {
   @Test
   void resolveVariable_module() {
     var module = new ModuleDeclaration(qualId("OtherModule"),
-        Struct.moduleStruct(Scope.NULL_SCOPE,
+        Struct.moduleStruct(
             "OtherModule",
             List.of(),
             List.of(),
@@ -78,7 +76,7 @@ class MemberScopedNameResolverTest {
     var varDeclA = new VariableDeclaration(id("a"), varReference, range());
     var function = FunctionBuilder.builder().id(id("main"))
         .functionSignature(new FunctionSignature(List.of(), typeNode(BuiltinType.VOID), range()))
-        .expression(new Block(Scope.NULL_SCOPE, List.of(varDeclA), range()))
+        .expression(new Block(List.of(varDeclA), range()))
         .build();
     var memberResolver = new MemberScopedNameResolver(modResolver);
     var result = memberResolver.resolve(function);
@@ -102,7 +100,7 @@ class MemberScopedNameResolverTest {
     var funcCall = new LocalFunctionCall(id("test"), List.of(), range());
     var function = FunctionBuilder.builder().id(id("main"))
         .functionSignature(new FunctionSignature(List.of(), typeNode(BuiltinType.VOID), range()))
-        .expression(new Block(Scope.NULL_SCOPE, List.of(funcCall), range()))
+        .expression(new Block(List.of(funcCall), range()))
         .build();
     var memberResolver = new MemberScopedNameResolver(modResolver);
     var result = memberResolver.resolve(function);
@@ -117,7 +115,7 @@ class MemberScopedNameResolverTest {
     when(modResolver.resolveForeignClass("System")).thenReturn(Optional.of(System.class));
 
     var foreignFieldAccess = new ForeignFieldAccess(id("System"), id("out"));
-    var function = voidFunc(Scope.NULL_SCOPE, "main", foreignFieldAccess);
+    var function = voidFunc("main", foreignFieldAccess);
     var memberResolver = new MemberScopedNameResolver(modResolver);
     var result = memberResolver.resolve(function);
     var field = result.getForeignField(foreignFieldAccess);
@@ -133,7 +131,7 @@ class MemberScopedNameResolverTest {
         id("valueOf"),
         List.of(intValue("5")),
         range());
-    var function = voidFunc(Scope.NULL_SCOPE, "main", foreignFunctionCall);
+    var function = voidFunc("main", foreignFunctionCall);
     var memberResolver = new MemberScopedNameResolver(modResolver);
     var result = memberResolver.resolve(function);
     var executables = result.getForeignFunction(foreignFunctionCall);

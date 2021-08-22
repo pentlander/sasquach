@@ -29,31 +29,27 @@ public class Fixtures {
         return new QualifiedIdentifier(name, range());
     }
 
-    public static Function func(Scope scope, String name,
-        List<FunctionParameter> functionParameters, Type returnType, Expression expression) {
-        return func(scope, name, functionParameters, List.of(), returnType, expression);
+    public static Function func(String name, List<FunctionParameter> functionParameters, Type returnType, Expression expression) {
+        return func(name, functionParameters, List.of(), returnType, expression);
     }
 
-    public static Function func(Scope scope, String name,
-        List<FunctionParameter> functionParameters, List<Type> typeParameters, Type returnType,
+    public static Function func(String name, List<FunctionParameter> functionParameters, List<Type> typeParameters, Type returnType,
         Expression expression) {
-        var function = new Function(scope, id(name),
+        return new Function(
+            id(name),
             new FunctionSignature(functionParameters,
             typeParameters.stream().map(t -> new TypeNode(t, range())).toList(),
             new TypeNode(returnType, range()),
             range()), expression);
-        scope.addFunction(function);
-        return function;
     }
 
-    public static Function voidFunc(Scope scope, String name, Expression expression) {
-        return func(scope, name, List.of(), BuiltinType.VOID, expression);
+    public static Function voidFunc(String name, Expression expression) {
+        return func(name, List.of(), BuiltinType.VOID, expression);
     }
 
-    public static Struct literalStruct(Scope parentScope, List<Field> fields,
-        List<Function> functions) {
+    public static Struct literalStruct(List<Field> fields, List<Function> functions) {
         return Struct
-            .literalStruct(Scope.forStructLiteral(parentScope), fields, functions, range());
+            .literalStruct(fields, functions, range());
     }
 
     public static Value intValue(String value) {
