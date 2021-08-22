@@ -5,6 +5,7 @@ import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NodeVisitor;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.Use.Foreign;
 import com.pentlander.sasquach.ast.Use.Module;
 import com.pentlander.sasquach.ast.expression.Expression;
@@ -24,6 +25,7 @@ public class ModuleScopedNameResolver  {
   private final Map<String, Struct.Field> fields = new HashMap<>();
   private final Map<Struct.Field, ResolutionResult> fieldResults = new HashMap<>();
   private final Map<String, Function> functions = new HashMap<>();
+  private final Map<Use.Foreign, Class<?>> foreignUseClasses = new HashMap<>();
   private final Map<Function, ResolutionResult> functionResults = new HashMap<>();
   private final List<RangedError> errors = new ArrayList<>();
 
@@ -42,7 +44,7 @@ public class ModuleScopedNameResolver  {
 
   public ResolutionResult resolve() {
     new Visitor().visit(module);
-    return resolutionResult.withErrors(errors);
+    return resolutionResult.withForeignUseClasses(foreignUseClasses).withErrors(errors);
   }
 
   public ResolutionResult getResolver(Struct.Field field) {
@@ -75,6 +77,7 @@ public class ModuleScopedNameResolver  {
         var qualifiedName = use.id().name().replace('/', '.');
         var clazz = MethodHandles.lookup().findClass(qualifiedName);
         foreignClasses.put(use.alias().name(), clazz);
+        foreignUseClasses.put(use, clazz);
       } catch (ClassNotFoundException | IllegalAccessException e) {
         errors.add(new NameNotFoundError(use.alias(), "foreign class"));
         throw new InternalCompilerException(e);

@@ -35,10 +35,8 @@ import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
-import com.pentlander.sasquach.ast.Metadata;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.QualifiedIdentifier;
-import com.pentlander.sasquach.ast.Scope;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
@@ -132,28 +130,23 @@ public class Visitor {
   }
 
   static class FunctionVisitor extends SasquachBaseVisitor<Function> {
-    private final Scope scope;
     private final Identifier id;
 
-    FunctionVisitor(Scope scope, Identifier id) {
-      this.scope = Scope.forBlock(scope);
+    FunctionVisitor(Identifier id) {
       this.id = id;
     }
 
     @Override
     public Function visitFunction(FunctionContext ctx) {
       FunctionSignature funcSignature = functionDeclaration(ctx.functionDeclaration());
-      funcSignature.typeParameters()
-          .forEach(param -> scope.addNamedType(param.type().typeName(), param));
-      funcSignature.parameters().forEach(param -> scope.addLocalIdentifier(param));
 
-      var expr = ctx.expression().accept(new ExpressionVisitor(scope));
+      var expr = ctx.expression().accept(new ExpressionVisitor());
 
-      return new Function(scope, id, funcSignature, expr);
+      return new Function(id, funcSignature, expr);
     }
 
     private FunctionSignature functionDeclaration(FunctionDeclarationContext ctx) {
-      var typeVisitor = new TypeVisitor(scope);
+      var typeVisitor = new TypeVisitor();
 
       var params = parameterList(typeVisitor, ctx.functionParameterList());
 
@@ -169,12 +162,6 @@ public class Visitor {
   }
 
   static class ExpressionVisitor extends SasquachBaseVisitor<Expression> {
-    private final Scope scope;
-
-    ExpressionVisitor(Scope scope) {
-      this.scope = scope;
-    }
-
     @Override
     public Expression visitVarReference(VarReferenceContext ctx) {
       var name = ctx.getText();
@@ -189,7 +176,7 @@ public class Visitor {
     @Override
     public Expression visitBinaryOperation(BinaryOperationContext ctx) {
       String operatorString = ctx.operator.getText();
-      var visitor = new ExpressionVisitor(scope);
+      var visitor = new ExpressionVisitor();
       var leftExpr = ctx.left.accept(visitor);
       var rightExpr = ctx.right.accept(visitor);
       return new BinaryExpression.MathExpression(
@@ -219,7 +206,7 @@ public class Visitor {
 
     @Override
     public Expression visitPrintStatement(PrintStatementContext ctx) {
-      Expression expr = ctx.expression().accept(new ExpressionVisitor(scope));
+      Expression expr = ctx.expression().accept(new ExpressionVisitor());
       return new PrintStatement(expr, rangeFrom(ctx));
     }
 
@@ -237,15 +224,14 @@ public class Visitor {
 
     @Override
     public Expression visitVariableDeclaration(VariableDeclarationContext ctx) {
-      Expression expr = ctx.expression().accept(new ExpressionVisitor(scope));
+      Expression expr = ctx.expression().accept(new ExpressionVisitor());
       var varDecl = new VariableDeclaration(id(ctx.ID()), expr, rangeFrom(ctx));
-      scope.addLocalIdentifier(varDecl);
       return varDecl;
     }
 
     @Override
     public Expression visitStruct(StructContext ctx) {
-      return ctx.accept(StructVisitor.forLiteral(scope));
+      return ctx.accept(StructVisitor.forLiteral());
     }
 
     private List<Expression> args(ApplicationContext ctx) {
@@ -278,11 +264,10 @@ public class Visitor {
 
     @Override
     public Expression visitBlock(BlockContext ctx) {
-      var blockScope = Scope.forBlock(scope);
-      var exprVisitor = new ExpressionVisitor(blockScope);
+      var exprVisitor = new ExpressionVisitor();
       List<Expression> expressions = ctx.blockStatement().stream()
           .map(blockCtx -> blockCtx.accept(exprVisitor)).toList();
-      return new Block(blockScope, expressions, rangeFrom(ctx));
+      return new Block(expressions, rangeFrom(ctx));
     }
 
     @Override
@@ -302,12 +287,6 @@ public class Visitor {
   }
 
   static class TypeVisitor extends SasquachBaseVisitor<TypeNode> {
-    private final Scope scope;
-
-    TypeVisitor(Scope scope) {
-      this.scope = scope;
-    }
-
     @Override
     public TypeNode visitPrimitiveType(PrimitiveTypeContext ctx) {
       return new TypeNode(BuiltinType.fromString(ctx.getText()), rangeFrom(ctx));
@@ -328,7 +307,7 @@ public class Visitor {
       var fields = new HashMap<String, Type>();
       for (int i = 0; i < ctx.ID().size(); i++) {
         var id = ctx.ID(i).getText();
-        var typeNode = ctx.type(i).accept(new TypeVisitor(Scope.forStructType(scope)));
+        var typeNode = ctx.type(i).accept(new TypeVisitor());
         fields.put(id, typeNode.type());
       }
       return new TypeNode(new StructType(fields), rangeFrom(ctx));
@@ -345,26 +324,24 @@ public class Visitor {
   }
 
   static class StructVisitor extends SasquachBaseVisitor<Struct> {
-    private final Scope scope;
     private final String name;
     private final StructKind structKind;
     private final ExpressionVisitor expressionVisitor;
 
-    private StructVisitor(Scope scope, String name, StructKind structKind) {
-      this.scope = scope;
+    private StructVisitor(String name, StructKind structKind) {
       this.name = name;
       this.structKind = structKind;
-      this.expressionVisitor = new ExpressionVisitor(scope);
+      this.expressionVisitor = new ExpressionVisitor();
     }
 
     public static StructVisitor forModule(String name) {
-      return new StructVisitor(Scope.topLevel(new Metadata(name)), name, StructKind.MODULE);
+      return new StructVisitor(name, StructKind.MODULE);
     }
 
-    public static StructVisitor forLiteral(Scope parentScope) {
+    public static StructVisitor forLiteral() {
       // TODO: Set the metadata at the end of the visitStruct func so struct methods work properly
       // TODO: Figure out how to reference parent scope from struct literal
-      return new StructVisitor(Scope.forStructLiteral(parentScope), null, StructKind.LITERAL);
+      return new StructVisitor(null, StructKind.LITERAL);
     }
 
     @Override
@@ -383,8 +360,7 @@ public class Visitor {
             var expr = exprCtx.accept(expressionVisitor);
             fields.add(new Field(id, expr));
           } else if (funcCtx != null) {
-            var func = funcCtx.accept(new FunctionVisitor(scope, id));
-            scope.addFunction(func);
+            var func = funcCtx.accept(new FunctionVisitor(id));
             functions.add(func);
           }
         } else if (structStatementCtx instanceof UseStatementContext useStatementCtx) {
@@ -401,14 +377,13 @@ public class Visitor {
           } else {
             use = new Use.Module(qualifiedId, aliasId, rangeFrom(useCtx));
           }
-          scope.addUse(use);
           useList.add(use);
         }
       }
 
       return switch (structKind) {
-        case LITERAL -> Struct.literalStruct(scope, fields, functions, rangeFrom(ctx));
-        case MODULE -> Struct.moduleStruct(scope, name, useList, fields, functions, rangeFrom(ctx));
+        case LITERAL -> Struct.literalStruct(fields, functions, rangeFrom(ctx));
+        case MODULE -> Struct.moduleStruct(name, useList, fields, functions, rangeFrom(ctx));
       };
     }
 

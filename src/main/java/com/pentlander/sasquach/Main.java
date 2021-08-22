@@ -69,10 +69,12 @@ public class Main {
     if (!compileErrors.isEmpty()) throw new CompilationException(source, compileErrors);
 
     var nameResolver = new ModuleResolver();
-    var nameErrors = nameResolver.resolveCompilationUnit(compilationUnit);
-    if (!nameErrors.isEmpty()) throw new CompilationException(source, compileErrors);
+    var nameResolutionResult = nameResolver.resolveCompilationUnit(compilationUnit);
+    if (!nameResolutionResult.errors().isEmpty()) {
+      throw new CompilationException(source, compileErrors);
+    }
 
-    var typeResolver = new TypeResolver();
+    var typeResolver = new TypeResolver(nameResolutionResult);
     var typeErrors = typeResolver.resolve(compilationUnit);
     if (!typeErrors.isEmpty()) throw new CompilationException(source, typeErrors);
 

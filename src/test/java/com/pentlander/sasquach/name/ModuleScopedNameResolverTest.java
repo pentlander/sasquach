@@ -10,7 +10,6 @@ import static org.mockito.Mockito.mock;
 
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.QualifiedIdentifier;
-import com.pentlander.sasquach.ast.Scope;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.Struct;
 import java.util.List;
@@ -59,7 +58,7 @@ class ModuleScopedNameResolverTest {
 
   @Test
   void resolveFunctions() {
-    var function = voidFunc(Scope.NULL_SCOPE, "foo", stringValue("bar"));
+    var function = voidFunc("foo", stringValue("bar"));
     var modDecl = new ModuleDeclaration(qualId("Main"),
         Struct.moduleStructBuilder("Main")
             .functions(List.of(function))

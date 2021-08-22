@@ -11,10 +11,8 @@ import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.InvocationKind;
-import com.pentlander.sasquach.ast.Metadata;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.Node;
-import com.pentlander.sasquach.ast.Scope;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
@@ -34,8 +32,12 @@ import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
+import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Local;
+import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Module;
+import com.pentlander.sasquach.name.ResolutionResult;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,7 +56,13 @@ public class TypeResolver implements TypeFetcher {
   private final Map<String, StructType> moduleTypes = new HashMap<>();
   private final Map<QualifiedFunctionId, ForeignFunctionType> foreignFuncTypes = new HashMap<>();
   private final List<RangedError> errors = new ArrayList<>();
+
+  private final ResolutionResult resolutionResult;
   private Node nodeResolving = null;
+
+  public TypeResolver(ResolutionResult resolutionResult) {
+    this.resolutionResult = resolutionResult;
+  }
 
   @Override
   public Type getType(Expression expression) {
@@ -95,7 +103,7 @@ public class TypeResolver implements TypeFetcher {
     var paramTypes = func.functionSignature().parameters().stream().map(this::resolveNodeType)
         .toList();
     try {
-      var resolvedReturnType = resolveExprType(func.expression(), func.scope());
+      var resolvedReturnType = resolveExprType(func.expression());
       if (!resolvedReturnType.equals(func.returnType())) {
         addError(new TypeMismatchError(
             "Type of function return expression '%s' does not match return type of function '%s'"
@@ -121,7 +129,7 @@ public class TypeResolver implements TypeFetcher {
     switch (node) {
       case ModuleDeclaration moduleDecl -> {
         var struct = moduleDecl.struct();
-        type = resolveExprType(struct, struct.scope());
+        type = resolveExprType(struct);
         moduleTypes.put(moduleDecl.name(), (StructType) type);
       }
       case Function func -> type = resolveFuncType(func);
@@ -133,7 +141,8 @@ public class TypeResolver implements TypeFetcher {
         type = new ClassType(useForeign.qualifiedName());
         putIdType(useForeign.alias(), type);
       }
-      case Use.Module useModule -> type = requireNonNull(moduleTypes.get(useModule.qualifiedName()),
+      case Use.Module useModule -> type =
+          requireNonNull(moduleTypes.get(useModule.qualifiedName()),
           "Not found: " + useModule);
       case null, default -> throw new IllegalStateException();
     }
@@ -146,125 +155,120 @@ public class TypeResolver implements TypeFetcher {
         .findFirst().map(Type.class::cast).orElseGet(() -> new ClassType(clazz));
   }
 
-  public Type resolveExprType(Expression expr, Scope scope) {
+  public Type resolveExprType(Expression expr) {
     nodeResolving = expr;
     Type type = exprTypes.get(expr);
       if (type != null) {
           return type;
       }
 
-    switch (expr) {
-      case Value value -> type = value.type();
+    type = switch (expr) {
+      case Value value ->  value.type();
       case VariableDeclaration varDecl -> {
-        putIdType(varDecl.id(), resolveExprType(varDecl.expression(), scope));
-        type = BuiltinType.VOID;
+        putIdType(varDecl.id(), resolveExprType(varDecl.expression()));
+        yield BuiltinType.VOID;
       }
-      case VarReference varRef -> {
-        var name = varRef.name();
-        type = scope.getLocalIdentifier(varRef).flatMap(this::getIdType)
-            .or(() -> scope.getNamedType(name).map(TypeNode::type))
-            .or(() -> scope.findUse(name).map(this::resolveNodeType)).orElseThrow();
-      }
+      case VarReference varRef -> switch (resolutionResult.getVarReference(varRef)) {
+        case Local local -> getIdType(local.localVariable().id()).get();
+        case Module module -> resolveExprType(module.moduleDeclaration().struct());
+      };
       case BinaryExpression binExpr -> {
-        var leftType = resolveExprType(binExpr.left(), scope);
-        var rightType = resolveExprType(binExpr.right(), scope);
+        var leftType = resolveExprType(binExpr.left());
+        var rightType = resolveExprType(binExpr.right());
         if (!leftType.equals(rightType)) {
           errors.add(new TypeMismatchError("Type '%s' of left side does not match type '%s' of right side".formatted(leftType.typeName(),
               rightType.typeName()),
               binExpr.range()));
         }
-        type = switch (binExpr) {
+        yield switch (binExpr) {
           case BinaryExpression.CompareExpression b -> BuiltinType.BOOLEAN;
           case BinaryExpression.MathExpression b -> leftType;
         };
       }
       case ArrayValue arrayVal -> {
         // TODO: Asert expression types are equal to element type
-        arrayVal.expressions().forEach(e -> resolveExprType(e, scope));
-        type = new ArrayType(arrayVal.elementType());
+        arrayVal.expressions().forEach(this::resolveExprType);
+        yield new ArrayType(arrayVal.elementType());
       }
       case Block block -> {
-        block.expressions().forEach(e -> resolveExprType(e, block.scope()));
-        type = resolveExprType(block.returnExpression(), block.scope());
+        block.expressions().forEach(this::resolveExprType);
+        yield resolveExprType(block.returnExpression());
       }
       case FieldAccess fieldAccess -> {
-        var exprType = resolveExprType(fieldAccess.expr(), scope);
+        var exprType = resolveExprType(fieldAccess.expr());
         if (exprType instanceof StructType structType) {
           var fieldType = structType.fieldTypes().get(fieldAccess.fieldName());
           if (fieldType != null) {
-            type = fieldType;
+            yield fieldType;
           } else {
-            type = addError(new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(
+            yield addError(new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(
                 structType.typeName(),
                 fieldAccess.fieldName()), fieldAccess.range()));
           }
         } else {
-          type = addError(new TypeMismatchError(
+          yield addError(new TypeMismatchError(
               "Can only access fields on struct types, " + "found type '%s'".formatted(exprType),
               expr.range()));
         }
       }
-      case ForeignFieldAccess foreignFieldAccess -> type = resolveForeignFieldAccess(
-          scope,
-          foreignFieldAccess);
-      case ForeignFunctionCall foreignFuncCall -> type = resolveForeignFunctionCall(
-          scope,
+      case ForeignFieldAccess foreignFieldAccess -> resolveForeignFieldAccess(foreignFieldAccess);
+      case ForeignFunctionCall foreignFuncCall -> resolveForeignFunctionCall(
           foreignFuncCall);
-      case FunctionCall funcCall -> type = resolveFunctionCall(scope, funcCall);
+      case FunctionCall funcCall -> resolveFunctionCall(funcCall);
       case IfExpression ifExpr -> {
-        var condtype = resolveExprType(ifExpr.condition(), scope);
+        var condtype = resolveExprType(ifExpr.condition());
         if (!(condtype instanceof BuiltinType builtinType) || builtinType != BuiltinType.BOOLEAN) {
-          return addError(new TypeMismatchError("Expected type '%s' for if condition, but found type '%s'".formatted(BuiltinType.BOOLEAN.typeClass(),
+          yield addError(new TypeMismatchError(("Expected type '%s' for if condition, but found "
+              + "type%s'").formatted(BuiltinType.BOOLEAN.typeClass(),
               condtype.typeName()),
               ifExpr.condition().range()));
         }
-        var trueType = resolveExprType(ifExpr.trueExpression(), scope);
+        var trueType = resolveExprType(ifExpr.trueExpression());
         if (ifExpr.falseExpression() != null) {
-          var falseType = resolveExprType(ifExpr.falseExpression(), scope);
+          var falseType = resolveExprType(ifExpr.falseExpression());
           if (!trueType.equals(falseType)) {
-            return addError(new TypeMismatchError("Type of else expression '%s' must match type of if expression '%s'".formatted(
+            yield addError(new TypeMismatchError(("Type of else expression '%s' must match type "
+                + "of ifxpression '%s'").formatted(
                 trueType.typeName(),
                 falseType.typeName()),
                 ifExpr.falseExpression().range()));
           }
-          type = trueType;
+          yield trueType;
         } else {
-          type = BuiltinType.VOID;
+          yield BuiltinType.VOID;
         }
       }
       case PrintStatement printStatement -> {
-        resolveExprType(printStatement.expression(), scope);
-        type = BuiltinType.VOID;
+        resolveExprType(printStatement.expression());
+        yield BuiltinType.VOID;
       }
       case Struct struct -> {
-        var structScope = struct.scope();
         var fieldTypes = new HashMap<String, Type>();
         struct.functions().forEach(func -> fieldTypes.put(func.name(), resolveNodeType(func)));
         struct.fields()
-            .forEach(field -> fieldTypes.put(field.name(), resolveExprType(field, structScope)));
-        type = struct.name().map(name -> new StructType(name, fieldTypes)).orElseGet(() -> {
+            .forEach(field -> fieldTypes.put(field.name(), resolveExprType(field)));
+        yield struct.name().map(name -> new StructType(name, fieldTypes)).orElseGet(() -> {
           var structType = new StructType(fieldTypes);
-          struct.scope().setMetadata(new Metadata(structType.typeName()));
           return structType;
         });
       }
-      case Struct.Field field -> type = resolveExprType(field.value(), scope);
+      case Struct.Field field -> resolveExprType(field.value());
       case null, default -> throw new IllegalStateException("Unhandled expression: " + expr);
-    }
+    };
 
     putExprType(expr, requireNonNull(type, () -> "Null expression type for: %s".formatted(expr)));
     return type;
   }
 
-  private Type resolveFunctionCall(Scope scope, FunctionCall funcCall) {
+  private Type resolveFunctionCall(FunctionCall funcCall) {
     FunctionType funcType = null;
     switch (funcCall) {
       case LocalFunctionCall localFuncCall -> {
-        var func = scope.findFunction(localFuncCall.name());
-        funcType = resolveFuncType(func);
+        var qualFunc = resolutionResult.getLocalFunction(localFuncCall);
+        funcType = resolveFuncType(qualFunc.function());
       }
       case MemberFunctionCall structFuncCall -> {
-        var exprType = resolveExprType(structFuncCall.structExpression(), scope);
+        var exprType = resolveExprType(structFuncCall.structExpression());
         if (exprType instanceof StructType structType) {
           var funcName = structFuncCall.functionId().name();
           var fieldType = structType.fieldTypes().get(funcName);
@@ -288,7 +292,7 @@ public class TypeResolver implements TypeFetcher {
       case ForeignFunctionCall f -> throw new IllegalStateException(f.toString());
     }
 
-    var argTypes = funcCall.arguments().stream().map(arg -> resolveExprType(arg, scope)).toList();
+    var argTypes = funcCall.arguments().stream().map(arg -> resolveExprType(arg)).toList();
     var paramTypes = funcType.parameterTypes();
     // Handle mismatch between arg count and parameter count
     if (argTypes.size() != paramTypes.size()) {
@@ -315,77 +319,68 @@ public class TypeResolver implements TypeFetcher {
     return typeUnifier.resolve(funcType.returnType());
   }
 
-  private Type resolveForeignFieldAccess(Scope scope, ForeignFieldAccess fieldAccess) {
-    var classAlias = fieldAccess.classAlias();
-    var use = scope.findUse(classAlias.name());
-    if (use.isEmpty()) {
-      return addError(new ImportMissingError("Missing import for class '%s'"
-          .formatted(classAlias.name()), fieldAccess.range()));
-    }
-
-    var classType = resolveNodeType(use.get());
-    try {
-      var field = classType.typeClass().getField(fieldAccess.fieldName());
-      var accessKind = Modifier.isStatic(field.getModifiers()) ? FieldAccessKind.STATIC
-          : FieldAccessKind.INSTANCE;
-      return new ForeignFieldType(builtinOrClassType(field.getType()), classType, accessKind);
-    } catch (NoSuchFieldException e) {
-      return addError(new TypeLookupError("No field '%s' found on class '%s'"
-          .formatted(fieldAccess.fieldName(), classType.typeClass().getName()),
-          fieldAccess.range()));
-    }
+  private Type resolveForeignFieldAccess(ForeignFieldAccess fieldAccess) {
+    var field = resolutionResult.getForeignField(fieldAccess);
+    var classType = new ClassType(field.getDeclaringClass());
+    var accessKind =
+        Modifier.isStatic(field.getModifiers()) ? FieldAccessKind.STATIC : FieldAccessKind.INSTANCE;
+    return new ForeignFieldType(builtinOrClassType(field.getType()), classType, accessKind);
   }
 
-  private Type resolveForeignFunctionCall(Scope scope, ForeignFunctionCall funcCall) {
-    var use = scope.findUse(funcCall.classAlias().name());
-    if (use.isEmpty()) {
-      return addError(new ImportMissingError("Missing import for class '%s'"
-          .formatted(funcCall.classAlias().name()), funcCall.range()));
+  private boolean argsMatchParams(List<Class<?>> params, List<Class<?>> args) {
+    for (int i = 0; i < params.size(); i++) {
+      if (!params.get(i).isAssignableFrom(args.get(i))) {
+        return false;
+      }
     }
-    var classType = resolveNodeType(use.get());
+    return true;
+  }
+
+  private Type resolveForeignFunctionCall(ForeignFunctionCall funcCall) {
+    var funcCandidates = resolutionResult.getForeignFunction(funcCall);
     List<Class<?>> argClasses = funcCall.arguments().stream()
-        .map(arg -> resolveExprType(arg, scope).typeClass()).collect(toList());
+        .map(arg -> resolveExprType(arg).typeClass()).collect(toList());
     var argTypes = argClasses.stream().map(Class::getName).collect(joining(", ", "(", ")"));
-    var funcName = funcCall.functionId().name();
+
+    if (funcCandidates.isEmpty()) {
+      return addError(new TypeLookupError(
+          "No method '%s' found on class '%s' matching argument types '%s'"
+              .formatted(funcCall.name(), "foo", argTypes),
+          funcCall.range()));
+    }
+
+    var classType = new ClassType(funcCandidates.get(0).getDeclaringClass());
 
     try {
-      if (funcName.equals("new")) {
-        var callType = InvocationKind.SPECIAL;
-        var handle = MethodHandles.lookup()
-            .findConstructor(classType.typeClass(), MethodType.methodType(void.class, argClasses));
-        var methodType = handle.type().changeReturnType(void.class);
-        putForeignFuncType(funcCall, new ForeignFunctionType(methodType, classType, callType));
-        return classType;
-      } else {
-        for (var method : classType.typeClass().getMethods()) {
-          if (method.getName().equals(funcName)) {
-            var methodType = MethodHandles.lookup().unreflect(method).type();
-              if (methodType.parameterCount() != argClasses.size()) {
-                  continue;
-              }
-            boolean argsMatchParams = true;
-            for (int i = 0; i < methodType.parameterCount(); i++) {
-              argsMatchParams = methodType.parameterType(i).isAssignableFrom(argClasses.get(i));
-                if (!argsMatchParams) {
-                    break;
-                }
-            }
-            if (argsMatchParams) {
-              var callType = Modifier.isStatic(method.getModifiers()) ? InvocationKind.STATIC
+      for (var exec : funcCandidates) {
+        var paramClasses = Arrays.asList(exec.getParameterTypes());
+        if (argsMatchParams(paramClasses, argClasses)) {
+           return switch (exec) {
+            case Method method -> {
+              var callType = Modifier.isStatic(exec.getModifiers()) ? InvocationKind.STATIC
                   : InvocationKind.VIRTUAL;
+              var methodType = MethodHandles.lookup().unreflect(method).type();
               if (callType == InvocationKind.VIRTUAL) {
                 // Drop the "this" for the call since it's implied by the owner
                 methodType = methodType.dropParameterTypes(0, 1);
               }
+              putForeignFuncType(funcCall, new ForeignFunctionType(methodType, classType, callType));
+              yield builtinOrClassType(methodType.returnType());
+            }
+            case Constructor<?> constructor -> {
+              var callType = InvocationKind.SPECIAL;
+              var methodType = MethodHandles.lookup().unreflectConstructor(constructor).type()
+                  .changeReturnType(void.class);
               putForeignFuncType(
                   funcCall,
                   new ForeignFunctionType(methodType, classType, callType));
-              return builtinOrClassType(methodType.returnType());
+              yield classType;
             }
-          }
+            case default -> throw new IllegalStateException();
+          };
         }
       }
-    } catch (NoSuchMethodException | IllegalAccessException ignored) {
+    } catch (IllegalAccessException ignored) {
       // Exception ignored, type error propagated below
     }
     return addError(new TypeLookupError(
