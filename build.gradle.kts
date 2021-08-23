@@ -2,6 +2,7 @@ plugins {
     java
     id("antlr")
     id("application")
+    id("com.github.mrcjkb.module-finder") version "0.0.7"
 }
 
 group = "com.pentlander"
@@ -21,9 +22,11 @@ java {
 dependencies {
     antlr("org.antlr:antlr4:4.9.2")
     annotationProcessor("io.soabase.record-builder:record-builder-processor:22")
+    annotationProcessor("org.atteo.classindex:classindex:3.11")
 
     compileOnly("io.soabase.record-builder:record-builder-core:22")
 
+    implementation("org.atteo.classindex:classindex:3.11")
     implementation("org.ow2.asm:asm:9.2")
     implementation("com.fasterxml.jackson.core:jackson-core:2.12.4")
     implementation("com.fasterxml.jackson.core:jackson-annotations:2.12.4")

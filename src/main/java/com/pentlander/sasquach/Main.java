@@ -1,10 +1,13 @@
 package com.pentlander.sasquach;
 
+import static java.util.Objects.*;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pentlander.sasquach.backend.BytecodeGenerator;
 import com.pentlander.sasquach.backend.BytecodeResult;
 import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.name.ModuleResolver;
+import com.pentlander.sasquach.runtime.SasquachRuntime;
 import com.pentlander.sasquach.type.TypeResolver;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -24,6 +27,7 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
+import org.atteo.classindex.ClassIndex;
 
 public class Main {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -42,21 +46,18 @@ public class Main {
           return FileVisitResult.CONTINUE;
         }
       });
-      // TODO: Come up with non-hacky way to copy over the runtime files
-      var runtimePath = Paths.get("build/classes/java/main/com/pentlander/sasquach/runtime/");
-      Files.walkFileTree(runtimePath, new SimpleFileVisitor<>() {
-        @Override
-        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-          var outPath = outputPath.resolve("com/pentlander/sasquach/runtime/");
-          Files.createDirectories(outPath);
-          Files.copy(file, outPath.resolve(file.getFileName()));
-          return FileVisitResult.CONTINUE;
-        }
-      });
+
+      var outPath = outputPath.resolve("com/pentlander/sasquach/runtime/");
+      for (var clazz : ClassIndex.getAnnotated(SasquachRuntime.class)) {
+        var resourcePath = Paths.get(clazz.getName().replace('.', '/') + ".class");
+        var classFileBytes = requireNonNull(Main.class.getClassLoader()
+            .getResourceAsStream(resourcePath.toString())).readAllBytes();
+        Files.write(outPath.resolve(resourcePath.getFileName()), classFileBytes);
+      }
       bytecode.generatedBytecode()
           .forEach((name, byteCode) -> saveBytecodeToFile(outputPath, name, byteCode));
     } catch (CompilationException e) {
-      printErrors(Objects.requireNonNull(source), e.errors());
+      printErrors(requireNonNull(source), e.errors());
     } catch (Exception e) {
       System.err.println(e);
       e.printStackTrace();
