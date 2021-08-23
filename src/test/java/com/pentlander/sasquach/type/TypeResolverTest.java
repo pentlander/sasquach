@@ -179,6 +179,7 @@ class TypeResolverTest {
 
     @Test
     void constructorNotFound() {
+      when(resolutionResult.getForeignFunction(any())).thenReturn(List.of(File.class.getConstructors()));
       var call = new ForeignFunctionCall(id("File"), id("new"),
           List.of(intValue("45"), intValue("10")), range());
 
@@ -189,6 +190,8 @@ class TypeResolverTest {
 
     @Test
     void staticFuncNotFound() {
+      when(resolutionResult.getForeignFunction(any())).thenReturn(Arrays.stream(Paths.class.getMethods())
+          .filter(m -> m.getParameterCount() == 2).map(Executable.class::cast).toList());
       var call = new ForeignFunctionCall(id("Paths"), id("get"), List.of(intValue("10"),
           ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())), range());
 
