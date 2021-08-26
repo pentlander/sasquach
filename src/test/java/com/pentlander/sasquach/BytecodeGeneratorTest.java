@@ -121,7 +121,7 @@ class BytecodeGeneratorTest {
     }
 
     @Nested
-    class ForeignFunctionCalls {
+    class ForeignFunctionHandleCalls {
         @Test
         void constructor() throws Exception {
             var className = "java/lang/StringBuilder";

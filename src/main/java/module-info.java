@@ -6,4 +6,6 @@ module sasquach.main {
   requires com.fasterxml.jackson.databind;
   requires static io.soabase.recordbuilder.core;
   requires static classindex;
+
+  opens com.pentlander.sasquach.runtime;
 }

@@ -7,11 +7,18 @@ import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Value;
+import com.pentlander.sasquach.name.ForeignFunctionHandle;
+import com.pentlander.sasquach.name.ForeignFunctions;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.Type;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 public class Fixtures {
     public static final String MOD_NAME = "Test";
@@ -75,4 +82,33 @@ public class Fixtures {
     public static TypeNode typeNode(Type type) {
         return new TypeNode(type, range());
     }
+
+  public static ForeignFunctions foreignMethods(Class<?> clazz, Predicate<Method> methodPredicate) {
+    return new ForeignFunctions(clazz, Arrays.stream(clazz.getMethods()).filter(methodPredicate).map(m -> {
+      try {
+        boolean isStatic = Modifier.isStatic(m.getModifiers());
+        return new ForeignFunctionHandle(
+            MethodHandles.lookup().unreflect(m),
+            isStatic ? InvocationKind.STATIC : InvocationKind.VIRTUAL);
+      } catch (IllegalAccessException e) {
+        throw new IllegalStateException(e);
+      }
+    }).toList());
+  }
+
+  public static ForeignFunctions foreignMethods(Class<?> clazz) {
+    return foreignMethods(clazz, m -> true);
+  }
+
+  public static ForeignFunctions foreignConstructors(Class<?> clazz) {
+    return new ForeignFunctions(clazz, Arrays.stream(clazz.getConstructors()).map(c -> {
+      try {
+        return new ForeignFunctionHandle(
+            MethodHandles.lookup().unreflectConstructor(c),
+            InvocationKind.SPECIAL);
+      } catch (IllegalAccessException e) {
+        throw new IllegalStateException(e);
+      }
+    }).toList());
+  }
 }

@@ -7,7 +7,6 @@ import com.pentlander.sasquach.backend.BytecodeGenerator;
 import com.pentlander.sasquach.backend.BytecodeResult;
 import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.name.ModuleResolver;
-import com.pentlander.sasquach.runtime.SasquachRuntime;
 import com.pentlander.sasquach.type.TypeResolver;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -19,8 +18,6 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
-import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
@@ -48,7 +45,7 @@ public class Main {
       });
 
       var outPath = outputPath.resolve("com/pentlander/sasquach/runtime/");
-      for (var clazz : ClassIndex.getAnnotated(SasquachRuntime.class)) {
+      for (var clazz : ClassIndex.getPackageClasses("com.pentlander.sasquach.runtime")) {
         var resourcePath = Paths.get(clazz.getName().replace('.', '/') + ".class");
         var classFileBytes = requireNonNull(Main.class.getClassLoader()
             .getResourceAsStream(resourcePath.toString())).readAllBytes();

@@ -11,7 +11,6 @@ import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.Identifier;
-import com.pentlander.sasquach.ast.InvocationKind;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -33,12 +32,10 @@ import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
+import com.pentlander.sasquach.name.ForeignFunctions;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Local;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Module;
 import com.pentlander.sasquach.name.ResolutionResult;
-import java.lang.invoke.MethodHandles;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -330,7 +327,7 @@ public class TypeResolver implements TypeFetcher {
   }
 
   private boolean argsMatchParams(List<Class<?>> params, List<Class<?>> args) {
-    for (int i = 0; i < params.size(); i++) {
+    for (int i = 0; i < args.size(); i++) {
       if (!params.get(i).isAssignableFrom(args.get(i))) {
         return false;
       }
@@ -339,44 +336,30 @@ public class TypeResolver implements TypeFetcher {
   }
 
   private Type resolveForeignFunctionCall(ForeignFunctionCall funcCall) {
-    var funcCandidates = resolutionResult.getForeignFunction(funcCall);
+    ForeignFunctions funcCandidates = resolutionResult.getForeignFunction(funcCall);
     List<Class<?>> argClasses = funcCall.arguments().stream()
         .map(arg -> resolveExprType(arg).typeClass()).collect(toList());
     var argTypes = argClasses.stream().map(Class::getName).collect(joining(", ", "(", ")"));
-    var classType = new ClassType(funcCandidates.get(0).getDeclaringClass());
+    var classType = new ClassType(funcCandidates.ownerClass());
 
-    try {
-      var lookup = MethodHandles.lookup();
-      for (var exec : funcCandidates) {
-        var paramClasses = Arrays.asList(exec.getParameterTypes());
-        if (argsMatchParams(paramClasses, argClasses)) {
-           return switch (exec) {
-            case Method method -> {
-              var callType = Modifier.isStatic(exec.getModifiers()) ? InvocationKind.STATIC
-                  : InvocationKind.VIRTUAL;
-              var methodType = lookup.unreflect(method).type();
-              if (callType == InvocationKind.VIRTUAL) {
-                // Drop the "this" for the call since it's implied by the owner
-                methodType = methodType.dropParameterTypes(0, 1);
-              }
-              putForeignFuncType(funcCall, new ForeignFunctionType(methodType, classType, callType));
-              yield builtinOrClassType(methodType.returnType());
-            }
-            case Constructor<?> constructor -> {
-              var callType = InvocationKind.SPECIAL;
-              var methodType = lookup.unreflectConstructor(constructor).type()
-                  .changeReturnType(void.class);
-              putForeignFuncType(funcCall,
-                  new ForeignFunctionType(methodType, classType, callType));
-              yield classType;
-            }
-            case default -> throw new IllegalStateException();
-          };
-        }
+    for (var foreignFuncHandle : funcCandidates.functions()) {
+      var methodHandle = foreignFuncHandle.methodHandle();
+      var methodType = methodHandle.type();
+      if (argsMatchParams(methodHandle.type().parameterList(), argClasses)) {
+        var returnType = methodType.returnType();
+        methodType = switch (foreignFuncHandle.invocationKind()) {
+          // Drop the "this" for the call since it's implied by the owner
+          case VIRTUAL -> methodType.dropParameterTypes(0, 1);
+          case SPECIAL -> methodType.changeReturnType(void.class);
+          case STATIC -> methodType;
+        };
+
+        putForeignFuncType(funcCall, new ForeignFunctionType(methodType, classType,
+            foreignFuncHandle.invocationKind()));
+        return builtinOrClassType(returnType);
       }
-    } catch (IllegalAccessException ignored) {
-      // Exception ignored, type error propagated below
     }
+
     return addError(new TypeLookupError(
         "No method '%s' found on class '%s' matching argument types '%s'"
             .formatted(funcCall.name(), classType.typeClass().getName(), argTypes),
