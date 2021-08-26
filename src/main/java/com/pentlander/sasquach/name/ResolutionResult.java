@@ -30,7 +30,7 @@ public class ResolutionResult {
       Map.of(),
       new RangedErrorList(List.of()));
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses;
-  private final Map<ForeignFunctionCall, List<Executable>> foreignFunctions;
+  private final Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions;
   private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls;
   private final Map<VarReference, ReferenceDeclaration> varReferences;
   private final Map<LocalVariable, Integer> varIndexes;
@@ -38,7 +38,7 @@ public class ResolutionResult {
   private final RangedErrorList errors;
 
   public ResolutionResult(Map<ForeignFieldAccess, Field> foreignFieldAccesses,
-      Map<ForeignFunctionCall, List<Executable>> foreignFunctions,
+      Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions,
       Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls,
       Map<VarReference, ReferenceDeclaration> varReferences, Map<LocalVariable, Integer> varIndexes,
       Map<Foreign, Class<?>> foreignUseClasses, RangedErrorList errors) {
@@ -74,7 +74,7 @@ public class ResolutionResult {
     return requireNonNull(foreignFieldAccesses.get(foreignFieldAccess));
   }
 
-  public List<Executable> getForeignFunction(ForeignFunctionCall foreignFunctionCall) {
+  public ForeignFunctions getForeignFunction(ForeignFunctionCall foreignFunctionCall) {
     return requireNonNull(foreignFunctions.get(foreignFunctionCall));
   }
 
@@ -164,12 +164,12 @@ public class ResolutionResult {
       return this;
     }
 
-    public ResolutionResult build() {
-      return new ResolutionResult(foreignFieldAccesses,
-          foreignFunctions,
-          localFunctionCalls,
-          varReferences,
-          varIndexes, foreignUseClasses, new RangedErrorList(errors));
-    }
+//    public ResolutionResult build() {
+//      return new ResolutionResult(foreignFieldAccesses,
+//          foreignFunctions,
+//          localFunctionCalls,
+//          varReferences,
+//          varIndexes, foreignUseClasses, new RangedErrorList(errors));
+//    }
   }
 }

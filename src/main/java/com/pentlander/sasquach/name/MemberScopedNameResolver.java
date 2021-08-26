@@ -6,6 +6,7 @@ import com.pentlander.sasquach.InternalCompilerException;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.InvocationKind;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.QualifiedIdentifier;
@@ -20,7 +21,7 @@ import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
-import java.lang.reflect.Executable;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
@@ -28,7 +29,6 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -54,7 +54,7 @@ public class MemberScopedNameResolver {
   // Map of import alias names to resolved foreign classes
   private final ModuleScopedNameResolver moduleScopedNameResolver;
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses = new HashMap<>();
-  private final Map<ForeignFunctionCall, List<Executable>> foreignFunctions = new HashMap<>();
+  private final Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions = new HashMap<>();
   private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls = new HashMap<>();
   private final Map<VarReference, LocalVariable> localVarReferences = new LinkedHashMap<>();
   private final Map<VarReference, ModuleDeclaration> moduleReferences = new HashMap<>();
@@ -62,7 +62,6 @@ public class MemberScopedNameResolver {
   private final Deque<Map<String, LocalVariable>> localVariableStacks = new ArrayDeque<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
   private final Visitor visitor = new Visitor();
-
 
   public MemberScopedNameResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
     this.moduleScopedNameResolver = moduleScopedNameResolver;
@@ -151,24 +150,44 @@ public class MemberScopedNameResolver {
     public Void visit(ForeignFunctionCall foreignFunctionCall) {
       getForeign(foreignFunctionCall.classAlias()).ifPresentOrElse(
           clazz -> {
-            var matchingExecutables = new ArrayList<Executable>();
+            var matchingForeignFunctions = new ArrayList<ForeignFunctionHandle>();
             var funcName = foreignFunctionCall.name();
             var isConstructor = funcName.equals("new");
-            var executables = isConstructor ? clazz.getConstructors() : clazz.getMethods();
-            for (var executable : executables) {
-              var paramCount = executable.getParameterCount();
-              paramCount += isConstructor || Modifier.isStatic(executable.getModifiers()) ? 0 : 1;
-              if (paramCount == foreignFunctionCall.argumentCount() && (
-                  isConstructor || funcName.equals(executable.getName()))) {
-                matchingExecutables.add(executable);
+            var lookup = MethodHandles.lookup();
+            int argCount = foreignFunctionCall.argumentCount();
+            if (isConstructor) {
+              for (var constructor : clazz.getConstructors()) {
+                try {
+                  var methodHandle = lookup.unreflectConstructor(constructor);
+                  if (methodHandle.type().parameterCount() == argCount) {
+                    matchingForeignFunctions.add(new ForeignFunctionHandle(methodHandle,
+                        InvocationKind.SPECIAL));
+                  }
+                } catch (IllegalAccessException e) {
+                  // Ignore inaccessible constructors
+                }
+              }
+            } else {
+              for (var method : clazz.getMethods()) {
+                boolean isStatic = Modifier.isStatic(method.getModifiers());
+                try {
+                  var methodHandle = lookup.unreflect(method);
+                  if (method.getName().equals(funcName) && methodHandle.type().parameterCount() == argCount) {
+                    matchingForeignFunctions.add(new ForeignFunctionHandle(methodHandle,
+                        isStatic ? InvocationKind.STATIC : InvocationKind.VIRTUAL));
+                  }
+                } catch (IllegalAccessException e) {
+                  // Ignore inaccessible methods
+                }
               }
             }
-            if (matchingExecutables.isEmpty()) {
+            if (matchingForeignFunctions.isEmpty()) {
               errors.add(new NameNotFoundError(
                   foreignFunctionCall.functionId(),
                   "foreign function"));
+            } else {
+              foreignFunctions.put(foreignFunctionCall, new ForeignFunctions(clazz, matchingForeignFunctions));
             }
-            foreignFunctions.put(foreignFunctionCall, matchingExecutables);
           },
           () -> errors.add(new NameNotFoundError(
               foreignFunctionCall.classAlias(),

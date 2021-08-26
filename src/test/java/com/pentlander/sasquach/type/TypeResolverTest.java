@@ -21,12 +21,9 @@ import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Local;
 import com.pentlander.sasquach.name.ResolutionResult;
-import com.sun.source.tree.Scope;
 import java.io.File;
-import java.lang.reflect.Executable;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -142,9 +139,10 @@ class TypeResolverTest {
 
   @Nested
   class ForeignFuncCall {
+
     @Test
     void constructor() {
-      when(resolutionResult.getForeignFunction(any())).thenReturn(List.of(File.class.getConstructors()));
+      when(resolutionResult.getForeignFunction(any())).thenReturn(foreignConstructors(File.class));
       var call = new ForeignFunctionCall(id("File"), id("new"), List.of(stringValue("foo.txt")),
           range());
 
@@ -155,7 +153,7 @@ class TypeResolverTest {
 
     @Test
     void staticFunc() {
-      when(resolutionResult.getForeignFunction(any())).thenReturn(List.of(Paths.class.getMethods()));
+      when(resolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class));
       var call = new ForeignFunctionCall(id("Paths"), id("get"),
           List.of(stringValue("foo.txt"),
               ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())), range());
@@ -167,8 +165,8 @@ class TypeResolverTest {
 
     @Test
     void virtualFunc() {
-      when(resolutionResult.getForeignFunction(any())).thenReturn(Arrays.stream(String.class.getMethods())
-          .filter(m -> m.getName().equals("concat")).map(Executable.class::cast).toList());
+      when(resolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(String.class,
+          m -> m.getName().equals("concat")));
       var call = new ForeignFunctionCall(id("String"), id("concat"),
           List.of(stringValue("foo"), stringValue("bar")), range());
 
@@ -179,7 +177,7 @@ class TypeResolverTest {
 
     @Test
     void constructorNotFound() {
-      when(resolutionResult.getForeignFunction(any())).thenReturn(List.of(File.class.getConstructors()));
+      when(resolutionResult.getForeignFunction(any())).thenReturn(foreignConstructors(File.class));
       var call = new ForeignFunctionCall(id("File"), id("new"),
           List.of(intValue("45"), intValue("10")), range());
 
@@ -190,8 +188,8 @@ class TypeResolverTest {
 
     @Test
     void staticFuncNotFound() {
-      when(resolutionResult.getForeignFunction(any())).thenReturn(Arrays.stream(Paths.class.getMethods())
-          .filter(m -> m.getParameterCount() == 2).map(Executable.class::cast).toList());
+      when(resolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class,
+          m -> m.getParameterCount() == 2));
       var call = new ForeignFunctionCall(id("Paths"), id("get"), List.of(intValue("10"),
           ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())), range());
 

@@ -9,12 +9,10 @@ import java.lang.invoke.MethodType;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import org.atteo.classindex.IndexAnnotated;
 
 /**
  * Class that handle dynamic dispatch on structs via invokedynamic.
  */
-@SasquachRuntime
 public final class StructDispatch {
   /**
    * Handles dispatch on struct field access.
