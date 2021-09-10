@@ -1,6 +1,5 @@
 package com.pentlander.sasquach;
 
-import com.pentlander.sasquach.Main.CompilationException;
 import java.util.ArrayList;
 import java.util.List;
 

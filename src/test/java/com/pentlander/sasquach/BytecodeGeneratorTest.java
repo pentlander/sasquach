@@ -370,7 +370,7 @@ class BytecodeGeneratorTest {
         for (Map.Entry<String, byte[]> entry : generatedClasses.entrySet()) {
             String name = entry.getKey();
             byte[] bytecode = entry.getValue();
-            Main.saveBytecodeToFile(tempPath, name, bytecode);
+            Compiler.saveBytecodeToFile(tempPath, name, bytecode);
         }
         System.err.println("Dumped files to: " + tempPath);
     }
