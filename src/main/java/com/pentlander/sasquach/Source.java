@@ -19,6 +19,10 @@ public record Source(String packageName, List<String> sourceLines) {
     return new Source(packageName, Files.readAllLines(path));
   }
 
+  public String sourceString() {
+    return String.join("\n", sourceLines());
+  }
+
   static String underline(Range.Single range, int offset) {
     return " ".repeat(range.start().column() + offset) + "^".repeat(range.length());
   }

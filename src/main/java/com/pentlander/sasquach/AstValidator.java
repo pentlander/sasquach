@@ -29,7 +29,7 @@ public class AstValidator {
    *
    * @return list of errors from the AST validation.
    */
-  List<Error> validate() {
+  public List<Error> validate() {
     var errors = new ArrayList<Error>();
     for (var module : compilationUnit.modules()) {
       List<Function> functions = module.struct().functions();

@@ -1,9 +1,7 @@
 package com.pentlander.sasquach;
 
-import static com.pentlander.sasquach.Main.compile;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.pentlander.sasquach.Main.CompilationException;
 import org.junit.jupiter.api.Test;
 
 public class EndToEndTest {
@@ -39,7 +37,7 @@ public class EndToEndTest {
 
   private Class<?> compileClass(Source source, String qualifiedName)
       throws ClassNotFoundException, CompilationException {
-    var bytecode = compile(source);
+    var bytecode = new Compiler().compile(source);
     var cl = new SasquachClassloader();
     bytecode.generatedBytecode().forEach(cl::addClass);
     return cl.loadClass(qualifiedName.replace('/', '.'));
