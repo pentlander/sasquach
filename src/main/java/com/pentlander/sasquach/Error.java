@@ -11,5 +11,5 @@ public interface Error {
    * @param source the source code for the file affected.
    * @return prettified error string.
    */
-  String toPrettyString(Source source);
+  String toPrettyString(Sources source);
 }

@@ -8,6 +8,13 @@ import java.util.List;
 public interface RangedError extends Error {
   Range range();
 
+  @Override
+  default String toPrettyString(Sources source) {
+    return toPrettyString(source.getSource(range().sourcePath()));
+  }
+
+  String toPrettyString(Source source);
+
   default List<? extends Range> ranges() {
     return List.of(range());
   }

@@ -17,11 +17,9 @@ import java.util.stream.Collectors;
  */
 public class AstValidator {
   private final CompilationUnit compilationUnit;
-  private final Source source;
 
-  public AstValidator(CompilationUnit compilationUnit, Source source) {
+  public AstValidator(CompilationUnit compilationUnit) {
     this.compilationUnit = compilationUnit;
-    this.source = source;
   }
 
   /**
@@ -85,7 +83,7 @@ public class AstValidator {
   record SizeMismatchError(String message, Range range) implements RangedError {
     @Override
     public String toPrettyString(Source source) {
-      return message + "\n" + source.highlight(null);
+      return message + "\n" + source.highlight(range);
     }
   }
 

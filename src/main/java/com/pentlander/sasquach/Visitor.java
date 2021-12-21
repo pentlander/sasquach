@@ -75,44 +75,54 @@ import org.antlr.v4.runtime.tree.TerminalNode;
  * Visitor that parses the source code into an abstract syntax tree.
  */
 public class Visitor {
-  public static Range rangeFrom(ParserRuleContext context) {
+  private final SourcePath sourcePath;
+  private final PackageName packageName;
+
+  public Visitor(SourcePath sourcePath, PackageName packageName) {
+    this.sourcePath = sourcePath;
+    this.packageName = packageName;
+  }
+
+  Range rangeFrom(ParserRuleContext context) {
     Token start = context.getStart();
     Token end = context.getStop();
     var pos = new Position(start.getLine(), start.getCharPositionInLine());
     if (start.getLine() == end.getLine()) {
-      return new Range.Single(pos, end.getCharPositionInLine() - start.getCharPositionInLine() + 1);
+      return new Range.Single(sourcePath, pos,
+          end.getCharPositionInLine() - start.getCharPositionInLine() + 1);
     }
     return new Range.Multi(
+        sourcePath,
         pos,
         new Position(end.getLine(), end.getCharPositionInLine() + end.getText().length()));
   }
 
-  public static Range.Single rangeFrom(Token token) {
+  Range.Single rangeFrom(Token token) {
     return new Range.Single(
+        sourcePath,
         new Position(token.getLine(), token.getCharPositionInLine()),
         token.getText().length());
   }
 
-  public static Range.Single rangeFrom(TerminalNode node) {
+  Range.Single rangeFrom(TerminalNode node) {
     return rangeFrom(node.getSymbol());
   }
 
-  static class CompilationUnitVisitor extends SasquachBaseVisitor<CompilationUnit> {
-    private final String packageName;
+  CompilationUnitVisitor compilationUnitVisitor() {
+    return new CompilationUnitVisitor();
+  }
 
-    CompilationUnitVisitor(String packageName) {
-      this.packageName = packageName;
-    }
-
+  class CompilationUnitVisitor extends SasquachBaseVisitor<CompilationUnit> {
     @Override
     public CompilationUnit visitCompilationUnit(CompilationUnitContext ctx) {
       var modules = ctx.moduleDeclaration().stream()
-          .map(moduleDecl -> moduleDecl.accept(new ModuleVisitor(packageName))).toList();
-      return new CompilationUnit(modules);
+          .map(moduleDecl -> moduleDecl.accept(new ModuleVisitor(
+              packageName.toString()))).toList();
+      return new CompilationUnit(sourcePath, packageName.toString(), modules);
     }
   }
 
-  static class ModuleVisitor extends SasquachBaseVisitor<ModuleDeclaration> {
+  class ModuleVisitor extends SasquachBaseVisitor<ModuleDeclaration> {
     private final String packageName;
 
     ModuleVisitor(String packageName) {
@@ -122,14 +132,14 @@ public class Visitor {
     @Override
     public ModuleDeclaration visitModuleDeclaration(ModuleDeclarationContext ctx) {
       String name = packageName + "/" + ctx.moduleName().getText();
-      var struct = ctx.struct().accept(StructVisitor.forModule(name));
+      var struct = ctx.struct().accept(structVisitorForModule(name));
       return new ModuleDeclaration(new QualifiedIdentifier(name, rangeFrom(ctx.moduleName().ID())),
           struct,
           rangeFrom(ctx));
     }
   }
 
-  static class FunctionVisitor extends SasquachBaseVisitor<Function> {
+  class FunctionVisitor extends SasquachBaseVisitor<Function> {
     private final Identifier id;
 
     FunctionVisitor(Identifier id) {
@@ -161,7 +171,7 @@ public class Visitor {
     }
   }
 
-  static class ExpressionVisitor extends SasquachBaseVisitor<Expression> {
+  class ExpressionVisitor extends SasquachBaseVisitor<Expression> {
     @Override
     public Expression visitVarReference(VarReferenceContext ctx) {
       var name = ctx.getText();
@@ -230,7 +240,7 @@ public class Visitor {
 
     @Override
     public Expression visitStruct(StructContext ctx) {
-      return ctx.accept(StructVisitor.forLiteral());
+      return ctx.accept(structVisitorForLiteral());
     }
 
     private List<Expression> args(ApplicationContext ctx) {
@@ -285,7 +295,7 @@ public class Visitor {
     }
   }
 
-  static class TypeVisitor extends SasquachBaseVisitor<TypeNode> {
+  class TypeVisitor extends SasquachBaseVisitor<TypeNode> {
     @Override
     public TypeNode visitPrimitiveType(PrimitiveTypeContext ctx) {
       return new TypeNode(BuiltinType.fromString(ctx.getText()), rangeFrom(ctx));
@@ -322,7 +332,17 @@ public class Visitor {
     }
   }
 
-  static class StructVisitor extends SasquachBaseVisitor<Struct> {
+  public StructVisitor structVisitorForModule(String name) {
+    return new StructVisitor(name, StructKind.MODULE);
+  }
+
+  public StructVisitor structVisitorForLiteral() {
+    // TODO: Set the metadata at the end of the visitStruct func so struct methods work properly
+    // TODO: Figure out how to reference parent scope from struct literal
+    return new StructVisitor(null, StructKind.LITERAL);
+  }
+
+  class StructVisitor extends SasquachBaseVisitor<Struct> {
     private final String name;
     private final StructKind structKind;
     private final ExpressionVisitor expressionVisitor;
@@ -331,16 +351,6 @@ public class Visitor {
       this.name = name;
       this.structKind = structKind;
       this.expressionVisitor = new ExpressionVisitor();
-    }
-
-    public static StructVisitor forModule(String name) {
-      return new StructVisitor(name, StructKind.MODULE);
-    }
-
-    public static StructVisitor forLiteral() {
-      // TODO: Set the metadata at the end of the visitStruct func so struct methods work properly
-      // TODO: Figure out how to reference parent scope from struct literal
-      return new StructVisitor(null, StructKind.LITERAL);
     }
 
     @Override
@@ -388,11 +398,11 @@ public class Visitor {
 
   }
 
-  private static Identifier id(TerminalNode node) {
+  private Identifier id(TerminalNode node) {
     return new Identifier(node.getText(), rangeFrom(node));
   }
 
-  private static List<FunctionParameter> parameterList(TypeVisitor typeVisitor,
+  private List<FunctionParameter> parameterList(TypeVisitor typeVisitor,
       FunctionParameterListContext ctx) {
     var params = new ArrayList<FunctionParameter>();
     for (FunctionArgumentContext paramCtx : ctx.functionArgument()) {

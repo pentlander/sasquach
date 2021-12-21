@@ -21,8 +21,8 @@ import java.util.List;
 import java.util.Map;
 
 @SuppressWarnings("ClassCanBeRecord")
-public class ResolutionResult {
-  private static final ResolutionResult EMPTY = new ResolutionResult(Map.of(),
+public class NameResolutionResult {
+  private static final NameResolutionResult EMPTY = new NameResolutionResult(Map.of(),
       Map.of(),
       Map.of(),
       Map.of(),
@@ -37,7 +37,7 @@ public class ResolutionResult {
   private final Map<Use.Foreign, Class<?>> foreignUseClasses;
   private final RangedErrorList errors;
 
-  public ResolutionResult(Map<ForeignFieldAccess, Field> foreignFieldAccesses,
+  public NameResolutionResult(Map<ForeignFieldAccess, Field> foreignFieldAccesses,
       Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions,
       Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls,
       Map<VarReference, ReferenceDeclaration> varReferences, Map<LocalVariable, Integer> varIndexes,
@@ -51,22 +51,22 @@ public class ResolutionResult {
     this.errors = errors;
   }
 
-  public ResolutionResult withErrors(RangedErrorList errors) {
-    return new ResolutionResult(foreignFieldAccesses,
+  public NameResolutionResult withErrors(RangedErrorList errors) {
+    return new NameResolutionResult(foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
         varReferences,
         varIndexes, foreignUseClasses, this.errors.concat(errors));
   }
 
-  public ResolutionResult withForeignUseClasses(Map<Use.Foreign, Class<?>> foreignUseClasses) {
-    return new ResolutionResult(foreignFieldAccesses,
+  public NameResolutionResult withForeignUseClasses(Map<Use.Foreign, Class<?>> foreignUseClasses) {
+    return new NameResolutionResult(foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
         varReferences, varIndexes, foreignUseClasses, errors);
   }
 
-  public static ResolutionResult empty() {
+  public static NameResolutionResult empty() {
     return EMPTY;
   }
 
@@ -98,8 +98,8 @@ public class ResolutionResult {
     return errors;
   }
 
-  public ResolutionResult merge(ResolutionResult other) {
-    return new ResolutionResult(merged(foreignFieldAccesses, other.foreignFieldAccesses),
+  public NameResolutionResult merge(NameResolutionResult other) {
+    return new NameResolutionResult(merged(foreignFieldAccesses, other.foreignFieldAccesses),
         merged(foreignFunctions, other.foreignFunctions),
         merged(localFunctionCalls, other.localFunctionCalls),
         merged(varReferences, other.varReferences),
@@ -129,7 +129,7 @@ public class ResolutionResult {
 
     private Builder() {}
 
-    public Builder mergeFrom(ResolutionResult resolutionResult) {
+    public Builder mergeFrom(NameResolutionResult nameResolutionResult) {
       return this;
     }
 

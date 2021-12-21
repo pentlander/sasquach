@@ -2,6 +2,7 @@ package com.pentlander.sasquach;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public record RangedErrorList(List<RangedError> errors) {
   private static final RangedErrorList EMPTY = new RangedErrorList(List.of());
@@ -13,6 +14,12 @@ public record RangedErrorList(List<RangedError> errors) {
   public void throwIfNotEmpty(Source source) throws CompilationException {
     if (!errors.isEmpty()) {
       throw new CompilationException(source, errors);
+    }
+  }
+
+  public void throwIfNotEmpty(Sources sources) throws CompilationException {
+    if (!errors.isEmpty()) {
+      throw new CompilationException(sources, errors);
     }
   }
 

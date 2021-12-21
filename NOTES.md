@@ -20,6 +20,12 @@ structs if they show up enough in code?
 
 # Open Questions
 
+## Multi-file resolution
+Resolving names across multiple files is hard. A fork-join task needs to be started for every 
+module and joined on when another module encounters an import of that module. Errors with ranges
+also need to be adapted to handle the fact that the range could be on any file, so the actual 
+file (compunit?) needs to be tracked within the error as well. 
+
 ## Java Interop
 Current thinking is to basically a Java class as a module, where there's a constructor for the 
 object and all of the methods are functions on the module. E.g. 

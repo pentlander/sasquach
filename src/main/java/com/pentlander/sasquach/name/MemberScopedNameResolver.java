@@ -67,19 +67,19 @@ public class MemberScopedNameResolver {
     this.moduleScopedNameResolver = moduleScopedNameResolver;
   }
 
-  public ResolutionResult resolve(Expression expression) {
+  public NameResolutionResult resolve(Expression expression) {
     visitor.visit(expression);
     return resolutionResult();
   }
 
-  public ResolutionResult resolve(Function function) {
+  public NameResolutionResult resolve(Function function) {
     pushScope();
     function.parameters().forEach(this::addLocalVariable);
     visitor.visit(function.expression());
     return resolutionResult();
   }
 
-  private ResolutionResult resolutionResult() {
+  private NameResolutionResult resolutionResult() {
     var varReferences = new HashMap<VarReference, ReferenceDeclaration>();
     localVarReferences.forEach((varRef, localVar) -> varReferences.put(varRef,
         new ReferenceDeclaration.Local(localVar,
@@ -87,7 +87,7 @@ public class MemberScopedNameResolver {
     moduleReferences.forEach((varRef, mod) -> varReferences.put(varRef,
         new ReferenceDeclaration.Module(mod)));
 
-    return new ResolutionResult(
+    return new NameResolutionResult(
         foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
@@ -103,6 +103,7 @@ public class MemberScopedNameResolver {
     var existingVar = map.put(localVariable.name(), localVariable);
     localVariableIndex.put(localVariable, localVariableIndex.size());
     if (existingVar != null) {
+//      moduleScopedNameResolver.moduleDeclaration().name()
       errors.add(new DuplicateNameError(localVariable.id(), existingVar.id()));
       throw new InternalCompilerException(
           "Found existing variable in scope named " + existingVar.name());

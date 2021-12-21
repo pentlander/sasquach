@@ -1,0 +1,28 @@
+Option {
+    some = [T](value: T): { value: T } -> { value = value },
+    map = [T, U](option: { value: T }, mapper: { map: (input: T) -> U }): { value: U } -> { value = mapper.map(option.value) }
+}
+
+First {
+    use math/Math,
+    use first/Option,
+    use foreign java/io/File,
+    use foreign java/io/PrintStream,
+    use foreign java/lang/System,
+
+    gee = (arg: { bar: Int, foo: String }, otherArg: String): Void -> {
+        let toPrint = if (arg.bar > 0) arg.foo else otherArg
+        print toPrint
+    },
+
+    bar = (boo: String): String -> "doo",
+
+    main = (args: String[]): Void -> {
+        let third = { foo = "third", bar = 45 }
+        let optStr = Option.some("an option")
+        let optInt = Option.map(optStr, { map = (input: String): Int -> 10 })
+        print optInt.value
+        PrintStream#println(System#out, optInt.value)
+        gee(third, "testing")
+    }
+}

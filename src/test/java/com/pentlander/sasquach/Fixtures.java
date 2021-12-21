@@ -21,11 +21,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 public class Fixtures {
-    public static final String MOD_NAME = "Test";
+    public static final SourcePath SOURCE_PATH = new SourcePath("test.sasq");
+    public static final String PACKAGE_NAME = "test";
+    public static final String MOD_NAME = PACKAGE_NAME + "/Test";
+    public static final String CLASS_NAME = MOD_NAME.replace('/', '.');
     private static final AtomicInteger RANGE_COUNTER = new AtomicInteger();
 
     public static Range.Single range() {
-        return new Range.Single(new Position(RANGE_COUNTER.getAndIncrement(), 1), 1);
+        return new Range.Single(SOURCE_PATH, new Position(RANGE_COUNTER.getAndIncrement(), 1), 1);
     }
 
     public static Identifier id(String name) {
