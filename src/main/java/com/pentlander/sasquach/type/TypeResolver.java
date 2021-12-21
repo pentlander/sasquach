@@ -35,7 +35,7 @@ import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.name.ForeignFunctions;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Local;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Module;
-import com.pentlander.sasquach.name.ResolutionResult;
+import com.pentlander.sasquach.name.NameResolutionResult;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,11 +55,11 @@ public class TypeResolver implements TypeFetcher {
   private final Map<QualifiedFunctionId, ForeignFunctionType> foreignFuncTypes = new HashMap<>();
   private final List<RangedError> errors = new ArrayList<>();
 
-  private final ResolutionResult resolutionResult;
+  private final NameResolutionResult nameResolutionResult;
   private Node nodeResolving = null;
 
-  public TypeResolver(ResolutionResult resolutionResult) {
-    this.resolutionResult = resolutionResult;
+  public TypeResolver(NameResolutionResult nameResolutionResult) {
+    this.nameResolutionResult = nameResolutionResult;
   }
 
   @Override
@@ -166,7 +166,7 @@ public class TypeResolver implements TypeFetcher {
         putIdType(varDecl.id(), resolveExprType(varDecl.expression()));
         yield BuiltinType.VOID;
       }
-      case VarReference varRef -> switch (resolutionResult.getVarReference(varRef)) {
+      case VarReference varRef -> switch (nameResolutionResult.getVarReference(varRef)) {
         case Local local -> getIdType(local.localVariable().id()).get();
         case Module module -> resolveExprType(module.moduleDeclaration().struct());
       };
@@ -263,7 +263,7 @@ public class TypeResolver implements TypeFetcher {
     FunctionType funcType = null;
     switch (funcCall) {
       case LocalFunctionCall localFuncCall -> {
-        var qualFunc = resolutionResult.getLocalFunction(localFuncCall);
+        var qualFunc = nameResolutionResult.getLocalFunction(localFuncCall);
         funcType = resolveFuncType(qualFunc.function());
       }
       case MemberFunctionCall structFuncCall -> {
@@ -319,7 +319,7 @@ public class TypeResolver implements TypeFetcher {
   }
 
   private Type resolveForeignFieldAccess(ForeignFieldAccess fieldAccess) {
-    var field = resolutionResult.getForeignField(fieldAccess);
+    var field = nameResolutionResult.getForeignField(fieldAccess);
     var classType = new ClassType(field.getDeclaringClass());
     var accessKind =
         Modifier.isStatic(field.getModifiers()) ? FieldAccessKind.STATIC : FieldAccessKind.INSTANCE;
@@ -336,7 +336,7 @@ public class TypeResolver implements TypeFetcher {
   }
 
   private Type resolveForeignFunctionCall(ForeignFunctionCall funcCall) {
-    ForeignFunctions funcCandidates = resolutionResult.getForeignFunction(funcCall);
+    ForeignFunctions funcCandidates = nameResolutionResult.getForeignFunction(funcCall);
     List<Class<?>> argClasses = funcCall.arguments().stream()
         .map(arg -> resolveExprType(arg).typeClass()).collect(toList());
     var argTypes = argClasses.stream().map(Class::getName).collect(joining(", ", "(", ")"));

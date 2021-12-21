@@ -1,21 +1,16 @@
 package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.InternalCompilerException;
-import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NodeVisitor;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
-import com.pentlander.sasquach.ast.Use.Foreign;
-import com.pentlander.sasquach.ast.Use.Module;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.Struct;
 import java.lang.invoke.MethodHandles;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -24,15 +19,15 @@ public class ModuleScopedNameResolver  {
   private final Map<String, ModuleDeclaration> moduleImports = new HashMap<>();
   private final Map<String, Class<?>> foreignClasses = new HashMap<>();
   private final Map<String, Struct.Field> fields = new HashMap<>();
-  private final Map<Struct.Field, ResolutionResult> fieldResults = new HashMap<>();
+  private final Map<Struct.Field, NameResolutionResult> fieldResults = new HashMap<>();
   private final Map<String, Function> functions = new HashMap<>();
   private final Map<Use.Foreign, Class<?>> foreignUseClasses = new HashMap<>();
-  private final Map<Function, ResolutionResult> functionResults = new HashMap<>();
+  private final Map<Function, NameResolutionResult> functionResults = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
   private final ModuleDeclaration module;
   private final ModuleResolver moduleResolver;
-  private ResolutionResult resolutionResult = ResolutionResult.empty();
+  private NameResolutionResult nameResolutionResult = NameResolutionResult.empty();
 
   public ModuleScopedNameResolver(ModuleDeclaration module, ModuleResolver moduleResolver) {
     this.module = module;
@@ -43,16 +38,16 @@ public class ModuleScopedNameResolver  {
     return module;
   }
 
-  public ResolutionResult resolve() {
+  public NameResolutionResult resolve() {
     new Visitor().visit(module);
-    return resolutionResult.withForeignUseClasses(foreignUseClasses).withErrors(errors.build());
+    return nameResolutionResult.withForeignUseClasses(foreignUseClasses).withErrors(errors.build());
   }
 
-  public ResolutionResult getResolver(Struct.Field field) {
+  public NameResolutionResult getResolver(Struct.Field field) {
     return Objects.requireNonNull(fieldResults.get(field));
   }
 
-  public ResolutionResult getResolver(Function function) {
+  public NameResolutionResult getResolver(Function function) {
     return Objects.requireNonNull(functionResults.get(function));
   }
 
@@ -63,7 +58,7 @@ public class ModuleScopedNameResolver  {
     }
 
     @Override
-    public Void visit(Module use) {
+    public Void visit(Use.Module use) {
       var module = moduleResolver.resolveModule(use.id().name());
       var existingImport = moduleImports.put(use.alias().name(), module.moduleDeclaration());
       if (existingImport != null) {
@@ -73,7 +68,7 @@ public class ModuleScopedNameResolver  {
     }
 
     @Override
-    public Void visit(Foreign use) {
+    public Void visit(Use.Foreign use) {
       try {
         var qualifiedName = use.id().name().replace('/', '.');
         var clazz = MethodHandles.lookup().findClass(qualifiedName);
@@ -103,13 +98,13 @@ public class ModuleScopedNameResolver  {
         for (var field : struct.fields()) {
           var resolver = new MemberScopedNameResolver(ModuleScopedNameResolver.this);
           var result = resolver.resolve(field);
-          resolutionResult = resolutionResult.merge(result);
+          nameResolutionResult = nameResolutionResult.merge(result);
           fieldResults.put(field, result);
         }
         for (var function : struct.functions()) {
           var resolver = new MemberScopedNameResolver(ModuleScopedNameResolver.this);
           var result = resolver.resolve(function);
-          resolutionResult = resolutionResult.merge(result);
+          nameResolutionResult = nameResolutionResult.merge(result);
           functionResults.put(function, result);
         }
       }

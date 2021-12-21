@@ -21,8 +21,8 @@ public class CompilationUnitParser {
     var parser = new SasquachParser(tokenStream);
     parser.addErrorListener(errorListener);
 
-    var visitor = new Visitor.CompilationUnitVisitor(source.packageName());
-    return parser.compilationUnit().accept(visitor);
+    var visitor = new Visitor(source.path(), new PackageName(source.packageName()));
+    return parser.compilationUnit().accept(visitor.compilationUnitVisitor());
   }
 
   static class SasquachTreeWalkErrorListener extends BaseErrorListener {

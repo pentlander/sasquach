@@ -1,6 +1,28 @@
 package com.pentlander.sasquach;
 
-import com.pentlander.sasquach.ast.*;
+import static com.pentlander.sasquach.Fixtures.CLASS_NAME;
+import static com.pentlander.sasquach.Fixtures.MOD_NAME;
+import static com.pentlander.sasquach.Fixtures.PACKAGE_NAME;
+import static com.pentlander.sasquach.Fixtures.SOURCE_PATH;
+import static com.pentlander.sasquach.Fixtures.boolValue;
+import static com.pentlander.sasquach.Fixtures.func;
+import static com.pentlander.sasquach.Fixtures.id;
+import static com.pentlander.sasquach.Fixtures.intValue;
+import static com.pentlander.sasquach.Fixtures.literalStruct;
+import static com.pentlander.sasquach.Fixtures.qualId;
+import static com.pentlander.sasquach.Fixtures.range;
+import static com.pentlander.sasquach.Fixtures.stringValue;
+import static com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
+import static com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
+import static com.pentlander.sasquach.ast.expression.BinaryExpression.MathExpression;
+import static com.pentlander.sasquach.ast.expression.BinaryExpression.MathOperator;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.pentlander.sasquach.ast.CompilationUnit;
+import com.pentlander.sasquach.ast.FunctionSignature;
+import com.pentlander.sasquach.ast.ModuleDeclaration;
+import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
@@ -19,27 +41,26 @@ import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.backend.BytecodeGenerator;
 import com.pentlander.sasquach.name.ModuleResolver;
 import com.pentlander.sasquach.runtime.StructBase;
-import com.pentlander.sasquach.type.*;
+import com.pentlander.sasquach.type.BuiltinType;
+import com.pentlander.sasquach.type.ClassType;
+import com.pentlander.sasquach.type.NamedType;
+import com.pentlander.sasquach.type.StructType;
+import com.pentlander.sasquach.type.Type;
+import com.pentlander.sasquach.type.TypeResolver;
 import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.List;
-import java.util.Map;
-
-import static com.pentlander.sasquach.Fixtures.*;
-import static com.pentlander.sasquach.ast.expression.BinaryExpression.*;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.when;
-
 class BytecodeGeneratorTest {
-    private static final Range.Single NR = new Range.Single(new Position(1, 1), 1);
+    private static final Range.Single NR = new Range.Single(SOURCE_PATH, new Position(1, 1), 1);
 
     private SasquachClassloader cl;
     private TypeResolver typeResolver;
@@ -263,7 +284,7 @@ class BytecodeGeneratorTest {
             typeResolver.resolve(compUnit);
             var result = new BytecodeGenerator(nameResolver, typeResolver).generateBytecode(compUnit);
             result.generatedBytecode().forEach(cl::addClass);
-            var clazz =  cl.loadClass(MOD_NAME);
+            var clazz =  cl.loadClass(CLASS_NAME);
             Object box = invokeName(clazz, "baz", null);
 
             assertThat(result.generatedBytecode()).hasSize(3);
@@ -362,7 +383,7 @@ class BytecodeGeneratorTest {
             dumpGeneratedClasses(result.generatedBytecode());
         }
         result.generatedBytecode().forEach(cl::addClass);
-        return cl.loadClass(MOD_NAME);
+        return cl.loadClass(CLASS_NAME);
     }
 
     private void dumpGeneratedClasses(Map<String, byte[]> generatedClasses) throws Exception {
@@ -376,7 +397,8 @@ class BytecodeGeneratorTest {
     }
 
     private CompilationUnit compUnit(List<Use> useList, List<Struct.Field> fields, List<Function> functions) {
-        return new CompilationUnit(List.of(new ModuleDeclaration(qualId(MOD_NAME),
+        return new CompilationUnit(new SourcePath("test.sasq"), PACKAGE_NAME,
+            List.of(new ModuleDeclaration(qualId(MOD_NAME),
             Struct.moduleStruct(MOD_NAME, useList, fields, functions, NR), NR)));
     }
 

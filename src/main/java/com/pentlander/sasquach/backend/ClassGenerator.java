@@ -9,7 +9,7 @@ import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Struct.StructKind;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
-import com.pentlander.sasquach.name.ResolutionResult;
+import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
@@ -29,12 +29,12 @@ class ClassGenerator {
   private final ClassWriter classWriter = new ClassWriter(
       ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
   private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
-  private final ResolutionResult resolutionResult;
+  private final NameResolutionResult nameResolutionResult;
   private final TypeFetcher typeFetcher;
   private Node contextNode;
 
-  ClassGenerator(ResolutionResult resolutionResult, TypeFetcher typeFetcher) {
-    this.resolutionResult = resolutionResult;
+  ClassGenerator(NameResolutionResult nameResolutionResult, TypeFetcher typeFetcher) {
+    this.nameResolutionResult = nameResolutionResult;
     this.typeFetcher = typeFetcher;
   }
 
@@ -124,7 +124,7 @@ class ClassGenerator {
       // Initialize INSTANCE with field expressions
       var smv = classWriter.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
       smv.visitCode();
-      new ExpressionGenerator(smv, resolutionResult, typeFetcher).generateStructInit(struct);
+      new ExpressionGenerator(smv, nameResolutionResult, typeFetcher).generateStructInit(struct);
       smv.visitFieldInsn(
           Opcodes.PUTSTATIC,
           structType.internalName(),
@@ -139,7 +139,7 @@ class ClassGenerator {
 
     // Generate methods
     for (Function func : struct.functions()) {
-      generateFunction(classWriter, func, resolutionResult);
+      generateFunction(classWriter, func, nameResolutionResult);
     }
 
     // Class footer
@@ -149,7 +149,7 @@ class ClassGenerator {
 
 
   private void generateFunction(ClassWriter classWriter, Function function,
-      ResolutionResult memberResolutionResult) {
+      NameResolutionResult memberNameResolutionResult) {
     addContextNode(function);
     var funcType = type(function.id());
     var methodVisitor = classWriter.visitMethod(
@@ -159,7 +159,8 @@ class ClassGenerator {
         null,
         null);
     methodVisitor.visitCode();
-    var exprGenerator = new ExpressionGenerator(methodVisitor, memberResolutionResult, typeFetcher);
+    var exprGenerator = new ExpressionGenerator(methodVisitor,
+        memberNameResolutionResult, typeFetcher);
     var returnExpr = function.expression();
     if (returnExpr != null) {
       exprGenerator.generateExpr(returnExpr);

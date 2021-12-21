@@ -5,18 +5,20 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Predicate;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Class containing the source code as a string.
  * <p>It has convenience methods for highlighting parts of the source code.</p>
  */
-public record Source(String packageName, List<String> sourceLines) {
+public record Source(SourcePath path, String packageName, List<String> sourceLines) {
   public static Source fromString(String packageName, String source) {
-    return new Source(packageName, Arrays.asList(source.split("\n")));
-  }
-  public static Source fromPath(Path path) throws IOException {
-    var packageName = path.getFileName().toString().split("\\.")[0];
-    return new Source(packageName, Files.readAllLines(path));
+    return new Source(new SourcePath("anonymous.sasq"), packageName,
+        Arrays.asList(source.split("\n")));
   }
 
   public String sourceString() {

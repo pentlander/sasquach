@@ -20,7 +20,7 @@ import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Local;
-import com.pentlander.sasquach.name.ResolutionResult;
+import com.pentlander.sasquach.name.NameResolutionResult;
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -39,14 +39,14 @@ import static org.mockito.Mockito.when;
 
 class TypeResolverTest {
   private static final String MOD_NAME = "Test";
-  ResolutionResult resolutionResult;
+  NameResolutionResult nameResolutionResult;
   TypeResolver typeResolver;
   boolean shouldAssertErrorsEmpty = true;
 
   @BeforeEach
   void setUp() {
-    resolutionResult = mock(ResolutionResult.class);
-    typeResolver = new TypeResolver(resolutionResult);
+    nameResolutionResult = mock(NameResolutionResult.class);
+    typeResolver = new TypeResolver(nameResolutionResult);
     shouldAssertErrorsEmpty = true;
   }
 
@@ -69,7 +69,7 @@ class TypeResolverTest {
   void varReference() {
     var varId = id("foo");
     var varDecl = new VariableDeclaration(varId, stringValue("hi"), range());
-    when(resolutionResult.getVarReference(any())).thenReturn(new Local(varDecl, 0));
+    when(nameResolutionResult.getVarReference(any())).thenReturn(new Local(varDecl, 0));
 
     var declType = resolveExpr(varDecl);
     var refType = resolveExpr(new VarReference(id("foo")));
@@ -142,7 +142,7 @@ class TypeResolverTest {
 
     @Test
     void constructor() {
-      when(resolutionResult.getForeignFunction(any())).thenReturn(foreignConstructors(File.class));
+      when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignConstructors(File.class));
       var call = new ForeignFunctionCall(id("File"), id("new"), List.of(stringValue("foo.txt")),
           range());
 
@@ -153,7 +153,7 @@ class TypeResolverTest {
 
     @Test
     void staticFunc() {
-      when(resolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class));
+      when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class));
       var call = new ForeignFunctionCall(id("Paths"), id("get"),
           List.of(stringValue("foo.txt"),
               ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())), range());
@@ -165,7 +165,7 @@ class TypeResolverTest {
 
     @Test
     void virtualFunc() {
-      when(resolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(String.class,
+      when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(String.class,
           m -> m.getName().equals("concat")));
       var call = new ForeignFunctionCall(id("String"), id("concat"),
           List.of(stringValue("foo"), stringValue("bar")), range());
@@ -177,7 +177,7 @@ class TypeResolverTest {
 
     @Test
     void constructorNotFound() {
-      when(resolutionResult.getForeignFunction(any())).thenReturn(foreignConstructors(File.class));
+      when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignConstructors(File.class));
       var call = new ForeignFunctionCall(id("File"), id("new"),
           List.of(intValue("45"), intValue("10")), range());
 
@@ -188,7 +188,7 @@ class TypeResolverTest {
 
     @Test
     void staticFuncNotFound() {
-      when(resolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class,
+      when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class,
           m -> m.getParameterCount() == 2));
       var call = new ForeignFunctionCall(id("Paths"), id("get"), List.of(intValue("10"),
           ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())), range());
@@ -224,7 +224,7 @@ class TypeResolverTest {
     class Local {
       @BeforeEach
       void setUp() {
-        when(resolutionResult.getLocalFunction(any())).thenReturn(new QualifiedFunction(
+        when(nameResolutionResult.getLocalFunction(any())).thenReturn(new QualifiedFunction(
             qualId("foo"),
             func));
       }

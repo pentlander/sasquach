@@ -24,7 +24,7 @@ import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
-import com.pentlander.sasquach.name.ResolutionResult;
+import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.runtime.StructDispatch;
 import com.pentlander.sasquach.type.BuiltinType;
@@ -53,14 +53,14 @@ class ExpressionGenerator {
       List.of(Lookup.class, String.class, MethodType.class)).descriptorString();
   private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
   private final MethodVisitor methodVisitor;
-  private final ResolutionResult resolutionResult;
+  private final NameResolutionResult nameResolutionResult;
   private final TypeFetcher typeFetcher;
   private Node contextNode;
 
-  ExpressionGenerator(MethodVisitor methodVisitor, ResolutionResult resolutionResult,
+  ExpressionGenerator(MethodVisitor methodVisitor, NameResolutionResult nameResolutionResult,
       TypeFetcher typeFetcher) {
     this.methodVisitor = methodVisitor;
-    this.resolutionResult = resolutionResult;
+    this.nameResolutionResult = nameResolutionResult;
     this.typeFetcher = typeFetcher;
   }
 
@@ -108,7 +108,7 @@ class ExpressionGenerator {
       }
       case VariableDeclaration varDecl -> {
         var varDeclExpr = varDecl.expression();
-        int idx = resolutionResult.getVarIndex(varDecl);
+        int idx = nameResolutionResult.getVarIndex(varDecl);
         generate(varDeclExpr);
         var type = type(varDeclExpr);
         if (type instanceof BuiltinType builtinType) {
@@ -129,7 +129,7 @@ class ExpressionGenerator {
         }
       }
       case VarReference varReference -> {
-        var refDecl = resolutionResult.getVarReference(varReference);
+        var refDecl = nameResolutionResult.getVarReference(varReference);
         switch (refDecl) {
           case ReferenceDeclaration.Local local -> generateLoadVar(methodVisitor,
               type(varReference),
@@ -188,7 +188,7 @@ class ExpressionGenerator {
       }
       case LocalFunctionCall funcCall -> {
         funcCall.arguments().forEach(this::generate);
-        var qualifiedFunc = resolutionResult.getLocalFunction(funcCall);
+        var qualifiedFunc = nameResolutionResult.getLocalFunction(funcCall);
         var funcType = type(qualifiedFunc.function().id());
         methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC,
             qualifiedFunc.ownerId().name(),
@@ -241,7 +241,7 @@ class ExpressionGenerator {
         methodVisitor.visitLabel(endLabel);
       }
       case Struct struct -> {
-        var classGen = new ClassGenerator(resolutionResult, typeFetcher);
+        var classGen = new ClassGenerator(nameResolutionResult, typeFetcher);
         classGen.generateStruct(struct);
         generatedClasses.putAll(classGen.getGeneratedClasses());
 
