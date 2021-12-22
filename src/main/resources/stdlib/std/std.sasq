@@ -1,0 +1,7 @@
+Integer {
+  use foreign java/lang/Integer,
+
+  toString = (int: Int): String -> Integer#toString(int),
+
+  parse = (str: String): Int -> Integer#parseInt(str)
+}

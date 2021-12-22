@@ -6,6 +6,7 @@ Option {
 First {
     use math/Math,
     use first/Option,
+    use std/io/IO,
     use foreign java/io/File,
     use foreign java/io/PrintStream,
     use foreign java/lang/System,
@@ -24,5 +25,6 @@ First {
         print optInt.value
         PrintStream#println(System#out, optInt.value)
         gee(third, "testing")
+        IO.println("testing std")
     }
 }

@@ -3,7 +3,7 @@ package com.pentlander.sasquach;
 /**
  * A compile time error.
  */
-public interface Error {
+public sealed interface Error permits BasicError, RangedError {
   /**
    * Returns a prettified string of the error. It should contain a highlight of the affected source
    * code.

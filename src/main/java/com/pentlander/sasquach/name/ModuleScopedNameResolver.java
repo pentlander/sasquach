@@ -60,6 +60,10 @@ public class ModuleScopedNameResolver  {
     @Override
     public Void visit(Use.Module use) {
       var module = moduleResolver.resolveModule(use.id().name());
+      if (module == null ) {
+        errors.add(new NameNotFoundError(use.id(), "module"));
+        return null;
+      }
       var existingImport = moduleImports.put(use.alias().name(), module.moduleDeclaration());
       if (existingImport != null) {
         errors.add(new DuplicateNameError(use.id(), existingImport.id()));
@@ -76,7 +80,6 @@ public class ModuleScopedNameResolver  {
         foreignUseClasses.put(use, clazz);
       } catch (ClassNotFoundException | IllegalAccessException e) {
         errors.add(new NameNotFoundError(use.alias(), "foreign class"));
-        throw new InternalCompilerException(e);
       }
       return null;
     }

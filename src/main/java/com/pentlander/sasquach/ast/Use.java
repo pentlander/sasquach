@@ -8,7 +8,7 @@ import com.pentlander.sasquach.Range;
 public sealed interface Use extends Node {
 
   /**
-   * Fully qualified identifier of the module or class. Qualified imports use '/' as a separator .
+   * Fully qualified id of the module or class. Qualified imports use '/' as a separator .
    */
   QualifiedIdentifier id();
 

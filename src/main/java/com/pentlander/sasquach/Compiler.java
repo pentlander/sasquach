@@ -26,6 +26,18 @@ import org.atteo.classindex.ClassIndex;
 public class Compiler {
   private final CompilationUnitParser parser = new CompilationUnitParser();
 
+  Sources findFiles(List<Path> sourcePaths) throws IOException {
+    if (sourcePaths.isEmpty()) {
+      throw new IllegalStateException("At least one source path is required.");
+    }
+
+    var sources = Sources.empty();
+    for (var sourcePath : sourcePaths) {
+      sources = sources.merge(findFiles(sourcePath));
+    }
+    return sources;
+  }
+
   Sources findFiles(Path sourcePath) throws IOException {
     if (Files.isDirectory(sourcePath)) {
       var sources = new HashMap<SourcePath, Source>();
@@ -92,9 +104,9 @@ public class Compiler {
     return bytecodeResults;
   }
 
-  public void compile(Path sourcePath, Path outputPath) {
+  public void compile(List<Path> sourcePaths, Path outputPath) {
     try {
-      var sources = findFiles(sourcePath);
+      var sources = findFiles(sourcePaths);
       Map<String, byte[]> bytecodeResults;
       try {
         bytecodeResults = compileSources(sources);
@@ -118,7 +130,12 @@ public class Compiler {
   static void printErrors(Sources sources, List<? extends Error> errors) {
     if (!errors.isEmpty()) {
       for (Error compileError : errors) {
-        System.out.printf("error: %s\n", compileError.toPrettyString(sources));
+        var message = switch (compileError) {
+          case BasicError basicError -> "error: %s\n".formatted(basicError.toPrettyString(sources));
+          case RangedError rangedError -> "%s:\nerror: %s\n".formatted(rangedError.range()
+              .sourcePath().filepath(), rangedError.toPrettyString(sources));
+        };
+        System.out.print(message);
       }
     }
   }

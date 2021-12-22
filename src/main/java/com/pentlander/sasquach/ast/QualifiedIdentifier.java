@@ -3,9 +3,9 @@ package com.pentlander.sasquach.ast;
 import com.pentlander.sasquach.Range;
 
 /**
- * Package-qualified identifier used for imports. Packages are separated by '/'.
+ * Package-qualified id used for imports. Packages are separated by '/'.
  *
- * @param name full string identifier separated by '/'
+ * @param name full string id separated by '/'
  */
 public record QualifiedIdentifier(String name, Range.Single range) implements Node, Id {
   public QualifiedIdentifier {
