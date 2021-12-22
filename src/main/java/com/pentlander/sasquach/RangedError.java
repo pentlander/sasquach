@@ -5,12 +5,12 @@ import java.util.List;
 /**
  * Error that refers to a range of source code.
  */
-public interface RangedError extends Error {
+public non-sealed interface RangedError extends Error {
   Range range();
 
   @Override
-  default String toPrettyString(Sources source) {
-    return toPrettyString(source.getSource(range().sourcePath()));
+  default String toPrettyString(Sources sources) {
+    return toPrettyString(sources.getSource(range().sourcePath()));
   }
 
   String toPrettyString(Source source);

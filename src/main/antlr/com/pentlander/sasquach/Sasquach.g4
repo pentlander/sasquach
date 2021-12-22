@@ -1,7 +1,7 @@
 grammar Sasquach;
 
 // parser rules
-compilationUnit : moduleDeclaration+ EOF;
+compilationUnit : NL* moduleDeclaration+ EOF;
 moduleDeclaration : moduleName struct NL* ;
 
 moduleName: ID;

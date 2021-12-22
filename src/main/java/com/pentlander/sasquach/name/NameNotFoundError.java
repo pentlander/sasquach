@@ -3,12 +3,12 @@ package com.pentlander.sasquach.name;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.Source;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 
-record NameNotFoundError(Identifier identifier, String nodeType) implements RangedError {
+record NameNotFoundError(Id id, String nodeType) implements RangedError {
   @Override
   public Range range() {
-    return identifier.range();
+    return id.range();
   }
 
   @Override
@@ -16,6 +16,6 @@ record NameNotFoundError(Identifier identifier, String nodeType) implements Rang
     return """
         Could not find %s '%s' in scope.
         %s
-        """.formatted(nodeType, identifier().name(), source.highlight(identifier.range()));
+        """.formatted(nodeType, id().name(), source.highlight(id.range()));
   }
 }
