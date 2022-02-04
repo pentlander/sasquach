@@ -1,4 +1,6 @@
 # Todo List
 * Fix type resolution where there is a "more specific" option
 * Unify FunctionCall and ForeignFunctionCall
-* Enable imports from other modules
+* Add type parameters to type aliases
+* Add maps and lists
+* Some sort of loop like control flow

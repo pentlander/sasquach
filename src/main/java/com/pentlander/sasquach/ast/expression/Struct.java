@@ -7,6 +7,7 @@ import com.pentlander.sasquach.Range;
 
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Node;
+import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.Use;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
@@ -14,12 +15,14 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RecordBuilder
-public record Struct(Optional<String> name, List<Use> useList, List<Field> fields,
+public record Struct(Optional<String> name, List<Use> useList,
+                     List<TypeAlias> typeAliases, List<Field> fields,
                      List<Function> functions, StructKind structKind, Range range) implements
     Expression {
 
   public Struct {
     useList = requireNonNullElse(useList, List.of());
+    typeAliases = requireNonNullElse(typeAliases, List.of());
     fields = requireNonNullElse(fields, List.of());
     functions = requireNonNullElse(functions, List.of());
     requireNonNull(structKind);
@@ -29,6 +32,7 @@ public record Struct(Optional<String> name, List<Use> useList, List<Field> field
   public static Struct literalStruct(List<Field> fields, List<Function> functions, Range range) {
     return new Struct(
         Optional.empty(),
+        List.of(),
         List.of(),
         fields,
         functions,
@@ -42,11 +46,13 @@ public record Struct(Optional<String> name, List<Use> useList, List<Field> field
         .structKind(StructKind.MODULE);
   }
 
-  public static Struct moduleStruct(String name, List<Use> useList, List<Field> fields,
+  public static Struct moduleStruct(String name, List<Use> useList,
+      List<TypeAlias> typeAliases, List<Field> fields,
       List<Function> functions, Range range) {
     return new Struct(
         Optional.of(name),
         useList,
+        typeAliases,
         fields,
         functions,
         StructKind.MODULE,

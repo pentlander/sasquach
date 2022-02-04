@@ -2,5 +2,5 @@ IO {
     use foreign java/io/PrintStream,
     use foreign java/lang/System,
 
-    println = (string: String): Void -> PrintStream#println(System#out, string)
+    println = (string: String): Void -> PrintStream#println(System#out, string),
 }

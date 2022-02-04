@@ -399,7 +399,7 @@ class BytecodeGeneratorTest {
     private CompilationUnit compUnit(List<Use> useList, List<Struct.Field> fields, List<Function> functions) {
         return new CompilationUnit(new SourcePath("test.sasq"), PACKAGE_NAME,
             List.of(new ModuleDeclaration(qualId(MOD_NAME),
-            Struct.moduleStruct(MOD_NAME, useList, fields, functions, NR), NR)));
+            Struct.moduleStruct(MOD_NAME, useList, List.of(), fields, functions, NR), NR)));
     }
 
     private CompilationUnit compUnit(Function function) {

@@ -54,6 +54,7 @@ expression :
 
 struct : '{' NL* structStatement (',' NL* structStatement)* NL* '}' ;
 structStatement : use #useStatement
+  | TYPEALIAS typeIdentifier EQUALS type #typeAliasStatement
   | memberName EQUALS (expression|function) #identifierStatement ;
 
 value : NUMBER #intLiteral
@@ -72,6 +73,7 @@ VARIABLE : 'let' ;
 PRINT    : 'print' ;
 FOREIGN : 'foreign' ;
 USE : 'use' ;
+TYPEALIAS : 'type' ;
 
 // Literals
 NUMBER : '0'|[1-9][0-9]* ;
