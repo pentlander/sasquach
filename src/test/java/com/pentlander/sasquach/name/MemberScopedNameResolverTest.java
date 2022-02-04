@@ -71,6 +71,7 @@ class MemberScopedNameResolverTest {
             List.of(),
             List.of(),
             List.of(),
+            List.of(),
             range()),
         range());
     when(modResolver.resolveModule("OtherModule")).thenReturn(Optional.of(module));

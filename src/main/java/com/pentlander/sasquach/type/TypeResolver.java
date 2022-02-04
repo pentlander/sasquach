@@ -102,10 +102,12 @@ public class TypeResolver implements TypeFetcher {
         .toList();
     try {
       var resolvedReturnType = resolveExprType(func.expression());
-      if (!resolvedReturnType.equals(func.returnType())) {
+      var returnType = nameResolutionResult.getTypeAlias(func.functionSignature().returnTypeNode())
+          .map(TypeNode::type).orElse(func.returnType());
+      if (!resolvedReturnType.equals(returnType)) {
         addError(new TypeMismatchError(
             "Type of function return expression '%s' does not match return type of function '%s'"
-                .formatted(resolvedReturnType.typeName(), func.returnType().typeName()),
+                .formatted(resolvedReturnType.typeName(), returnType.typeName()),
             func.expression().range()));
       }
     } catch (UnknownTypeException ignored) {
@@ -175,7 +177,7 @@ public class TypeResolver implements TypeFetcher {
         var rightType = resolveExprType(binExpr.right());
         if (!leftType.equals(rightType)) {
           yield addError(new TypeMismatchError(("Type '%s' of left side does not match type "
-              + "'%s' ofight side").formatted(leftType.typeName(),
+              + "'%s' of right side").formatted(leftType.typeName(),
               rightType.typeName()),
               binExpr.range()));
         }
@@ -243,6 +245,15 @@ public class TypeResolver implements TypeFetcher {
 
   private Type resolveFieldAccess(FieldAccess fieldAccess) {
     var exprType = resolveExprType(fieldAccess.expr());
+    // If a field access on a NamedType must be on a type alias since generic params do not have
+    // constraints. Set the exprType to the resolved alias and continue.
+    if (exprType instanceof NamedType namedType) {
+      var aliasedType = nameResolutionResult.getTypeAlias(namedType.typeName());
+      if (aliasedType.isPresent()) {
+        exprType = aliasedType.get().type();
+      }
+    }
+
     if (exprType instanceof StructType structType) {
       var fieldType = structType.fieldTypes().get(fieldAccess.fieldName());
       if (fieldType != null) {
@@ -255,7 +266,7 @@ public class TypeResolver implements TypeFetcher {
     }
 
     return addError(new TypeMismatchError(
-        "Can only access fields on struct types, " + "found type '%s'".formatted(exprType),
+        "Can only access fields on struct types, found type '%s'".formatted(exprType),
         fieldAccess.range()));
   }
 

@@ -4,8 +4,9 @@ import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
+import com.pentlander.sasquach.ast.TypeAlias;
+import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
-import com.pentlander.sasquach.ast.Use.Foreign;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
@@ -19,6 +20,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @SuppressWarnings("ClassCanBeRecord")
 public class NameResolutionResult {
@@ -29,45 +33,59 @@ public class NameResolutionResult {
       Map.of(),
       Map.of(),
       new RangedErrorList(List.of()));
+
+  private final Map<TypeNode, TypeNode> typeAliases;
+  private final Map<String, TypeNode> typeNameAliases;
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses;
   private final Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions;
   private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls;
   private final Map<VarReference, ReferenceDeclaration> varReferences;
   private final Map<LocalVariable, Integer> varIndexes;
-  private final Map<Use.Foreign, Class<?>> foreignUseClasses;
   private final RangedErrorList errors;
 
-  public NameResolutionResult(Map<ForeignFieldAccess, Field> foreignFieldAccesses,
+  public NameResolutionResult(Map<TypeNode, TypeNode> typeAliases, Map<ForeignFieldAccess, Field> foreignFieldAccesses,
       Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions,
       Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls,
       Map<VarReference, ReferenceDeclaration> varReferences, Map<LocalVariable, Integer> varIndexes,
-      Map<Foreign, Class<?>> foreignUseClasses, RangedErrorList errors) {
+      RangedErrorList errors) {
+    this.typeAliases = typeAliases;
+    this.typeNameAliases = typeNameAliases(typeAliases);
     this.foreignFieldAccesses = foreignFieldAccesses;
     this.foreignFunctions = foreignFunctions;
     this.localFunctionCalls = localFunctionCalls;
     this.varReferences = varReferences;
     this.varIndexes = varIndexes;
-    this.foreignUseClasses = foreignUseClasses;
     this.errors = errors;
   }
 
+  private static Map<String, TypeNode> typeNameAliases(Map<TypeNode, TypeNode> typeAliases) {
+    return typeAliases.entrySet().stream()
+        .collect(Collectors.toMap(entry -> entry.getKey().typeName(), Entry::getValue));
+  }
+
   public NameResolutionResult withErrors(RangedErrorList errors) {
-    return new NameResolutionResult(foreignFieldAccesses,
+    return new NameResolutionResult(typeAliases, foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
         varReferences,
-        varIndexes, foreignUseClasses, this.errors.concat(errors));
+        varIndexes, this.errors.concat(errors));
   }
 
-  public NameResolutionResult withForeignUseClasses(Map<Use.Foreign, Class<?>> foreignUseClasses) {
-    return new NameResolutionResult(foreignFieldAccesses,
-        foreignFunctions,
-        localFunctionCalls,
-        varReferences, varIndexes, foreignUseClasses, errors);
+  public NameResolutionResult withTypeAliases(Map<TypeNode, TypeNode> typeAliases) {
+    return new NameResolutionResult(typeAliases, foreignFieldAccesses, foreignFunctions,
+        localFunctionCalls, varReferences, varIndexes, errors);
   }
 
   public static NameResolutionResult empty() {
     return EMPTY;
+  }
+
+  public Optional<TypeNode> getTypeAlias(TypeNode typeNode) {
+    return Optional.ofNullable(typeAliases.get(typeNode));
+  }
+
+  public Optional<TypeNode> getTypeAlias(String typeName) {
+    return Optional.ofNullable(typeNameAliases.get(typeName));
   }
 
   public Field getForeignField(ForeignFieldAccess foreignFieldAccess) {
@@ -90,21 +108,17 @@ public class NameResolutionResult {
     return requireNonNull(varIndexes.get(localVariable));
   }
 
-  public Class<?> getForeignUseClass(Foreign foreignUse) {
-    return requireNonNull(foreignUseClasses.get(foreignUse));
-  }
-
   public RangedErrorList errors() {
     return errors;
   }
 
   public NameResolutionResult merge(NameResolutionResult other) {
-    return new NameResolutionResult(merged(foreignFieldAccesses, other.foreignFieldAccesses),
+    return new NameResolutionResult(merged(typeAliases, other.typeAliases),
+        merged(foreignFieldAccesses, other.foreignFieldAccesses),
         merged(foreignFunctions, other.foreignFunctions),
         merged(localFunctionCalls, other.localFunctionCalls),
         merged(varReferences, other.varReferences),
         merged(varIndexes, other.varIndexes),
-        foreignUseClasses,
         errors.concat(other.errors));
   }
 

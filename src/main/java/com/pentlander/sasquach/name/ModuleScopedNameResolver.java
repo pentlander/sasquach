@@ -1,9 +1,9 @@
 package com.pentlander.sasquach.name;
 
-import com.pentlander.sasquach.InternalCompilerException;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NodeVisitor;
+import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.Expression;
@@ -15,13 +15,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-public class ModuleScopedNameResolver  {
+public class ModuleScopedNameResolver {
   private final Map<String, ModuleDeclaration> moduleImports = new HashMap<>();
   private final Map<String, Class<?>> foreignClasses = new HashMap<>();
+  private final Map<String, TypeAlias> typeAliasNames = new HashMap<>();
+  private final Map<TypeNode, TypeNode> typeAliases = new HashMap<>();
   private final Map<String, Struct.Field> fields = new HashMap<>();
   private final Map<Struct.Field, NameResolutionResult> fieldResults = new HashMap<>();
   private final Map<String, Function> functions = new HashMap<>();
-  private final Map<Use.Foreign, Class<?>> foreignUseClasses = new HashMap<>();
   private final Map<Function, NameResolutionResult> functionResults = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
@@ -40,20 +41,29 @@ public class ModuleScopedNameResolver  {
 
   public NameResolutionResult resolve() {
     new Visitor().visit(module);
-    return nameResolutionResult.withForeignUseClasses(foreignUseClasses).withErrors(errors.build());
+    return nameResolutionResult.withTypeAliases(typeAliases).withErrors(errors.build());
   }
 
-  public NameResolutionResult getResolver(Struct.Field field) {
+  NameResolutionResult getResolver(Struct.Field field) {
     return Objects.requireNonNull(fieldResults.get(field));
   }
 
-  public NameResolutionResult getResolver(Function function) {
+  NameResolutionResult getResolver(Function function) {
     return Objects.requireNonNull(functionResults.get(function));
   }
 
   private class Visitor implements NodeVisitor<Void> {
     @Override
     public Void visit(TypeNode typeNode) {
+      return null;
+    }
+
+    @Override
+    public Void visit(TypeAlias typeAlias) {
+      var prevAlias = typeAliasNames.put(typeAlias.id().name(), typeAlias);
+      if (prevAlias != null) {
+        errors.add(new DuplicateNameError(typeAlias.id(), prevAlias.id()));
+      }
       return null;
     }
 
@@ -77,7 +87,6 @@ public class ModuleScopedNameResolver  {
         var qualifiedName = use.id().name().replace('/', '.');
         var clazz = MethodHandles.lookup().findClass(qualifiedName);
         foreignClasses.put(use.alias().name(), clazz);
-        foreignUseClasses.put(use, clazz);
       } catch (ClassNotFoundException | IllegalAccessException e) {
         errors.add(new NameNotFoundError(use.alias(), "foreign class"));
       }
@@ -89,6 +98,10 @@ public class ModuleScopedNameResolver  {
       if (expression instanceof Struct struct) {
         for (var use : struct.useList()) {
           visit(use);
+        }
+
+        for (var typeAlias : struct.typeAliases()) {
+          visit(typeAlias);
         }
 
         for (var field : struct.fields()) {
@@ -107,6 +120,12 @@ public class ModuleScopedNameResolver  {
         for (var function : struct.functions()) {
           var resolver = new MemberScopedNameResolver(ModuleScopedNameResolver.this);
           var result = resolver.resolve(function);
+          var funcSig = function.functionSignature();
+          // Resolve a type alias for a return type
+          var typeAlias = typeAliasNames.get(funcSig.returnTypeNode().typeName());
+          if (typeAlias != null) {
+            typeAliases.put(funcSig.returnTypeNode(), typeAlias.typeNode());
+          }
           nameResolutionResult = nameResolutionResult.merge(result);
           functionResults.put(function, result);
         }
@@ -129,5 +148,9 @@ public class ModuleScopedNameResolver  {
 
   Optional<Struct.Field> resolveField(String fieldName) {
     return Optional.ofNullable(fields.get(fieldName));
+  }
+
+  Optional<TypeNode> ressolveTypeAlias(String typeAlias) {
+    return Optional.ofNullable(typeAliasNames.get(typeAlias)).map(TypeAlias::typeNode);
   }
 }

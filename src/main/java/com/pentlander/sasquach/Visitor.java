@@ -31,7 +31,9 @@ import static com.pentlander.sasquach.ast.expression.Struct.StructKind;
 
 import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
 import com.pentlander.sasquach.SasquachParser.CompareExpressionContext;
+import com.pentlander.sasquach.SasquachParser.TypeAliasStatementContext;
 import com.pentlander.sasquach.ast.CompilationUnit;
+import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
@@ -355,7 +357,9 @@ public class Visitor {
 
     @Override
     public Struct visitStruct(StructContext ctx) {
+      var typeVisitor = new TypeVisitor();
       var useList = new ArrayList<Use>();
+      var typeAliases = new ArrayList<TypeAlias>();
       var fields = new ArrayList<Field>();
       var functions = new ArrayList<Function>();
       for (var structStatementCtx : ctx.structStatement()) {
@@ -387,12 +391,23 @@ public class Visitor {
             use = new Use.Module(qualifiedId, aliasId, rangeFrom(useCtx));
           }
           useList.add(use);
+        } else if (structStatementCtx instanceof TypeAliasStatementContext typeAliasStatementContext) {
+          var typeAlias = new TypeAlias(
+              id(typeAliasStatementContext.typeIdentifier().ID()),
+              typeAliasStatementContext.type().accept(typeVisitor),
+              rangeFrom(typeAliasStatementContext));
+          typeAliases.add(typeAlias);
         }
       }
 
       return switch (structKind) {
         case LITERAL -> Struct.literalStruct(fields, functions, rangeFrom(ctx));
-        case MODULE -> Struct.moduleStruct(name, useList, fields, functions, rangeFrom(ctx));
+        case MODULE -> Struct.moduleStruct(name,
+            useList,
+            typeAliases,
+            fields,
+            functions,
+            rangeFrom(ctx));
       };
     }
 

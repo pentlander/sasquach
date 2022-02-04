@@ -11,6 +11,13 @@ thus making the compiler friendlier to incremental changes and IDEs. It also mak
 resolution more parallelizable since there is no need to recursively resolve the types of other 
 functions being called.
 
+## Type aliases
+Type aliases provide another name to a struct or union. Creating an alias should not create a new 
+classfile, all structs with equivalent structure (same field names/types) should be bound to a 
+single classfile to reduce the number of classfiles. This means that an alias only exists at compile
+time. May revisit this choice if it makes debugging stacktraces more difficult. Foreign classes 
+cannot be aliased, doing so should generate an error.
+
 # To Investigate
 
 ## Indy for lazy anonymous struct creation

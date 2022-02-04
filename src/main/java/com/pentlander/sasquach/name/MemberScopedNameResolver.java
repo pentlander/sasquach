@@ -87,14 +87,11 @@ public class MemberScopedNameResolver {
     moduleReferences.forEach((varRef, mod) -> varReferences.put(varRef,
         new ReferenceDeclaration.Module(mod)));
 
-    return new NameResolutionResult(
-        foreignFieldAccesses,
+    return new NameResolutionResult(Map.of(), foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
         varReferences,
-        localVariableIndex,
-        Map.of(),
-        errors.build());
+        localVariableIndex, errors.build());
   }
 
   // Need to check that there isn't already a local function or module alias with this name

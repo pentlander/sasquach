@@ -7,6 +7,7 @@ First {
     use math/Math,
     use first/Option,
     use std/io/IO,
+    use std/std/Integer,
     use foreign java/io/File,
     use foreign java/io/PrintStream,
     use foreign java/lang/System,

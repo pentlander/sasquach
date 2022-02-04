@@ -11,6 +11,7 @@ public interface NodeVisitor<T> {
       case ModuleDeclaration modDecl -> visit(modDecl);
       case TypeNode typeNode -> visit(typeNode);
       case Use use -> visit(use);
+      case TypeAlias typeAlias -> visit(typeAlias);
       case Expression expression -> visit(expression);
       case null, default -> throw new IllegalStateException();
     };
@@ -31,6 +32,9 @@ public interface NodeVisitor<T> {
   }
 
   T visit(TypeNode typeNode);
+
+
+  T visit(TypeAlias typeAlias);
 
   default T visit(Use use) {
     return switch (use) {

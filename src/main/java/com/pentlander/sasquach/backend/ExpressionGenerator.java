@@ -31,6 +31,7 @@ import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
 import com.pentlander.sasquach.type.ForeignFieldType;
 import com.pentlander.sasquach.type.FunctionType;
+import com.pentlander.sasquach.type.NamedType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeFetcher;
@@ -248,7 +249,11 @@ class ExpressionGenerator {
         generateStructInit(struct);
       }
       case FieldAccess fieldAccess -> {
-        if (type(fieldAccess.expr()) instanceof StructType structType) {
+        var fieldAccessType = type(fieldAccess.expr());
+        if (fieldAccessType instanceof NamedType namedType) {
+          fieldAccessType = nameResolutionResult.getTypeAlias(namedType.typeName()).get().type();
+        }
+        if (fieldAccessType instanceof StructType structType) {
           generate(fieldAccess.expr());
           var fieldDescriptor = structType.fieldTypes().get(fieldAccess.fieldName()).descriptor();
           var handle = new Handle(Opcodes.H_INVOKESTATIC,
@@ -260,7 +265,7 @@ class ExpressionGenerator {
               "(L%s;)%s".formatted(STRUCT_BASE_INTERNAL_NAME, fieldDescriptor),
               handle);
         } else {
-          throw new IllegalStateException();
+          throw new IllegalStateException("Failed to generate field access of type %s".formatted(fieldAccessType));
         }
       }
       case Block block -> generateBlock(block);

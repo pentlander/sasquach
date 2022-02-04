@@ -20,6 +20,23 @@ public class EndToEndTest {
   }
 
   @Test
+  void typeAliasStruct() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          type Point = { x: Int, y: Int },
+          newPoint = (x: Int): Point -> { x = x, y = 4 },
+          getX = (point: Point): Int -> point.x,
+          main = (): Int -> getX(newPoint(5))
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    int sum = invokeName(clazz, "main", null);
+
+    assertThat(sum).isEqualTo(5);
+  }
+
+  @Test
   void complexParameterizedExpression() throws Exception {
     var source = Source.fromString("main",
         """

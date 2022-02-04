@@ -270,7 +270,7 @@ class TypeResolverTest {
       void call() {
         var qualifiedName = "base/MyMod";
         var struct = Struct
-            .moduleStruct(qualifiedName, List.of(), List.of(), List.of(func), range());
+            .moduleStruct(qualifiedName, List.of(), List.of(), List.of(), List.of(func), range());
         var call = new MemberFunctionCall(struct, id("foo"), args, range());
 
         var type = resolveExpr(call);
@@ -305,7 +305,7 @@ class TypeResolverTest {
       void callNoField() {
         var qualifiedName = "base/MyMod";
         var struct = Struct
-            .moduleStruct(qualifiedName, List.of(), List.of(), List.of(func), range());
+            .moduleStruct(qualifiedName, List.of(), List.of(), List.of(), List.of(func), range());
         var call = new MemberFunctionCall(struct, id("bar"), args, range());
 
         resolveExpr(call);
