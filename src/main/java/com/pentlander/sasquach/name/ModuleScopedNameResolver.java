@@ -16,10 +16,9 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class ModuleScopedNameResolver {
-  private final Map<String, ModuleDeclaration> moduleImports = new HashMap<>();
+  private final Map<String, ModuleScopedNameResolver> moduleImports = new HashMap<>();
   private final Map<String, Class<?>> foreignClasses = new HashMap<>();
   private final Map<String, TypeAlias> typeAliasNames = new HashMap<>();
-  private final Map<TypeNode, TypeNode> typeAliases = new HashMap<>();
   private final Map<String, Struct.Field> fields = new HashMap<>();
   private final Map<Struct.Field, NameResolutionResult> fieldResults = new HashMap<>();
   private final Map<String, Function> functions = new HashMap<>();
@@ -41,7 +40,7 @@ public class ModuleScopedNameResolver {
 
   public NameResolutionResult resolve() {
     new Visitor().visit(module);
-    return nameResolutionResult.withTypeAliases(typeAliases).withErrors(errors.build());
+    return nameResolutionResult.withErrors(errors.build());
   }
 
   NameResolutionResult getResolver(Struct.Field field) {
@@ -69,14 +68,16 @@ public class ModuleScopedNameResolver {
 
     @Override
     public Void visit(Use.Module use) {
-      var module = moduleResolver.resolveModule(use.id().name());
-      if (module == null ) {
+      var moduleScopedResolver = moduleResolver.resolveModule(use.id().name());
+      if (moduleScopedResolver == null) {
         errors.add(new NameNotFoundError(use.id(), "module"));
         return null;
       }
-      var existingImport = moduleImports.put(use.alias().name(), module.moduleDeclaration());
+      var existingImport = moduleImports.put(
+          use.alias().name(),
+          moduleScopedResolver);
       if (existingImport != null) {
-        errors.add(new DuplicateNameError(use.id(), existingImport.id()));
+        errors.add(new DuplicateNameError(use.id(), existingImport.moduleDeclaration().id()));
       }
       return null;
     }
@@ -120,12 +121,6 @@ public class ModuleScopedNameResolver {
         for (var function : struct.functions()) {
           var resolver = new MemberScopedNameResolver(ModuleScopedNameResolver.this);
           var result = resolver.resolve(function);
-          var funcSig = function.functionSignature();
-          // Resolve a type alias for a return type
-          var typeAlias = typeAliasNames.get(funcSig.returnTypeNode().typeName());
-          if (typeAlias != null) {
-            typeAliases.put(funcSig.returnTypeNode(), typeAlias.typeNode());
-          }
           nameResolutionResult = nameResolutionResult.merge(result);
           functionResults.put(function, result);
         }
@@ -139,6 +134,10 @@ public class ModuleScopedNameResolver {
   }
 
   Optional<ModuleDeclaration> resolveModule(String moduleAlias) {
+    return Optional.ofNullable(moduleImports.get(moduleAlias)).map(ModuleScopedNameResolver::moduleDeclaration);
+  }
+
+  Optional<ModuleScopedNameResolver> resolveModuleResolver(String moduleAlias) {
     return Optional.ofNullable(moduleImports.get(moduleAlias));
   }
 
@@ -150,7 +149,7 @@ public class ModuleScopedNameResolver {
     return Optional.ofNullable(fields.get(fieldName));
   }
 
-  Optional<TypeNode> ressolveTypeAlias(String typeAlias) {
+  Optional<TypeNode> resolveTypeAlias(String typeAlias) {
     return Optional.ofNullable(typeAliasNames.get(typeAlias)).map(TypeAlias::typeNode);
   }
 }

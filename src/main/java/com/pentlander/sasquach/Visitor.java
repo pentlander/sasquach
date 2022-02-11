@@ -31,6 +31,7 @@ import static com.pentlander.sasquach.ast.expression.Struct.StructKind;
 
 import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
 import com.pentlander.sasquach.SasquachParser.CompareExpressionContext;
+import com.pentlander.sasquach.SasquachParser.ModuleNamedTypeContext;
 import com.pentlander.sasquach.SasquachParser.TypeAliasStatementContext;
 import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.TypeAlias;
@@ -63,7 +64,8 @@ import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
 import com.pentlander.sasquach.type.FunctionType;
-import com.pentlander.sasquach.type.NamedType;
+import com.pentlander.sasquach.type.ModuleNamedType;
+import com.pentlander.sasquach.type.LocalNamedType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import java.util.ArrayList;
@@ -163,7 +165,7 @@ public class Visitor {
       var params = parameterList(typeVisitor, ctx.functionParameterList());
 
       var typeParams = ctx.typeIdentifier().stream()
-          .map(typeParamCtx -> new TypeNode(new NamedType(typeParamCtx.ID().getText()),
+          .map(typeParamCtx -> new TypeNode(new LocalNamedType(id(typeParamCtx.ID())),
               rangeFrom(typeParamCtx.ID()))).toList();
 
       return new FunctionSignature(params,
@@ -310,7 +312,7 @@ public class Visitor {
 
     @Override
     public TypeNode visitTypeIdentifier(TypeIdentifierContext ctx) {
-      return new TypeNode(new NamedType(ctx.getText()), rangeFrom(ctx));
+      return new TypeNode(new LocalNamedType(id(ctx.ID())), rangeFrom(ctx));
     }
 
     @Override
@@ -331,6 +333,13 @@ public class Visitor {
           List.of(),
           ctx.type().accept(this).type());
       return new TypeNode(type, rangeFrom(ctx));
+    }
+
+    @Override
+    public TypeNode visitModuleNamedType(ModuleNamedTypeContext ctx) {
+      return new TypeNode(new ModuleNamedType(ctx.moduleName().getText(),
+          ctx.typeIdentifier().getText()),
+          rangeFrom(ctx));
     }
   }
 

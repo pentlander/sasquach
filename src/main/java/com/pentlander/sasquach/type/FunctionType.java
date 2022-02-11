@@ -7,11 +7,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Type of a function, including the parameter types, the type parameters, and return type.
  */
-public record FunctionType(List<Type> parameterTypes, List<NamedType> typeParameters,
+public record FunctionType(List<Type> parameterTypes, List<TypeParameter> typeParameters,
                            Type returnType) implements ParameterizedType {
   public FunctionType(List<Type> parameterTypes, Type returnType) {
     this(parameterTypes, List.of(), returnType);
@@ -57,8 +58,16 @@ public record FunctionType(List<Type> parameterTypes, List<NamedType> typeParame
     return false;
   }
 
-  public Optional<Map<NamedType, Type>> reifyTypes(FunctionType other) {
-    var paramTypes = new HashMap<NamedType, Type>();
+  @Override
+  public String toPrettyString() {
+    var typeParams = !typeParameters.isEmpty() ? typeParameters.stream().map(TypeParameter::name)
+        .collect(joining(", ", "[", "]")) : "";
+    return typeParams + parameterTypes().stream().map(Type::toPrettyString)
+        .collect(joining(", ", "(", ")")) + " -> " + returnType.toPrettyString();
+  }
+
+  public Optional<Map<LocalNamedType, Type>> reifyTypes(FunctionType other) {
+    var paramTypes = new HashMap<LocalNamedType, Type>();
     var paramCount = parameterTypes().size();
       if (paramCount != other.parameterTypes().size()) {
           return Optional.empty();
@@ -67,8 +76,8 @@ public record FunctionType(List<Type> parameterTypes, List<NamedType> typeParame
     for (int i = 0; i < paramCount; i++) {
       var paramType = parameterTypes().get(i);
       var otherParamType = other.parameterTypes().get(i);
-      if (paramType instanceof NamedType namedType) {
-        paramType = paramTypes.computeIfAbsent(namedType, _k -> otherParamType);
+      if (paramType instanceof LocalNamedType localNamedType) {
+        paramType = paramTypes.computeIfAbsent(localNamedType, _k -> otherParamType);
       }
       if (!paramType.isAssignableFrom(otherParamType)) {
         return Optional.empty();

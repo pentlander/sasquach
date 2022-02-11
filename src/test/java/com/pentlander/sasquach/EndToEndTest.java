@@ -2,6 +2,8 @@ package com.pentlander.sasquach;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import org.junit.jupiter.api.Test;
 
 public class EndToEndTest {
@@ -28,6 +30,33 @@ public class EndToEndTest {
           newPoint = (x: Int): Point -> { x = x, y = 4 },
           getX = (point: Point): Int -> point.x,
           main = (): Int -> getX(newPoint(5))
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    int sum = invokeName(clazz, "main", null);
+
+    assertThat(sum).isEqualTo(5);
+  }
+
+  // Add test for local named type where the type name doesn't exist
+
+  @Test
+  void typeAliasStruct_importModule() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Point {
+          type T = { x: Int, y: Int },
+          
+          new = (x: Int): T -> { x = x, y = 4 }
+        }
+        
+        Main {
+          use main/Point,
+          
+          getX = (point: Point.T): Int -> point.x,
+          main = (): Int -> {
+            getX(Point.new(5))
+          }
         }
         """);
     var clazz = compileClass(source, "main/Main");

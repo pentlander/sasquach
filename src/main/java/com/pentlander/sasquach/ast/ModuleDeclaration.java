@@ -14,4 +14,9 @@ public record ModuleDeclaration(QualifiedIdentifier id, Struct struct, Range ran
   public String name() {
     return id.name();
   }
+
+  @Override
+  public String toPrettyString() {
+    return name() + " " + struct.toPrettyString();
+  }
 }

@@ -14,6 +14,14 @@ import java.util.Map;
  * Class that handle dynamic dispatch on structs via invokedynamic.
  */
 public final class StructDispatch {
+  private static final Map<Class<?>, Class<?>> PRIMITIVE_MAP = Map.of(
+      Boolean.TYPE, Boolean.class,
+      Integer.TYPE, Integer.class,
+      Long.TYPE, Long.class,
+      Float.TYPE, Float.class,
+      Double.TYPE, Double.class
+  );
+
   /**
    * Handles dispatch on struct field access.
    */
@@ -80,7 +88,7 @@ public final class StructDispatch {
         var paramTypes = method.getParameterTypes();
         boolean matches = true;
         for (int i = 0; i < args.length; i++) {
-          if (!paramTypes[i].isAssignableFrom(args[i].getClass())) {
+          if (!isAssignableFrom(paramTypes[i], args[i].getClass())) {
             matches = false;
             break;
           }
@@ -89,7 +97,18 @@ public final class StructDispatch {
           return MethodHandles.lookup().unreflect(method);
         }
       }
-      throw new NoSuchMethodException("No method with params matching: " + Arrays.toString(args));
+      throw new NoSuchMethodException("No method '%s' on '%s' with params matching: %s".formatted(
+          methodName,
+          struct.getClass().getName(),
+          Arrays.toString(args)));
+    }
+
+    private static boolean isAssignableFrom(Class<?> to, Class<?> from) {
+      if (to.isPrimitive()) {
+        var objTo = PRIMITIVE_MAP.get(to);
+        return objTo.isAssignableFrom(from);
+      }
+      return to.isAssignableFrom(from);
     }
 
     CallSite buildCallSite() throws NoSuchMethodException, IllegalAccessException {

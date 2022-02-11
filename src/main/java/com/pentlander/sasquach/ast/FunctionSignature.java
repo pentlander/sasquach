@@ -1,5 +1,7 @@
 package com.pentlander.sasquach.ast;
 
+import static java.util.stream.Collectors.joining;
+
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.type.Type;
@@ -23,7 +25,11 @@ public record FunctionSignature(List<FunctionParameter> parameters, List<TypeNod
 
   @Override
   public String toPrettyString() {
-    return parameters().stream().map(param -> param.name() + ": " + param.type().toPrettyString()).collect(
-        Collectors.joining(", ", "(", ")")) + ": " + returnTypeNode.toPrettyString();
+    var typeParams =
+        !typeParameters.isEmpty() ? typeParameters.stream().map(TypeNode::toPrettyString)
+            .collect(joining(", ", "[", "]")) : "";
+    return typeParams + parameters().stream()
+        .map(param -> param.name() + ": " + param.type().toPrettyString())
+        .collect(joining(", ", "(", ")")) + ": " + returnTypeNode.toPrettyString();
   }
 }

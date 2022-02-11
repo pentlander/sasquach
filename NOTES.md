@@ -1,5 +1,11 @@
 # Design Choices
 
+## Name Resolution
+Any lookup of names, whether that be local functions, foreign funcitons, module functions, local or 
+imported type aliases, etc. should be performed at the name resolution step. Any step that occurs after 
+name resolution should assume that the necessary names exist and throw an exception if they don't.
+The name resolution step should provide friendly compiler error messages if a name cannot resolve.
+
 ## Module functions require types
 Top level functions on modules require type annotations. The main reasoning is that it greatly 
 simplifies the function compilation and linkage process. If the parameters and return types are 
