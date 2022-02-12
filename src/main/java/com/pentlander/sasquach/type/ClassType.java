@@ -33,4 +33,14 @@ public record ClassType(Class<?> typeClass) implements Type {
   public String internalName() {
     return typeName().replace(".", "/");
   }
+
+  @Override
+  public boolean isAssignableFrom(Type other) {
+    if (other instanceof ClassType classType) {
+      return typeClass.isAssignableFrom(classType.typeClass);
+    } else if (other instanceof ForeignFieldType foreignFieldType) {
+      return isAssignableFrom(foreignFieldType.type());
+    }
+    return false;
+  }
 }

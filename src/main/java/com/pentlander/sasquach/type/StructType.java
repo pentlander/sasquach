@@ -14,8 +14,10 @@ import java.util.Map.Entry;
  */
 public record StructType(String typeName, Map<String, Type> fieldTypes) implements
     ParameterizedType {
+  private static final String ANON_PREFIX = "AnonStruct$";
+
   public StructType(Map<String, Type> fieldTypes) {
-    this("AnonStruct$" + hashFieldTypes(fieldTypes), fieldTypes);
+    this(ANON_PREFIX + hashFieldTypes(fieldTypes), fieldTypes);
   }
 
   private static String hashFieldTypes(Map<String, Type> fieldTypes) {
@@ -45,11 +47,13 @@ public record StructType(String typeName, Map<String, Type> fieldTypes) implemen
 
   @Override
   public boolean isAssignableFrom(Type other) {
-    if (other instanceof StructType structType) {
+    var structType = TypeUtils.asStructType(other);
+
+    if (structType.isPresent()) {
       for (var entry : fieldTypes.entrySet()) {
         var name = entry.getKey();
         var type = entry.getValue();
-        var otherType = structType.fieldTypes().get(name);
+        var otherType = structType.get().fieldTypes().get(name);
         if (otherType == null || !type.isAssignableFrom(otherType)) {
           return false;
         }
@@ -61,7 +65,7 @@ public record StructType(String typeName, Map<String, Type> fieldTypes) implemen
 
   @Override
   public String toPrettyString() {
-    return typeName().startsWith("AnonStruct$") ? fieldTypes().entrySet().stream()
+    return typeName().startsWith(ANON_PREFIX) ? fieldTypes().entrySet().stream()
         .map(e -> e.getKey() + ": " + e.getValue().toPrettyString())
         .collect(joining(", ", "{ ", " }")) : typeName();
   }

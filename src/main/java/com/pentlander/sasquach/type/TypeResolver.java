@@ -3,6 +3,7 @@ package com.pentlander.sasquach.type;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
@@ -42,6 +43,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 
 public class TypeResolver implements TypeFetcher {
@@ -92,33 +94,61 @@ public class TypeResolver implements TypeFetcher {
     return new RangedErrorList(getErrors());
   }
 
+  Type resolveNamedType(Type type) {
+    if (type instanceof NamedType namedType) {
+      var resolvedType = nameResolutionResult.getTypeAlias(namedType).map(TypeNode::type);
+      return resolvedType.<Type>map(value -> switch (namedType) {
+        case ModuleNamedType moduleNamedType -> new ResolvedModuleNamedType(moduleNamedType.moduleName(),
+            moduleNamedType.name(),
+            value);
+        case LocalNamedType localNamedType -> new ResolvedLocalNamedType(localNamedType.typeName(),
+            value);
+      }).orElseGet(() -> new TypeParameter(namedType.typeName()));
+    }
+
+    if (type instanceof ParameterizedType parameterizedType) {
+      return switch (parameterizedType) {
+        case StructType structType -> new StructType(structType.typeName(),
+            structType.fieldTypes().entrySet().stream()
+            .collect(toMap(Entry::getKey, e -> resolveNamedType(e.getValue()))));
+        case FunctionType funcType -> new FunctionType(funcType.parameterTypes().stream()
+            .map(this::resolveNamedType).toList(), resolveNamedType(funcType.returnType()));
+        case TypeParameter typeParameter -> typeParameter;
+      };
+    }
+
+    return type;
+  }
+
   FunctionType resolveFuncType(Function func) {
     var type = getIdType(func.id()).map(FunctionType.class::cast);
       if (type.isPresent()) {
           return type.get();
       }
 
+    var typeParams = func.functionSignature().typeParameters().stream().map(TypeNode::type)
+        .map(LocalNamedType.class::cast).map(t -> new TypeParameter(t.typeName())).toList();
     var paramTypes = func.functionSignature().parameters().stream().map(this::resolveNodeType)
         .toList();
+    Type returnType;
     try {
       var resolvedReturnType = resolveExprType(func.expression());
-      var returnType = nameResolutionResult.getTypeAlias(func.functionSignature().returnTypeNode())
-          .map(TypeNode::type).orElse(func.returnType());
-      if (!resolvedReturnType.equals(returnType)) {
+      returnType = resolveNamedType(func.returnType());
+      if (!returnType.isAssignableFrom(resolvedReturnType)) {
         addError(new TypeMismatchError(
             "Type of function return expression '%s' does not match return type of function '%s'"
-                .formatted(resolvedReturnType.typeName(), returnType.typeName()),
+                .formatted(resolvedReturnType.toPrettyString(), returnType.toPrettyString()),
             func.expression().range()));
+        return null;
       }
     } catch (UnknownTypeException ignored) {
       // Encountering an unknown type means that the type resolution can no longer proceed
       // for the current function. Since the return type is annotated, type resolution can
       // continue without knowing the type of the expression body. This will have to be
       // revisited when lambdas are implemented since they will not require type annotations.
+      returnType = func.returnType();
     }
-    var typeParams = func.functionSignature().typeParameters().stream().map(TypeNode::type)
-        .map(NamedType.class::cast).toList();
-    var funcType = new FunctionType(paramTypes, typeParams, func.returnType());
+    var funcType = new FunctionType(paramTypes, typeParams, returnType);
     putIdType(func.id(), funcType);
     return funcType;
   }
@@ -134,7 +164,7 @@ public class TypeResolver implements TypeFetcher {
       }
       case Function func -> type = resolveFuncType(func);
       case FunctionParameter funcParam -> {
-        type = funcParam.type();
+        type = resolveNamedType(funcParam.type());
         putIdType(funcParam.id(), type);
       }
       case Use.Foreign useForeign -> {
@@ -169,7 +199,8 @@ public class TypeResolver implements TypeFetcher {
         yield BuiltinType.VOID;
       }
       case VarReference varRef -> switch (nameResolutionResult.getVarReference(varRef)) {
-        case Local local -> getIdType(local.localVariable().id()).get();
+        case Local local -> getIdType(local.localVariable()
+            .id()).orElseThrow(() -> new IllegalStateException("Unable to find local: " + local.toPrettyString()));
         case Module module -> resolveExprType(module.moduleDeclaration().struct());
       };
       case BinaryExpression binExpr -> {
@@ -200,29 +231,7 @@ public class TypeResolver implements TypeFetcher {
       case ForeignFunctionCall foreignFuncCall -> resolveForeignFunctionCall(
           foreignFuncCall);
       case FunctionCall funcCall -> resolveFunctionCall(funcCall);
-      case IfExpression ifExpr -> {
-        var condtype = resolveExprType(ifExpr.condition());
-        if (!(condtype instanceof BuiltinType builtinType) || builtinType != BuiltinType.BOOLEAN) {
-          yield addError(new TypeMismatchError(("Expected type '%s' for if condition, but found "
-              + "type%s'").formatted(BuiltinType.BOOLEAN.typeClass(),
-              condtype.typeName()),
-              ifExpr.condition().range()));
-        }
-        var trueType = resolveExprType(ifExpr.trueExpression());
-        if (ifExpr.falseExpression() != null) {
-          var falseType = resolveExprType(ifExpr.falseExpression());
-          if (!trueType.equals(falseType)) {
-            yield addError(new TypeMismatchError(("Type of else expression '%s' must match type "
-                + "of if expression '%s'").formatted(
-                trueType.typeName(),
-                falseType.typeName()),
-                ifExpr.falseExpression().range()));
-          }
-          yield trueType;
-        } else {
-          yield BuiltinType.VOID;
-        }
-      }
+      case IfExpression ifExpr -> resolveIfExpresssion(ifExpr);
       case PrintStatement printStatement -> {
         resolveExprType(printStatement.expression());
         yield BuiltinType.VOID;
@@ -243,30 +252,44 @@ public class TypeResolver implements TypeFetcher {
     return type;
   }
 
-  private Type resolveFieldAccess(FieldAccess fieldAccess) {
-    var exprType = resolveExprType(fieldAccess.expr());
-    // If a field access on a NamedType must be on a type alias since generic params do not have
-    // constraints. Set the exprType to the resolved alias and continue.
-    if (exprType instanceof NamedType namedType) {
-      var aliasedType = nameResolutionResult.getTypeAlias(namedType.typeName());
-      if (aliasedType.isPresent()) {
-        exprType = aliasedType.get().type();
-      }
+  private Type resolveIfExpresssion(IfExpression ifExpr) {
+    var condtype = resolveExprType(ifExpr.condition());
+    if (!(condtype instanceof BuiltinType builtinType) || builtinType != BuiltinType.BOOLEAN) {
+      return addError(new TypeMismatchError(("Expected type '%s' for if condition, but found type%s'").formatted(
+          BuiltinType.BOOLEAN.typeClass(),
+          condtype.typeName()), ifExpr.condition().range()));
     }
 
-    if (exprType instanceof StructType structType) {
-      var fieldType = structType.fieldTypes().get(fieldAccess.fieldName());
+    var trueType = resolveExprType(ifExpr.trueExpression());
+    if (ifExpr.falseExpression() != null) {
+      var falseType = resolveExprType(ifExpr.falseExpression());
+      if (!trueType.equals(falseType)) {
+        return addError(new TypeMismatchError(("Type of else expression '%s' must match type of "
+            + "if expression '%s'").formatted(trueType.toPrettyString(),
+            falseType.toPrettyString()), ifExpr.falseExpression().range()));
+      }
+      return trueType;
+    }
+    return BuiltinType.VOID;
+  }
+
+  private Type resolveFieldAccess(FieldAccess fieldAccess) {
+    var exprType = resolveNamedType(resolveExprType(fieldAccess.expr()));
+    var structType = TypeUtils.asStructType(exprType);
+
+    if (structType.isPresent()) {
+      var fieldType = structType.get().fieldTypes().get(fieldAccess.fieldName());
       if (fieldType != null) {
         return fieldType;
       } else {
         return addError(new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(
-            structType.typeName(),
+            structType.get().typeName(),
             fieldAccess.fieldName()), fieldAccess.range()));
       }
     }
 
     return addError(new TypeMismatchError(
-        "Can only access fields on struct types, found type '%s'".formatted(exprType),
+        "Can only access fields on struct types, found type '%s'".formatted(exprType.toPrettyString()),
         fieldAccess.range()));
   }
 
@@ -276,6 +299,7 @@ public class TypeResolver implements TypeFetcher {
       case LocalFunctionCall localFuncCall -> {
         var qualFunc = nameResolutionResult.getLocalFunction(localFuncCall);
         funcType = resolveFuncType(qualFunc.function());
+        if (funcType == null) return UNKNOWN_TYPE;
       }
       case MemberFunctionCall structFuncCall -> {
         var exprType = resolveExprType(structFuncCall.structExpression());
@@ -389,10 +413,18 @@ public class TypeResolver implements TypeFetcher {
   }
 
   private void putExprType(Expression expr, Type type) {
+    if (type instanceof NamedType) {
+      throw new IllegalArgumentException("Cannot save named type '%s' for expr: %s".formatted(type,
+          expr));
+    }
     exprTypes.put(expr, type);
   }
 
   private Type putIdType(Identifier id, Type type) {
+    if (type instanceof NamedType) {
+      throw new IllegalArgumentException("Cannot save named type '%s' for ID: %s".formatted(type,
+          id));
+    }
     return idTypes.put(id, type);
   }
 

@@ -34,4 +34,9 @@ public record FunctionParameter(Identifier id, TypeNode typeNode) implements Loc
   public VarReference toReference() {
     return new VarReference(id);
   }
+
+  @Override
+  public String toPrettyString() {
+    return name() + ": " + type().toPrettyString();
+  }
 }

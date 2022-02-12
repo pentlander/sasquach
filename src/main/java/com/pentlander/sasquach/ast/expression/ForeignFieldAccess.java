@@ -14,4 +14,9 @@ public record ForeignFieldAccess(Identifier classAlias, Identifier id) implement
   public Range range() {
     return classAlias.range().join(id.range());
   }
+
+  @Override
+  public String toPrettyString() {
+    return classAlias.name() + "#" + id.name();
+  }
 }

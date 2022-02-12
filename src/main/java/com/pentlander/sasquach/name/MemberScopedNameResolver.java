@@ -3,6 +3,7 @@ package com.pentlander.sasquach.name;
 import static java.util.Objects.*;
 
 import com.pentlander.sasquach.InternalCompilerException;
+import com.pentlander.sasquach.Range.Single;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
@@ -10,6 +11,7 @@ import com.pentlander.sasquach.ast.InvocationKind;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.QualifiedIdentifier;
+import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.ExpressionVisitor;
@@ -21,6 +23,13 @@ import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
+import com.pentlander.sasquach.type.FunctionType;
+import com.pentlander.sasquach.type.ModuleNamedType;
+import com.pentlander.sasquach.type.LocalNamedType;
+import com.pentlander.sasquach.type.ParameterizedType;
+import com.pentlander.sasquach.type.StructType;
+import com.pentlander.sasquach.type.Type;
+import com.pentlander.sasquach.type.TypeParameter;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -29,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -36,7 +46,7 @@ import java.util.Optional;
 use std/io/File,
 use foreign java/nio/Paths,
 
-// do a bfs to get all the funciton/field names of module
+// do a bfs to get all the function/field names of module
 
 let foo = "a"
 //Local var
@@ -53,6 +63,7 @@ localFunction()
 public class MemberScopedNameResolver {
   // Map of import alias names to resolved foreign classes
   private final ModuleScopedNameResolver moduleScopedNameResolver;
+  private final Map<TypeNode, TypeNode> typeAliases = new HashMap<>();
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses = new HashMap<>();
   private final Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions = new HashMap<>();
   private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls = new HashMap<>();
@@ -73,9 +84,7 @@ public class MemberScopedNameResolver {
   }
 
   public NameResolutionResult resolve(Function function) {
-    pushScope();
-    function.parameters().forEach(this::addLocalVariable);
-    visitor.visit(function.expression());
+    visitor.visit(function);
     return resolutionResult();
   }
 
@@ -87,7 +96,7 @@ public class MemberScopedNameResolver {
     moduleReferences.forEach((varRef, mod) -> varReferences.put(varRef,
         new ReferenceDeclaration.Module(mod)));
 
-    return new NameResolutionResult(Map.of(), foreignFieldAccesses,
+    return new NameResolutionResult(typeAliases, foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
         varReferences,
@@ -223,8 +232,67 @@ public class MemberScopedNameResolver {
       return visit(function.expression());
     }
 
+    private void resolveTypeNode(TypeNode typeNode, List<TypeNode> typeParameters) {
+      resolveType(typeNode, typeNode.type(), typeParameters);
+    }
+
+    private void resolveType(TypeNode typeNode, Type type, List<TypeNode> typeParameters) {
+      String name;
+      Optional<TypeNode> resolvedTypeNode;
+      if (type instanceof ParameterizedType parameterizedType) {
+        switch (parameterizedType) {
+          case FunctionType funcType -> funcType.parameterTypes()
+              .forEach(paramType -> resolveType(typeNode, paramType, typeParameters));
+          case StructType structType -> structType.fieldTypes().values()
+              .forEach(fieldType -> resolveType(typeNode, fieldType, typeParameters));
+          case TypeParameter ignored -> {}
+        }
+        return;
+      } else if (type instanceof LocalNamedType localNamedType) {
+        name = localNamedType.typeName();
+        // Check if the named type matches a type parameter
+        var typeParam = typeParameters.stream().filter(param -> param.typeName().equals(name))
+            .findFirst();
+        // Check if the named type matches a local type alias
+        var typeAlias = moduleScopedNameResolver.resolveTypeAlias(localNamedType.typeName());
+        // Ensure that a named type is only resolved from one source. If it isn't, create an error.
+        if (typeParam.isPresent() && typeAlias.isPresent()) {
+          var aliasId = ((LocalNamedType) typeAlias.get().type()).id();
+          var paramId = ((LocalNamedType) typeParam.get().type()).id();
+          errors.add(new DuplicateNameError(aliasId, paramId));
+          return;
+        } else if (typeAlias.isPresent()) {
+          resolvedTypeNode = typeAlias;
+        } else if (typeParam.isPresent()) {
+          // Exit if the named type matches a type parameter
+          return;
+        } else {
+          errors.add(new NameNotFoundError(localNamedType.id(), "named type"));
+          return;
+        }
+      } else if (type instanceof ModuleNamedType moduleNamedType) {
+        name = moduleNamedType.typeName();
+        var moduleScopedResolver = moduleScopedNameResolver.resolveModuleResolver(moduleNamedType.moduleName());
+        resolvedTypeNode = moduleScopedResolver.flatMap(m -> m.resolveTypeAlias(moduleNamedType.name()));
+      } else {
+        return;
+      }
+
+      var id = new Identifier(name, (Single) typeNode.range());
+      if (resolvedTypeNode.isPresent()) {
+        typeAliases.put(typeNode, resolvedTypeNode.get());
+      } else {
+        errors.add(new NameNotFoundError(id, "parameter type"));
+      }
+    }
+
     private void visit(FunctionSignature funcSignature) {
-      funcSignature.parameters().forEach(MemberScopedNameResolver.this::addLocalVariable);
+      funcSignature.parameters().forEach(param -> {
+        resolveTypeNode(param.typeNode(), funcSignature.typeParameters());
+        addLocalVariable(param);
+      });
+
+      resolveTypeNode(funcSignature.returnTypeNode(), funcSignature.typeParameters());
     }
 
     private Optional<LocalVariable> resolveLocalVar(VarReference varReference) {
@@ -267,8 +335,20 @@ public class MemberScopedNameResolver {
   }
 
   public sealed interface ReferenceDeclaration {
-    record Local(LocalVariable localVariable, int index) implements ReferenceDeclaration {}
-    record Module(ModuleDeclaration moduleDeclaration) implements ReferenceDeclaration {}
+    String toPrettyString();
+
+    record Local(LocalVariable localVariable, int index) implements ReferenceDeclaration {
+      @Override
+      public String toPrettyString() {
+        return localVariable.toPrettyString();
+      }
+    }
+    record Module(ModuleDeclaration moduleDeclaration) implements ReferenceDeclaration {
+      @Override
+      public String toPrettyString() {
+        return moduleDeclaration.toPrettyString();
+      }
+    }
   }
 
   public record QualifiedFunction(QualifiedIdentifier ownerId, Function function) {}

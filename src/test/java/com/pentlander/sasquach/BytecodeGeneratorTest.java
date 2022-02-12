@@ -43,10 +43,11 @@ import com.pentlander.sasquach.name.ModuleResolver;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
-import com.pentlander.sasquach.type.NamedType;
+import com.pentlander.sasquach.type.LocalNamedType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeResolver;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -257,21 +258,24 @@ class BytecodeGeneratorTest {
     class Parameterized {
         @Test
         void singleGenericClass() throws Exception {
-            var boxParam = param("box", new StructType(Map.of("value", new NamedType("T"))));
-            var boxValueParam = param("boxValue", new NamedType("U"));
+            var boxParam = param(
+                "box",
+                new StructType(Map.of("value", new LocalNamedType(id("T")))));
+            var boxValueParam = param("boxValue", new LocalNamedType(id("U")));
             var parameterizedFuncExpr = literalStruct(
                 List.of(new Field(id("value"), new VarReference(id("boxValue")))),
                 List.of());
             var parameterizedFunc = func(
                 "foo",
                 List.of(boxParam, boxValueParam),
-                List.of(new NamedType("T"), new NamedType("U")),
-                new StructType(Map.of("value", new NamedType("U"))),
+                List.of(new LocalNamedType(id("T")), new LocalNamedType(id("U"))),
+                new StructType(Map.of("value", new LocalNamedType(id("U")))),
                 parameterizedFuncExpr);
+            System.err.println(parameterizedFunc.toPrettyString());
             var callerFunc = func(
                 "baz",
                 List.of(),
-                new StructType(Map.of("value", new NamedType("U"))),
+                new StructType(Map.of("value", BuiltinType.STRING)),
                 new LocalFunctionCall(id("foo"),
                     List.of(literalStruct(
                         List.of(new Field(id("value"), intValue(10))),
@@ -280,6 +284,9 @@ class BytecodeGeneratorTest {
 
             var compUnit = compUnit(List.of(), List.of(), List.of(callerFunc, parameterizedFunc));
             var resolutionResult = nameResolver.resolveCompilationUnit(compUnit);
+            if (!resolutionResult.errors().errors().isEmpty()) {
+                throw new IllegalStateException(resolutionResult.errors().errors().toString());
+            }
             typeResolver = new TypeResolver(resolutionResult);
             typeResolver.resolve(compUnit);
             var result = new BytecodeGenerator(nameResolver, typeResolver).generateBytecode(compUnit);
@@ -386,7 +393,7 @@ class BytecodeGeneratorTest {
         return cl.loadClass(CLASS_NAME);
     }
 
-    private void dumpGeneratedClasses(Map<String, byte[]> generatedClasses) throws Exception {
+    public static void dumpGeneratedClasses(Map<String, byte[]> generatedClasses) throws IOException {
         var tempPath = Files.createTempDirectory("class_dump_");
         for (Map.Entry<String, byte[]> entry : generatedClasses.entrySet()) {
             String name = entry.getKey();

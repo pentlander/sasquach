@@ -31,10 +31,12 @@ import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
 import com.pentlander.sasquach.type.ForeignFieldType;
 import com.pentlander.sasquach.type.FunctionType;
-import com.pentlander.sasquach.type.NamedType;
+import com.pentlander.sasquach.type.ModuleNamedType;
+import com.pentlander.sasquach.type.LocalNamedType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeFetcher;
+import com.pentlander.sasquach.type.TypeUtils;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
@@ -249,13 +251,11 @@ class ExpressionGenerator {
         generateStructInit(struct);
       }
       case FieldAccess fieldAccess -> {
-        var fieldAccessType = type(fieldAccess.expr());
-        if (fieldAccessType instanceof NamedType namedType) {
-          fieldAccessType = nameResolutionResult.getTypeAlias(namedType.typeName()).get().type();
-        }
-        if (fieldAccessType instanceof StructType structType) {
+        var fieldAccessType = TypeUtils.asStructType(type(fieldAccess.expr()));
+        if (fieldAccessType.isPresent()) {
           generate(fieldAccess.expr());
-          var fieldDescriptor = structType.fieldTypes().get(fieldAccess.fieldName()).descriptor();
+          var fieldDescriptor =
+              fieldAccessType.get().fieldTypes().get(fieldAccess.fieldName()).descriptor();
           var handle = new Handle(Opcodes.H_INVOKESTATIC,
               new ClassType(StructDispatch.class).internalName(),
               "bootstrapField",

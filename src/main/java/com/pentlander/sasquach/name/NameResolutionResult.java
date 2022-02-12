@@ -14,6 +14,7 @@ import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
+import com.pentlander.sasquach.type.Type;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -35,7 +36,7 @@ public class NameResolutionResult {
       new RangedErrorList(List.of()));
 
   private final Map<TypeNode, TypeNode> typeAliases;
-  private final Map<String, TypeNode> typeNameAliases;
+  private final Map<Type, TypeNode> typeNameAliases;
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses;
   private final Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions;
   private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls;
@@ -58,9 +59,10 @@ public class NameResolutionResult {
     this.errors = errors;
   }
 
-  private static Map<String, TypeNode> typeNameAliases(Map<TypeNode, TypeNode> typeAliases) {
+  private static Map<Type, TypeNode> typeNameAliases(Map<TypeNode, TypeNode> typeAliases) {
     return typeAliases.entrySet().stream()
-        .collect(Collectors.toMap(entry -> entry.getKey().typeName(), Entry::getValue));
+        .collect(Collectors.toMap(entry -> entry.getKey().type(), Entry::getValue,
+            (a, b) -> a));
   }
 
   public NameResolutionResult withErrors(RangedErrorList errors) {
@@ -71,21 +73,12 @@ public class NameResolutionResult {
         varIndexes, this.errors.concat(errors));
   }
 
-  public NameResolutionResult withTypeAliases(Map<TypeNode, TypeNode> typeAliases) {
-    return new NameResolutionResult(typeAliases, foreignFieldAccesses, foreignFunctions,
-        localFunctionCalls, varReferences, varIndexes, errors);
-  }
-
   public static NameResolutionResult empty() {
     return EMPTY;
   }
 
-  public Optional<TypeNode> getTypeAlias(TypeNode typeNode) {
-    return Optional.ofNullable(typeAliases.get(typeNode));
-  }
-
-  public Optional<TypeNode> getTypeAlias(String typeName) {
-    return Optional.ofNullable(typeNameAliases.get(typeName));
+  public Optional<TypeNode> getTypeAlias(Type type) {
+    return Optional.ofNullable(typeNameAliases.get(type));
   }
 
   public Field getForeignField(ForeignFieldAccess foreignFieldAccess) {

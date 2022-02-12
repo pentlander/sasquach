@@ -201,6 +201,11 @@ class TypeResolverTest {
   }
 
   @Nested
+  class NamedTypeTest {
+
+  }
+
+  @Nested
   class FunctionCallTest {
     private final Identifier funcId = id("foo");
     private Function func;
