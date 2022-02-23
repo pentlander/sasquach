@@ -81,10 +81,42 @@ public class EndToEndTest {
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
   }
 
+  @Test
+  void complexParameterizedExpression_withAlias() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          type T[A] = { value: A },
+          type Mapper[A, B] = { map: (inp: A) -> B },
+        
+          map = [A, B](value: A, mapper: Mapper[A, B]): T[B] ->
+              { value = mapper.map(value) },
+          main = (): T[String] -> map("foobar", { map = (inp: String): Int -> 10 })
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    Object boxedInt = invokeName(clazz, "main", null);
+
+    assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
+  }
+
   private Class<?> compileClass(Source source, String qualifiedName)
+      throws ClassNotFoundException, CompilationException {
+    return compileClass(source, qualifiedName, false);
+  }
+
+  private Class<?> debugCompileClass(Source source, String qualifiedName)
+      throws ClassNotFoundException, CompilationException {
+    return compileClass(source, qualifiedName, true);
+  }
+
+  private Class<?> compileClass(Source source, String qualifiedName, boolean dumpClasses)
       throws ClassNotFoundException, CompilationException {
     var bytecode = new Compiler().compile(source);
     var cl = new SasquachClassloader();
+    if (dumpClasses) {
+      BytecodeGeneratorTest.dumpGeneratedClasses(bytecode.generatedBytecode());
+    }
     bytecode.generatedBytecode().forEach(cl::addClass);
     return cl.loadClass(qualifiedName.replace('/', '.'));
   }

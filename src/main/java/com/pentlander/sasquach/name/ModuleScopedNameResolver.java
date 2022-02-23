@@ -9,7 +9,10 @@ import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.Struct;
+import com.pentlander.sasquach.type.Type;
+import com.pentlander.sasquach.type.TypeUtils;
 import java.lang.invoke.MethodHandles;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -19,6 +22,7 @@ public class ModuleScopedNameResolver {
   private final Map<String, ModuleScopedNameResolver> moduleImports = new HashMap<>();
   private final Map<String, Class<?>> foreignClasses = new HashMap<>();
   private final Map<String, TypeAlias> typeAliasNames = new HashMap<>();
+  private final Map<TypeNode<Type>, TypeNode<Type>> namedTypes = new HashMap<>();
   private final Map<String, Struct.Field> fields = new HashMap<>();
   private final Map<Struct.Field, NameResolutionResult> fieldResults = new HashMap<>();
   private final Map<String, Function> functions = new HashMap<>();
@@ -40,7 +44,7 @@ public class ModuleScopedNameResolver {
 
   public NameResolutionResult resolve() {
     new Visitor().visit(module);
-    return nameResolutionResult.withErrors(errors.build());
+    return nameResolutionResult.withNamedTypes(namedTypes).withErrors(errors.build());
   }
 
   NameResolutionResult getResolver(Struct.Field field) {
@@ -53,7 +57,7 @@ public class ModuleScopedNameResolver {
 
   private class Visitor implements NodeVisitor<Void> {
     @Override
-    public Void visit(TypeNode typeNode) {
+    public Void visit(TypeNode<? extends Type> typeNode) {
       return null;
     }
 
@@ -94,6 +98,16 @@ public class ModuleScopedNameResolver {
       return null;
     }
 
+    private void checkAliases(Collection<TypeAlias> typeAliases) {
+      for (var typeAlias : typeAliases) {
+        var resolver = new NamedTypeResolver(typeAlias.typeParameterNodes(),
+            ModuleScopedNameResolver.this);
+        var result = resolver.resolveTypeNode(typeAlias.typeNode());
+        namedTypes.putAll(result.namedTypes());
+        errors.addAll(result.errors());
+      }
+    }
+
     @Override
     public Void visit(Expression expression) {
       if (expression instanceof Struct struct) {
@@ -104,6 +118,7 @@ public class ModuleScopedNameResolver {
         for (var typeAlias : struct.typeAliases()) {
           visit(typeAlias);
         }
+        checkAliases(typeAliasNames.values());
 
         for (var field : struct.fields()) {
           fields.put(field.name(), field);
@@ -149,7 +164,7 @@ public class ModuleScopedNameResolver {
     return Optional.ofNullable(fields.get(fieldName));
   }
 
-  Optional<TypeNode> resolveTypeAlias(String typeAlias) {
-    return Optional.ofNullable(typeAliasNames.get(typeAlias)).map(TypeAlias::typeNode);
+  Optional<TypeAlias> resolveTypeAlias(String typeAlias) {
+    return Optional.ofNullable(typeAliasNames.get(typeAlias));
   }
 }

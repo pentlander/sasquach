@@ -11,19 +11,22 @@ use: USE FOREIGN? qualifiedName ;
 
 block : '{' NL* blockStatement (NL blockStatement)*  NL* '}' ;
 function : functionDeclaration expression ;
+typeParameterList : ('[' typeIdentifier (',' typeIdentifier)* ']') ;
 functionDeclaration :
-    ('[' typeIdentifier (',' typeIdentifier)* ']')?
+    typeParameterList?
     functionParameterList ':' type '->' NL* ;
 functionName : ID ;
 functionArgument : ID ':' type ;
 functionParameterList : '(' (functionArgument)? (',' functionArgument)* ')' ;
 
-type : primitiveType | classType | structType | typeIdentifier | functionType | moduleNamedType ;
+type : primitiveType | classType | structType | localNamedType | functionType | moduleNamedType ;
 primitiveType : 'Boolean' | 'String' ('[' ']')* | 'Char' | 'Byte' | 'Int' | 'Long' | 'Float' | 'Double' | 'Void' ;
 classType : qualifiedName ;
 structType : '{' NL* ID ':' NL* type (',' NL* ID ':' NL* type)* NL* '}' ;
 functionType : functionParameterList '->' type ;
-moduleNamedType: moduleName NL* '.' typeIdentifier ;
+typeArgumentList : ('[' type (',' type)* ']') ;
+localNamedType: typeIdentifier typeArgumentList? ;
+moduleNamedType: moduleName NL* '.' typeIdentifier typeArgumentList? ;
 
 blockStatement : variableDeclaration | printStatement | expression ;
 
@@ -55,7 +58,7 @@ expression :
 
 struct : '{' NL* structStatement (',' NL* structStatement)* NL* '}' ;
 structStatement : use #useStatement
-  | TYPEALIAS typeIdentifier EQUALS type #typeAliasStatement
+  | TYPEALIAS typeIdentifier typeParameterList? EQUALS type #typeAliasStatement
   | memberName EQUALS (expression|function) #identifierStatement ;
 
 value : NUMBER #intLiteral

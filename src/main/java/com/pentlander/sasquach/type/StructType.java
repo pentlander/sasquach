@@ -3,6 +3,7 @@ package com.pentlander.sasquach.type;
 import static java.util.stream.Collectors.joining;
 
 import com.pentlander.sasquach.runtime.StructBase;
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -21,9 +22,8 @@ public record StructType(String typeName, Map<String, Type> fieldTypes) implemen
   }
 
   private static String hashFieldTypes(Map<String, Type> fieldTypes) {
-    return Integer
-        .toHexString(fieldTypes.entrySet().stream().sorted(Entry.comparingByKey()).toList()
-            .hashCode());
+    return Integer.toHexString(fieldTypes.entrySet().stream().sorted(Entry.comparingByKey())
+        .toList().hashCode());
   }
 
   public Type fieldType(String fieldName) {
@@ -53,7 +53,7 @@ public record StructType(String typeName, Map<String, Type> fieldTypes) implemen
       for (var entry : fieldTypes.entrySet()) {
         var name = entry.getKey();
         var type = entry.getValue();
-        var otherType = structType.get().fieldTypes().get(name);
+        var otherType = structType.get().fieldType(name);
         if (otherType == null || !type.isAssignableFrom(otherType)) {
           return false;
         }

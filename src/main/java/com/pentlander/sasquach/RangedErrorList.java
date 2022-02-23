@@ -1,6 +1,7 @@
 package com.pentlander.sasquach;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -40,6 +41,16 @@ public record RangedErrorList(List<RangedError> errors) {
 
     public Builder add(RangedError rangedError) {
       errors.add(rangedError);
+      return this;
+    }
+
+    public Builder addAll(Collection<RangedError> rangedError) {
+      errors.addAll(rangedError);
+      return this;
+    }
+
+    public Builder addAll(RangedErrorList rangedErrors) {
+      errors.addAll(rangedErrors.errors);
       return this;
     }
 

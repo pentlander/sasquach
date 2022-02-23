@@ -23,7 +23,6 @@ import static com.pentlander.sasquach.SasquachParser.PrintStatementContext;
 import static com.pentlander.sasquach.SasquachParser.StringLiteralContext;
 import static com.pentlander.sasquach.SasquachParser.StructContext;
 import static com.pentlander.sasquach.SasquachParser.StructTypeContext;
-import static com.pentlander.sasquach.SasquachParser.TypeIdentifierContext;
 import static com.pentlander.sasquach.SasquachParser.UseStatementContext;
 import static com.pentlander.sasquach.SasquachParser.VarReferenceContext;
 import static com.pentlander.sasquach.SasquachParser.VariableDeclarationContext;
@@ -31,9 +30,16 @@ import static com.pentlander.sasquach.ast.expression.Struct.StructKind;
 
 import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
 import com.pentlander.sasquach.SasquachParser.CompareExpressionContext;
+import com.pentlander.sasquach.SasquachParser.LocalNamedTypeContext;
 import com.pentlander.sasquach.SasquachParser.ModuleNamedTypeContext;
 import com.pentlander.sasquach.SasquachParser.TypeAliasStatementContext;
+import com.pentlander.sasquach.SasquachParser.TypeArgumentListContext;
+import com.pentlander.sasquach.SasquachParser.TypeContext;
+import com.pentlander.sasquach.SasquachParser.TypeParameterListContext;
+import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.CompilationUnit;
+import com.pentlander.sasquach.ast.ModuleScopedIdentifier;
+import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.FunctionSignature;
@@ -66,11 +72,12 @@ import com.pentlander.sasquach.type.ClassType;
 import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.ModuleNamedType;
 import com.pentlander.sasquach.type.LocalNamedType;
-import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
+import com.pentlander.sasquach.type.TypeParameter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -78,6 +85,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 /**
  * Visitor that parses the source code into an abstract syntax tree.
  */
+@SuppressWarnings("ClassCanBeRecord")
 public class Visitor {
   private final SourcePath sourcePath;
   private final PackageName packageName;
@@ -161,16 +169,12 @@ public class Visitor {
 
     private FunctionSignature functionDeclaration(FunctionDeclarationContext ctx) {
       var typeVisitor = new TypeVisitor();
-
       var params = parameterList(typeVisitor, ctx.functionParameterList());
 
-      var typeParams = ctx.typeIdentifier().stream()
-          .map(typeParamCtx -> new TypeNode(new LocalNamedType(id(typeParamCtx.ID())),
-              rangeFrom(typeParamCtx.ID()))).toList();
-
-      return new FunctionSignature(params,
-          typeParams,
-          ctx.type().accept(typeVisitor),
+      return new FunctionSignature(
+          params,
+          typeParams(ctx.typeParameterList()),
+          typeNode(ctx.type(), typeVisitor),
           rangeFrom(ctx));
     }
   }
@@ -299,47 +303,53 @@ public class Visitor {
     }
   }
 
-  class TypeVisitor extends SasquachBaseVisitor<TypeNode> {
+  class TypeVisitor extends SasquachBaseVisitor<TypeNode<? extends Type>> {
     @Override
-    public TypeNode visitPrimitiveType(PrimitiveTypeContext ctx) {
-      return new TypeNode(BuiltinType.fromString(ctx.getText()), rangeFrom(ctx));
+    public TypeNode<Type> visitPrimitiveType(PrimitiveTypeContext ctx) {
+      return new BasicTypeNode<>(BuiltinType.fromString(ctx.getText()), rangeFrom(ctx));
     }
 
     @Override
-    public TypeNode visitClassType(ClassTypeContext ctx) {
-      return new TypeNode(new ClassType(ctx.getText()), rangeFrom(ctx));
+    public TypeNode<Type> visitClassType(ClassTypeContext ctx) {
+      return new BasicTypeNode<>(new ClassType(ctx.getText()), rangeFrom(ctx));
     }
 
     @Override
-    public TypeNode visitTypeIdentifier(TypeIdentifierContext ctx) {
-      return new TypeNode(new LocalNamedType(id(ctx.ID())), rangeFrom(ctx));
+    public TypeNode<Type> visitLocalNamedType(LocalNamedTypeContext ctx) {
+      var id = id(ctx.typeIdentifier().ID());
+      return new BasicTypeNode<>(
+          new LocalNamedType(id, typeArguments(ctx.typeArgumentList())),
+          rangeFrom(ctx));
     }
 
     @Override
-    public TypeNode visitStructType(StructTypeContext ctx) {
-      var fields = new HashMap<String, Type>();
+    public StructTypeNode visitStructType(StructTypeContext ctx) {
+      var fields = new HashMap<String, TypeNode<Type>>();
       for (int i = 0; i < ctx.ID().size(); i++) {
         var id = ctx.ID(i).getText();
-        var typeNode = ctx.type(i).accept(new TypeVisitor());
-        fields.put(id, typeNode.type());
+        fields.put(id, typeNode(ctx.type(i), new TypeVisitor()));
       }
-      return new TypeNode(new StructType(fields), rangeFrom(ctx));
+      return new StructTypeNode(fields, rangeFrom(ctx));
     }
 
     @Override
-    public TypeNode visitFunctionType(FunctionTypeContext ctx) {
+    public FunctionSignature visitFunctionType(FunctionTypeContext ctx) {
       var params = parameterList(this, ctx.functionParameterList());
-      var type = new FunctionType(params.stream().map(FunctionParameter::type).toList(),
-          List.of(),
-          ctx.type().accept(this).type());
-      return new TypeNode(type, rangeFrom(ctx));
+      return new FunctionSignature(params, typeNode(ctx.type(), this), rangeFrom(ctx));
     }
 
     @Override
-    public TypeNode visitModuleNamedType(ModuleNamedTypeContext ctx) {
-      return new TypeNode(new ModuleNamedType(ctx.moduleName().getText(),
-          ctx.typeIdentifier().getText()),
-          rangeFrom(ctx));
+    public TypeNode<Type> visitModuleNamedType(ModuleNamedTypeContext ctx) {
+      return new BasicTypeNode<>(new ModuleNamedType(
+          new ModuleScopedIdentifier(id(ctx.moduleName().ID()), id(ctx.typeIdentifier().ID())),
+          typeArguments(ctx.typeArgumentList())), rangeFrom(ctx));
+    }
+
+    private List<TypeNode<Type>> typeArguments(TypeArgumentListContext ctx) {
+      if (ctx == null) {
+        return List.of();
+      }
+      return ctx.type().stream().map(typeCtx -> typeNode(typeCtx, this)).toList();
     }
   }
 
@@ -403,7 +413,8 @@ public class Visitor {
         } else if (structStatementCtx instanceof TypeAliasStatementContext typeAliasStatementContext) {
           var typeAlias = new TypeAlias(
               id(typeAliasStatementContext.typeIdentifier().ID()),
-              typeAliasStatementContext.type().accept(typeVisitor),
+              typeParams(typeAliasStatementContext.typeParameterList()),
+              typeNode(typeAliasStatementContext.type(), typeVisitor),
               rangeFrom(typeAliasStatementContext));
           typeAliases.add(typeAlias);
         }
@@ -426,14 +437,26 @@ public class Visitor {
     return new Identifier(node.getText(), rangeFrom(node));
   }
 
+  private List<TypeNode<TypeParameter>> typeParams(TypeParameterListContext ctx) {
+    return Optional.ofNullable(ctx)
+        .map(TypeParameterListContext::typeIdentifier).orElse(List.of()).stream()
+        .map(typeParamCtx -> new BasicTypeNode<>(new TypeParameter(id(typeParamCtx.ID())),
+            rangeFrom(typeParamCtx.ID()))).map(t -> (TypeNode<TypeParameter>) t).toList();
+  }
+
   private List<FunctionParameter> parameterList(TypeVisitor typeVisitor,
       FunctionParameterListContext ctx) {
     var params = new ArrayList<FunctionParameter>();
     for (FunctionArgumentContext paramCtx : ctx.functionArgument()) {
-      var type = paramCtx.type().accept(typeVisitor);
+      var type = typeNode(paramCtx.type(), typeVisitor);
       var param = new FunctionParameter(id(paramCtx.ID()), type);
       params.add(param);
     }
     return params;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static TypeNode<Type> typeNode(TypeContext ctx, TypeVisitor visitor) {
+    return (TypeNode<Type>) ctx.accept(visitor);
   }
 }
