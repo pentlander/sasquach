@@ -2,6 +2,7 @@ package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
+import com.pentlander.sasquach.type.Type;
 
 public interface NodeVisitor<T> {
   default T visit(Node node) {
@@ -9,7 +10,7 @@ public interface NodeVisitor<T> {
       case FunctionParameter funcParam -> visit(funcParam);
       case FunctionSignature funcSig -> visit(funcSig);
       case ModuleDeclaration modDecl -> visit(modDecl);
-      case TypeNode typeNode -> visit(typeNode);
+      case TypeNode<? extends Type> typeNode -> visit(typeNode);
       case Use use -> visit(use);
       case TypeAlias typeAlias -> visit(typeAlias);
       case Expression expression -> visit(expression);
@@ -31,7 +32,7 @@ public interface NodeVisitor<T> {
     return visit(moduleDeclaration.struct());
   }
 
-  T visit(TypeNode typeNode);
+  T visit(TypeNode<? extends Type> typeNode);
 
 
   T visit(TypeAlias typeAlias);

@@ -255,7 +255,7 @@ class ExpressionGenerator {
         if (fieldAccessType.isPresent()) {
           generate(fieldAccess.expr());
           var fieldDescriptor =
-              fieldAccessType.get().fieldTypes().get(fieldAccess.fieldName()).descriptor();
+              fieldAccessType.get().fieldType(fieldAccess.fieldName()).descriptor();
           var handle = new Handle(Opcodes.H_INVOKESTATIC,
               new ClassType(StructDispatch.class).internalName(),
               "bootstrapField",
@@ -303,9 +303,8 @@ class ExpressionGenerator {
       case MemberFunctionCall structFuncCall -> {
         generate(structFuncCall.structExpression());
         structFuncCall.arguments().forEach(this::generate);
-        var structType = (StructType) type(structFuncCall.structExpression());
-        var funcType = (FunctionType) Objects.requireNonNull(structType.fieldTypes()
-            .get(structFuncCall.name()));
+        var structType = TypeUtils.asStructType(type(structFuncCall.structExpression())).get();
+        var funcType = (FunctionType) Objects.requireNonNull(structType.fieldType(structFuncCall.name()));
         var handle = new Handle(Opcodes.H_INVOKESTATIC,
             new ClassType(StructDispatch.class).internalName(),
             "bootstrapMethod",

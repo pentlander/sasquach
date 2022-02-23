@@ -11,7 +11,7 @@ public class TypeUnifier {
   /**
    * Map of type variables to their resolved types.
    */
-  private final Map<TypeParameter, Type> unifiedTypes = new HashMap<>();
+  private final Map<TypeVariable, Type> unifiedTypes = new HashMap<>();
 
   /**
    * Resolves the type by replacing any type variables in a parameterized type with a concrete one.
@@ -19,7 +19,7 @@ public class TypeUnifier {
   public Type resolve(Type type) {
     if (type instanceof ParameterizedType paramType) {
       return switch (paramType) {
-        case TypeParameter localNamedType -> unifiedTypes.getOrDefault(
+        case TypeVariable localNamedType -> unifiedTypes.getOrDefault(
             localNamedType,
             localNamedType);
         case FunctionType funcType -> {
@@ -51,7 +51,7 @@ public class TypeUnifier {
 
   private void unify(ParameterizedType destType, Type sourceType) {
     switch (destType) {
-      case TypeParameter localNamedType -> {
+      case TypeVariable localNamedType -> {
         var unifiedType = unifiedTypes.get(localNamedType);
         if (unifiedType != null && !unifiedType.equals(sourceType)) {
           throw new UnificationException(destType, sourceType);

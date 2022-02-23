@@ -7,8 +7,8 @@ import com.pentlander.sasquach.ast.expression.LocalVariable;
 /**
  * A node in the abstract syntax tree.
  */
-public sealed interface Node permits FunctionSignature, Identifier, ModuleDeclaration,
-    QualifiedIdentifier, TypeAlias, TypeNode, Use, Expression, LocalVariable {
+public sealed interface Node permits FunctionSignature, Identifier,
+    ModuleDeclaration, QualifiedIdentifier, TypeAlias, TypeNode, Use, Expression, LocalVariable {
   /**
    * Range in the source code that this node can be found.
    */

@@ -18,9 +18,11 @@ import static com.pentlander.sasquach.ast.expression.BinaryExpression.MathExpres
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.MathOperator;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
+import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
@@ -43,12 +45,15 @@ import com.pentlander.sasquach.name.ModuleResolver;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
+import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.LocalNamedType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
+import com.pentlander.sasquach.type.TypeParameter;
 import com.pentlander.sasquach.type.TypeResolver;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -238,7 +243,7 @@ class BytecodeGeneratorTest {
     void structLiteralFunctions() throws Exception {
         var structFunc = new Function(
             id("member"),
-            new FunctionSignature(List.of(), new TypeNode(BuiltinType.STRING, range()), range()),
+            new FunctionSignature(List.of(), new BasicTypeNode<>(BuiltinType.STRING, range()), range()),
             stringValue("string"));
         var struct = Struct.literalStruct(List.of(), List.of(structFunc), range());
         var memberFuncCall = new MemberFunctionCall(struct, id("member"), List.of(), range());
@@ -260,7 +265,8 @@ class BytecodeGeneratorTest {
         void singleGenericClass() throws Exception {
             var boxParam = param(
                 "box",
-                new StructType(Map.of("value", new LocalNamedType(id("T")))));
+                new StructTypeNode(Map.of("value",
+                    new BasicTypeNode<>(new LocalNamedType(id("T")), range())), range()));
             var boxValueParam = param("boxValue", new LocalNamedType(id("U")));
             var parameterizedFuncExpr = literalStruct(
                 List.of(new Field(id("value"), new VarReference(id("boxValue")))),
@@ -268,10 +274,9 @@ class BytecodeGeneratorTest {
             var parameterizedFunc = func(
                 "foo",
                 List.of(boxParam, boxValueParam),
-                List.of(new LocalNamedType(id("T")), new LocalNamedType(id("U"))),
+                List.of(new TypeParameter(id("T")), new TypeParameter(id("U"))),
                 new StructType(Map.of("value", new LocalNamedType(id("U")))),
                 parameterizedFuncExpr);
-            System.err.println(parameterizedFunc.toPrettyString());
             var callerFunc = func(
                 "baz",
                 List.of(),
@@ -283,6 +288,7 @@ class BytecodeGeneratorTest {
                     NR));
 
             var compUnit = compUnit(List.of(), List.of(), List.of(callerFunc, parameterizedFunc));
+            System.err.println(compUnit.modules().get(0).toPrettyString());
             var resolutionResult = nameResolver.resolveCompilationUnit(compUnit);
             if (!resolutionResult.errors().errors().isEmpty()) {
                 throw new IllegalStateException(resolutionResult.errors().errors().toString());
@@ -355,8 +361,12 @@ class BytecodeGeneratorTest {
     }
 
     private FunctionParameter param(String name, Type type) {
+        return param(name, new BasicTypeNode<>(type, range()));
+    }
+
+    private <T extends TypeNode<? extends Type>> FunctionParameter param(String name, T typeNode) {
         var id = id(name);
-        return new FunctionParameter(id, new TypeNode(type, NR));
+        return new FunctionParameter(id, (TypeNode<Type>) typeNode);
     }
 
     @SuppressWarnings("unchecked")
@@ -393,14 +403,18 @@ class BytecodeGeneratorTest {
         return cl.loadClass(CLASS_NAME);
     }
 
-    public static void dumpGeneratedClasses(Map<String, byte[]> generatedClasses) throws IOException {
-        var tempPath = Files.createTempDirectory("class_dump_");
-        for (Map.Entry<String, byte[]> entry : generatedClasses.entrySet()) {
-            String name = entry.getKey();
-            byte[] bytecode = entry.getValue();
-            Compiler.saveBytecodeToFile(tempPath, name, bytecode);
+    public static void dumpGeneratedClasses(Map<String, byte[]> generatedClasses) {
+        try {
+            var tempPath = Files.createTempDirectory("class_dump_");
+            for (Map.Entry<String, byte[]> entry : generatedClasses.entrySet()) {
+                String name = entry.getKey();
+                byte[] bytecode = entry.getValue();
+                Compiler.saveBytecodeToFile(tempPath, name, bytecode);
+            }
+            System.err.println("Dumped files to: " + tempPath);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        System.err.println("Dumped files to: " + tempPath);
     }
 
     private CompilationUnit compUnit(List<Use> useList, List<Struct.Field> fields, List<Function> functions) {

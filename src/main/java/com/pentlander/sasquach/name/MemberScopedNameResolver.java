@@ -29,7 +29,7 @@ import com.pentlander.sasquach.type.LocalNamedType;
 import com.pentlander.sasquach.type.ParameterizedType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
-import com.pentlander.sasquach.type.TypeParameter;
+import com.pentlander.sasquach.type.TypeVariable;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -63,7 +63,8 @@ localFunction()
 public class MemberScopedNameResolver {
   // Map of import alias names to resolved foreign classes
   private final ModuleScopedNameResolver moduleScopedNameResolver;
-  private final Map<TypeNode, TypeNode> typeAliases = new HashMap<>();
+  private final Map<TypeNode<Type>, TypeNode<Type>> typeAliases =
+      new HashMap<>();
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses = new HashMap<>();
   private final Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions = new HashMap<>();
   private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls = new HashMap<>();
@@ -232,67 +233,13 @@ public class MemberScopedNameResolver {
       return visit(function.expression());
     }
 
-    private void resolveTypeNode(TypeNode typeNode, List<TypeNode> typeParameters) {
-      resolveType(typeNode, typeNode.type(), typeParameters);
-    }
-
-    private void resolveType(TypeNode typeNode, Type type, List<TypeNode> typeParameters) {
-      String name;
-      Optional<TypeNode> resolvedTypeNode;
-      if (type instanceof ParameterizedType parameterizedType) {
-        switch (parameterizedType) {
-          case FunctionType funcType -> funcType.parameterTypes()
-              .forEach(paramType -> resolveType(typeNode, paramType, typeParameters));
-          case StructType structType -> structType.fieldTypes().values()
-              .forEach(fieldType -> resolveType(typeNode, fieldType, typeParameters));
-          case TypeParameter ignored -> {}
-        }
-        return;
-      } else if (type instanceof LocalNamedType localNamedType) {
-        name = localNamedType.typeName();
-        // Check if the named type matches a type parameter
-        var typeParam = typeParameters.stream().filter(param -> param.typeName().equals(name))
-            .findFirst();
-        // Check if the named type matches a local type alias
-        var typeAlias = moduleScopedNameResolver.resolveTypeAlias(localNamedType.typeName());
-        // Ensure that a named type is only resolved from one source. If it isn't, create an error.
-        if (typeParam.isPresent() && typeAlias.isPresent()) {
-          var aliasId = ((LocalNamedType) typeAlias.get().type()).id();
-          var paramId = ((LocalNamedType) typeParam.get().type()).id();
-          errors.add(new DuplicateNameError(aliasId, paramId));
-          return;
-        } else if (typeAlias.isPresent()) {
-          resolvedTypeNode = typeAlias;
-        } else if (typeParam.isPresent()) {
-          // Exit if the named type matches a type parameter
-          return;
-        } else {
-          errors.add(new NameNotFoundError(localNamedType.id(), "named type"));
-          return;
-        }
-      } else if (type instanceof ModuleNamedType moduleNamedType) {
-        name = moduleNamedType.typeName();
-        var moduleScopedResolver = moduleScopedNameResolver.resolveModuleResolver(moduleNamedType.moduleName());
-        resolvedTypeNode = moduleScopedResolver.flatMap(m -> m.resolveTypeAlias(moduleNamedType.name()));
-      } else {
-        return;
-      }
-
-      var id = new Identifier(name, (Single) typeNode.range());
-      if (resolvedTypeNode.isPresent()) {
-        typeAliases.put(typeNode, resolvedTypeNode.get());
-      } else {
-        errors.add(new NameNotFoundError(id, "parameter type"));
-      }
-    }
-
     private void visit(FunctionSignature funcSignature) {
-      funcSignature.parameters().forEach(param -> {
-        resolveTypeNode(param.typeNode(), funcSignature.typeParameters());
-        addLocalVariable(param);
-      });
-
-      resolveTypeNode(funcSignature.returnTypeNode(), funcSignature.typeParameters());
+      var resolver = new NamedTypeResolver(funcSignature.typeParameters(),
+          moduleScopedNameResolver);
+      var result = resolver.resolveTypeNode(funcSignature);
+      typeAliases.putAll(result.namedTypes());
+      errors.addAll(result.errors());
+      funcSignature.parameters().forEach(MemberScopedNameResolver.this::addLocalVariable);
     }
 
     private Optional<LocalVariable> resolveLocalVar(VarReference varReference) {

@@ -1,9 +1,24 @@
 package com.pentlander.sasquach.type;
 
-public record ModuleNamedType(String moduleName, String name) implements NamedType {
+import com.pentlander.sasquach.ast.ModuleScopedIdentifier;
+import com.pentlander.sasquach.ast.TypeNode;
+import java.util.List;
+
+/**
+ * Module qualified named type. It can only refer to a type alias defined in another module.
+ */
+public record ModuleNamedType(ModuleScopedIdentifier id, List<TypeNode<Type>> typeArgumentNodes) implements NamedType {
+  public String name() {
+    return id.id().name();
+  }
+
+  public String moduleName() {
+    return id.moduleId().name();
+  }
+
   @Override
   public String typeName() {
-    return moduleName + "." + name;
+    return id.name();
   }
 
   @Override

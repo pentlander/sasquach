@@ -1,6 +1,12 @@
 package com.pentlander.sasquach.type;
 
 public record ResolvedModuleNamedType(String moduleName, String name, Type type) implements ResolvedNamedType {
+  public ResolvedModuleNamedType {
+    if (type instanceof NamedType) {
+      throw new IllegalStateException("Cannot contain unresolved hamed type: " + type);
+    }
+  }
+
   @Override
   public String typeName() {
     return moduleName + "." + name;

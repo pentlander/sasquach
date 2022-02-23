@@ -1,5 +1,7 @@
 package com.pentlander.sasquach;
 
+import static java.util.stream.Collectors.toMap;
+
 import com.pentlander.sasquach.ast.*;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
@@ -10,13 +12,16 @@ import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.name.ForeignFunctionHandle;
 import com.pentlander.sasquach.name.ForeignFunctions;
 import com.pentlander.sasquach.type.BuiltinType;
+import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 
+import com.pentlander.sasquach.type.TypeParameter;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
@@ -43,13 +48,26 @@ public class Fixtures {
         return func(name, functionParameters, List.of(), returnType, expression);
     }
 
-    public static Function func(String name, List<FunctionParameter> functionParameters, List<Type> typeParameters, Type returnType,
+    @SuppressWarnings("unchecked")
+    public static TypeNode<Type> typeNode(Type type) {
+      if (type instanceof StructType structType) {
+         var structTypeNode =
+             (TypeNode<? extends Type>) new StructTypeNode(structType.fieldTypes().entrySet().stream().collect(toMap(Entry
+        ::getKey, entry -> typeNode(entry.getValue()))), range());
+         return (TypeNode<Type>) structTypeNode;
+      }
+      return new BasicTypeNode<>(type, range());
+    }
+
+    public static Function func(String name, List<FunctionParameter> functionParameters,
+        List<TypeParameter> typeParameters, Type returnType,
         Expression expression) {
         return new Function(
             id(name),
             new FunctionSignature(functionParameters,
-            typeParameters.stream().map(t -> new TypeNode(t, range())).toList(),
-            new TypeNode(returnType, range()),
+                typeParameters.stream()
+                    .map(t -> (TypeNode<TypeParameter>) new BasicTypeNode<>(t, range())).toList(),
+            typeNode(returnType),
             range()), expression);
     }
 
@@ -80,10 +98,6 @@ public class Fixtures {
 
     public static Value stringValue(String value) {
         return new Value(BuiltinType.STRING, value, range());
-    }
-
-    public static TypeNode typeNode(Type type) {
-        return new TypeNode(type, range());
     }
 
   public static ForeignFunctions foreignMethods(Class<?> clazz, Predicate<Method> methodPredicate) {

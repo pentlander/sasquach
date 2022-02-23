@@ -1,23 +1,28 @@
 package com.pentlander.sasquach.type;
 
-public record TypeParameter(String name) implements Type, ParameterizedType {
+import com.pentlander.sasquach.ast.Id;
+
+/**
+ * Represents a type parameter defined as part of a type alias or function signature.
+ */
+public record TypeParameter(Id id) implements Type {
   @Override
   public String typeName() {
-    return name;
+    return id.name();
   }
 
   @Override
   public Class<?> typeClass() {
-    return Object.class;
+    throw new IllegalStateException();
   }
 
   @Override
   public String descriptor() {
-    return Object.class.descriptorString();
+    throw new IllegalStateException();
   }
 
   @Override
   public String internalName() {
-    return Object.class.getCanonicalName();
+    throw new IllegalStateException();
   }
 }

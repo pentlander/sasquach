@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Type of a function, including the parameter types, the type parameters, and return type.
@@ -60,7 +59,8 @@ public record FunctionType(List<Type> parameterTypes, List<TypeParameter> typePa
 
   @Override
   public String toPrettyString() {
-    var typeParams = !typeParameters.isEmpty() ? typeParameters.stream().map(TypeParameter::name)
+    var typeParams =
+        !typeParameters.isEmpty() ? typeParameters.stream().map(TypeParameter::typeName)
         .collect(joining(", ", "[", "]")) : "";
     return typeParams + parameterTypes().stream().map(Type::toPrettyString)
         .collect(joining(", ", "(", ")")) + " -> " + returnType.toPrettyString();

@@ -1,18 +1,17 @@
 package com.pentlander.sasquach.ast;
 
-import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.type.Type;
 
-/**
- * Type that is represented in the source code.
- */
-public record TypeNode(Type type, Range range) implements Node {
-  public String typeName() {
-    return type.typeName();
+public sealed interface TypeNode<T extends Type> extends Node permits BasicTypeNode,
+    FunctionSignature, StructTypeNode {
+  T type();
+
+  default String typeName() {
+    return type().typeName();
   }
 
   @Override
-  public String toPrettyString() {
+  default String toPrettyString() {
     return type().toPrettyString();
   }
 }

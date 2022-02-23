@@ -96,24 +96,30 @@ public class TypeResolver implements TypeFetcher {
 
   Type resolveNamedType(Type type) {
     if (type instanceof NamedType namedType) {
-      var resolvedType = nameResolutionResult.getTypeAlias(namedType).map(TypeNode::type);
-      return resolvedType.<Type>map(value -> switch (namedType) {
+      var resolvedType =
+          nameResolutionResult.getNamedType(namedType).map(TypeNode::type).map(this::resolveNamedType)
+          .orElseThrow(() -> new IllegalStateException("Unable to find named type: " + namedType));
+
+      if (resolvedType instanceof TypeParameter typeParameter ) {
+        return new TypeVariable(typeParameter.typeName());
+      }
+
+      return switch (namedType) {
         case ModuleNamedType moduleNamedType -> new ResolvedModuleNamedType(moduleNamedType.moduleName(),
             moduleNamedType.name(),
-            value);
+            resolvedType);
         case LocalNamedType localNamedType -> new ResolvedLocalNamedType(localNamedType.typeName(),
-            value);
-      }).orElseGet(() -> new TypeParameter(namedType.typeName()));
+            resolvedType);
+      };
     }
 
     if (type instanceof ParameterizedType parameterizedType) {
       return switch (parameterizedType) {
-        case StructType structType -> new StructType(structType.typeName(),
-            structType.fieldTypes().entrySet().stream()
+        case StructType structType -> new StructType(structType.fieldTypes().entrySet().stream()
             .collect(toMap(Entry::getKey, e -> resolveNamedType(e.getValue()))));
         case FunctionType funcType -> new FunctionType(funcType.parameterTypes().stream()
             .map(this::resolveNamedType).toList(), resolveNamedType(funcType.returnType()));
-        case TypeParameter typeParameter -> typeParameter;
+        case TypeVariable typeVariable -> typeVariable;
       };
     }
 
@@ -127,7 +133,7 @@ public class TypeResolver implements TypeFetcher {
       }
 
     var typeParams = func.functionSignature().typeParameters().stream().map(TypeNode::type)
-        .map(LocalNamedType.class::cast).map(t -> new TypeParameter(t.typeName())).toList();
+        .toList();
     var paramTypes = func.functionSignature().parameters().stream().map(this::resolveNodeType)
         .toList();
     Type returnType;
@@ -255,7 +261,7 @@ public class TypeResolver implements TypeFetcher {
   private Type resolveIfExpresssion(IfExpression ifExpr) {
     var condtype = resolveExprType(ifExpr.condition());
     if (!(condtype instanceof BuiltinType builtinType) || builtinType != BuiltinType.BOOLEAN) {
-      return addError(new TypeMismatchError(("Expected type '%s' for if condition, but found type%s'").formatted(
+      return addError(new TypeMismatchError(("Expected type '%s' for if condition, but found type '%s'").formatted(
           BuiltinType.BOOLEAN.typeClass(),
           condtype.typeName()), ifExpr.condition().range()));
     }
@@ -278,7 +284,7 @@ public class TypeResolver implements TypeFetcher {
     var structType = TypeUtils.asStructType(exprType);
 
     if (structType.isPresent()) {
-      var fieldType = structType.get().fieldTypes().get(fieldAccess.fieldName());
+      var fieldType = structType.get().fieldType(fieldAccess.fieldName());
       if (fieldType != null) {
         return fieldType;
       } else {
@@ -303,14 +309,16 @@ public class TypeResolver implements TypeFetcher {
       }
       case MemberFunctionCall structFuncCall -> {
         var exprType = resolveExprType(structFuncCall.structExpression());
-        if (exprType instanceof StructType structType) {
+        var structType = TypeUtils.asStructType(exprType);
+
+        if (structType.isPresent()) {
           var funcName = structFuncCall.functionId().name();
-          var fieldType = structType.fieldTypes().get(funcName);
+          var fieldType = structType.get().fieldType(funcName);
           if (fieldType instanceof FunctionType fieldFuncType) {
             funcType = fieldFuncType;
           } else if (fieldType == null) {
             return addError(new TypeMismatchError("Struct of type '%s' has no field named '%s'".formatted(
-                structType.toPrettyString(),
+                structType.get().toPrettyString(),
                 funcName), structFuncCall.range()));
           } else {
             return addError(new TypeMismatchError("Field '%s' of type '%s' is not a function".formatted(
@@ -327,7 +335,7 @@ public class TypeResolver implements TypeFetcher {
     }
 
     var argTypes = funcCall.arguments().stream().map(this::resolveExprType).toList();
-    var paramTypes = funcType.parameterTypes();
+    var paramTypes = funcType.parameterTypes().stream().map(this::resolveNamedType).toList();
     // Handle mismatch between arg count and parameter count
     if (argTypes.size() != paramTypes.size()) {
       return addError(new TypeMismatchError("Function '%s' expects %s arguments but found %s"
@@ -350,7 +358,7 @@ public class TypeResolver implements TypeFetcher {
       }
     }
 
-    return typeUnifier.resolve(funcType.returnType());
+    return typeUnifier.resolve(resolveNamedType(funcType.returnType()));
   }
 
   private Type resolveForeignFieldAccess(ForeignFieldAccess fieldAccess) {
