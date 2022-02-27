@@ -2,7 +2,7 @@ package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
-import com.pentlander.sasquach.ast.NamedTypeDefintion;
+import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.NodeVisitor;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -22,7 +22,7 @@ public class ModuleScopedNameResolver {
   private final Map<String, ModuleScopedNameResolver> moduleImports = new HashMap<>();
   private final Map<String, Class<?>> foreignClasses = new HashMap<>();
   private final Map<String, TypeAlias> typeAliasNames = new HashMap<>();
-  private final Map<TypeNode<Type>, NamedTypeDefintion> namedTypes = new HashMap<>();
+  private final Map<TypeNode<Type>, NamedTypeDefinition> namedTypes = new HashMap<>();
   private final Map<String, Struct.Field> fields = new HashMap<>();
   private final Map<Struct.Field, NameResolutionResult> fieldResults = new HashMap<>();
   private final Map<String, Function> functions = new HashMap<>();

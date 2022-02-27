@@ -8,7 +8,7 @@ import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.InvocationKind;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
-import com.pentlander.sasquach.ast.NamedTypeDefintion;
+import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.QualifiedIdentifier;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -56,7 +56,7 @@ localFunction()
 public class MemberScopedNameResolver {
   // Map of import alias names to resolved foreign classes
   private final ModuleScopedNameResolver moduleScopedNameResolver;
-  private final Map<TypeNode<Type>, NamedTypeDefintion> typeAliases = new HashMap<>();
+  private final Map<TypeNode<Type>, NamedTypeDefinition> typeAliases = new HashMap<>();
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses = new HashMap<>();
   private final Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions = new HashMap<>();
   private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls = new HashMap<>();

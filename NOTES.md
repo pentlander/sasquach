@@ -124,3 +124,7 @@ mod Result {
 * https://blog.nelhage.com/post/reflections-on-performance/
 * https://blog.nelhage.com/post/why-sorbet-is-fast/
 * https://shipilev.net/blog/2015/black-magic-method-dispatch/
+
+## Error Messages
+* https://news.ycombinator.com/item?id=9808317
+* https://elm-lang.org/news/compilers-as-assistants

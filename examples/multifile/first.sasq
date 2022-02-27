@@ -10,6 +10,7 @@ First {
     use first/Option,
     use std/io/IO,
     use std/std/Integer,
+    use std/std/List,
     use foreign java/io/File,
     use foreign java/io/PrintStream,
     use foreign java/lang/System,
@@ -29,5 +30,8 @@ First {
         PrintStream#println(System#out, optInt.value)
         gee(third, "testing")
         IO.println("testing std")
+        let list = List.new()
+        let drinkList = List.conj(list, "drink")
+        PrintStream#println(System#out, List.get(drinkList, 0))
     }
 }
