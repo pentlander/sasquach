@@ -1,6 +1,8 @@
 Option {
-    some = [T](value: T): { value: T } -> { value = value },
-    map = [T, U](option: { value: T }, mapper: { map: (input: T) -> U }): { value: U } -> { value = mapper.map(option.value) }
+    type T[A] = { value: A },
+
+    some = [A](value: A): T[A] -> { value = value },
+    map = [A, B](option: T[A], mapper: { map: (input: A) -> B }): T[B] -> { value = mapper.map(option.value) }
 }
 
 First {

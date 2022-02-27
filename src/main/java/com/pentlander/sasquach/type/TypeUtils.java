@@ -1,6 +1,8 @@
 package com.pentlander.sasquach.type;
 
+import java.util.Collection;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public final class TypeUtils {
   private TypeUtils() {}
@@ -16,5 +18,11 @@ public final class TypeUtils {
       case ResolvedNamedType resolvedNamedType -> asStructType(resolvedNamedType.type());
       case default -> Optional.empty();
     };
+  }
+
+  public static String typeWithArgsToString(String typeName, Collection<Type> typeArgs) {
+    var typeArgString = !typeArgs.isEmpty() ? typeArgs.stream().map(Type::toPrettyString)
+        .collect(Collectors.joining(", ", "[", "]")) : "";
+    return typeName + typeArgString;
   }
 }

@@ -3,6 +3,7 @@ package com.pentlander.sasquach.type;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Resolves type parameters by unifying type variables with concrete types.
@@ -19,11 +20,9 @@ public class TypeUnifier {
   public Type resolve(Type type) {
     if (type instanceof ParameterizedType paramType) {
       return switch (paramType) {
-        case TypeVariable localNamedType -> unifiedTypes.getOrDefault(
-            localNamedType,
-            localNamedType);
+        case TypeVariable typeVariable -> unifiedTypes.getOrDefault(typeVariable, typeVariable);
         case FunctionType funcType -> {
-          var paramTypes = funcType.parameterTypes().stream().map(this::resolve).toList();
+          var paramTypes = resolve(funcType.parameterTypes());
           var returnType = resolve(funcType.returnType());
           yield new FunctionType(paramTypes, List.of(), returnType);
         }
@@ -33,15 +32,34 @@ public class TypeUnifier {
               .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType)));
           yield new StructType(fieldTypes);
         }
+        case ResolvedModuleNamedType namedType -> new ResolvedModuleNamedType(
+            namedType.moduleName(),
+            namedType.name(),
+            resolve(namedType.typeArgs()),
+            resolve(namedType.type()));
+        case ResolvedLocalNamedType namedType -> new ResolvedLocalNamedType(namedType.name(),
+            resolve(namedType.typeArgs()),
+            resolve(namedType.type()));
       };
     }
     return type;
+  }
+
+  private List<Type> resolve(List<Type> types) {
+    return types.stream().map(this::resolve).toList();
   }
 
   /**
    * Unifies a the destination type with the soure type.
    */
   public Type unify(Type destType, Type sourceType) {
+    if (destType instanceof ResolvedNamedType resolvedNamedType) {
+      destType = resolvedNamedType.type();
+    }
+    if (sourceType instanceof ResolvedNamedType resolvedNamedType) {
+      sourceType = resolvedNamedType.type();
+    }
+
     if (destType instanceof ParameterizedType destParamType) {
       unify(destParamType, sourceType);
       return sourceType;
@@ -51,12 +69,12 @@ public class TypeUnifier {
 
   private void unify(ParameterizedType destType, Type sourceType) {
     switch (destType) {
-      case TypeVariable localNamedType -> {
-        var unifiedType = unifiedTypes.get(localNamedType);
+      case TypeVariable typeVar -> {
+        var unifiedType = unifiedTypes.get(typeVar);
         if (unifiedType != null && !unifiedType.equals(sourceType)) {
-          throw new UnificationException(destType, sourceType);
+          throw new UnificationException(destType, sourceType, unifiedType);
         }
-        unifiedTypes.put(localNamedType, sourceType);
+        unifiedTypes.put(typeVar, sourceType);
       }
       case FunctionType destFuncType && sourceType instanceof FunctionType sourceFuncType -> {
         var paramCount = destFuncType.parameterTypes().size();
@@ -81,14 +99,37 @@ public class TypeUnifier {
           unify(destFieldType, sourceFieldType);
         }
       }
-      default -> throw new IllegalStateException("Unexpected value: " + destType);
+      default -> throw new UnificationException(destType, sourceType);
     }
   }
 
   static class UnificationException extends RuntimeException {
-    UnificationException(ParameterizedType destType, Type sourceType) {
+    private final ParameterizedType destType;
+    private final Type sourceType;
+    private final Type resolvedDestType;
+
+    UnificationException(ParameterizedType destType, Type sourceType, Type resolvedDestType) {
       super("Failed to unify types '%s' and '%s'"
           .formatted(destType.toPrettyString(), sourceType.toPrettyString()));
+      this.destType = destType;
+      this.sourceType = sourceType;
+      this.resolvedDestType = resolvedDestType;
+    }
+
+    UnificationException(ParameterizedType destType, Type sourceType) {
+      this(destType, sourceType, null);
+    }
+
+    public ParameterizedType destType() {
+      return destType;
+    }
+
+    public Type sourceType() {
+      return sourceType;
+    }
+
+    public Optional<Type> resolvedDestType() {
+      return Optional.ofNullable(resolvedDestType);
     }
   }
 }

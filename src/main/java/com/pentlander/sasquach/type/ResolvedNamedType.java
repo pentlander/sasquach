@@ -1,6 +1,9 @@
 package com.pentlander.sasquach.type;
 
-public sealed interface ResolvedNamedType extends Type permits ResolvedLocalNamedType,
+import java.util.List;
+
+public sealed interface ResolvedNamedType extends Type, ParameterizedType permits ResolvedLocalNamedType,
     ResolvedModuleNamedType {
   Type type();
+  List<Type> typeArgs();
 }

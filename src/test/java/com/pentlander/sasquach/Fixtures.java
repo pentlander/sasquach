@@ -62,13 +62,9 @@ public class Fixtures {
     public static Function func(String name, List<FunctionParameter> functionParameters,
         List<TypeParameter> typeParameters, Type returnType,
         Expression expression) {
-        return new Function(
-            id(name),
-            new FunctionSignature(functionParameters,
-                typeParameters.stream()
-                    .map(t -> (TypeNode<TypeParameter>) new BasicTypeNode<>(t, range())).toList(),
-            typeNode(returnType),
-            range()), expression);
+      return new Function(id(name),
+          new FunctionSignature(functionParameters, typeParameters, typeNode(returnType), range()),
+          expression);
     }
 
     public static Function voidFunc(String name, Expression expression) {

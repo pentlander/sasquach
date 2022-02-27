@@ -3,6 +3,7 @@ package com.pentlander.sasquach.name;
 import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.RangedErrorList;
+import com.pentlander.sasquach.ast.NamedTypeDefintion;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
@@ -29,8 +30,8 @@ public class NameResolutionResult {
       Map.of(),
       new RangedErrorList(List.of()));
 
-  private final Map<TypeNode<Type>, TypeNode<Type>> typeAliases;
-  private final Map<Type, TypeNode<Type>> typeNameAliases;
+  private final Map<TypeNode<Type>, NamedTypeDefintion> typeAliases;
+  private final Map<Type, NamedTypeDefintion> typeNameAliases;
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses;
   private final Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions;
   private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls;
@@ -38,7 +39,8 @@ public class NameResolutionResult {
   private final Map<LocalVariable, Integer> varIndexes;
   private final RangedErrorList errors;
 
-  public NameResolutionResult(Map<TypeNode<Type>, TypeNode<Type>> typeAliases, Map<ForeignFieldAccess, Field> foreignFieldAccesses,
+  public NameResolutionResult(Map<TypeNode<Type>, NamedTypeDefintion> typeAliases,
+      Map<ForeignFieldAccess, Field> foreignFieldAccesses,
       Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions,
       Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls,
       Map<VarReference, ReferenceDeclaration> varReferences, Map<LocalVariable, Integer> varIndexes,
@@ -53,8 +55,8 @@ public class NameResolutionResult {
     this.errors = errors;
   }
 
-  private static Map<Type, TypeNode<Type>> typeNameAliases(
-      Map<TypeNode<Type>, TypeNode<Type>> typeAliases) {
+  private static Map<Type, NamedTypeDefintion> typeNameAliases(
+      Map<TypeNode<Type>, NamedTypeDefintion> typeAliases) {
     return typeAliases.entrySet().stream()
         .collect(Collectors.toMap(entry -> entry.getKey().type(), Entry::getValue, (a, b) -> a));
   }
@@ -67,7 +69,7 @@ public class NameResolutionResult {
         varIndexes, this.errors.concat(errors));
   }
 
-  public NameResolutionResult withNamedTypes(Map<TypeNode<Type>, TypeNode<Type>> namedTypes) {
+  public NameResolutionResult withNamedTypes(Map<TypeNode<Type>, NamedTypeDefintion> namedTypes) {
     var mergedNamedTypes = new HashMap<>(this.typeAliases);
     mergedNamedTypes.putAll(namedTypes);
     return new NameResolutionResult(mergedNamedTypes,
@@ -83,7 +85,7 @@ public class NameResolutionResult {
     return EMPTY;
   }
 
-  public Optional<TypeNode<Type>> getNamedType(Type type) {
+  public Optional<NamedTypeDefintion> getNamedType(Type type) {
     return Optional.ofNullable(typeNameAliases.get(type));
   }
 
