@@ -1,11 +1,13 @@
 package com.pentlander.sasquach.type;
 
+import static java.util.Objects.requireNonNullElse;
 import static java.util.stream.Collectors.joining;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -13,6 +15,11 @@ import java.util.Optional;
  */
 public record FunctionType(List<Type> parameterTypes, List<TypeParameter> typeParameters,
                            Type returnType) implements ParameterizedType {
+  public FunctionType {
+    parameterTypes = requireNonNullElse(parameterTypes, List.of());
+    typeParameters = requireNonNullElse(typeParameters, List.of());
+  }
+
   public FunctionType(List<Type> parameterTypes, Type returnType) {
     this(parameterTypes, List.of(), returnType);
   }

@@ -1,6 +1,9 @@
 package com.pentlander.sasquach.type;
 
-public record ResolvedModuleNamedType(String moduleName, String name, Type type) implements ResolvedNamedType {
+import java.util.List;
+
+public record ResolvedModuleNamedType(String moduleName, String name, List<Type> typeArgs,
+                                      Type type) implements ResolvedNamedType {
   public ResolvedModuleNamedType {
     if (type instanceof NamedType) {
       throw new IllegalStateException("Cannot contain unresolved hamed type: " + type);
@@ -30,5 +33,10 @@ public record ResolvedModuleNamedType(String moduleName, String name, Type type)
   @Override
   public boolean isAssignableFrom(Type other) {
     return type.isAssignableFrom(other);
+  }
+
+  @Override
+  public String toPrettyString() {
+    return TypeUtils.typeWithArgsToString(moduleName + "." + name, typeArgs);
   }
 }

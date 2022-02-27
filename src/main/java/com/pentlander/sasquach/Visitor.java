@@ -437,11 +437,9 @@ public class Visitor {
     return new Identifier(node.getText(), rangeFrom(node));
   }
 
-  private List<TypeNode<TypeParameter>> typeParams(TypeParameterListContext ctx) {
-    return Optional.ofNullable(ctx)
-        .map(TypeParameterListContext::typeIdentifier).orElse(List.of()).stream()
-        .map(typeParamCtx -> new BasicTypeNode<>(new TypeParameter(id(typeParamCtx.ID())),
-            rangeFrom(typeParamCtx.ID()))).map(t -> (TypeNode<TypeParameter>) t).toList();
+  private List<TypeParameter> typeParams(TypeParameterListContext ctx) {
+    return Optional.ofNullable(ctx).map(TypeParameterListContext::typeIdentifier).orElse(List.of())
+        .stream().map(typeParamCtx -> new TypeParameter(id(typeParamCtx.ID()))).toList();
   }
 
   private List<FunctionParameter> parameterList(TypeVisitor typeVisitor,

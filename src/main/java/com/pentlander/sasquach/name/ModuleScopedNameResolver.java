@@ -2,6 +2,7 @@ package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
+import com.pentlander.sasquach.ast.NamedTypeDefintion;
 import com.pentlander.sasquach.ast.NodeVisitor;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -10,7 +11,6 @@ import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.type.Type;
-import com.pentlander.sasquach.type.TypeUtils;
 import java.lang.invoke.MethodHandles;
 import java.util.Collection;
 import java.util.HashMap;
@@ -22,7 +22,7 @@ public class ModuleScopedNameResolver {
   private final Map<String, ModuleScopedNameResolver> moduleImports = new HashMap<>();
   private final Map<String, Class<?>> foreignClasses = new HashMap<>();
   private final Map<String, TypeAlias> typeAliasNames = new HashMap<>();
-  private final Map<TypeNode<Type>, TypeNode<Type>> namedTypes = new HashMap<>();
+  private final Map<TypeNode<Type>, NamedTypeDefintion> namedTypes = new HashMap<>();
   private final Map<String, Struct.Field> fields = new HashMap<>();
   private final Map<Struct.Field, NameResolutionResult> fieldResults = new HashMap<>();
   private final Map<String, Function> functions = new HashMap<>();
@@ -58,7 +58,7 @@ public class ModuleScopedNameResolver {
   private class Visitor implements NodeVisitor<Void> {
     @Override
     public Void visit(TypeNode<? extends Type> typeNode) {
-      return null;
+      throw new IllegalStateException();
     }
 
     @Override
@@ -100,9 +100,8 @@ public class ModuleScopedNameResolver {
 
     private void checkAliases(Collection<TypeAlias> typeAliases) {
       for (var typeAlias : typeAliases) {
-        var resolver = new NamedTypeResolver(typeAlias.typeParameterNodes(),
-            ModuleScopedNameResolver.this);
-        var result = resolver.resolveTypeNode(typeAlias.typeNode());
+        var resolver = new NamedTypeResolver(ModuleScopedNameResolver.this);
+        var result = resolver.resolveTypeNode(typeAlias);
         namedTypes.putAll(result.namedTypes());
         errors.addAll(result.errors());
       }

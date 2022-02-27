@@ -1,6 +1,8 @@
 package com.pentlander.sasquach.type;
 
-public record ResolvedLocalNamedType(String name, Type type) implements ResolvedNamedType {
+import java.util.List;
+
+public record ResolvedLocalNamedType(String name, List<Type> typeArgs, Type type) implements ResolvedNamedType {
   public ResolvedLocalNamedType {
     if (type instanceof NamedType) {
       throw new IllegalStateException("Cannot contain unresolved hamed type: " + type);
@@ -30,5 +32,10 @@ public record ResolvedLocalNamedType(String name, Type type) implements Resolved
   @Override
   public String internalName() {
     return type.internalName();
+  }
+
+  @Override
+  public String toPrettyString() {
+    return TypeUtils.typeWithArgsToString(name, typeArgs);
   }
 }

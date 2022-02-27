@@ -6,8 +6,8 @@ import com.pentlander.sasquach.type.TypeResolver.UnknownType;
  * Represents the type of an expression.
  */
 public sealed interface Type permits ArrayType, BuiltinType, ClassType, ForeignFieldType,
-    ForeignFunctionType, NamedType, ParameterizedType, ResolvedNamedType, TypeParameter,
-    UnknownType, TypeVariable {
+    ForeignFunctionType, NamedType, ParameterizedType, ResolvedNamedType, UnknownType,
+    TypeVariable {
   /**
    * Name of the type.
    */

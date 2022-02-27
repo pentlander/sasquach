@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
  * type.
  */
 public record FunctionSignature(List<FunctionParameter> parameters,
-                                List<TypeNode<TypeParameter>> typeParameters,
+                                List<TypeParameter> typeParameters,
                                 TypeNode<Type> returnTypeNode, Range range) implements Node,
     TypeNode<FunctionType> {
   public FunctionSignature(List<FunctionParameter> parameters, TypeNode<Type> returnTypeNode,
@@ -31,7 +31,7 @@ public record FunctionSignature(List<FunctionParameter> parameters,
   @Override
   public FunctionType type() {
     return new FunctionType(parameters.stream().map(p -> p.typeNode().type()).toList(),
-        typeParameters.stream().map(TypeNode::type).toList(), returnTypeNode.type());
+        typeParameters, returnTypeNode.type());
   }
 
   @Override

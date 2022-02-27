@@ -6,6 +6,7 @@ import com.pentlander.sasquach.runtime.StructBase;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 
 /**
  * Type of a struct.
@@ -16,6 +17,11 @@ import java.util.Map.Entry;
 public record StructType(String typeName, Map<String, Type> fieldTypes) implements
     ParameterizedType {
   private static final String ANON_PREFIX = "AnonStruct$";
+
+  public StructType {
+    fieldTypes = Objects.requireNonNullElse(fieldTypes, Map.of());
+    fieldTypes.values().forEach(value -> Objects.requireNonNull(value, toString()));
+  }
 
   public StructType(Map<String, Type> fieldTypes) {
     this(ANON_PREFIX + hashFieldTypes(fieldTypes), fieldTypes);
@@ -37,6 +43,7 @@ public record StructType(String typeName, Map<String, Type> fieldTypes) implemen
 
   @Override
   public String descriptor() {
+
     return "L%s;".formatted(StructBase.class.getName().replace('.', '/'));
   }
 

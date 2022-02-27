@@ -2,8 +2,6 @@ package com.pentlander.sasquach;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import org.junit.jupiter.api.Test;
 
 public class EndToEndTest {
@@ -91,7 +89,7 @@ public class EndToEndTest {
         
           map = [A, B](value: A, mapper: Mapper[A, B]): T[B] ->
               { value = mapper.map(value) },
-          main = (): T[String] -> map("foobar", { map = (inp: String): Int -> 10 })
+          main = (): T[Int] -> map("foo", { map = (inp: String): Int -> 10 })
         }
         """);
     var clazz = compileClass(source, "main/Main");

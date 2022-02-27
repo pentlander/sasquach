@@ -10,6 +10,7 @@ import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.CompilationUnit;
+import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
@@ -37,6 +38,7 @@ import com.pentlander.sasquach.name.ForeignFunctions;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Local;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Module;
 import com.pentlander.sasquach.name.NameResolutionResult;
+import com.pentlander.sasquach.type.TypeUnifier.UnificationException;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 
 public class TypeResolver implements TypeFetcher {
@@ -95,35 +98,74 @@ public class TypeResolver implements TypeFetcher {
   }
 
   Type resolveNamedType(Type type) {
+    return resolveNamedType(type, Map.of(), null);
+  }
+
+  Type resolveNamedType(Type type, Range range) {
+    return resolveNamedType(type, Map.of(), range);
+  }
+
+  Type resolveNamedType(Type type, Map<String, Type> typeArgs, Range range) {
     if (type instanceof NamedType namedType) {
-      var resolvedType =
-          nameResolutionResult.getNamedType(namedType).map(TypeNode::type).map(this::resolveNamedType)
+      // Get the alias or type parameter that defines the named type
+      var resolvedType = nameResolutionResult.getNamedType(namedType)
           .orElseThrow(() -> new IllegalStateException("Unable to find named type: " + namedType));
 
-      if (resolvedType instanceof TypeParameter typeParameter ) {
-        return new TypeVariable(typeParameter.typeName());
-      }
+      return switch (resolvedType) {
+        // If it's a type parameter, check if there's a corresponding type argument. If not,
+        // resolve to a type variable for later unification
+        case TypeParameter typeParameter -> typeArgs.getOrDefault(typeParameter.typeName(),
+            new TypeVariable(typeParameter.typeName()));
+        case TypeAlias typeAlias -> {
+          if (typeAlias.typeParameters().size() != namedType.typeArguments().size()) {
+            yield addError(new TypeMismatchError("Number of type args does not match number of "
+                + "type parameters for type '%s'".formatted(typeAlias.toPrettyString()),
+                Objects.requireNonNullElse(range, typeAlias.range())));
+          }
+          var newTypeArgs = new HashMap<>(typeArgs);
+          for (int i = 0; i < typeAlias.typeParameters().size(); i++) {
+            var typeParam = typeAlias.typeParameters().get(i);
+            var typeArg = resolveNamedType(namedType.typeArguments().get(i), range);
+            newTypeArgs.put(typeParam.typeName(), typeArg);
+          }
 
-      return switch (namedType) {
-        case ModuleNamedType moduleNamedType -> new ResolvedModuleNamedType(moduleNamedType.moduleName(),
-            moduleNamedType.name(),
-            resolvedType);
-        case LocalNamedType localNamedType -> new ResolvedLocalNamedType(localNamedType.typeName(),
-            resolvedType);
+          yield switch (namedType) {
+            case ModuleNamedType moduleNamedType -> new ResolvedModuleNamedType(moduleNamedType.moduleName(),
+                moduleNamedType.name(), moduleNamedType.typeArguments(),
+                resolveNamedType(typeAlias.type(), newTypeArgs, range));
+            case LocalNamedType localNamedType -> new ResolvedLocalNamedType(localNamedType.typeName(), localNamedType.typeArguments(),
+                resolveNamedType(typeAlias.type(), newTypeArgs, range));
+          };
+        }
       };
     }
 
     if (type instanceof ParameterizedType parameterizedType) {
       return switch (parameterizedType) {
         case StructType structType -> new StructType(structType.fieldTypes().entrySet().stream()
-            .collect(toMap(Entry::getKey, e -> resolveNamedType(e.getValue()))));
-        case FunctionType funcType -> new FunctionType(funcType.parameterTypes().stream()
-            .map(this::resolveNamedType).toList(), resolveNamedType(funcType.returnType()));
-        case TypeVariable typeVariable -> typeVariable;
+            .collect(toMap(Entry::getKey, e -> resolveNamedType(e.getValue(), typeArgs, range))));
+        case FunctionType funcType -> new FunctionType(
+            resolveNamedTypes(funcType.parameterTypes(), typeArgs, range),
+            resolveNamedType(funcType.returnType(), typeArgs, range));
+        case TypeVariable typeVariable -> typeArgs.getOrDefault(
+            typeVariable.typeName(),
+            typeVariable);
+        case ResolvedModuleNamedType namedType -> new ResolvedModuleNamedType(namedType.moduleName(),
+            namedType.name(),
+            resolveNamedTypes(namedType.typeArgs(), typeArgs, range),
+            resolveNamedType(namedType.type(), typeArgs, range));
+        case ResolvedLocalNamedType namedType -> new ResolvedLocalNamedType(namedType.name(),
+            resolveNamedTypes(namedType.typeArgs(), typeArgs, range),
+            resolveNamedType(namedType.type(), typeArgs, range));
       };
     }
 
     return type;
+  }
+
+  private List<Type> resolveNamedTypes(List<Type> types, Map<String, Type> typeParams,
+      Range range) {
+    return types.stream().map(t -> resolveNamedType(t, typeParams, range)).toList();
   }
 
   FunctionType resolveFuncType(Function func) {
@@ -132,14 +174,15 @@ public class TypeResolver implements TypeFetcher {
           return type.get();
       }
 
-    var typeParams = func.functionSignature().typeParameters().stream().map(TypeNode::type)
+    var typeParams = func.functionSignature().typeParameters();
+    var paramTypes = func.functionSignature().parameters().stream()
+        .map(funcParam -> resolveNamedType(funcParam.type(), funcParam.typeNode().range()))
         .toList();
-    var paramTypes = func.functionSignature().parameters().stream().map(this::resolveNodeType)
-        .toList();
+
     Type returnType;
     try {
       var resolvedReturnType = resolveExprType(func.expression());
-      returnType = resolveNamedType(func.returnType());
+      returnType = resolveNamedType(func.returnType(), func.functionSignature().returnTypeNode().range());
       if (!returnType.isAssignableFrom(resolvedReturnType)) {
         addError(new TypeMismatchError(
             "Type of function return expression '%s' does not match return type of function '%s'"
@@ -170,7 +213,7 @@ public class TypeResolver implements TypeFetcher {
       }
       case Function func -> type = resolveFuncType(func);
       case FunctionParameter funcParam -> {
-        type = resolveNamedType(funcParam.type());
+        type = resolveNamedType(funcParam.type(), funcParam.typeNode().range());
         putIdType(funcParam.id(), type);
       }
       case Use.Foreign useForeign -> {
@@ -183,7 +226,7 @@ public class TypeResolver implements TypeFetcher {
       case null, default -> throw new IllegalStateException();
     }
 
-    return type;
+    return Objects.requireNonNullElse(type, UNKNOWN_TYPE);
   }
 
   private static Type builtinOrClassType(Class<?> clazz) {
@@ -349,7 +392,18 @@ public class TypeResolver implements TypeFetcher {
       var argType = argTypes.get(i);
       var paramType = paramTypes.get(i);
 
-      paramType = typeUnifier.unify(paramType, argType);
+      var oldParam = paramType;
+      try {
+        paramType = typeUnifier.unify(paramType, argType);
+      } catch (UnificationException e) {
+        return addError(new TypeMismatchError(
+            "Type '%s' in '%s' should be '%s', but found '%s'".formatted(
+                e.destType().toPrettyString(),
+                oldParam.toPrettyString(),
+                e.resolvedDestType().map(Type::toPrettyString).orElse("none"),
+                e.sourceType().toPrettyString()),
+            funcCall.arguments().get(i).range()));
+      }
       if (!paramType.isAssignableFrom(argType)) {
         return addError(new TypeMismatchError(
             "Argument type '%s' does not match parameter type '%s'"

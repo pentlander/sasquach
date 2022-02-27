@@ -9,7 +9,7 @@ public sealed interface NamedType extends Type permits LocalNamedType, ModuleNam
 
   List<TypeNode<Type>> typeArgumentNodes();
 
-  default List<? extends Type> typeArguments() {
+  default List<Type> typeArguments() {
     return typeArgumentNodes().stream().map(TypeNode::type).toList();
   }
 

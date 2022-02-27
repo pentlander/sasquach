@@ -1,14 +1,14 @@
 package com.pentlander.sasquach.name;
 
-import static java.util.Objects.*;
+import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.InternalCompilerException;
-import com.pentlander.sasquach.Range.Single;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.InvocationKind;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
+import com.pentlander.sasquach.ast.NamedTypeDefintion;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.QualifiedIdentifier;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -23,13 +23,7 @@ import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
-import com.pentlander.sasquach.type.FunctionType;
-import com.pentlander.sasquach.type.ModuleNamedType;
-import com.pentlander.sasquach.type.LocalNamedType;
-import com.pentlander.sasquach.type.ParameterizedType;
-import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
-import com.pentlander.sasquach.type.TypeVariable;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -38,7 +32,6 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -63,8 +56,7 @@ localFunction()
 public class MemberScopedNameResolver {
   // Map of import alias names to resolved foreign classes
   private final ModuleScopedNameResolver moduleScopedNameResolver;
-  private final Map<TypeNode<Type>, TypeNode<Type>> typeAliases =
-      new HashMap<>();
+  private final Map<TypeNode<Type>, NamedTypeDefintion> typeAliases = new HashMap<>();
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses = new HashMap<>();
   private final Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions = new HashMap<>();
   private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls = new HashMap<>();
@@ -234,8 +226,7 @@ public class MemberScopedNameResolver {
     }
 
     private void visit(FunctionSignature funcSignature) {
-      var resolver = new NamedTypeResolver(funcSignature.typeParameters(),
-          moduleScopedNameResolver);
+      var resolver = new NamedTypeResolver(moduleScopedNameResolver);
       var result = resolver.resolveTypeNode(funcSignature);
       typeAliases.putAll(result.namedTypes());
       errors.addAll(result.errors());

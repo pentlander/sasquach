@@ -10,9 +10,9 @@ public interface NodeVisitor<T> {
       case FunctionParameter funcParam -> visit(funcParam);
       case FunctionSignature funcSig -> visit(funcSig);
       case ModuleDeclaration modDecl -> visit(modDecl);
+      case TypeAlias typeAlias -> visit(typeAlias);
       case TypeNode<? extends Type> typeNode -> visit(typeNode);
       case Use use -> visit(use);
-      case TypeAlias typeAlias -> visit(typeAlias);
       case Expression expression -> visit(expression);
       case null, default -> throw new IllegalStateException();
     };
