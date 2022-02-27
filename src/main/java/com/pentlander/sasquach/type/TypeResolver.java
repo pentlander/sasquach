@@ -176,7 +176,7 @@ public class TypeResolver implements TypeFetcher {
 
     var typeParams = func.functionSignature().typeParameters();
     var paramTypes = func.functionSignature().parameters().stream()
-        .map(funcParam -> resolveNamedType(funcParam.type(), funcParam.typeNode().range()))
+        .map(funcParam -> resolveNamedType(resolveNodeType(funcParam), funcParam.typeNode().range()))
         .toList();
 
     Type returnType;
@@ -249,7 +249,7 @@ public class TypeResolver implements TypeFetcher {
       }
       case VarReference varRef -> switch (nameResolutionResult.getVarReference(varRef)) {
         case Local local -> getIdType(local.localVariable()
-            .id()).orElseThrow(() -> new IllegalStateException("Unable to find local: " + local.toPrettyString()));
+            .id()).orElseThrow(() -> new IllegalStateException("Unable to find local: " + local));
         case Module module -> resolveExprType(module.moduleDeclaration().struct());
       };
       case BinaryExpression binExpr -> {
