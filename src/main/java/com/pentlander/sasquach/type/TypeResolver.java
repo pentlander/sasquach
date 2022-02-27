@@ -10,6 +10,7 @@ import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.CompilationUnit;
+import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.Identifier;
@@ -137,6 +138,7 @@ public class TypeResolver implements TypeFetcher {
                 resolveNamedType(typeAlias.type(), newTypeArgs, range));
           };
         }
+        case ForeignClass foreignClass -> new ClassType(foreignClass.clazz());
       };
     }
 

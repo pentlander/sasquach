@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 /** Declaration of a type alias, with optional type parameters. */
 public record TypeAlias(Identifier id, List<TypeParameter> typeParameters,
                         TypeNode<Type> typeNode, Range range) implements TypeNode<Type>,
-    NamedTypeDefintion {
+    NamedTypeDefinition {
   public TypeAlias {
     typeParameters = Objects.requireNonNullElse(typeParameters, List.of());
   }

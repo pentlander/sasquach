@@ -252,6 +252,9 @@ public class Visitor {
     }
 
     private List<Expression> args(ApplicationContext ctx) {
+      if (ctx.expressionList() == null) {
+        return List.of();
+      }
       return ctx.expressionList().expression().stream().map(argCtx -> argCtx.accept(this)).toList();
     }
 

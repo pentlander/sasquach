@@ -40,7 +40,8 @@ ifBlock : IF ifCondition=expression trueBlock=expression (ELSE falseBlock=expres
 functionCall : functionName application ;
 
 expressionList : expression (',' expression)* ;
-application :  LP expressionList RP ;
+application :  LP expressionList? RP
+  | LP expressionList? {notifyErrorListeners("Missing closing ')'");} ;
 
 expression :
     left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
@@ -56,7 +57,7 @@ expression :
   | expression '.' memberName (application)? #memberAccessExpression
   | block #blockExpression ;
 
-struct : '{' NL* structStatement (',' NL* structStatement)* NL* '}' ;
+struct : '{' NL* structStatement (',' NL* structStatement)* (',')? NL* '}' ;
 structStatement : use #useStatement
   | TYPEALIAS typeIdentifier typeParameterList? EQUALS type #typeAliasStatement
   | memberName EQUALS (expression|function) #identifierStatement ;

@@ -5,3 +5,25 @@ Integer {
 
   parse = (str: String): Int -> Integer#parseInt(str)
 }
+
+List {
+  use foreign java/util/ArrayList,
+
+  type T[A] = { list: ArrayList },
+
+  new = [A](): T[A] -> { list = ArrayList#new() },
+
+  of = [A](value: A): T[A] -> {
+    let list = ArrayList#new()
+    ArrayList#add(list, value)
+    { list = list }
+  },
+
+  conj = [A](list: T[A], value: A): T[A] -> {
+    let listCopy = ArrayList#new(list.list)
+    ArrayList#add(listCopy, value)
+     { list = listCopy }
+  },
+
+  get = [A](list: T[A], idx: Int): A -> ArrayList#get(list.list, idx)
+}

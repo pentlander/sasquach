@@ -3,7 +3,8 @@ package com.pentlander.sasquach.name;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.FunctionSignature;
-import com.pentlander.sasquach.ast.NamedTypeDefintion;
+import com.pentlander.sasquach.ast.NamedTypeDefinition;
+import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
 import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -21,7 +22,7 @@ public class NamedTypeResolver {
   private final List<TypeParameter> contextTypeParams;
   private final ModuleScopedNameResolver moduleScopedNameResolver;
   // Map of named types to the name declaration, e.g. type alias or type parameter
-  private final Map<TypeNode<Type>, NamedTypeDefintion> namedTypes = new HashMap<>();
+  private final Map<TypeNode<Type>, NamedTypeDefinition> namedTypes = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
   public NamedTypeResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
@@ -34,7 +35,7 @@ public class NamedTypeResolver {
   }
 
   @SuppressWarnings("unchecked")
-  private void putNamedType(TypeNode<? extends Type> typeNode, NamedTypeDefintion namedTypeDef) {
+  private void putNamedType(TypeNode<? extends Type> typeNode, NamedTypeDefinition namedTypeDef) {
     var existing = namedTypes.put((TypeNode<Type>) typeNode,  namedTypeDef);
     if (existing != null) {
       throw new IllegalStateException();
@@ -82,6 +83,7 @@ public class NamedTypeResolver {
           .findFirst();
       // Check if the named type matches a local type alias
       var typeAlias = moduleScopedNameResolver.resolveTypeAlias(localNamedType.typeName());
+      var foreignClass = moduleScopedNameResolver.resolveForeignClass(localNamedType.typeName());
       // Ensure that a named type is only resolved from one source. If it isn't, create an error.
       if (typeParam.isPresent() && typeAlias.isPresent()) {
         var aliasId =  typeAlias.get().id();
@@ -92,10 +94,13 @@ public class NamedTypeResolver {
       } else if (typeParam.isPresent()) {
         // Exit if the named type matches a type parameter
         putNamedType(typeNode, typeParam.get());
+      } else if (foreignClass.isPresent()) {
+        putNamedType(typeNode, new ForeignClass(foreignClass.get()));
       } else {
         errors.add(new NameNotFoundError(localNamedType.id(), "named type"));
       }
     } else if (type instanceof ModuleNamedType moduleNamedType) {
+      moduleNamedType.typeArgumentNodes().forEach(this::resolveType);
       var moduleScopedResolver = moduleScopedNameResolver.resolveModuleResolver(moduleNamedType.moduleName());
       moduleScopedResolver.flatMap(m -> m.resolveTypeAlias(moduleNamedType.name()))
           .ifPresentOrElse(alias -> putNamedType(typeNode, alias),
@@ -103,5 +108,5 @@ public class NamedTypeResolver {
     }
   }
 
-  public record Result(Map<TypeNode<Type>, NamedTypeDefintion> namedTypes, RangedErrorList errors) {}
+  public record Result(Map<TypeNode<Type>, NamedTypeDefinition> namedTypes, RangedErrorList errors) {}
 }
