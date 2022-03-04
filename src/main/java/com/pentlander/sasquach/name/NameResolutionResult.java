@@ -4,11 +4,13 @@ import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
+import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
+import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
@@ -28,6 +30,7 @@ public class NameResolutionResult {
       Map.of(),
       Map.of(),
       Map.of(),
+      Map.of(),
       new RangedErrorList(List.of()));
 
   private final Map<TypeNode<Type>, NamedTypeDefinition> typeAliases;
@@ -37,13 +40,15 @@ public class NameResolutionResult {
   private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls;
   private final Map<VarReference, ReferenceDeclaration> varReferences;
   private final Map<LocalVariable, Integer> varIndexes;
+  private final Map<Recur, RecurPoint> recurPoints;
   private final RangedErrorList errors;
 
   public NameResolutionResult(Map<TypeNode<Type>, NamedTypeDefinition> typeAliases,
       Map<ForeignFieldAccess, Field> foreignFieldAccesses,
       Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions,
       Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls,
-      Map<VarReference, ReferenceDeclaration> varReferences, Map<LocalVariable, Integer> varIndexes,
+      Map<VarReference, ReferenceDeclaration> varReferences,
+      Map<LocalVariable, Integer> varIndexes, Map<Recur, RecurPoint> recurPoints,
       RangedErrorList errors) {
     this.typeAliases = typeAliases;
     this.typeNameAliases = typeNameAliases(typeAliases);
@@ -52,6 +57,7 @@ public class NameResolutionResult {
     this.localFunctionCalls = localFunctionCalls;
     this.varReferences = varReferences;
     this.varIndexes = varIndexes;
+    this.recurPoints = recurPoints;
     this.errors = errors;
   }
 
@@ -66,7 +72,7 @@ public class NameResolutionResult {
         foreignFunctions,
         localFunctionCalls,
         varReferences,
-        varIndexes, this.errors.concat(errors));
+        varIndexes, recurPoints, this.errors.concat(errors));
   }
 
   public NameResolutionResult withNamedTypes(Map<TypeNode<Type>, NamedTypeDefinition> namedTypes) {
@@ -78,6 +84,7 @@ public class NameResolutionResult {
         localFunctionCalls,
         varReferences,
         varIndexes,
+        recurPoints,
         errors);
   }
 
@@ -102,11 +109,15 @@ public class NameResolutionResult {
   }
 
   public ReferenceDeclaration getVarReference(VarReference varReference) {
-    return requireNonNull(varReferences.get(varReference));
+    return requireNonNull(varReferences.get(varReference), varReference.toString());
   }
 
   public Integer getVarIndex(LocalVariable localVariable) {
     return requireNonNull(varIndexes.get(localVariable));
+  }
+
+  public RecurPoint getRecurPoint(Recur recur) {
+    return requireNonNull(recurPoints.get(recur));
   }
 
   public RangedErrorList errors() {
@@ -120,6 +131,7 @@ public class NameResolutionResult {
         merged(localFunctionCalls, other.localFunctionCalls),
         merged(varReferences, other.varReferences),
         merged(varIndexes, other.varIndexes),
+        merged(recurPoints, other.recurPoints),
         errors.concat(other.errors));
   }
 

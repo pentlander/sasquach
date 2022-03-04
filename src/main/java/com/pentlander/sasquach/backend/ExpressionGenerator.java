@@ -14,10 +14,13 @@ import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.FieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
+import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
+import com.pentlander.sasquach.ast.expression.Loop;
 import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
 import com.pentlander.sasquach.ast.expression.PrintStatement;
+import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
@@ -40,6 +43,8 @@ import com.pentlander.sasquach.type.TypeUtils;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +60,7 @@ class ExpressionGenerator {
       CallSite.class,
       List.of(Lookup.class, String.class, MethodType.class)).descriptorString();
   private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
+  private final Deque<Label> loopLabels = new ArrayDeque<>();
   private final MethodVisitor methodVisitor;
   private final NameResolutionResult nameResolutionResult;
   private final TypeFetcher typeFetcher;
@@ -113,23 +119,8 @@ class ExpressionGenerator {
         var varDeclExpr = varDecl.expression();
         int idx = nameResolutionResult.getVarIndex(varDecl);
         generate(varDeclExpr);
-        var type = type(varDeclExpr);
-        if (type instanceof BuiltinType builtinType) {
-          Integer opcode = switch (builtinType) {
-            case BOOLEAN, INT, BYTE, CHAR, SHORT -> Opcodes.ISTORE;
-            case LONG -> Opcodes.LSTORE;
-            case FLOAT -> Opcodes.FSTORE;
-            case DOUBLE -> Opcodes.DSTORE;
-            case STRING -> Opcodes.ASTORE;
-            case STRING_ARR -> Opcodes.AASTORE;
-            case VOID -> null;
-          };
-          if (opcode != null) {
-            methodVisitor.visitVarInsn(opcode, idx);
-          }
-        } else {
-          methodVisitor.visitVarInsn(Opcodes.ASTORE, idx);
-        }
+        var varType = type(varDeclExpr);
+        generateStoreVar(methodVisitor, varType, idx);
       }
       case VarReference varReference -> {
         var refDecl = nameResolutionResult.getVarReference(varReference);
@@ -314,6 +305,29 @@ class ExpressionGenerator {
             funcType.descriptorWith(0, new ClassType(StructBase.class)),
             handle);
       }
+      case Loop loop -> {
+        loop.varDeclarations().forEach(this::generate);
+        var recurPoint = new Label();
+        loopLabels.addLast(recurPoint);
+        methodVisitor.visitLabel(recurPoint);
+        generate(loop.expression());
+        loopLabels.removeLast();
+      }
+      case Recur recur -> {
+        var recurPoint = nameResolutionResult.getRecurPoint(recur);
+        var localVars = switch (recurPoint) {
+          case Loop loop -> loop.varDeclarations();
+          case Function func -> func.parameters();
+        };
+
+        for (int i = 0; i < recur.arguments().size(); i++) {
+          var arg = recur.arguments().get(i);
+          var varDecl = localVars.get(i);
+          generate(arg);
+          generateStoreVar(methodVisitor, type(arg), nameResolutionResult.getVarIndex(varDecl));
+        }
+        methodVisitor.visitJumpInsn(Opcodes.GOTO, loopLabels.getLast());
+      }
       case default -> throw new IllegalStateException("Unrecognized expression: " + expression);
     }
   }
@@ -357,7 +371,31 @@ class ExpressionGenerator {
     }
   }
 
+  static void generateStoreVar(MethodVisitor methodVisitor, Type type, int idx) {
+    if (type instanceof BuiltinType builtinType) {
+      Integer opcode = switch (builtinType) {
+        case BOOLEAN, INT, BYTE, CHAR, SHORT -> Opcodes.ISTORE;
+        case LONG -> Opcodes.LSTORE;
+        case FLOAT -> Opcodes.FSTORE;
+        case DOUBLE -> Opcodes.DSTORE;
+        case STRING -> Opcodes.ASTORE;
+        case STRING_ARR -> Opcodes.AASTORE;
+        case VOID -> null;
+      };
+      if (opcode != null) {
+        methodVisitor.visitVarInsn(opcode, idx);
+      }
+    } else {
+      methodVisitor.visitVarInsn(Opcodes.ASTORE, idx);
+    }
+  }
+
   private void generateBlock(Block block) {
-    block.expressions().forEach(this::generate);
+    for (var expr : block.expressions()) {
+      generate(expr);
+      if (!(expr instanceof VariableDeclaration) && !expr.equals(block.returnExpression()) && !type(expr).equals(BuiltinType.VOID)) {
+        methodVisitor.visitInsn(Opcodes.POP);
+      }
+    }
   }
 }

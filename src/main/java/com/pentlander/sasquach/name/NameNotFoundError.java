@@ -4,8 +4,13 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.Id;
+import java.util.List;
 
-record NameNotFoundError(Id id, String nodeType) implements RangedError {
+record NameNotFoundError(Id id, String nodeType, List<String> suggestions) implements RangedError {
+  public NameNotFoundError(Id id, String nodeType) {
+    this(id, nodeType, List.of());
+  }
+
   @Override
   public Range range() {
     return id.range();
@@ -13,9 +18,13 @@ record NameNotFoundError(Id id, String nodeType) implements RangedError {
 
   @Override
   public String toPrettyString(Source source) {
+    var matchesStr = "";
+    if (!suggestions.isEmpty()) {
+      matchesStr = "\nPossible matches: \n  " + String.join("\n  ", suggestions);
+    }
     return """
         Could not find %s '%s' in scope.
-        %s
-        """.formatted(nodeType, id().name(), source.highlight(id.range()));
+        %s%s
+        """.formatted(nodeType, id().name(), source.highlight(id.range()), matchesStr);
   }
 }

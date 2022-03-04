@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
 class ClassGenerator {
@@ -47,7 +48,7 @@ class ClassGenerator {
     return generatedClasses;
   }
 
-  private void addContextNode(Node node) {
+  private void setContext(Node node) {
     contextNode = node;
   }
 
@@ -64,7 +65,7 @@ class ClassGenerator {
   }
 
   void generateStruct(Struct struct) {
-    addContextNode(struct);
+    setContext(struct);
     // Generate class header
     var structType = type(struct);
     generatedClasses.put(structType.typeName().replace('/', '.'), classWriter);
@@ -74,6 +75,8 @@ class ClassGenerator {
         null,
         "java/lang/Object",
         new String[]{STRUCT_BASE_INTERNAL_NAME});
+    var sourcePath = struct.range().sourcePath().filepath();
+    classWriter.visitSource(sourcePath, null);
     List<Field> fields = struct.fields();
     // Generate fields
     for (var field : fields) {
@@ -150,14 +153,17 @@ class ClassGenerator {
 
   private void generateFunction(ClassWriter classWriter, Function function,
       NameResolutionResult memberNameResolutionResult) {
-    addContextNode(function);
+    setContext(function);
     var funcType = type(function.id());
+
     var methodVisitor = classWriter.visitMethod(
         Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC,
         function.name(),
         funcType.descriptor(),
         null,
         null);
+    var lineNum = function.nameRange().start().line();
+    methodVisitor.visitLineNumber(lineNum, new Label());
     methodVisitor.visitCode();
     var exprGenerator = new ExpressionGenerator(methodVisitor,
         memberNameResolutionResult, typeFetcher);

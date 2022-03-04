@@ -27,10 +27,12 @@ import static com.pentlander.sasquach.SasquachParser.UseStatementContext;
 import static com.pentlander.sasquach.SasquachParser.VarReferenceContext;
 import static com.pentlander.sasquach.SasquachParser.VariableDeclarationContext;
 import static com.pentlander.sasquach.ast.expression.Struct.StructKind;
+import static java.util.Objects.*;
 
 import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
 import com.pentlander.sasquach.SasquachParser.CompareExpressionContext;
 import com.pentlander.sasquach.SasquachParser.LocalNamedTypeContext;
+import com.pentlander.sasquach.SasquachParser.LoopExpressionContext;
 import com.pentlander.sasquach.SasquachParser.ModuleNamedTypeContext;
 import com.pentlander.sasquach.SasquachParser.TypeAliasStatementContext;
 import com.pentlander.sasquach.SasquachParser.TypeArgumentListContext;
@@ -60,8 +62,10 @@ import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
+import com.pentlander.sasquach.ast.expression.Loop;
 import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
 import com.pentlander.sasquach.ast.expression.PrintStatement;
+import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Value;
@@ -77,6 +81,7 @@ import com.pentlander.sasquach.type.TypeParameter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
@@ -207,6 +212,10 @@ public class Visitor {
     @Override
     public Expression visitFunctionCall(FunctionCallContext ctx) {
       var arguments = args(ctx.application());
+      var funcId = ctx.functionName().ID();
+      if (funcId.getText().equals("recur")) {
+        return new Recur(arguments, rangeFrom(ctx));
+      }
 
       return new LocalFunctionCall(id(ctx.functionName().ID()), arguments, rangeFrom(ctx));
     }
@@ -303,6 +312,16 @@ public class Visitor {
     @Override
     public Expression visitBooleanLiteral(BooleanLiteralContext ctx) {
       return new Value(BuiltinType.BOOLEAN, ctx.getText(), rangeFrom(ctx));
+    }
+
+    @Override
+    public Expression visitLoopExpression(LoopExpressionContext ctx) {
+      var loop = ctx.loop();
+      var varDeclCtx = requireNonNullElse(loop.variableDeclaration(),
+          List.<VariableDeclarationContext>of());
+      var varDecls = varDeclCtx.stream().map(this::visitVariableDeclaration)
+          .map(VariableDeclaration.class::cast).toList();
+      return new Loop(varDecls, loop.expression().accept(this), rangeFrom(ctx));
     }
   }
 

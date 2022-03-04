@@ -20,6 +20,26 @@ public class EndToEndTest {
   }
 
   @Test
+  void loopRecur() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          plus = (): Int -> {
+            loop (let a = 0) -> if (a > 4) {
+              a
+            } else {
+              recur(a + 1)
+            }
+          }
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    int sum = invokeName(clazz, "plus", null);
+
+    assertThat(sum).isEqualTo(5);
+  }
+
+  @Test
   void typeAliasStruct() throws Exception {
     var source = Source.fromString("main",
         """

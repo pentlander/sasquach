@@ -5,6 +5,9 @@ import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.IfExpression;
+import com.pentlander.sasquach.ast.expression.Loop;
+import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -55,6 +58,21 @@ public class AstValidator {
     var errors = new ArrayList<Error>();
     if (expression instanceof Block block) {
       errors.addAll(validateBlock(block));
+    } else if (expression instanceof Loop loop) {
+      var expr = loop.expression();
+      if (expr instanceof Block block) {
+        expr = block.returnExpression();
+      }
+
+      if (expr instanceof IfExpression ifExpr) {
+        var hasRecur =
+            ifExpr.trueExpression() instanceof Recur || ifExpr.falseExpression() instanceof Recur;
+        if (!hasRecur) {
+          errors.add(new BasicError("Loop must contain a recur"));
+        }
+      } else {
+        errors.add(new BasicError("Loop must end in an if expression"));
+      }
     }
 
     return errors;
