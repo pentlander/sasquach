@@ -11,6 +11,7 @@ import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.QualifiedIdentifier;
+import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
@@ -21,11 +22,14 @@ import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
+import com.pentlander.sasquach.ast.expression.Loop;
+import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.type.Type;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -64,8 +68,12 @@ public class MemberScopedNameResolver {
   private final Map<VarReference, ModuleDeclaration> moduleReferences = new HashMap<>();
   private final Map<LocalVariable, Integer> localVariableIndex = new HashMap<>();
   private final Deque<Map<String, LocalVariable>> localVariableStacks = new ArrayDeque<>();
+  private final Deque<Loop> loopStack = new ArrayDeque<>();
+  private final Map<Recur, RecurPoint> recurPoints = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
   private final Visitor visitor = new Visitor();
+
+  private Function function = null;
 
   public MemberScopedNameResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
     this.moduleScopedNameResolver = moduleScopedNameResolver;
@@ -77,6 +85,7 @@ public class MemberScopedNameResolver {
   }
 
   public NameResolutionResult resolve(Function function) {
+    this.function = function;
     visitor.visit(function);
     return resolutionResult();
   }
@@ -93,7 +102,7 @@ public class MemberScopedNameResolver {
         foreignFunctions,
         localFunctionCalls,
         varReferences,
-        localVariableIndex, errors.build());
+        localVariableIndex, recurPoints, errors.build());
   }
 
   // Need to check that there isn't already a local function or module alias with this name
@@ -155,6 +164,7 @@ public class MemberScopedNameResolver {
             var isConstructor = funcName.equals("new");
             var lookup = MethodHandles.lookup();
             int argCount = foreignFunctionCall.argumentCount();
+            var matchingNames = new ArrayList<Method>();
             if (isConstructor) {
               for (var constructor : clazz.getConstructors()) {
                 try {
@@ -175,6 +185,8 @@ public class MemberScopedNameResolver {
                   if (method.getName().equals(funcName) && methodHandle.type().parameterCount() == argCount) {
                     matchingForeignFunctions.add(new ForeignFunctionHandle(methodHandle,
                         isStatic ? InvocationKind.STATIC : InvocationKind.VIRTUAL));
+                  } else if (method.getName().equals(funcName)) {
+                    matchingNames.add(method);
                   }
                 } catch (IllegalAccessException e) {
                   // Ignore inaccessible methods
@@ -184,7 +196,7 @@ public class MemberScopedNameResolver {
             if (matchingForeignFunctions.isEmpty()) {
               errors.add(new NameNotFoundError(
                   foreignFunctionCall.functionId(),
-                  "foreign function"));
+                  "foreign function", matchingNames.stream().map(Method::toString).toList()));
             } else {
               foreignFunctions.put(foreignFunctionCall, new ForeignFunctions(clazz, matchingForeignFunctions));
             }
@@ -258,6 +270,31 @@ public class MemberScopedNameResolver {
           errors.add(new NameNotFoundError(varReference.id(), "variable, parameter, or module"));
         }
       }
+      return null;
+    }
+
+    @Override
+    public Void visit(Loop loop) {
+      pushScope();
+      loopStack.addLast(loop);
+      loop.varDeclarations().forEach(this::visit);
+      visit(loop.expression());
+      loopStack.removeLast();
+      popScope();
+      return null;
+    }
+
+    @Override
+    public Void visit(Recur recur) {
+      var loop = loopStack.getLast();
+      if (loop != null) {
+        recurPoints.put(recur, loop);
+      } else if (function != null) {
+        recurPoints.put(recur, function);
+      } else {
+        throw new IllegalStateException();
+      }
+      recur.arguments().forEach(this::visit);
       return null;
     }
 

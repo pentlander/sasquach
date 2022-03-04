@@ -22,6 +22,8 @@ public interface ExpressionVisitor<T> {
       case Value value -> visit(value);
       case VariableDeclaration variableDeclaration -> visit(variableDeclaration);
       case VarReference varReference -> visit(varReference);
+      case Recur recur -> visit(recur);
+      case Loop loop -> visit(loop);
     };
   }
 
@@ -110,6 +112,15 @@ public interface ExpressionVisitor<T> {
   }
 
   default T visit(VarReference varReference) {
+    return defaultValue();
+  }
+
+  default T visit(Loop loop) {
+    return visit(loop.expression());
+  }
+
+  default T visit(Recur recur) {
+    recur.arguments().forEach(this::visit);
     return defaultValue();
   }
 

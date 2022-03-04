@@ -32,6 +32,7 @@ First {
         IO.println("testing std")
         let list = List.new()
         let drinkList = List.conj(list, "drink")
-        PrintStream#println(System#out, List.get(drinkList, 0))
+        let intList = List.map(drinkList, { map = (value: String): Int -> 4 })
+        PrintStream#println(System#out, List.get(intList, 0))
     }
 }

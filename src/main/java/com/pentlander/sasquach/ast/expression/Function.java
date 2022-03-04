@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.type.Type;
 
 import io.soabase.recordbuilder.core.RecordBuilder;
@@ -12,7 +13,7 @@ import java.util.List;
 
 @RecordBuilder
 public record Function(Identifier id, FunctionSignature functionSignature,
-                       Expression expression) implements Expression {
+                       Expression expression) implements Expression, RecurPoint {
   public Function {
     requireNonNull(id);
     requireNonNull(functionSignature);

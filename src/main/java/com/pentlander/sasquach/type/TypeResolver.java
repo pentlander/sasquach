@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.type;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.Objects.requireNonNullElse;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
@@ -10,13 +11,15 @@ import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.CompilationUnit;
+import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
 import com.pentlander.sasquach.ast.TypeAlias;
+import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
+import com.pentlander.sasquach.ast.expression.BinaryExpression.MathExpression;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.Node;
-import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
@@ -29,9 +32,12 @@ import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.FunctionCall;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
+import com.pentlander.sasquach.ast.expression.Loop;
 import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
 import com.pentlander.sasquach.ast.expression.PrintStatement;
+import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.Struct;
+import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
@@ -47,7 +53,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Optional;
 
 public class TypeResolver implements TypeFetcher {
@@ -121,7 +126,7 @@ public class TypeResolver implements TypeFetcher {
           if (typeAlias.typeParameters().size() != namedType.typeArguments().size()) {
             yield addError(new TypeMismatchError("Number of type args does not match number of "
                 + "type parameters for type '%s'".formatted(typeAlias.toPrettyString()),
-                Objects.requireNonNullElse(range, typeAlias.range())));
+                requireNonNullElse(range, typeAlias.range())));
           }
           var newTypeArgs = new HashMap<>(typeArgs);
           for (int i = 0; i < typeAlias.typeParameters().size(); i++) {
@@ -170,21 +175,33 @@ public class TypeResolver implements TypeFetcher {
     return types.stream().map(t -> resolveNamedType(t, typeParams, range)).toList();
   }
 
+  FunctionType resolveFuncSignatureType(Identifier funcId, FunctionSignature funcSignature) {
+    var type = getIdType(funcId).map(FunctionType.class::cast);
+    if (type.isPresent()) {
+      return type.get();
+    }
+
+    var typeParams = funcSignature.typeParameters();
+    var paramTypes = funcSignature.parameters().stream().map(funcParam -> resolveNamedType(
+        resolveNodeType(funcParam),
+        funcParam.typeNode().range())).toList();
+
+    var returnType = resolveNamedType(funcSignature.returnType(),
+        funcSignature.returnTypeNode().range());
+    var funcType = new FunctionType(paramTypes, typeParams, returnType);
+    putIdType(funcId, funcType);
+    return funcType;
+  }
+
   FunctionType resolveFuncType(Function func) {
     var type = getIdType(func.id()).map(FunctionType.class::cast);
-      if (type.isPresent()) {
-          return type.get();
-      }
-
-    var typeParams = func.functionSignature().typeParameters();
-    var paramTypes = func.functionSignature().parameters().stream()
-        .map(funcParam -> resolveNamedType(resolveNodeType(funcParam), funcParam.typeNode().range()))
-        .toList();
-
-    Type returnType;
+    if (type.isPresent()) {
+      return type.get();
+    }
+    var funcType = resolveFuncSignatureType(func.id(), func.functionSignature());
+    var returnType = funcType.returnType();
     try {
       var resolvedReturnType = resolveExprType(func.expression());
-      returnType = resolveNamedType(func.returnType(), func.functionSignature().returnTypeNode().range());
       if (!returnType.isAssignableFrom(resolvedReturnType)) {
         addError(new TypeMismatchError(
             "Type of function return expression '%s' does not match return type of function '%s'"
@@ -197,10 +214,7 @@ public class TypeResolver implements TypeFetcher {
       // for the current function. Since the return type is annotated, type resolution can
       // continue without knowing the type of the expression body. This will have to be
       // revisited when lambdas are implemented since they will not require type annotations.
-      returnType = func.returnType();
     }
-    var funcType = new FunctionType(paramTypes, typeParams, returnType);
-    putIdType(func.id(), funcType);
     return funcType;
   }
 
@@ -225,10 +239,10 @@ public class TypeResolver implements TypeFetcher {
       case Use.Module useModule -> type =
           requireNonNull(moduleTypes.get(useModule.qualifiedName()),
           "Not found: " + useModule);
-      case null, default -> throw new IllegalStateException();
+      case default -> throw new IllegalStateException(node.toString());
     }
 
-    return Objects.requireNonNullElse(type, UNKNOWN_TYPE);
+    return requireNonNullElse(type, UNKNOWN_TYPE);
   }
 
   private static Type builtinOrClassType(Class<?> clazz) {
@@ -264,8 +278,8 @@ public class TypeResolver implements TypeFetcher {
               binExpr.range()));
         }
         yield switch (binExpr) {
-          case BinaryExpression.CompareExpression b -> BuiltinType.BOOLEAN;
-          case BinaryExpression.MathExpression b -> leftType;
+          case CompareExpression b -> BuiltinType.BOOLEAN;
+          case MathExpression b -> leftType;
         };
       }
       case ArrayValue arrayVal -> {
@@ -282,7 +296,7 @@ public class TypeResolver implements TypeFetcher {
       case ForeignFunctionCall foreignFuncCall -> resolveForeignFunctionCall(
           foreignFuncCall);
       case FunctionCall funcCall -> resolveFunctionCall(funcCall);
-      case IfExpression ifExpr -> resolveIfExpresssion(ifExpr);
+      case IfExpression ifExpr -> resolveIfExpression(ifExpr);
       case PrintStatement printStatement -> {
         resolveExprType(printStatement.expression());
         yield BuiltinType.VOID;
@@ -295,26 +309,54 @@ public class TypeResolver implements TypeFetcher {
         yield struct.name().map(name -> new StructType(name, fieldTypes))
             .orElseGet(() -> new StructType(fieldTypes));
       }
-      case Struct.Field field -> resolveExprType(field.value());
-      case null, default -> throw new IllegalStateException("Unhandled expression: " + expr);
+      case Field field -> resolveExprType(field.value());
+      case Recur recur -> {
+        var recurPoint = nameResolutionResult.getRecurPoint(recur);
+        yield switch (recurPoint) {
+          case Function func -> {
+            var funcType = resolveFuncSignatureType(func.id(), func.functionSignature());
+            yield resolveParams("recur",
+                recur.arguments(),
+                recur.range(),
+                funcType.parameterTypes(),
+                funcType.returnType());
+          }
+          case Loop loop -> resolveParams("recur", recur.arguments(), recur.range(),
+              loop.varDeclarations().stream()
+                  .map(variableDeclaration -> {
+                    resolveExprType(variableDeclaration);
+                    return resolveExprType(variableDeclaration.expression());
+                  }).toList(), new TypeVariable(recur.range().toString()));
+        };
+      }
+      case Loop loop -> {
+        loop.varDeclarations().forEach(this::resolveExprType);
+        yield resolveExprType(loop.expression());
+      }
+      case Function ignored -> throw new IllegalStateException();
     };
 
     putExprType(expr, requireNonNull(type, () -> "Null expression type for: %s".formatted(expr)));
     return type;
   }
 
-  private Type resolveIfExpresssion(IfExpression ifExpr) {
-    var condtype = resolveExprType(ifExpr.condition());
-    if (!(condtype instanceof BuiltinType builtinType) || builtinType != BuiltinType.BOOLEAN) {
+  private Type resolveIfExpression(IfExpression ifExpr) {
+    var condType = resolveExprType(ifExpr.condition());
+    if (!(condType instanceof BuiltinType builtinType) || builtinType != BuiltinType.BOOLEAN) {
       return addError(new TypeMismatchError(("Expected type '%s' for if condition, but found type '%s'").formatted(
           BuiltinType.BOOLEAN.typeClass(),
-          condtype.typeName()), ifExpr.condition().range()));
+          condType.typeName()), ifExpr.condition().range()));
     }
 
     var trueType = resolveExprType(ifExpr.trueExpression());
     if (ifExpr.falseExpression() != null) {
       var falseType = resolveExprType(ifExpr.falseExpression());
-      if (!trueType.equals(falseType)) {
+      var typeUnifier = new TypeUnifier();
+      // Must unify in both directions since either the true or false statement types could be
+      // unknown
+      trueType = typeUnifier.unify(trueType, falseType);
+      falseType = typeUnifier.unify(falseType, trueType);
+      if (!trueType.isAssignableFrom(falseType)) {
         return addError(new TypeMismatchError(("Type of else expression '%s' must match type of "
             + "if expression '%s'").formatted(trueType.toPrettyString(),
             falseType.toPrettyString()), ifExpr.falseExpression().range()));
@@ -342,6 +384,46 @@ public class TypeResolver implements TypeFetcher {
     return addError(new TypeMismatchError(
         "Can only access fields on struct types, found type '%s'".formatted(exprType.toPrettyString()),
         fieldAccess.range()));
+  }
+
+  private Type resolveParams(String name, List<Expression> args, Range range, List<Type> parameterTypes,
+      Type returnType) {
+    var argTypes = args.stream().map(this::resolveExprType).toList();
+    var paramTypes = parameterTypes.stream().map(this::resolveNamedType).toList();
+    // Handle mismatch between arg count and parameter count
+    if (argTypes.size() != paramTypes.size()) {
+      return addError(new TypeMismatchError("Function '%s' expects %s arguments but found %s"
+          .formatted(name, paramTypes.size(), args.size()),
+          range));
+    }
+
+    var typeUnifier = new TypeUnifier();
+    // Handle mismatch between arg types and parameter types
+    for (int i = 0; i < argTypes.size(); i++) {
+      var argType = argTypes.get(i);
+      var paramType = paramTypes.get(i);
+
+      var oldParam = paramType;
+      try {
+        paramType = typeUnifier.unify(paramType, argType);
+      } catch (UnificationException e) {
+        return addError(new TypeMismatchError(
+            "Type '%s' in '%s' should be '%s', but found '%s'".formatted(
+                e.destType().toPrettyString(),
+                oldParam.toPrettyString(),
+                e.resolvedDestType().map(Type::toPrettyString).orElse("none"),
+                e.sourceType().toPrettyString()),
+            args.get(i).range()));
+      }
+      if (!paramType.isAssignableFrom(argType)) {
+        return addError(new TypeMismatchError(
+            "Argument type '%s' does not match parameter type '%s'"
+                .formatted(argType.toPrettyString(), paramType.toPrettyString()),
+            args.get(i).range()));
+      }
+    }
+
+    return typeUnifier.resolve(resolveNamedType(returnType));
   }
 
   private Type resolveFunctionCall(FunctionCall funcCall) {
@@ -379,42 +461,12 @@ public class TypeResolver implements TypeFetcher {
       case ForeignFunctionCall f -> throw new IllegalStateException(f.toString());
     }
 
-    var argTypes = funcCall.arguments().stream().map(this::resolveExprType).toList();
-    var paramTypes = funcType.parameterTypes().stream().map(this::resolveNamedType).toList();
-    // Handle mismatch between arg count and parameter count
-    if (argTypes.size() != paramTypes.size()) {
-      return addError(new TypeMismatchError("Function '%s' expects %s arguments but found %s"
-          .formatted(funcCall.name(), paramTypes.size(), funcCall.arguments().size()),
-          funcCall.range()));
-    }
-
-    var typeUnifier = new TypeUnifier();
-    // Handle mismatch between arg types and parameter types
-    for (int i = 0; i < argTypes.size(); i++) {
-      var argType = argTypes.get(i);
-      var paramType = paramTypes.get(i);
-
-      var oldParam = paramType;
-      try {
-        paramType = typeUnifier.unify(paramType, argType);
-      } catch (UnificationException e) {
-        return addError(new TypeMismatchError(
-            "Type '%s' in '%s' should be '%s', but found '%s'".formatted(
-                e.destType().toPrettyString(),
-                oldParam.toPrettyString(),
-                e.resolvedDestType().map(Type::toPrettyString).orElse("none"),
-                e.sourceType().toPrettyString()),
-            funcCall.arguments().get(i).range()));
-      }
-      if (!paramType.isAssignableFrom(argType)) {
-        return addError(new TypeMismatchError(
-            "Argument type '%s' does not match parameter type '%s'"
-                .formatted(argType.toPrettyString(), paramType.toPrettyString()),
-            funcCall.arguments().get(i).range()));
-      }
-    }
-
-    return typeUnifier.resolve(resolveNamedType(funcType.returnType()));
+    return resolveParams(
+        funcCall.name(),
+        funcCall.arguments(),
+        funcCall.range(),
+        funcType.parameterTypes(),
+        funcType.returnType());
   }
 
   private Type resolveForeignFieldAccess(ForeignFieldAccess fieldAccess) {

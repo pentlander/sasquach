@@ -8,6 +8,7 @@ Integer {
 
 List {
   use foreign java/util/ArrayList,
+  use foreign java/util/Iterator,
 
   type T[A] = { list: ArrayList },
 
@@ -25,5 +26,18 @@ List {
      { list = listCopy }
   },
 
-  get = [A](list: T[A], idx: Int): A -> ArrayList#get(list.list, idx)
+  get = [A](list: T[A], idx: Int): A -> ArrayList#get(list.list, idx),
+
+  map = [A, B](list: T[A], mapper: { map: (value: A) -> B }): T[B] -> {
+    let size = ArrayList#size(list.list)
+    let newList = ArrayList#new(size)
+    loop (let i = 0) ->
+      if i < size {
+        let item = get(list, i)
+        ArrayList#add(newList, mapper.map(item))
+        recur(i + 1)
+      } else {
+        { list = newList }
+      }
+  }
 }

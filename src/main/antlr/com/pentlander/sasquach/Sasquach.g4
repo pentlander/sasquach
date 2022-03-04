@@ -38,6 +38,7 @@ foreignName: ID ;
 printStatement : PRINT expression ;
 ifBlock : IF ifCondition=expression trueBlock=expression (ELSE falseBlock=expression)? ;
 functionCall : functionName application ;
+loop : LOOP '(' variableDeclaration? (',' NL* variableDeclaration)* ')' '->' NL* expression ;
 
 expressionList : expression (',' expression)* ;
 application :  LP expressionList? RP
@@ -55,7 +56,8 @@ expression :
   | ifBlock #ifExpression
   | foreignName '#' memberName (application)? #foreignMemberAccessExpression
   | expression '.' memberName (application)? #memberAccessExpression
-  | block #blockExpression ;
+  | block #blockExpression
+  | loop #loopExpression ;
 
 struct : '{' NL* structStatement (',' NL* structStatement)* (',')? NL* '}' ;
 structStatement : use #useStatement
@@ -79,6 +81,7 @@ PRINT    : 'print' ;
 FOREIGN : 'foreign' ;
 USE : 'use' ;
 TYPEALIAS : 'type' ;
+LOOP : 'loop' ;
 
 // Literals
 NUMBER : '0'|[1-9][0-9]* ;
