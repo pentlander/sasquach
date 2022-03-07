@@ -20,6 +20,14 @@ public final class TypeUtils {
     };
   }
 
+  public static Optional<FunctionType> asFunctionType(Type type) {
+    return switch (type) {
+      case FunctionType structType -> Optional.of(structType);
+      case ResolvedNamedType resolvedNamedType -> asFunctionType(resolvedNamedType.type());
+      case default -> Optional.empty();
+    };
+  }
+
   public static String typeWithArgsToString(String typeName, Collection<Type> typeArgs) {
     var typeArgString = !typeArgs.isEmpty() ? typeArgs.stream().map(Type::toPrettyString)
         .collect(Collectors.joining(", ", "[", "]")) : "";

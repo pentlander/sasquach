@@ -1,21 +1,28 @@
 package com.pentlander.sasquach.backend;
 
+import static java.util.stream.Collectors.joining;
+
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
+import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Struct.StructKind;
+import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
 import com.pentlander.sasquach.type.FunctionType;
+import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeFetcher;
+import com.pentlander.sasquach.type.TypeUtils;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,8 +67,11 @@ class ClassGenerator {
     return typeFetcher.getType(identifier);
   }
 
-  static FunctionType constructorType(List<Field> fields, TypeFetcher typeFetcher) {
-    return new FunctionType(fields.stream().map(typeFetcher::getType).toList(), BuiltinType.VOID);
+  static String constructorType(List<? extends Expression> fields, TypeFetcher typeFetcher) {
+//    return new FunctionType(fields.stream().map(typeFetcher::getType).toList(), BuiltinType.VOID);
+    String paramDescriptor = fields.stream().map(typeFetcher::getType).map(Type::descriptor)
+        .collect(joining("", "(", ")"));
+    return paramDescriptor + BuiltinType.VOID.descriptor();
   }
 
   void generateStruct(Struct struct) {
@@ -90,7 +100,7 @@ class ClassGenerator {
     }
 
     // Generate constructor
-    var initDescriptor = constructorType(fields, typeFetcher).descriptor();
+    var initDescriptor = constructorType(fields, typeFetcher);
     var mv = classWriter.visitMethod(Opcodes.ACC_PUBLIC, "<init>", initDescriptor, null, null);
     mv.visitCode();
     mv.visitVarInsn(Opcodes.ALOAD, 0);
@@ -141,8 +151,8 @@ class ClassGenerator {
     }
 
     // Generate methods
-    for (Function func : struct.functions()) {
-      generateFunction(classWriter, func, nameResolutionResult);
+    for (var func : struct.functions()) {
+      generateFunction(func);
     }
 
     // Class footer
@@ -150,23 +160,79 @@ class ClassGenerator {
     classWriter.visitEnd();
   }
 
-
-  private void generateFunction(ClassWriter classWriter, Function function,
-      NameResolutionResult memberNameResolutionResult) {
+  private void generateFunction(NamedFunction function) {
     setContext(function);
-    var funcType = type(function.id());
+    var funcType = TypeUtils.asFunctionType(type(function.id())).get();
+    generateFunction(function.name(), funcType, function.function());
+  }
 
+  String generateFunctionStruct(Function function, List<VarReference> captures) {
+    // Generate class header
+    var name = "Lambda$" + Integer.toHexString(function.hashCode());
+    generatedClasses.put(name, classWriter);
+    classWriter.visit(CLASS_VERSION,
+        Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL,
+        name,
+        null,
+        "java/lang/Object",
+        new String[]{STRUCT_BASE_INTERNAL_NAME});
+    var sourcePath = function.range().sourcePath().filepath();
+    classWriter.visitSource(sourcePath, null);
+    // Generate fields
+    for (var capture : captures) {
+      var fv = classWriter.visitField(
+          Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL,
+          capture.name(),
+          type(capture).descriptor(),
+          null,
+          null);
+      fv.visitEnd();
+    }
+
+    // Generate constructor
+    var initDescriptor = constructorType(captures, typeFetcher);
+    var mv = classWriter.visitMethod(Opcodes.ACC_PUBLIC, "<init>", initDescriptor, null, null);
+    mv.visitCode();
+    mv.visitVarInsn(Opcodes.ALOAD, 0);
+    mv.visitMethodInsn(Opcodes.INVOKESPECIAL,
+        new ClassType(Object.class).internalName(),
+        "<init>",
+        "()V",
+        false);
+
+    // Set fields in constructor
+    for (int i = 0; i < captures.size(); i++) {
+      var field = captures.get(i);
+      mv.visitVarInsn(Opcodes.ALOAD, 0);
+      ExpressionGenerator.generateLoadVar(mv, type(field), i + 1);
+      mv.visitFieldInsn(
+          Opcodes.PUTFIELD,
+          name,
+          field.name(),
+          type(field).descriptor());
+    }
+    mv.visitInsn(Opcodes.RETURN);
+
+    // Generate methods
+    generateFunction("_invoke", TypeUtils.asFunctionType(type(function)).get(), function);
+
+    // Class footer
+    mv.visitMaxs(-1, -1);
+    classWriter.visitEnd();
+    return name;
+  }
+
+  private void generateFunction(String funcName, FunctionType funcType, Function function) {
     var methodVisitor = classWriter.visitMethod(
         Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC,
-        function.name(),
-        funcType.descriptor(),
+        funcName,
+        funcType.funcDescriptor(),
         null,
         null);
-    var lineNum = function.nameRange().start().line();
+    var lineNum = function.range().start().line();
     methodVisitor.visitLineNumber(lineNum, new Label());
     methodVisitor.visitCode();
-    var exprGenerator = new ExpressionGenerator(methodVisitor,
-        memberNameResolutionResult, typeFetcher);
+    var exprGenerator = new ExpressionGenerator(methodVisitor, nameResolutionResult, typeFetcher);
     var returnExpr = function.expression();
     if (returnExpr != null) {
       exprGenerator.generateExpr(returnExpr);

@@ -69,6 +69,6 @@ class ModuleScopedNameResolverTest {
 
     var resolvedFunction = resolver.resolveFunction("foo").get();
     assertThat(resolvedFunction).isEqualTo(function);
-    assertThat(resolver.getResolver(resolvedFunction)).isNotNull();
+    assertThat(resolver.getResolver(resolvedFunction.function())).isNotNull();
   }
 }

@@ -3,11 +3,11 @@ package com.pentlander.sasquach.type;
 import static java.util.Objects.requireNonNullElse;
 import static java.util.stream.Collectors.joining;
 
+import com.pentlander.sasquach.runtime.StructBase;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -38,12 +38,16 @@ public record FunctionType(List<Type> parameterTypes, List<TypeParameter> typePa
 
   @Override
   public String descriptor() {
+    return StructBase.class.descriptorString();
+  }
+
+  public String funcDescriptor() {
     String paramDescriptor = parameterTypes.stream().map(Type::descriptor)
         .collect(joining("", "(", ")"));
     return paramDescriptor + returnType.descriptor();
   }
 
-  public String descriptorWith(int index, Type type) {
+  public String funcDescriptorWith(int index, Type type) {
     var paramTypes = new ArrayList<>(parameterTypes());
     paramTypes.add(index, type);
     String paramDescriptor = paramTypes.stream().map(Type::descriptor)

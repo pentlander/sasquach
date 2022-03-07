@@ -12,10 +12,12 @@ import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VarReference;
+import com.pentlander.sasquach.name.MemberScopedNameResolver.FunctionCallTarget;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
 import com.pentlander.sasquach.type.Type;
 import java.lang.reflect.Field;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +39,7 @@ public class NameResolutionResult {
   private final Map<Type, NamedTypeDefinition> typeNameAliases;
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses;
   private final Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions;
-  private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls;
+  private final Map<LocalFunctionCall, FunctionCallTarget> localFunctionCalls;
   private final Map<VarReference, ReferenceDeclaration> varReferences;
   private final Map<LocalVariable, Integer> varIndexes;
   private final Map<Recur, RecurPoint> recurPoints;
@@ -46,7 +48,7 @@ public class NameResolutionResult {
   public NameResolutionResult(Map<TypeNode<Type>, NamedTypeDefinition> typeAliases,
       Map<ForeignFieldAccess, Field> foreignFieldAccesses,
       Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions,
-      Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls,
+      Map<LocalFunctionCall, FunctionCallTarget> localFunctionCalls,
       Map<VarReference, ReferenceDeclaration> varReferences,
       Map<LocalVariable, Integer> varIndexes, Map<Recur, RecurPoint> recurPoints,
       RangedErrorList errors) {
@@ -104,7 +106,7 @@ public class NameResolutionResult {
     return requireNonNull(foreignFunctions.get(foreignFunctionCall));
   }
 
-  public QualifiedFunction getLocalFunction(LocalFunctionCall localFunctionCall) {
+  public FunctionCallTarget getLocalFunction(LocalFunctionCall localFunctionCall) {
     return requireNonNull(localFunctionCalls.get(localFunctionCall));
   }
 
@@ -133,6 +135,10 @@ public class NameResolutionResult {
         merged(varIndexes, other.varIndexes),
         merged(recurPoints, other.recurPoints),
         errors.concat(other.errors));
+  }
+
+  public NameResolutionResult merge(Collection<NameResolutionResult> results) {
+    return results.stream().reduce(this, NameResolutionResult::merge);
   }
 
   private <K, V> Map<K, V> merged(Map<K, V> mapA, Map<K, V> mapB) {

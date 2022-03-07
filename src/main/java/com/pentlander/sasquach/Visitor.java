@@ -64,6 +64,7 @@ import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.Loop;
 import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
+import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.PrintStatement;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.Struct;
@@ -73,7 +74,6 @@ import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
-import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.ModuleNamedType;
 import com.pentlander.sasquach.type.LocalNamedType;
 import com.pentlander.sasquach.type.Type;
@@ -81,7 +81,6 @@ import com.pentlander.sasquach.type.TypeParameter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
@@ -157,19 +156,13 @@ public class Visitor {
   }
 
   class FunctionVisitor extends SasquachBaseVisitor<Function> {
-    private final Identifier id;
-
-    FunctionVisitor(Identifier id) {
-      this.id = id;
-    }
-
     @Override
     public Function visitFunction(FunctionContext ctx) {
       FunctionSignature funcSignature = functionDeclaration(ctx.functionDeclaration());
 
       var expr = ctx.expression().accept(new ExpressionVisitor());
 
-      return new Function(id, funcSignature, expr);
+      return new Function(funcSignature, expr);
     }
 
     private FunctionSignature functionDeclaration(FunctionDeclarationContext ctx) {
@@ -258,6 +251,11 @@ public class Visitor {
     @Override
     public Expression visitStruct(StructContext ctx) {
       return ctx.accept(structVisitorForLiteral());
+    }
+
+    @Override
+    public Expression visitFunction(FunctionContext ctx) {
+      return ctx.accept(new FunctionVisitor());
     }
 
     private List<Expression> args(ApplicationContext ctx) {
@@ -402,7 +400,7 @@ public class Visitor {
       var useList = new ArrayList<Use>();
       var typeAliases = new ArrayList<TypeAlias>();
       var fields = new ArrayList<Field>();
-      var functions = new ArrayList<Function>();
+      var functions = new ArrayList<NamedFunction>();
       for (var structStatementCtx : ctx.structStatement()) {
         if (structStatementCtx instanceof IdentifierStatementContext idCtx) {
           var fieldName = idCtx.memberName();
@@ -414,8 +412,8 @@ public class Visitor {
             var expr = exprCtx.accept(expressionVisitor);
             fields.add(new Field(id, expr));
           } else if (funcCtx != null) {
-            var func = funcCtx.accept(new FunctionVisitor(id));
-            functions.add(func);
+            var func = funcCtx.accept(new FunctionVisitor());
+            functions.add(new NamedFunction(id, func));
           }
         } else if (structStatementCtx instanceof UseStatementContext useStatementCtx) {
           var useCtx = useStatementCtx.use();

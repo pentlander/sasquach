@@ -35,6 +35,7 @@ import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
+import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Value;
@@ -45,7 +46,6 @@ import com.pentlander.sasquach.name.ModuleResolver;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
-import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.LocalNamedType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
@@ -241,10 +241,10 @@ class BytecodeGeneratorTest {
 
     @Test
     void structLiteralFunctions() throws Exception {
-        var structFunc = new Function(
-            id("member"),
+        var structId = id("member");
+        var structFunc = new NamedFunction(structId, new Function(
             new FunctionSignature(List.of(), new BasicTypeNode<>(BuiltinType.STRING, range()), range()),
-            stringValue("string"));
+            stringValue("string")));
         var struct = Struct.literalStruct(List.of(), List.of(structFunc), range());
         var memberFuncCall = new MemberFunctionCall(struct, id("member"), List.of(), range());
         var func = func(
@@ -417,17 +417,18 @@ class BytecodeGeneratorTest {
         }
     }
 
-    private CompilationUnit compUnit(List<Use> useList, List<Struct.Field> fields, List<Function> functions) {
+    private CompilationUnit compUnit(List<Use> useList, List<Struct.Field> fields,
+        List<NamedFunction> functions) {
         return new CompilationUnit(new SourcePath("test.sasq"), PACKAGE_NAME,
             List.of(new ModuleDeclaration(qualId(MOD_NAME),
             Struct.moduleStruct(MOD_NAME, useList, List.of(), fields, functions, NR), NR)));
     }
 
-    private CompilationUnit compUnit(Function function) {
+    private CompilationUnit compUnit(NamedFunction function) {
         return compUnit(List.of(), List.of(), List.of(function));
     }
 
-    private CompilationUnit compUnit(Use use, Function function) {
+    private CompilationUnit compUnit(Use use, NamedFunction function) {
         return compUnit(List.of(use), List.of(), List.of(function));
     }
 }

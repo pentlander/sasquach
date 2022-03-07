@@ -19,10 +19,10 @@ import com.pentlander.sasquach.ast.expression.ExpressionVisitor;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
-import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Loop;
+import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -63,7 +64,7 @@ public class MemberScopedNameResolver {
   private final Map<TypeNode<Type>, NamedTypeDefinition> typeAliases = new HashMap<>();
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses = new HashMap<>();
   private final Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions = new HashMap<>();
-  private final Map<LocalFunctionCall, QualifiedFunction> localFunctionCalls = new HashMap<>();
+  private final Map<LocalFunctionCall, FunctionCallTarget> localFunctionCalls = new HashMap<>();
   private final Map<VarReference, LocalVariable> localVarReferences = new LinkedHashMap<>();
   private final Map<VarReference, ModuleDeclaration> moduleReferences = new HashMap<>();
   private final Map<LocalVariable, Integer> localVariableIndex = new HashMap<>();
@@ -72,8 +73,9 @@ public class MemberScopedNameResolver {
   private final Map<Recur, RecurPoint> recurPoints = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
   private final Visitor visitor = new Visitor();
+  private final List<NameResolutionResult> resolutionResults = new ArrayList<>();
 
-  private Function function = null;
+  private NamedFunction namedFunction = null;
 
   public MemberScopedNameResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
     this.moduleScopedNameResolver = moduleScopedNameResolver;
@@ -84,8 +86,8 @@ public class MemberScopedNameResolver {
     return resolutionResult();
   }
 
-  public NameResolutionResult resolve(Function function) {
-    this.function = function;
+  public NameResolutionResult resolve(NamedFunction function) {
+    this.namedFunction = function;
     visitor.visit(function);
     return resolutionResult();
   }
@@ -102,7 +104,7 @@ public class MemberScopedNameResolver {
         foreignFunctions,
         localFunctionCalls,
         varReferences,
-        localVariableIndex, recurPoints, errors.build());
+        localVariableIndex, recurPoints, errors.build()).merge(resolutionResults);
   }
 
   // Need to check that there isn't already a local function or module alias with this name
@@ -213,9 +215,15 @@ public class MemberScopedNameResolver {
       if (func.isPresent()) {
         localFunctionCalls.put(
             localFunctionCall,
-            new QualifiedFunction(moduleScopedNameResolver.moduleDeclaration().id(), func.get()));
+            new QualifiedFunction(moduleScopedNameResolver.moduleDeclaration().id(),
+                func.get().id(), func.get().function()));
       } else {
-        errors.add(new NameNotFoundError(localFunctionCall.functionId(), "function"));
+        var localVar = resolveLocalVar(localFunctionCall);
+        if (localVar.isPresent()) {
+          localFunctionCalls.put(localFunctionCall, localVar.get());
+        } else {
+          errors.add(new NameNotFoundError(localFunctionCall.functionId(), "function"));
+        }
       }
       return null;
     }
@@ -232,9 +240,20 @@ public class MemberScopedNameResolver {
 
     @Override
     public Void visit(Function function) {
-      pushScope();
-      visit(function.functionSignature());
-      return visit(function.expression());
+      if (namedFunction != null && namedFunction.function().equals(function)) {
+        pushScope();
+        visit(function.functionSignature());
+        visit(function.expression());
+        popScope();
+      } else {
+        var resolver = new MemberScopedNameResolver(moduleScopedNameResolver);
+        resolver.pushScope();
+        resolver.visitor.visit(function.functionSignature());
+        resolver.visitor.visit(function.expression());
+        resolutionResults.add(resolver.resolutionResult());
+        resolver.popScope();
+      }
+      return null;
     }
 
     private void visit(FunctionSignature funcSignature) {
@@ -246,14 +265,23 @@ public class MemberScopedNameResolver {
     }
 
     private Optional<LocalVariable> resolveLocalVar(VarReference varReference) {
+      return resolveLocalVar(varReference.name());
+    }
+
+    private Optional<LocalVariable> resolveLocalVar(LocalFunctionCall localFunctionCall) {
+      return resolveLocalVar(localFunctionCall.name());
+    }
+
+    private Optional<LocalVariable> resolveLocalVar(String localVarName) {
       for (var localVars : localVariableStacks) {
-        var localVar = localVars.get(varReference.name());
+        var localVar = localVars.get(localVarName);
         if (localVar != null) {
           return Optional.of(localVar);
         }
       }
       return Optional.empty();
     }
+
 
     @Override
     public Void visit(VarReference varReference) {
@@ -289,8 +317,8 @@ public class MemberScopedNameResolver {
       var loop = loopStack.getLast();
       if (loop != null) {
         recurPoints.put(recur, loop);
-      } else if (function != null) {
-        recurPoints.put(recur, function);
+      } else if (namedFunction != null) {
+        recurPoints.put(recur, namedFunction.function());
       } else {
         throw new IllegalStateException();
       }
@@ -300,12 +328,7 @@ public class MemberScopedNameResolver {
 
     @Override
     public Void visit(Node node) {
-      switch (node) {
-        case FunctionSignature functionSignature-> System.out.println("Visisted func sig: " + functionSignature.toPrettyString());
-        case FunctionParameter functionParameter -> System.out.println();
-        case default -> throw new IllegalStateException("Unable to handle: " + node);
-      }
-      return null;
+      throw new IllegalStateException("Unable to handle: " + node);
     }
   }
 
@@ -326,5 +349,12 @@ public class MemberScopedNameResolver {
     }
   }
 
-  public record QualifiedFunction(QualifiedIdentifier ownerId, Function function) {}
+  public sealed interface FunctionCallTarget permits QualifiedFunction, LocalVariable {}
+
+  public record QualifiedFunction(QualifiedIdentifier ownerId,
+                                  Identifier id, Function function) implements FunctionCallTarget {
+    public QualifiedFunction(QualifiedIdentifier ownerId, NamedFunction namedFunction) {
+      this(ownerId, namedFunction.id(), namedFunction.function());
+    }
+  }
 }

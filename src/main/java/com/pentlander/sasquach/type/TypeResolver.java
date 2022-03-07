@@ -32,8 +32,10 @@ import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.FunctionCall;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
+import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Loop;
 import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
+import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.PrintStatement;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.Struct;
@@ -42,6 +44,7 @@ import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.name.ForeignFunctions;
+import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Local;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Module;
 import com.pentlander.sasquach.name.NameResolutionResult;
@@ -180,7 +183,12 @@ public class TypeResolver implements TypeFetcher {
     if (type.isPresent()) {
       return type.get();
     }
+    var funcType = resolveFuncSignatureType(funcId, funcSignature);
+    putIdType(funcId, funcType);
+    return funcType;
+  }
 
+  FunctionType resolveFuncSignatureType(FunctionSignature funcSignature) {
     var typeParams = funcSignature.typeParameters();
     var paramTypes = funcSignature.parameters().stream().map(funcParam -> resolveNamedType(
         resolveNodeType(funcParam),
@@ -188,17 +196,17 @@ public class TypeResolver implements TypeFetcher {
 
     var returnType = resolveNamedType(funcSignature.returnType(),
         funcSignature.returnTypeNode().range());
-    var funcType = new FunctionType(paramTypes, typeParams, returnType);
-    putIdType(funcId, funcType);
-    return funcType;
+    return new FunctionType(paramTypes, typeParams, returnType);
+  }
+
+
+  FunctionType resolveFuncType(NamedFunction func) {
+    var type = getIdType(func.id()).map(FunctionType.class::cast);
+    return type.orElseGet(() -> resolveFuncType(func.function()));
   }
 
   FunctionType resolveFuncType(Function func) {
-    var type = getIdType(func.id()).map(FunctionType.class::cast);
-    if (type.isPresent()) {
-      return type.get();
-    }
-    var funcType = resolveFuncSignatureType(func.id(), func.functionSignature());
+    var funcType = resolveFuncSignatureType(func.functionSignature());
     var returnType = funcType.returnType();
     try {
       var resolvedReturnType = resolveExprType(func.expression());
@@ -227,10 +235,13 @@ public class TypeResolver implements TypeFetcher {
         type = resolveExprType(struct);
         moduleTypes.put(moduleDecl.name(), (StructType) type);
       }
-      case Function func -> type = resolveFuncType(func);
       case FunctionParameter funcParam -> {
         type = resolveNamedType(funcParam.type(), funcParam.typeNode().range());
         putIdType(funcParam.id(), type);
+      }
+      case VariableDeclaration varDecl -> {
+        type = resolveExprType(varDecl.expression());
+        putIdType(varDecl.id(), type);
       }
       case Use.Foreign useForeign -> {
         type = new ClassType(useForeign.qualifiedName());
@@ -239,6 +250,11 @@ public class TypeResolver implements TypeFetcher {
       case Use.Module useModule -> type =
           requireNonNull(moduleTypes.get(useModule.qualifiedName()),
           "Not found: " + useModule);
+      case NamedFunction func -> {
+        type = resolveFuncType(func);
+        putIdType(func.id(), type);
+      }
+      case Expression expr -> type = resolveExprType(expr);
       case default -> throw new IllegalStateException(node.toString());
     }
 
@@ -314,7 +330,7 @@ public class TypeResolver implements TypeFetcher {
         var recurPoint = nameResolutionResult.getRecurPoint(recur);
         yield switch (recurPoint) {
           case Function func -> {
-            var funcType = resolveFuncSignatureType(func.id(), func.functionSignature());
+            var funcType = resolveFuncSignatureType(func.functionSignature());
             yield resolveParams("recur",
                 recur.arguments(),
                 recur.range(),
@@ -333,7 +349,7 @@ public class TypeResolver implements TypeFetcher {
         loop.varDeclarations().forEach(this::resolveExprType);
         yield resolveExprType(loop.expression());
       }
-      case Function ignored -> throw new IllegalStateException();
+      case Function func -> resolveFuncType(func);
     };
 
     putExprType(expr, requireNonNull(type, () -> "Null expression type for: %s".formatted(expr)));
@@ -430,8 +446,11 @@ public class TypeResolver implements TypeFetcher {
     FunctionType funcType = null;
     switch (funcCall) {
       case LocalFunctionCall localFuncCall -> {
-        var qualFunc = nameResolutionResult.getLocalFunction(localFuncCall);
-        funcType = resolveFuncType(qualFunc.function());
+        var callTarget = nameResolutionResult.getLocalFunction(localFuncCall);
+        funcType = switch (callTarget) {
+          case QualifiedFunction qualFunc -> resolveFuncType(qualFunc.function());
+          case LocalVariable localVar -> TypeUtils.asFunctionType(resolveNodeType(localVar)).get();
+        };
         if (funcType == null) return UNKNOWN_TYPE;
       }
       case MemberFunctionCall structFuncCall -> {

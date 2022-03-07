@@ -9,6 +9,7 @@ import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.type.Type;
 import java.lang.invoke.MethodHandles;
@@ -25,7 +26,7 @@ public class ModuleScopedNameResolver {
   private final Map<TypeNode<Type>, NamedTypeDefinition> namedTypes = new HashMap<>();
   private final Map<String, Struct.Field> fields = new HashMap<>();
   private final Map<Struct.Field, NameResolutionResult> fieldResults = new HashMap<>();
-  private final Map<String, Function> functions = new HashMap<>();
+  private final Map<String, NamedFunction> functions = new HashMap<>();
   private final Map<Function, NameResolutionResult> functionResults = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
@@ -136,7 +137,7 @@ public class ModuleScopedNameResolver {
           var resolver = new MemberScopedNameResolver(ModuleScopedNameResolver.this);
           var result = resolver.resolve(function);
           nameResolutionResult = nameResolutionResult.merge(result);
-          functionResults.put(function, result);
+          functionResults.put(function.function(), result);
         }
       }
       return null;
@@ -155,7 +156,7 @@ public class ModuleScopedNameResolver {
     return Optional.ofNullable(moduleImports.get(moduleAlias));
   }
 
-  Optional<Function> resolveFunction(String functionName) {
+  Optional<NamedFunction> resolveFunction(String functionName) {
     return Optional.ofNullable(functions.get(functionName));
   }
 
