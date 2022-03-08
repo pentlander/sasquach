@@ -4,36 +4,21 @@ import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.FunctionSignature;
-import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.RecurPoint;
-import com.pentlander.sasquach.type.Type;
 
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 
 @RecordBuilder
-public record Function(Identifier id, FunctionSignature functionSignature,
+public record Function(FunctionSignature functionSignature,
                        Expression expression) implements Expression, RecurPoint {
   public Function {
-    requireNonNull(id);
     requireNonNull(functionSignature);
-  }
-
-  public String name() {
-    return id.name();
   }
 
   @Override
   public Range range() {
-    return nameRange().join(expression.range());
-  }
-
-  public Range.Single nameRange() {
-    return id.range();
-  }
-
-  public Type returnType() {
-    return functionSignature.returnType();
+    return functionSignature.range().join(expression.range());
   }
 
   public List<FunctionParameter> parameters() {
@@ -41,7 +26,6 @@ public record Function(Identifier id, FunctionSignature functionSignature,
   }
 
   public String toPrettyString() {
-    return "%s = %s -> %s".formatted(id().name(), functionSignature.toPrettyString(),
-        expression.toPrettyString());
+    return "%s -> %s".formatted(functionSignature.toPrettyString(), expression.toPrettyString());
   }
 }

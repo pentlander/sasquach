@@ -24,6 +24,15 @@ single classfile to reduce the number of classfiles. This means that an alias on
 time. May revisit this choice if it makes debugging stacktraces more difficult. Foreign classes 
 cannot be aliased, doing so should generate an error.
 
+## Higher Order Functions
+Should there be a separate function class for member vs lambda functions? The main difference is that the types on the lambda functions are optional, while they are not on member funcs. Code generation for a module member function will always generate a method in the classfile, while the code generation for a struct varies. If there are no captures and the function is defined within the struct literal, then it can be generated as a method. If it is defined within the struct literal and has captures, the captures can be placed as fields within the struct. Would need to ensure that those captured fields do not interfere with typechecking and are inaccesible outside that function. If the function is defined outside of the struct without captures, it could possibly be generated as a method on the struct. Otherwise if it's defined outside the struct and has captures, it has to be generated as a separate class. This class could be a struct with a single method named `_invoke`. When looking up a function call, local variables also need to be included. The variable's type must match the aformentioned struct. 
+
+For now, it's probably simplest to just consider two cases:
+1. Function defined within the struct (or module) without any captures. This is compiled as a method
+2. All other cases create a struct with a function `_invoke` that gets assigned to a field
+
+The one subtle thing is figuring out how typecheck a module with a method against a struct with a func struct. This implies that the transformation from Function to Struct must only occur at the codegen level, otherwise the typechecking code gets more complicated. The struct method dispatch must also be adjusted to account for this. 
+
 # To Investigate
 
 ## Indy for lazy anonymous struct creation

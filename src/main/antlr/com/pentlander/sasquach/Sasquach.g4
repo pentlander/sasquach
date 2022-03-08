@@ -57,12 +57,13 @@ expression :
   | foreignName '#' memberName (application)? #foreignMemberAccessExpression
   | expression '.' memberName (application)? #memberAccessExpression
   | block #blockExpression
-  | loop #loopExpression ;
+  | loop #loopExpression
+  | function #functionExpression ;
 
 struct : '{' NL* structStatement (',' NL* structStatement)* (',')? NL* '}' ;
 structStatement : use #useStatement
   | TYPEALIAS typeIdentifier typeParameterList? EQUALS type #typeAliasStatement
-  | memberName EQUALS (expression|function) #identifierStatement ;
+  | memberName EQUALS (function|expression) #identifierStatement ;
 
 value : NUMBER #intLiteral
       | STRING #stringLiteral

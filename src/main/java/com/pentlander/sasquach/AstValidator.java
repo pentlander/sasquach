@@ -7,6 +7,7 @@ import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.Loop;
+import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import java.util.ArrayList;
@@ -33,11 +34,11 @@ public class AstValidator {
   public List<Error> validate() {
     var errors = new ArrayList<Error>();
     for (var module : compilationUnit.modules()) {
-      List<Function> functions = module.struct().functions();
-      var functionNames = new HashMap<String, Function>();
+      var functions = module.struct().functions();
+      var functionNames = new HashMap<String, NamedFunction>();
 
-      for (Function function : functions) {
-        Function existingFunction = functionNames.put(function.name(), function);
+      for (var function : functions) {
+        var existingFunction = functionNames.put(function.name(), function);
         // Check if there are multiple functions with the same name
         if (existingFunction != null) {
           errors.add(new DuplicationError(

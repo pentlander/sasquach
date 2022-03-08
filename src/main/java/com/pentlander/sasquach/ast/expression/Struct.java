@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 @RecordBuilder
 public record Struct(Optional<String> name, List<Use> useList,
                      List<TypeAlias> typeAliases, List<Field> fields,
-                     List<Function> functions, StructKind structKind, Range range) implements
+                     List<NamedFunction> functions, StructKind structKind, Range range) implements
     Expression {
 
   public Struct {
@@ -29,7 +29,8 @@ public record Struct(Optional<String> name, List<Use> useList,
     requireNonNull(range);
   }
 
-  public static Struct literalStruct(List<Field> fields, List<Function> functions, Range range) {
+  public static Struct literalStruct(List<Field> fields, List<NamedFunction> functions,
+      Range range) {
     return new Struct(
         Optional.empty(),
         List.of(),
@@ -48,7 +49,7 @@ public record Struct(Optional<String> name, List<Use> useList,
 
   public static Struct moduleStruct(String name, List<Use> useList,
       List<TypeAlias> typeAliases, List<Field> fields,
-      List<Function> functions, Range range) {
+      List<NamedFunction> functions, Range range) {
     return new Struct(
         Optional.of(name),
         useList,
@@ -64,7 +65,7 @@ public record Struct(Optional<String> name, List<Use> useList,
     return "{" + useList().stream().map(Node::toPrettyString)
         .collect(Collectors.joining(", ", "", " ")) + fields().stream()
         .map(Field::toPrettyString).collect(Collectors.joining(", ", "", " "))
-        + functions().stream().map(Function::toPrettyString)
+        + functions().stream().map(NamedFunction::toPrettyString)
         .collect(Collectors.joining(", ", "", " ")) + "}";
   }
 

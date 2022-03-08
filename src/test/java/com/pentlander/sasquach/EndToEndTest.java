@@ -40,6 +40,23 @@ public class EndToEndTest {
   }
 
   @Test
+  void higherOrderFunc() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          plus = (): Int -> {
+            let add = (a: Int, b: Int): Int -> a + b
+            add(1, 4)
+          }
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    int sum = invokeName(clazz, "plus", null);
+
+    assertThat(sum).isEqualTo(5);
+  }
+
+  @Test
   void typeAliasStruct() throws Exception {
     var source = Source.fromString("main",
         """
@@ -54,6 +71,22 @@ public class EndToEndTest {
     int sum = invokeName(clazz, "main", null);
 
     assertThat(sum).isEqualTo(5);
+  }
+
+  @Test
+  void typeAliasFunction() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          type MathFunc = (x: Int, y: Int) -> Int,
+          getX = (x: Int, func: MathFunc): Int -> func(x, 6),
+          main = (): Int -> getX(3, (x: Int, y: Int): Int -> x + y)
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    int sum = invokeName(clazz, "main", null);
+
+    assertThat(sum).isEqualTo(9);
   }
 
   // Add test for local named type where the type name doesn't exist
@@ -123,7 +156,7 @@ public class EndToEndTest {
     return compileClass(source, qualifiedName, false);
   }
 
-  private Class<?> debugCompileClass(Source source, String qualifiedName)
+  private Class<?> compileClassDebug(Source source, String qualifiedName)
       throws ClassNotFoundException, CompilationException {
     return compileClass(source, qualifiedName, true);
   }

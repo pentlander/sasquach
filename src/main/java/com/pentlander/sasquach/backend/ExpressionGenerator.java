@@ -15,6 +15,7 @@ import com.pentlander.sasquach.ast.expression.FieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.Loop;
@@ -26,6 +27,7 @@ import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
+import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.runtime.StructBase;
@@ -34,9 +36,6 @@ import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
 import com.pentlander.sasquach.type.ForeignFieldType;
 import com.pentlander.sasquach.type.FunctionType;
-import com.pentlander.sasquach.type.ModuleNamedType;
-import com.pentlander.sasquach.type.LocalNamedType;
-import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeFetcher;
 import com.pentlander.sasquach.type.TypeUtils;
@@ -181,14 +180,33 @@ class ExpressionGenerator {
         }
       }
       case LocalFunctionCall funcCall -> {
-        funcCall.arguments().forEach(this::generate);
-        var qualifiedFunc = nameResolutionResult.getLocalFunction(funcCall);
-        var funcType = type(qualifiedFunc.function().id());
-        methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC,
-            qualifiedFunc.ownerId().name(),
-            funcCall.name(),
-            funcType.descriptor(),
-            false);
+        var callTarget = nameResolutionResult.getLocalFunction(funcCall);
+        switch (callTarget) {
+          case QualifiedFunction qualifiedFunc -> {
+            funcCall.arguments().forEach(this::generate);
+            var funcType = TypeUtils.asFunctionType(type(qualifiedFunc.id())).get();
+            methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC,
+                qualifiedFunc.ownerId().name(),
+                funcCall.name(),
+                funcType.funcDescriptor(),
+                false);
+          }
+          case VariableDeclaration varDecl -> {
+            var idx = nameResolutionResult.getVarIndex(varDecl);
+            generateLoadVar(methodVisitor, type(varDecl.expression()), idx);
+            funcCall.arguments().forEach(this::generate);
+            var funcType = TypeUtils.asFunctionType(type(varDecl.expression())).get();
+            generateMemberCall(funcType, "_invoke");
+          }
+          case FunctionParameter functionParameter -> {
+            var idx = nameResolutionResult.getVarIndex(functionParameter);
+            var type = type(functionParameter.id());
+            generateLoadVar(methodVisitor, type, idx);
+            funcCall.arguments().forEach(this::generate);
+            var funcType = TypeUtils.asFunctionType(type).get();
+            generateMemberCall(funcType, "_invoke");
+          }
+        }
       }
       case BinaryExpression binExpr -> {
         generate(binExpr.left());
@@ -295,15 +313,9 @@ class ExpressionGenerator {
         generate(structFuncCall.structExpression());
         structFuncCall.arguments().forEach(this::generate);
         var structType = TypeUtils.asStructType(type(structFuncCall.structExpression())).get();
-        var funcType = (FunctionType) Objects.requireNonNull(structType.fieldType(structFuncCall.name()));
-        var handle = new Handle(Opcodes.H_INVOKESTATIC,
-            new ClassType(StructDispatch.class).internalName(),
-            "bootstrapMethod",
-            BOOTSTRAP_DESCRIPTOR,
-            false);
-        methodVisitor.visitInvokeDynamicInsn(structFuncCall.name(),
-            funcType.descriptorWith(0, new ClassType(StructBase.class)),
-            handle);
+        var funcType =
+            TypeUtils.asFunctionType(Objects.requireNonNull(structType.fieldType(structFuncCall.name()))).get();
+        generateMemberCall(funcType, structFuncCall.name());
       }
       case Loop loop -> {
         loop.varDeclarations().forEach(this::generate);
@@ -328,8 +340,40 @@ class ExpressionGenerator {
         }
         methodVisitor.visitJumpInsn(Opcodes.GOTO, loopLabels.getLast());
       }
+      case Function func -> {
+        var classGen = new ClassGenerator(nameResolutionResult, typeFetcher);
+        var name = classGen.generateFunctionStruct(func, List.of());
+
+        generatedClasses.putAll(classGen.getGeneratedClasses());
+        generateFuncInit(name, List.of());
+      }
       case default -> throw new IllegalStateException("Unrecognized expression: " + expression);
     }
+  }
+
+  void generateMemberCall(FunctionType funcType, String funcCallName) {
+    var handle = new Handle(Opcodes.H_INVOKESTATIC,
+        new ClassType(StructDispatch.class).internalName(),
+        "bootstrapMethod",
+        BOOTSTRAP_DESCRIPTOR,
+        false);
+    methodVisitor.visitInvokeDynamicInsn(funcCallName,
+        funcType.funcDescriptorWith(0, new ClassType(StructBase.class)),
+        handle);
+  }
+
+  void generateFuncInit(String funcStructInternalName, List<VarReference> captures) {
+    methodVisitor.visitTypeInsn(Opcodes.NEW, funcStructInternalName);
+    methodVisitor.visitInsn(Opcodes.DUP);
+    captures.forEach(this::generateExpr);
+    var initDescriptor =
+        ClassGenerator.constructorType(captures, typeFetcher);
+    methodVisitor.visitMethodInsn(
+        Opcodes.INVOKESPECIAL,
+        funcStructInternalName,
+        "<init>",
+        initDescriptor,
+        false);
   }
 
   void generateStructInit(Struct struct) {
@@ -337,7 +381,7 @@ class ExpressionGenerator {
     methodVisitor.visitTypeInsn(Opcodes.NEW, structName);
     methodVisitor.visitInsn(Opcodes.DUP);
     struct.fields().forEach(field -> generateExpr(field.value()));
-    var initDescriptor = constructorType(struct.fields(), typeFetcher).descriptor();
+    var initDescriptor = constructorType(struct.fields(), typeFetcher);
     methodVisitor.visitMethodInsn(
         Opcodes.INVOKESPECIAL,
         structName,

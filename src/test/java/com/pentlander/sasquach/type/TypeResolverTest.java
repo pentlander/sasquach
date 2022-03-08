@@ -9,6 +9,7 @@ import com.pentlander.sasquach.ast.expression.BinaryExpression.MathExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathOperator;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
+import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Expression;
@@ -227,17 +228,18 @@ class TypeResolverTest {
   @Nested
   class FunctionCallTest {
     private final Identifier funcId = id("foo");
-    private Function func;
+    private NamedFunction func;
 
     @BeforeEach
     void setUp() {
-      func = new Function(
-          funcId,
-          new FunctionSignature(List
-              .of(param("arg1", BuiltinType.STRING), param("arg2", BuiltinType.INT)),
-              typeNode(BuiltinType.BOOLEAN),
-              range()),
-          boolValue(true));
+      func = new NamedFunction(funcId,
+          new Function(
+              new FunctionSignature(List.of(
+                  param("arg1", BuiltinType.STRING),
+                  param("arg2", BuiltinType.INT)),
+                  typeNode(BuiltinType.BOOLEAN),
+                  range()),
+              boolValue(true)));
     }
 
     private FunctionParameter param(String name, Type type) {
@@ -248,9 +250,8 @@ class TypeResolverTest {
     class Local {
       @BeforeEach
       void setUp() {
-        when(nameResolutionResult.getLocalFunction(any())).thenReturn(new QualifiedFunction(
-            qualId("foo"),
-            func));
+        when(nameResolutionResult.getLocalFunction(any())).thenReturn(new QualifiedFunction(qualId(
+            "foo"), func));
       }
 
       @Test

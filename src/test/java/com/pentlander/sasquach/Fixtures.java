@@ -6,6 +6,7 @@ import com.pentlander.sasquach.ast.*;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
+import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Value;
@@ -44,7 +45,7 @@ public class Fixtures {
         return new QualifiedIdentifier(name, range());
     }
 
-    public static Function func(String name, List<FunctionParameter> functionParameters, Type returnType, Expression expression) {
+    public static NamedFunction func(String name, List<FunctionParameter> functionParameters, Type returnType, Expression expression) {
         return func(name, functionParameters, List.of(), returnType, expression);
     }
 
@@ -59,19 +60,20 @@ public class Fixtures {
       return new BasicTypeNode<>(type, range());
     }
 
-    public static Function func(String name, List<FunctionParameter> functionParameters,
+    public static NamedFunction func(String name, List<FunctionParameter> functionParameters,
         List<TypeParameter> typeParameters, Type returnType,
         Expression expression) {
-      return new Function(id(name),
+      var funcId = id(name);
+      return new NamedFunction(funcId, new Function(
           new FunctionSignature(functionParameters, typeParameters, typeNode(returnType), range()),
-          expression);
+          expression));
     }
 
-    public static Function voidFunc(String name, Expression expression) {
+    public static NamedFunction voidFunc(String name, Expression expression) {
         return func(name, List.of(), BuiltinType.VOID, expression);
     }
 
-    public static Struct literalStruct(List<Field> fields, List<Function> functions) {
+    public static Struct literalStruct(List<Field> fields, List<NamedFunction> functions) {
         return Struct
             .literalStruct(fields, functions, range());
     }

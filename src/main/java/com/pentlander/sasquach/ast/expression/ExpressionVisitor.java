@@ -63,6 +63,10 @@ public interface ExpressionVisitor<T> {
     return defaultValue();
   }
 
+  default T visit(NamedFunction function) {
+    return visit(function.function());
+  }
+
   default T visit(Function function) {
     visit(function.functionSignature());
     function.parameters().forEach(this::visit);
