@@ -4,7 +4,6 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.Id;
-import com.pentlander.sasquach.ast.Identifier;
 
 record DuplicateNameError(Id identifier, Id existingIdentifier) implements
     RangedError {

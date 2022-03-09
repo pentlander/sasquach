@@ -3,7 +3,6 @@ package com.pentlander.sasquach.type;
 import static java.util.stream.Collectors.joining;
 
 import com.pentlander.sasquach.runtime.StructBase;
-import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -16,7 +15,7 @@ import java.util.Objects;
  */
 public record StructType(String typeName, Map<String, Type> fieldTypes) implements
     ParameterizedType {
-  private static final String ANON_PREFIX = "AnonStruct$";
+  private static final String PREFIX = "Struct";
 
   public StructType {
     fieldTypes = Objects.requireNonNullElse(fieldTypes, Map.of());
@@ -24,7 +23,7 @@ public record StructType(String typeName, Map<String, Type> fieldTypes) implemen
   }
 
   public StructType(Map<String, Type> fieldTypes) {
-    this(ANON_PREFIX + hashFieldTypes(fieldTypes), fieldTypes);
+    this(PREFIX + hashFieldTypes(fieldTypes), fieldTypes);
   }
 
   private static String hashFieldTypes(Map<String, Type> fieldTypes) {
@@ -72,7 +71,7 @@ public record StructType(String typeName, Map<String, Type> fieldTypes) implemen
 
   @Override
   public String toPrettyString() {
-    return typeName().startsWith(ANON_PREFIX) ? fieldTypes().entrySet().stream()
+    return typeName().startsWith(PREFIX) ? fieldTypes().entrySet().stream()
         .map(e -> e.getKey() + ": " + e.getValue().toPrettyString())
         .collect(joining(", ", "{ ", " }")) : typeName();
   }

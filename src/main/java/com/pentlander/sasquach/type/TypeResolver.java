@@ -365,8 +365,9 @@ public class TypeResolver implements TypeFetcher {
     }
 
     var trueType = resolveExprType(ifExpr.trueExpression());
-    if (ifExpr.falseExpression() != null) {
-      var falseType = resolveExprType(ifExpr.falseExpression());
+    var falseExpr = ifExpr.falseExpression();
+    if (falseExpr != null) {
+      var falseType = resolveExprType(falseExpr);
       var typeUnifier = new TypeUnifier();
       // Must unify in both directions since either the true or false statement types could be
       // unknown
@@ -375,7 +376,7 @@ public class TypeResolver implements TypeFetcher {
       if (!trueType.isAssignableFrom(falseType)) {
         return addError(new TypeMismatchError(("Type of else expression '%s' must match type of "
             + "if expression '%s'").formatted(trueType.toPrettyString(),
-            falseType.toPrettyString()), ifExpr.falseExpression().range()));
+            falseType.toPrettyString()), falseExpr.range()));
       }
       return trueType;
     }

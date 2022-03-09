@@ -9,7 +9,7 @@ moduleName: ID;
 qualifiedName : ID ('/' ID)+;
 use: USE FOREIGN? qualifiedName ;
 
-block : '{' NL* blockStatement (NL blockStatement)*  NL* '}' ;
+block : '{' NL* blockStatement (NL blockStatement NL*)*  NL* '}' ;
 function : functionDeclaration expression ;
 typeParameterList : ('[' typeIdentifier (',' typeIdentifier)* ']') ;
 functionDeclaration :
@@ -45,17 +45,17 @@ application :  LP expressionList? RP
   | LP expressionList? {notifyErrorListeners("Missing closing ')'");} ;
 
 expression :
-    left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
+   expression '.' memberName (application)? #memberAccessExpression
+  | foreignName '#' memberName (application)? #foreignMemberAccessExpression
+  | left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
   | left=expression operator=(PLUS|MINUS) right=expression #binaryOperation
   | LP expression RP #parenExpression
   | left=expression operator=(EQ|NEQ|GE|GT|LE|LT) right=expression #compareExpression
   | value #valueLiteral
   | struct #structLiteral
-  | varReference  #varExpression
   | functionCall #functionExpression
   | ifBlock #ifExpression
-  | foreignName '#' memberName (application)? #foreignMemberAccessExpression
-  | expression '.' memberName (application)? #memberAccessExpression
+  | varReference #varExpression
   | block #blockExpression
   | loop #loopExpression
   | function #functionExpression ;

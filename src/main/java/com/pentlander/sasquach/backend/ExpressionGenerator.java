@@ -4,6 +4,7 @@ import static com.pentlander.sasquach.ast.InvocationKind.SPECIAL;
 import static com.pentlander.sasquach.backend.ClassGenerator.INSTANCE_FIELD;
 import static com.pentlander.sasquach.backend.ClassGenerator.STRUCT_BASE_INTERNAL_NAME;
 import static com.pentlander.sasquach.backend.ClassGenerator.constructorType;
+import static com.pentlander.sasquach.backend.ClassGenerator.signatureDescriptor;
 
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Node;
@@ -18,6 +19,7 @@ import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
+import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Loop;
 import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
 import com.pentlander.sasquach.ast.expression.PrintStatement;
@@ -39,6 +41,7 @@ import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeFetcher;
 import com.pentlander.sasquach.type.TypeUtils;
+import com.pentlander.sasquach.type.TypeVariable;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
@@ -60,6 +63,7 @@ class ExpressionGenerator {
       List.of(Lookup.class, String.class, MethodType.class)).descriptorString();
   private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
   private final Deque<Label> loopLabels = new ArrayDeque<>();
+  private final Deque<LocalVarLabel> localVarLabels = new ArrayDeque<>();
   private final MethodVisitor methodVisitor;
   private final NameResolutionResult nameResolutionResult;
   private final TypeFetcher typeFetcher;
@@ -80,6 +84,14 @@ class ExpressionGenerator {
     return typeFetcher.getType(identifier);
   }
 
+  private FunctionType funcType(Expression expression) {
+    return TypeUtils.asFunctionType(typeFetcher.getType(expression)).orElseThrow();
+  }
+
+  private FunctionType funcType(Identifier identifier) {
+    return TypeUtils.asFunctionType(typeFetcher.getType(identifier)).orElseThrow();
+  }
+
   private void addContextNode(Node node) {
     contextNode = node;
   }
@@ -91,6 +103,19 @@ class ExpressionGenerator {
   public void generateExpr(Expression expression) {
     try {
       generate(expression);
+      var endLabel = new Label();
+      methodVisitor.visitLabel(endLabel);
+      for (var localVarLabel : localVarLabels) {
+        var varDecl = localVarLabel.varDecl();
+        var idx = nameResolutionResult.getVarIndex(varDecl);
+        var varType = type(varDecl.expression());
+        methodVisitor.visitLocalVariable(varDecl.name(),
+            varType.descriptor(),
+            signatureDescriptor(varType),
+            localVarLabel.label(),
+            endLabel,
+            idx);
+      }
     } catch (RuntimeException e) {
       throw new CodeGenerationException(contextNode, e);
     }
@@ -117,6 +142,9 @@ class ExpressionGenerator {
       case VariableDeclaration varDecl -> {
         var varDeclExpr = varDecl.expression();
         int idx = nameResolutionResult.getVarIndex(varDecl);
+        var localVarLabel = new LocalVarLabel(varDecl);
+        localVarLabels.push(localVarLabel);
+        methodVisitor.visitLabel(localVarLabel.label());
         generate(varDeclExpr);
         var varType = type(varDeclExpr);
         generateStoreVar(methodVisitor, varType, idx);
@@ -184,27 +212,22 @@ class ExpressionGenerator {
         switch (callTarget) {
           case QualifiedFunction qualifiedFunc -> {
             funcCall.arguments().forEach(this::generate);
-            var funcType = TypeUtils.asFunctionType(type(qualifiedFunc.id())).get();
+            var funcType = funcType(qualifiedFunc.id());
             methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC,
                 qualifiedFunc.ownerId().name(),
                 funcCall.name(),
                 funcType.funcDescriptor(),
                 false);
           }
-          case VariableDeclaration varDecl -> {
-            var idx = nameResolutionResult.getVarIndex(varDecl);
-            generateLoadVar(methodVisitor, type(varDecl.expression()), idx);
-            funcCall.arguments().forEach(this::generate);
-            var funcType = TypeUtils.asFunctionType(type(varDecl.expression())).get();
-            generateMemberCall(funcType, "_invoke");
-          }
-          case FunctionParameter functionParameter -> {
-            var idx = nameResolutionResult.getVarIndex(functionParameter);
-            var type = type(functionParameter.id());
+          case LocalVariable localVar -> {
+            var idx = nameResolutionResult.getVarIndex(localVar);
+            var type = switch (localVar) {
+              case VariableDeclaration varDecl -> funcType(varDecl.expression());
+              case FunctionParameter funcParam -> funcType(funcParam.id());
+            };
             generateLoadVar(methodVisitor, type, idx);
             funcCall.arguments().forEach(this::generate);
-            var funcType = TypeUtils.asFunctionType(type).get();
-            generateMemberCall(funcType, "_invoke");
+            generateMemberCall(type, "_invoke");
           }
         }
       }
@@ -243,13 +266,19 @@ class ExpressionGenerator {
       }
       case IfExpression ifExpr -> {
         generate(ifExpr.condition());
+        var hasFalseExpr = ifExpr.falseExpression() != null;
         var falseLabel = new Label();
         var endLabel = new Label();
-        methodVisitor.visitJumpInsn(Opcodes.IFEQ, falseLabel);
+        var ifEqLabel = hasFalseExpr ? falseLabel : endLabel;
+        methodVisitor.visitJumpInsn(Opcodes.IFEQ, ifEqLabel);
         generate(ifExpr.trueExpression());
-        methodVisitor.visitJumpInsn(Opcodes.GOTO, endLabel);
-        methodVisitor.visitLabel(falseLabel);
-        generate(ifExpr.falseExpression());
+        if (hasFalseExpr) {
+          methodVisitor.visitJumpInsn(Opcodes.GOTO, endLabel);
+          methodVisitor.visitLabel(falseLabel);
+          generate(ifExpr.falseExpression());
+        } else {
+          generatePop(ifExpr.trueExpression());
+        }
         methodVisitor.visitLabel(endLabel);
       }
       case Struct struct -> {
@@ -311,11 +340,22 @@ class ExpressionGenerator {
       }
       case MemberFunctionCall structFuncCall -> {
         generate(structFuncCall.structExpression());
-        structFuncCall.arguments().forEach(this::generate);
+
         var structType = TypeUtils.asStructType(type(structFuncCall.structExpression())).get();
         var funcType =
             TypeUtils.asFunctionType(Objects.requireNonNull(structType.fieldType(structFuncCall.name()))).get();
+        var arguments = structFuncCall.arguments();
+        for (int i = 0; i < arguments.size(); i++) {
+          var arg = arguments.get(i);
+          var argType = type(arg);
+          generate(arg);
+          var paramType = funcType.parameterTypes().get(i);
+          tryBox(argType, paramType);
+        }
+
         generateMemberCall(funcType, structFuncCall.name());
+        var funcCallType = type(structFuncCall);
+        tryUnbox(funcCallType, funcType.returnType());
       }
       case Loop loop -> {
         loop.varDeclarations().forEach(this::generate);
@@ -435,11 +475,57 @@ class ExpressionGenerator {
   }
 
   private void generateBlock(Block block) {
-    for (var expr : block.expressions()) {
+    var expressions = block.expressions();
+    for (int i = 0; i < expressions.size(); i++) {
+      Expression expr = expressions.get(i);
       generate(expr);
-      if (!(expr instanceof VariableDeclaration) && !expr.equals(block.returnExpression()) && !type(expr).equals(BuiltinType.VOID)) {
-        methodVisitor.visitInsn(Opcodes.POP);
+      if (i != expressions.size() - 1) {
+        generatePop(expr);
       }
+    }
+  }
+
+  private void generatePop(Expression expr) {
+    if (!(expr instanceof VariableDeclaration) && !type(expr).equals(BuiltinType.VOID)) {
+      methodVisitor.visitInsn(Opcodes.POP);
+    }
+  }
+
+  /**
+   * Convert a primitive type into its boxed type.
+   * <p>This method should be used when providing a primitive to a function call with type
+   * parameters, as the parameter type is {@link Object}.</p>
+   */
+  private void tryBox(Type actualType, Type expectedType) {
+    if (actualType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT
+        && expectedType instanceof TypeVariable) {
+      methodVisitor.visitMethodInsn(
+          Opcodes.INVOKESTATIC,
+          "java/lang/Integer",
+          "valueOf",
+          "(I)Ljava/lang/Integer;",
+          false);
+    }
+  }
+
+  /** Convert a boxed type into its primitive type. */
+  private void tryUnbox(Type expectedType, Type actualType) {
+    if (expectedType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT
+        && actualType instanceof TypeVariable) {
+      methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Integer");
+      methodVisitor.visitInsn(Opcodes.DUP);
+      methodVisitor.visitMethodInsn(
+          Opcodes.INVOKEVIRTUAL,
+          "java/lang/Integer",
+          "intValue",
+          "()I",
+          false);
+    }
+  }
+
+  private record LocalVarLabel(VariableDeclaration varDecl, Label label) {
+    public LocalVarLabel(VariableDeclaration varDecl) {
+      this(varDecl, new Label());
     }
   }
 }

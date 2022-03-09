@@ -85,7 +85,9 @@ public interface ExpressionVisitor<T> {
   default T visit(IfExpression ifExpression) {
     visit(ifExpression.condition());
     visit(ifExpression.trueExpression());
-    visit(ifExpression.falseExpression());
+    if (ifExpression.falseExpression() != null) {
+      visit(ifExpression.falseExpression());
+    }
     return defaultValue();
   }
 

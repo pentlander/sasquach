@@ -32,7 +32,11 @@ First {
         IO.println("testing std")
         let list = List.new()
         let drinkList = List.conj(list, "drink")
-        let intList = List.map(drinkList, { map = (value: String): Int -> 4 })
+        let intList = List.map(drinkList, (value: String): Int -> 4)
         PrintStream#println(System#out, List.get(intList, 0))
+
+        let anotherIntList = List.of("82")
+        let sum = List.reduce(List.conj(anotherIntList, "18"), 0, (n: Int, str: String): Int -> n + Integer.parse(str))
+        print sum
     }
 }
