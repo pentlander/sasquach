@@ -110,7 +110,7 @@ class MemberScopedNameResolverTest {
         .expression(new Block(List.of(funcCall), range()))
         .build();
     var memberResolver = new MemberScopedNameResolver(modResolver);
-    var result = memberResolver.resolve(function);
+    var result = memberResolver.resolve(new NamedFunction(id("foo"), function));
     var localFunc = (QualifiedFunction) result.getLocalFunction(funcCall);
 
     assertThat(localFunc.function()).isEqualTo(func);

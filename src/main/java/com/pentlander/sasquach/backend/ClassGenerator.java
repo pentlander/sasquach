@@ -2,12 +2,12 @@ package com.pentlander.sasquach.backend;
 
 import static java.util.stream.Collectors.joining;
 
+import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
-import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
@@ -19,15 +19,16 @@ import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
 import com.pentlander.sasquach.type.FunctionType;
-import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeFetcher;
 import com.pentlander.sasquach.type.TypeUtils;
+import com.pentlander.sasquach.type.TypeVariable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
 class ClassGenerator {
@@ -74,25 +75,22 @@ class ClassGenerator {
     return paramDescriptor + BuiltinType.VOID.descriptor();
   }
 
-  void generateStruct(Struct struct) {
-    setContext(struct);
-    // Generate class header
-    var structType = type(struct);
-    generatedClasses.put(structType.typeName().replace('/', '.'), classWriter);
+  private <T extends Expression> MethodVisitor generateStructStart(String internalName,
+  Range range, List<T> fields, java.util.function.Function<T, String> getName) {
+    generatedClasses.put(internalName.replace('/', '.'), classWriter);
     classWriter.visit(CLASS_VERSION,
         Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL,
-        structType.internalName(),
+        internalName,
         null,
         "java/lang/Object",
         new String[]{STRUCT_BASE_INTERNAL_NAME});
-    var sourcePath = struct.range().sourcePath().filepath();
+    var sourcePath = range.sourcePath().filepath();
     classWriter.visitSource(sourcePath, null);
-    List<Field> fields = struct.fields();
     // Generate fields
     for (var field : fields) {
       var fv = classWriter.visitField(
           Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL,
-          field.name(),
+          getName.apply(field),
           type(field).descriptor(),
           null,
           null);
@@ -117,11 +115,23 @@ class ClassGenerator {
       ExpressionGenerator.generateLoadVar(mv, type(field), i + 1);
       mv.visitFieldInsn(
           Opcodes.PUTFIELD,
-          structType.internalName(),
-          field.name(),
+          internalName,
+          getName.apply(field),
           type(field).descriptor());
     }
     mv.visitInsn(Opcodes.RETURN);
+
+    return mv;
+  }
+
+  void generateStruct(Struct struct) {
+    setContext(struct);
+    // Generate class header
+    var structType = type(struct);
+    var mv = generateStructStart(structType.internalName(),
+        struct.range(),
+        struct.fields(),
+        Field::name);
 
     // Add a static INSTANCE field of the struct to make a singleton class.
     if (struct.structKind() == StructKind.MODULE) {
@@ -169,49 +179,7 @@ class ClassGenerator {
   String generateFunctionStruct(Function function, List<VarReference> captures) {
     // Generate class header
     var name = "Lambda$" + Integer.toHexString(function.hashCode());
-    generatedClasses.put(name, classWriter);
-    classWriter.visit(CLASS_VERSION,
-        Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL,
-        name,
-        null,
-        "java/lang/Object",
-        new String[]{STRUCT_BASE_INTERNAL_NAME});
-    var sourcePath = function.range().sourcePath().filepath();
-    classWriter.visitSource(sourcePath, null);
-    // Generate fields
-    for (var capture : captures) {
-      var fv = classWriter.visitField(
-          Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL,
-          capture.name(),
-          type(capture).descriptor(),
-          null,
-          null);
-      fv.visitEnd();
-    }
-
-    // Generate constructor
-    var initDescriptor = constructorType(captures, typeFetcher);
-    var mv = classWriter.visitMethod(Opcodes.ACC_PUBLIC, "<init>", initDescriptor, null, null);
-    mv.visitCode();
-    mv.visitVarInsn(Opcodes.ALOAD, 0);
-    mv.visitMethodInsn(Opcodes.INVOKESPECIAL,
-        new ClassType(Object.class).internalName(),
-        "<init>",
-        "()V",
-        false);
-
-    // Set fields in constructor
-    for (int i = 0; i < captures.size(); i++) {
-      var field = captures.get(i);
-      mv.visitVarInsn(Opcodes.ALOAD, 0);
-      ExpressionGenerator.generateLoadVar(mv, type(field), i + 1);
-      mv.visitFieldInsn(
-          Opcodes.PUTFIELD,
-          name,
-          field.name(),
-          type(field).descriptor());
-    }
-    mv.visitInsn(Opcodes.RETURN);
+    var mv = generateStructStart(name, function.range(), captures, VarReference::name);
 
     // Generate methods
     generateFunction("_invoke", TypeUtils.asFunctionType(type(function)).get(), function);
@@ -222,12 +190,28 @@ class ClassGenerator {
     return name;
   }
 
+  static String signatureDescriptor(Type type) {
+    return switch (type) {
+      case TypeVariable typeVar -> "T" + typeVar.typeName() + ";";
+      case BuiltinType builtinType && builtinType == BuiltinType.VOID -> null;
+      case default -> type.descriptor();
+    };
+  }
+
   private void generateFunction(String funcName, FunctionType funcType, Function function) {
+    String signature = null;
+    if (!funcType.typeParameters().isEmpty()) {
+      signature =
+          funcType.typeParameters().stream().map(typeParameter -> typeParameter.typeName() + ":Ljava/lang/Object;")
+          .collect(joining("", "<", ">")) + funcType.parameterTypes().stream()
+          .map(ClassGenerator::signatureDescriptor).collect(joining("", "(", ")")) + signatureDescriptor(
+          funcType.returnType());
+    }
     var methodVisitor = classWriter.visitMethod(
         Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC,
         funcName,
         funcType.funcDescriptor(),
-        null,
+        signature,
         null);
     var lineNum = function.range().start().line();
     methodVisitor.visitLineNumber(lineNum, new Label());

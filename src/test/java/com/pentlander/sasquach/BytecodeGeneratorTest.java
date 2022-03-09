@@ -127,12 +127,6 @@ class BytecodeGeneratorTest {
             assertThat(result).isEqualTo("hello");
         }
 
-        @Test
-        void voidDecl() throws Exception {
-            Object result = declResult(BuiltinType.VOID, "hello");
-            assertThat(result).isNull();
-        }
-
         private <T> T declResult(BuiltinType type, String value) throws Exception {
             return declResult(type, new Value(type, value, NR));
         }
@@ -142,7 +136,7 @@ class BytecodeGeneratorTest {
             var block = new Block(List.of(varDecl, VarReference.of("bar", NR)), NR);
             var func = func("foo", List.of(), type, block);
 
-            var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
+            var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)), true);
             return invokeFirst(clazz, null);
         }
     }

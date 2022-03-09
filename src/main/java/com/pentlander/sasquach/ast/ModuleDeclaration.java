@@ -2,7 +2,6 @@ package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.expression.Struct;
-import io.soabase.recordbuilder.core.RecordBuilder;
 
 /**
  * Declaration of a module struct.

@@ -28,16 +28,42 @@ List {
 
   get = [A](list: T[A], idx: Int): A -> ArrayList#get(list.list, idx),
 
-  map = [A, B](list: T[A], mapper: { map: (value: A) -> B }): T[B] -> {
+  size = [A](list: T[A]): Int -> ArrayList#size(list.list),
+
+  map = [A, B](list: T[A], mapper: (value: A) -> B): T[B] -> {
     let size = ArrayList#size(list.list)
     let newList = ArrayList#new(size)
     loop (let i = 0) ->
       if i < size {
         let item = get(list, i)
-        ArrayList#add(newList, mapper.map(item))
+        ArrayList#add(newList, mapper(item))
         recur(i + 1)
       } else {
         { list = newList }
       }
-  }
+  },
+
+  filter = [A](list: T[A], filterer: (value: A) -> Boolean): T[A] -> {
+    let size = ArrayList#size(list.list)
+    let newList = ArrayList#new(size)
+    loop (let i = 0) ->
+      if i < size {
+        let item = get(list, i)
+        if (filterer(item)) ArrayList#add(newList, item)
+        recur(i + 1)
+      } else {
+        { list = newList }
+      }
+  },
+
+  reduce = [A, B](list: T[A], init: B, accumulator: (accum: B, value: A) -> B): B -> {
+    let size = size(list)
+    loop (let i = 0, let b = init) ->
+      if i < size {
+        let item = get(list, i)
+        recur(i + 1, accumulator(b, item))
+      } else {
+        b
+      }
+  },
 }

@@ -53,4 +53,10 @@ public enum BuiltinType implements Type {
   public String internalName() {
     return org.objectweb.asm.Type.getInternalName(typeClass);
   }
+
+  @Override
+  public boolean isAssignableFrom(Type other) {
+    return this.equals(other) || (other instanceof ClassType classType && (typeClass.equals(
+        classType.typeClass())));
+  }
 }

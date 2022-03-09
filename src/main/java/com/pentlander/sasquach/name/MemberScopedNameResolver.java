@@ -212,7 +212,7 @@ public class MemberScopedNameResolver {
     @Override
     public Void visit(LocalFunctionCall localFunctionCall) {
       var func = moduleScopedNameResolver.resolveFunction(localFunctionCall.name());
-      if (func.isPresent()) {
+      if (func.isPresent() && !localFunctionCall.name().equals(namedFunction.name())) {
         localFunctionCalls.put(
             localFunctionCall,
             new QualifiedFunction(moduleScopedNameResolver.moduleDeclaration().id(),

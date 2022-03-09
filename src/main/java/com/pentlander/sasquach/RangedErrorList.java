@@ -3,7 +3,6 @@ package com.pentlander.sasquach;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 public record RangedErrorList(List<RangedError> errors) {
   private static final RangedErrorList EMPTY = new RangedErrorList(List.of());
