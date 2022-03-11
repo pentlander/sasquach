@@ -24,6 +24,7 @@ public interface ExpressionVisitor<T> {
       case VarReference varReference -> visit(varReference);
       case Recur recur -> visit(recur);
       case Loop loop -> visit(loop);
+      case ApplyOperator applyOperator -> visit(applyOperator);
     };
   }
 
@@ -92,6 +93,8 @@ public interface ExpressionVisitor<T> {
   }
 
   T visit(LocalFunctionCall localFunctionCall);
+
+  T visit(ApplyOperator applyOperator);
 
   default T visit(MemberFunctionCall memberFunctionCall) {
     visit(memberFunctionCall.structExpression());

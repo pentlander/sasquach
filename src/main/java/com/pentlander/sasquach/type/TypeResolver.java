@@ -14,6 +14,7 @@ import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
 import com.pentlander.sasquach.ast.TypeAlias;
+import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathExpression;
@@ -352,6 +353,7 @@ public class TypeResolver implements TypeFetcher {
         yield resolveExprType(loop.expression());
       }
       case Function func -> resolveFuncType(func);
+      case ApplyOperator applyOperator -> resolveExprType(applyOperator.toFunctionCall());
     };
 
     putExprType(expr, requireNonNull(type, () -> "Null expression type for: %s".formatted(expr)));
@@ -500,6 +502,8 @@ public class TypeResolver implements TypeFetcher {
   }
 
   private boolean argsMatchParams(List<Class<?>> params, List<Class<?>> args) {
+    if (params.size() != args.size()) return false;
+
     for (int i = 0; i < args.size(); i++) {
       if (!params.get(i).isAssignableFrom(args.get(i))) {
         return false;
@@ -509,7 +513,7 @@ public class TypeResolver implements TypeFetcher {
   }
 
   private Type resolveForeignFunctionCall(ForeignFunctionCall funcCall) {
-    ForeignFunctions funcCandidates = nameResolutionResult.getForeignFunction(funcCall);
+    var funcCandidates = nameResolutionResult.getForeignFunction(funcCall);
     List<Class<?>> argClasses = funcCall.arguments().stream()
         .map(arg -> resolveExprType(arg).typeClass()).collect(toList());
     var argTypes = argClasses.stream().map(Class::getName).collect(joining(", ", "(", ")"));

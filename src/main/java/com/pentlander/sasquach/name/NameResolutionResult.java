@@ -3,6 +3,7 @@ package com.pentlander.sasquach.name;
 import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.RangedErrorList;
+import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -37,8 +38,8 @@ public class NameResolutionResult {
   private final Map<TypeNode<Type>, NamedTypeDefinition> typeAliases;
   private final Map<Type, NamedTypeDefinition> typeNameAliases;
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses;
-  private final Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions;
-  private final Map<LocalFunctionCall, FunctionCallTarget> localFunctionCalls;
+  private final Map<Identifier, ForeignFunctions> foreignFunctions;
+  private final Map<Identifier, FunctionCallTarget> localFunctionCalls;
   private final Map<VarReference, ReferenceDeclaration> varReferences;
   private final Map<LocalVariable, Integer> varIndexes;
   private final Map<Recur, RecurPoint> recurPoints;
@@ -46,8 +47,8 @@ public class NameResolutionResult {
 
   public NameResolutionResult(Map<TypeNode<Type>, NamedTypeDefinition> typeAliases,
       Map<ForeignFieldAccess, Field> foreignFieldAccesses,
-      Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions,
-      Map<LocalFunctionCall, FunctionCallTarget> localFunctionCalls,
+      Map<Identifier, ForeignFunctions> foreignFunctions,
+      Map<Identifier, FunctionCallTarget> localFunctionCalls,
       Map<VarReference, ReferenceDeclaration> varReferences,
       Map<LocalVariable, Integer> varIndexes, Map<Recur, RecurPoint> recurPoints,
       RangedErrorList errors) {
@@ -102,11 +103,11 @@ public class NameResolutionResult {
   }
 
   public ForeignFunctions getForeignFunction(ForeignFunctionCall foreignFunctionCall) {
-    return requireNonNull(foreignFunctions.get(foreignFunctionCall));
+    return requireNonNull(foreignFunctions.get(foreignFunctionCall.functionId()));
   }
 
   public FunctionCallTarget getLocalFunction(LocalFunctionCall localFunctionCall) {
-    return requireNonNull(localFunctionCalls.get(localFunctionCall));
+    return requireNonNull(localFunctionCalls.get(localFunctionCall.functionId()), localFunctionCall.toString());
   }
 
   public ReferenceDeclaration getVarReference(VarReference varReference) {
