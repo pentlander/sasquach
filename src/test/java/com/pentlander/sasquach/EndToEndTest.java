@@ -20,6 +20,20 @@ public class EndToEndTest {
   }
 
   @Test
+  void booleanExpr() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          foo = (): Boolean -> false && true || true
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    boolean bool = invokeName(clazz, "foo", null);
+
+    assertThat(bool).isEqualTo(true);
+  }
+
+  @Test
   void loopRecur() throws Exception {
     var source = Source.fromString("main",
         """

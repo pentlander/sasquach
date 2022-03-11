@@ -29,6 +29,7 @@ import static com.pentlander.sasquach.SasquachParser.VariableDeclarationContext;
 import static com.pentlander.sasquach.ast.expression.Struct.StructKind;
 import static java.util.Objects.*;
 
+import com.pentlander.sasquach.SasquachParser.BooleanExpressionContext;
 import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
 import com.pentlander.sasquach.SasquachParser.CompareExpressionContext;
 import com.pentlander.sasquach.SasquachParser.LocalNamedTypeContext;
@@ -43,6 +44,8 @@ import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.ModuleScopedIdentifier;
 import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
+import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
+import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
@@ -219,6 +222,17 @@ public class Visitor {
       var rightExpr = ctx.right.accept(this);
       return new CompareExpression(
           CompareOperator.fromString(ctx.operator.getText()),
+          leftExpr,
+          rightExpr,
+          rangeFrom(ctx));
+    }
+
+    @Override
+    public Expression visitBooleanExpression(BooleanExpressionContext ctx) {
+      var leftExpr = ctx.left.accept(this);
+      var rightExpr = ctx.right.accept(this);
+      return new BooleanExpression(
+          BooleanOperator.fromString(ctx.operator.getText()),
           leftExpr,
           rightExpr,
           rangeFrom(ctx));

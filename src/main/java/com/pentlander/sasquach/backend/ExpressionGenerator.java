@@ -10,6 +10,7 @@ import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
+import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.FieldAccess;
@@ -232,10 +233,10 @@ class ExpressionGenerator {
         }
       }
       case BinaryExpression binExpr -> {
-        generate(binExpr.left());
-        generate(binExpr.right());
         switch (binExpr) {
           case BinaryExpression.MathExpression mathExpr -> {
+            generate(binExpr.left());
+            generate(binExpr.right());
             int opcode = switch (mathExpr.operator()) {
               case PLUS -> Opcodes.IADD;
               case MINUS -> Opcodes.ISUB;
@@ -245,7 +246,9 @@ class ExpressionGenerator {
             methodVisitor.visitInsn(opcode);
           }
           case BinaryExpression.CompareExpression cmpExpr -> {
-            int opCode = switch (cmpExpr.compareOperator()) {
+            generate(binExpr.left());
+            generate(binExpr.right());
+            int opCode = switch (cmpExpr.operator()) {
               case EQ -> Opcodes.IF_ICMPEQ;
               case NE -> Opcodes.IF_ICMPNE;
               case GE -> Opcodes.IF_ICMPGE;
@@ -261,6 +264,19 @@ class ExpressionGenerator {
             methodVisitor.visitLabel(trueLabel);
             methodVisitor.visitInsn(Opcodes.ICONST_1);
             methodVisitor.visitLabel(endLabel);
+          }
+          case BooleanExpression boolExpr -> {
+            int opCode = switch (boolExpr.operator()) {
+              case AND -> Opcodes.IFEQ;
+              case OR -> Opcodes.IFNE;
+            };
+            var labelEnd = new Label();
+            generate(binExpr.left());
+            methodVisitor.visitInsn(Opcodes.DUP);
+            methodVisitor.visitJumpInsn(opCode, labelEnd);
+            methodVisitor.visitInsn(Opcodes.POP);
+            generate(binExpr.right());
+            methodVisitor.visitLabel(labelEnd);
           }
         }
       }

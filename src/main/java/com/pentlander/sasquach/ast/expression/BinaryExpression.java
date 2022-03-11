@@ -5,10 +5,16 @@ import com.pentlander.sasquach.Range;
 import java.util.NoSuchElementException;
 
 public sealed interface BinaryExpression extends Expression {
+  Operator operator();
   Expression left();
   Expression right();
 
-  enum MathOperator {
+  @Override
+  default String toPrettyString() {
+    return left().toPrettyString() + " " + operator().literal() + " " + right().toPrettyString();
+  }
+
+  enum MathOperator implements Operator {
     PLUS("+"), MINUS("-"), TIMES("*"), DIVIDE("/");
 
     private final String literal;
@@ -17,17 +23,17 @@ public sealed interface BinaryExpression extends Expression {
       this.literal = literal;
     }
 
+    @Override
+    public String literal() {
+      return literal;
+    }
+
     public static MathOperator fromString(String value) {
-      for (MathOperator mathOperator : values()) {
-        if (mathOperator.literal.equals(value)) {
-          return mathOperator;
-        }
-      }
-      throw new NoSuchElementException(value);
+      return BinaryExpression.fromString(value, values());
     }
   }
 
-  enum CompareOperator {
+  enum CompareOperator implements Operator {
     GE(">="), LE("<="), GT(">"), LT("<"), EQ("=="), NE("!=");
 
     private final String literal;
@@ -36,19 +42,54 @@ public sealed interface BinaryExpression extends Expression {
       this.literal = literal;
     }
 
-    public static CompareOperator fromString(String value) {
-      for (var operator : values()) {
-        if (operator.literal.equals(value)) {
-          return operator;
-        }
-      }
-      throw new NoSuchElementException(value);
+    @Override
+    public String literal() {
+      return literal;
     }
+
+    public static CompareOperator fromString(String value) {
+      return BinaryExpression.fromString(value, values());
+    }
+  }
+
+  enum BooleanOperator implements Operator {
+    AND("&&"), OR("||");
+
+    private final String literal;
+
+    BooleanOperator(String literal) {
+      this.literal = literal;
+    }
+
+    @Override
+    public String literal() {
+      return literal;
+    }
+
+    public static BooleanOperator fromString(String value) {
+      return BinaryExpression.fromString(value, values());
+    }
+  }
+
+  interface Operator {
+    String literal();
+  }
+
+  private static <T extends Operator> T fromString(String value, T[] values) {
+    for (var operator : values) {
+      if (operator.literal().equals(value)) {
+        return operator;
+      }
+    }
+    throw new NoSuchElementException(value);
   }
 
   record MathExpression(MathOperator operator, Expression left, Expression right,
                         Range range) implements BinaryExpression {}
 
-  record CompareExpression(CompareOperator compareOperator, Expression left, Expression right,
+  record CompareExpression(CompareOperator operator, Expression left, Expression right,
+                           Range range) implements BinaryExpression {}
+
+  record BooleanExpression(BooleanOperator operator, Expression left, Expression right,
                            Range range) implements BinaryExpression {}
 }
