@@ -13,6 +13,7 @@ import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.QualifiedIdentifier;
 import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.ExpressionVisitor;
@@ -63,8 +64,8 @@ public class MemberScopedNameResolver {
   private final ModuleScopedNameResolver moduleScopedNameResolver;
   private final Map<TypeNode<Type>, NamedTypeDefinition> typeAliases = new HashMap<>();
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses = new HashMap<>();
-  private final Map<ForeignFunctionCall, ForeignFunctions> foreignFunctions = new HashMap<>();
-  private final Map<LocalFunctionCall, FunctionCallTarget> localFunctionCalls = new HashMap<>();
+  private final Map<Identifier, ForeignFunctions> foreignFunctions = new HashMap<>();
+  private final Map<Identifier, FunctionCallTarget> localFunctionCalls = new HashMap<>();
   private final Map<VarReference, LocalVariable> localVarReferences = new LinkedHashMap<>();
   private final Map<VarReference, ModuleDeclaration> moduleReferences = new HashMap<>();
   private final Map<LocalVariable, Integer> localVariableIndex = new HashMap<>();
@@ -165,16 +166,12 @@ public class MemberScopedNameResolver {
             var funcName = foreignFunctionCall.name();
             var isConstructor = funcName.equals("new");
             var lookup = MethodHandles.lookup();
-            int argCount = foreignFunctionCall.argumentCount();
-            var matchingNames = new ArrayList<Method>();
             if (isConstructor) {
               for (var constructor : clazz.getConstructors()) {
                 try {
                   var methodHandle = lookup.unreflectConstructor(constructor);
-                  if (methodHandle.type().parameterCount() == argCount) {
                     matchingForeignFunctions.add(new ForeignFunctionHandle(methodHandle,
                         InvocationKind.SPECIAL));
-                  }
                 } catch (IllegalAccessException e) {
                   // Ignore inaccessible constructors
                 }
@@ -184,23 +181,19 @@ public class MemberScopedNameResolver {
                 boolean isStatic = Modifier.isStatic(method.getModifiers());
                 try {
                   var methodHandle = lookup.unreflect(method);
-                  if (method.getName().equals(funcName) && methodHandle.type().parameterCount() == argCount) {
+                  if (method.getName().equals(funcName)) {
                     matchingForeignFunctions.add(new ForeignFunctionHandle(methodHandle,
                         isStatic ? InvocationKind.STATIC : InvocationKind.VIRTUAL));
-                  } else if (method.getName().equals(funcName)) {
-                    matchingNames.add(method);
                   }
                 } catch (IllegalAccessException e) {
                   // Ignore inaccessible methods
                 }
               }
             }
-            if (matchingForeignFunctions.isEmpty()) {
-              errors.add(new NameNotFoundError(
+            if (!matchingForeignFunctions.isEmpty()) {
+              foreignFunctions.put(
                   foreignFunctionCall.functionId(),
-                  "foreign function", matchingNames.stream().map(Method::toString).toList()));
-            } else {
-              foreignFunctions.put(foreignFunctionCall, new ForeignFunctions(clazz, matchingForeignFunctions));
+                  new ForeignFunctions(clazz, matchingForeignFunctions));
             }
           },
           () -> errors.add(new NameNotFoundError(
@@ -214,13 +207,13 @@ public class MemberScopedNameResolver {
       var func = moduleScopedNameResolver.resolveFunction(localFunctionCall.name());
       if (func.isPresent() && !localFunctionCall.name().equals(namedFunction.name())) {
         localFunctionCalls.put(
-            localFunctionCall,
+            localFunctionCall.functionId(),
             new QualifiedFunction(moduleScopedNameResolver.moduleDeclaration().id(),
                 func.get().id(), func.get().function()));
       } else {
         var localVar = resolveLocalVar(localFunctionCall);
         if (localVar.isPresent()) {
-          localFunctionCalls.put(localFunctionCall, localVar.get());
+          localFunctionCalls.put(localFunctionCall.functionId(), localVar.get());
         } else {
           errors.add(new NameNotFoundError(localFunctionCall.functionId(), "function"));
         }
@@ -323,6 +316,13 @@ public class MemberScopedNameResolver {
         throw new IllegalStateException();
       }
       recur.arguments().forEach(this::visit);
+      return null;
+    }
+
+    @Override
+    public Void visit(ApplyOperator applyOperator) {
+      visit(applyOperator.expression());
+      visit(applyOperator.functionCall());
       return null;
     }
 

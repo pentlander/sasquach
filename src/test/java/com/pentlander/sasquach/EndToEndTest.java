@@ -71,6 +71,26 @@ public class EndToEndTest {
   }
 
   @Test
+  void applyOperator() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          inc = (i: Int): Int -> i + 1,
+          timesTwo = (i: Int): Int -> i * 2,
+          
+          foo = (): Int -> {
+            let add = (a: Int, b: Int): Int -> a + b
+            10 |> inc() |> timesTwo() |> add(5)
+          }
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    int sum = invokeName(clazz, "foo", null);
+
+    assertThat(sum).isEqualTo(27);
+  }
+
+  @Test
   void typeAliasStruct() throws Exception {
     var source = Source.fromString("main",
         """

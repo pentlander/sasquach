@@ -29,11 +29,17 @@ import static com.pentlander.sasquach.SasquachParser.VariableDeclarationContext;
 import static com.pentlander.sasquach.ast.expression.Struct.StructKind;
 import static java.util.Objects.*;
 
+import com.pentlander.sasquach.SasquachParser.ApplyExpressionContext;
 import com.pentlander.sasquach.SasquachParser.BooleanExpressionContext;
 import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
 import com.pentlander.sasquach.SasquachParser.CompareExpressionContext;
+import com.pentlander.sasquach.SasquachParser.ExpressionContext;
+import com.pentlander.sasquach.SasquachParser.ForeignMemberApplicationExpressionContext;
+import com.pentlander.sasquach.SasquachParser.ForeignNameContext;
 import com.pentlander.sasquach.SasquachParser.LocalNamedTypeContext;
 import com.pentlander.sasquach.SasquachParser.LoopExpressionContext;
+import com.pentlander.sasquach.SasquachParser.MemberApplicationContext;
+import com.pentlander.sasquach.SasquachParser.MemberApplicationExpressionContext;
 import com.pentlander.sasquach.SasquachParser.ModuleNamedTypeContext;
 import com.pentlander.sasquach.SasquachParser.TypeAliasStatementContext;
 import com.pentlander.sasquach.SasquachParser.TypeArgumentListContext;
@@ -44,8 +50,10 @@ import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.ModuleScopedIdentifier;
 import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
+import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator;
+import com.pentlander.sasquach.ast.expression.FunctionCall;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
@@ -238,6 +246,31 @@ public class Visitor {
           rangeFrom(ctx));
     }
 
+    private ForeignFunctionCall foreignFuncCall(ForeignNameContext foreignNameCtx,
+        MemberApplicationContext memberApplicationCtx) {
+      var classAlias = id(foreignNameCtx.ID());
+      var memberId = id(memberApplicationCtx.memberName().ID());
+      var arguments = args(memberApplicationCtx.application());
+      return new ForeignFunctionCall(classAlias, memberId, arguments,
+          classAlias.range().join(rangeFrom(memberApplicationCtx)));
+    }
+
+    @Override
+    public Expression visitApplyExpression(ApplyExpressionContext ctx) {
+      var expr = ctx.expr.accept(this);
+      FunctionCall funcCall;
+      if (ctx.functionCall() != null) {
+        funcCall = (FunctionCall) ctx.functionCall().accept(this);
+      } else if (ctx.memberExpression != null) {
+        funcCall = memberFuncCall(ctx.memberExpression, ctx.memberApplication());
+      } else if (ctx.foreignName() != null) {
+        funcCall = foreignFuncCall(ctx.foreignName(), ctx.memberApplication());
+      } else {
+        throw new IllegalStateException();
+      }
+      return new ApplyOperator(expr, funcCall, rangeFrom(ctx));
+    }
+
     @Override
     public Expression visitPrintStatement(PrintStatementContext ctx) {
       Expression expr = ctx.expression().accept(new ExpressionVisitor());
@@ -280,27 +313,39 @@ public class Visitor {
     }
 
     @Override
+    public Expression visitMemberApplicationExpression(MemberApplicationExpressionContext ctx) {
+      return memberFuncCall(ctx.expression(), ctx.memberApplication());
+    }
+
+    private MemberFunctionCall memberFuncCall(ExpressionContext exprCtx,
+        MemberApplicationContext memberAppCtx) {
+      var expr = exprCtx.accept(this);
+      var memberId = id(memberAppCtx.memberName().ID());
+      var arguments = args(memberAppCtx.application());
+      return new MemberFunctionCall(expr,
+          memberId,
+          arguments,
+          rangeFrom(exprCtx).join(rangeFrom(memberAppCtx)));
+    }
+
+    @Override
     public Expression visitMemberAccessExpression(MemberAccessExpressionContext ctx) {
       var expr = ctx.expression().accept(this);
       var memberId = id(ctx.memberName().ID());
-      if (ctx.application() != null) {
-        var arguments = args(ctx.application());
-        return new MemberFunctionCall(expr, memberId, arguments, rangeFrom(ctx));
-      } else {
-        return new FieldAccess(expr, memberId);
-      }
+      return new FieldAccess(expr, memberId);
     }
 
     @Override
     public Expression visitForeignMemberAccessExpression(ForeignMemberAccessExpressionContext ctx) {
       var classAliasId = id(ctx.foreignName().ID());
       var memberId = id(ctx.memberName().ID());
-      if (ctx.application() != null) {
-        var arguments = args(ctx.application());
-        return new ForeignFunctionCall(classAliasId, memberId, arguments, rangeFrom(ctx));
-      } else {
-        return new ForeignFieldAccess(classAliasId, memberId);
-      }
+      return new ForeignFieldAccess(classAliasId, memberId);
+    }
+
+    @Override
+    public Expression visitForeignMemberApplicationExpression(
+        ForeignMemberApplicationExpressionContext ctx) {
+      return foreignFuncCall(ctx.foreignName(), ctx.memberApplication());
     }
 
     @Override

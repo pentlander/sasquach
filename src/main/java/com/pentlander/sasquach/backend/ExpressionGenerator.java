@@ -8,6 +8,7 @@ import static com.pentlander.sasquach.backend.ClassGenerator.signatureDescriptor
 
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Node;
+import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
@@ -403,6 +404,7 @@ class ExpressionGenerator {
         generatedClasses.putAll(classGen.getGeneratedClasses());
         generateFuncInit(name, List.of());
       }
+      case ApplyOperator applyOperator -> generate(applyOperator.toFunctionCall());
       case default -> throw new IllegalStateException("Unrecognized expression: " + expression);
     }
   }

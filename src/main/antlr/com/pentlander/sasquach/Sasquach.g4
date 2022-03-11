@@ -43,10 +43,13 @@ loop : LOOP '(' variableDeclaration? (',' NL* variableDeclaration)* ')' '->' NL*
 expressionList : expression (',' expression)* ;
 application :  LP expressionList? RP
   | LP expressionList? {notifyErrorListeners("Missing closing ')'");} ;
+memberApplication : memberName application ;
 
 expression :
-   expression '.' memberName (application)? #memberAccessExpression
-  | foreignName '#' memberName (application)? #foreignMemberAccessExpression
+  expression '.' memberApplication #memberApplicationExpression
+  | expression '.' memberName  #memberAccessExpression
+  | foreignName '#' memberApplication #foreignMemberApplicationExpression
+  | foreignName '#' memberName #foreignMemberAccessExpression
   | LP expression RP #parenExpression
   | left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
   | left=expression operator=(PLUS|MINUS) right=expression #binaryOperation
@@ -59,7 +62,8 @@ expression :
   | varReference #varExpression
   | block #blockExpression
   | loop #loopExpression
-  | function #functionExpression ;
+  | function #functionExpression
+  | expr=expression NL* APPLY NL* (functionCall | memberExpression=expression '.' memberApplication | foreignName '#' memberApplication) #applyExpression ;
 
 struct : '{' NL* structStatement (',' NL* structStatement)* (',')? NL* '}' ;
 structStatement : use #useStatement
@@ -107,6 +111,7 @@ LP       : '(' ;
 RP       : ')' ;
 AND      : '&&' ;
 OR       : '||' ;
+APPLY    : '|>' ;
 
 // Identifiers
 ID : [a-zA-Z][a-zA-Z0-9]* ;

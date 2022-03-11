@@ -30,13 +30,15 @@ First {
         PrintStream#println(System#out, optInt.value)
         gee(third, "testing")
         IO.println("testing std")
-        let list = List.new()
-        let drinkList = List.conj(list, "drink")
-        let intList = List.map(drinkList, (value: String): Int -> 4)
-        PrintStream#println(System#out, List.get(intList, 0))
+        let drinkList = List.new()
+          |> List.conj("drink")
+          |> List.map((value: String): Int -> 4)
 
-        let anotherIntList = List.of("82")
-        let sum = List.reduce(List.conj(anotherIntList, "18"), 0, (n: Int, str: String): Int -> n + Integer.parse(str))
+        System#out |> PrintStream#println(List.get(drinkList, 0))
+
+        let sum = List.of("82")
+          |> List.conj("18")
+          |> List.reduce(0, (n: Int, str: String): Int -> n + Integer.parse(str))
         print sum
     }
 }
