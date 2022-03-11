@@ -12,6 +12,7 @@ import static com.pentlander.sasquach.Fixtures.literalStruct;
 import static com.pentlander.sasquach.Fixtures.qualId;
 import static com.pentlander.sasquach.Fixtures.range;
 import static com.pentlander.sasquach.Fixtures.stringValue;
+import static com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator.*;
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.MathExpression;
@@ -26,6 +27,8 @@ import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
+import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
+import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
@@ -310,6 +313,48 @@ class BytecodeGeneratorTest {
         int result = invokeFirst(clazz, null);
 
         assertThat(result).isEqualTo(actualResult);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true, &&, true", "false, ||, true", "true, ||, false"})
+    void booleanExpressionTrue(boolean left, String operator, boolean right) throws Exception {
+        var op = fromString(operator);
+        var boolExpr = new BooleanExpression(op, boolValue(left),
+            boolValue(right), NR);
+        var func = func("foo", List.of(), BuiltinType.BOOLEAN, boolExpr);
+
+        var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
+        boolean result = invokeFirst(clazz, null);
+
+        assertThat(result).isEqualTo(true);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false, &&, true", "true, &&, false", "false, ||, false"})
+    void booleanExpressionFalse(boolean left, String operator, boolean right) throws Exception {
+        var op = fromString(operator);
+        var boolExpr = new BooleanExpression(op, boolValue(left),
+            boolValue(right), NR);
+        var func = func("foo", List.of(), BuiltinType.BOOLEAN, boolExpr);
+
+        var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
+        boolean result = invokeFirst(clazz, null);
+
+        assertThat(result).isEqualTo(false);
+    }
+
+    @Test
+    void complexBooleanExpression() throws Exception {
+        var boolExpr = new BooleanExpression(OR,
+            new BooleanExpression(AND, boolValue(true), boolValue(false), NR),
+            boolValue(true),
+            NR);
+        var func = func("foo", List.of(), BuiltinType.BOOLEAN, boolExpr);
+
+        var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
+        boolean result = invokeFirst(clazz, null);
+
+        assertThat(result).isEqualTo(true);
     }
 
     @ParameterizedTest

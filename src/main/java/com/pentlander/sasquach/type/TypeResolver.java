@@ -14,6 +14,7 @@ import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
 import com.pentlander.sasquach.ast.TypeAlias;
+import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathExpression;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
@@ -296,6 +297,7 @@ public class TypeResolver implements TypeFetcher {
         yield switch (binExpr) {
           case CompareExpression b -> BuiltinType.BOOLEAN;
           case MathExpression b -> leftType;
+          case BooleanExpression b -> BuiltinType.BOOLEAN;
         };
       }
       case ArrayValue arrayVal -> {

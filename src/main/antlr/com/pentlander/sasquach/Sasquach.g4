@@ -47,10 +47,11 @@ application :  LP expressionList? RP
 expression :
    expression '.' memberName (application)? #memberAccessExpression
   | foreignName '#' memberName (application)? #foreignMemberAccessExpression
+  | LP expression RP #parenExpression
   | left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
   | left=expression operator=(PLUS|MINUS) right=expression #binaryOperation
-  | LP expression RP #parenExpression
   | left=expression operator=(EQ|NEQ|GE|GT|LE|LT) right=expression #compareExpression
+  | left=expression operator=(AND|OR) right=expression #booleanExpression
   | value #valueLiteral
   | struct #structLiteral
   | functionCall #functionExpression
@@ -104,6 +105,8 @@ EQ       : '==' ;
 NEQ      : '!=' ;
 LP       : '(' ;
 RP       : ')' ;
+AND      : '&&' ;
+OR       : '||' ;
 
 // Identifiers
 ID : [a-zA-Z][a-zA-Z0-9]* ;
