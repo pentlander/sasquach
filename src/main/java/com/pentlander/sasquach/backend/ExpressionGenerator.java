@@ -213,8 +213,9 @@ class ExpressionGenerator {
         var callTarget = nameResolutionResult.getLocalFunction(funcCall);
         switch (callTarget) {
           case QualifiedFunction qualifiedFunc -> {
-            funcCall.arguments().forEach(this::generate);
+            var arguments = funcCall.arguments();
             var funcType = funcType(qualifiedFunc.id());
+            generateArgs(arguments, funcType.parameterTypes());
             methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC,
                 qualifiedFunc.ownerId().name(),
                 funcCall.name(),
@@ -228,7 +229,7 @@ class ExpressionGenerator {
               case FunctionParameter funcParam -> funcType(funcParam.id());
             };
             generateLoadVar(methodVisitor, type, idx);
-            funcCall.arguments().forEach(this::generate);
+            generateArgs(funcCall.arguments(), type.parameterTypes());
             generateMemberCall(type, "_invoke");
           }
         }
@@ -362,14 +363,8 @@ class ExpressionGenerator {
         var funcType =
             TypeUtils.asFunctionType(Objects.requireNonNull(structType.fieldType(structFuncCall.name()))).get();
         var arguments = structFuncCall.arguments();
-        for (int i = 0; i < arguments.size(); i++) {
-          var arg = arguments.get(i);
-          var argType = type(arg);
-          generate(arg);
-          var paramType = funcType.parameterTypes().get(i);
-          tryBox(argType, paramType);
-        }
 
+        generateArgs(arguments, funcType.parameterTypes());
         generateMemberCall(funcType, structFuncCall.name());
         var funcCallType = type(structFuncCall);
         tryUnbox(funcCallType, funcType.returnType());
@@ -406,6 +401,14 @@ class ExpressionGenerator {
       }
       case ApplyOperator applyOperator -> generate(applyOperator.toFunctionCall());
       case default -> throw new IllegalStateException("Unrecognized expression: " + expression);
+    }
+  }
+
+  private void generateArgs(List<Expression> arguments, List<Type> paramTypes) {
+    for (int i = 0; i < arguments.size(); i++) {
+      var expr = arguments.get(i);
+      generate(expr);
+      tryBox(type(expr), paramTypes.get(i));
     }
   }
 

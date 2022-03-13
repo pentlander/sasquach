@@ -4,7 +4,7 @@ import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
 
 public sealed interface TypeNode<T extends Type> extends Node permits BasicTypeNode,
-    FunctionSignature, StructTypeNode, TypeAlias, TypeParameter {
+    FunctionSignature, StructTypeNode, TupleTypeNode, TypeAlias, TypeParameter {
   T type();
 
   default String typeName() {

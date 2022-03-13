@@ -40,6 +40,7 @@ public class CompilationUnitParser {
     public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line,
         int charPositionInLine, String msg, RecognitionException e) {
       var token = (CommonToken) offendingSymbol;
+      System.err.println(msg);
       System.err.println(source.highlight(new Single(source.path(), new Position(line,
           charPositionInLine + 1),
           token.getText().length())));

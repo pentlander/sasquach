@@ -503,7 +503,6 @@ public class TypeResolver implements TypeFetcher {
 
   private boolean argsMatchParams(List<Class<?>> params, List<Class<?>> args) {
     if (params.size() != args.size()) return false;
-
     for (int i = 0; i < args.size(); i++) {
       if (!params.get(i).isAssignableFrom(args.get(i))) {
         return false;

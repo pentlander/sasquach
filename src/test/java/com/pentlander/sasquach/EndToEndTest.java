@@ -34,6 +34,24 @@ public class EndToEndTest {
   }
 
   @Test
+  void tuple() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          tuplify = [A, B](a: A, b: B): (A, B) -> (a, b),
+          foo = (): Int -> {
+            let tuple = tuplify(5, "something")
+            tuple._0
+          },
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    int sum = invokeName(clazz, "foo", null);
+
+    assertThat(sum).isEqualTo(5);
+  }
+
+  @Test
   void loopRecur() throws Exception {
     var source = Source.fromString("main",
         """

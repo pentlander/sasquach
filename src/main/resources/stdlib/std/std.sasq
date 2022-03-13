@@ -67,3 +67,36 @@ List {
       }
   },
 }
+
+Map {
+  use foreign java/util/HashMap,
+  use foreign java/util/Set,
+  use foreign java/util/Iterator,
+  use foreign java/util/Map$Entry,
+
+  type T[A, B] = { map: HashMap },
+
+  new = [A, B](): T[A, B] -> { map = HashMap#new() },
+
+  of = [A, B](key: A, value: B): T[A, B] -> {
+    let  map = new()
+    HashMap#put(map.map, key, value)
+    map
+  },
+
+  get = [A, B](map: T[A, B], key: A): B -> HashMap#get(map.map, key),
+
+  size = [A, B](map: T[A, B]): Int -> HashMap#size(map.map),
+
+  assoc = [A, B](map: T[A, B], key: A, value: B): T[A, B] -> {
+    let newMap = HashMap#new(map.map)
+    HashMap#put(newMap, key, value)
+    { map = newMap }
+  },
+
+  dissoc = [A, B](map: T[A, B], key: A): T[A, B] -> {
+    let newMap = HashMap#new(map.map)
+    HashMap#remove(newMap, key)
+    { map = newMap }
+  },
+}

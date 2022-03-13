@@ -60,6 +60,17 @@ public record Struct(Optional<String> name, List<Use> useList,
         range);
   }
 
+  public static Struct tupleStruct(List<Field> fields, Range range) {
+    return new Struct(
+        Optional.empty(),
+        List.of(),
+        List.of(),
+        fields,
+        List.of(),
+        StructKind.LITERAL,
+        range);
+  }
+
   @Override
   public String toPrettyString() {
     return "{" + useList().stream().map(Node::toPrettyString)
