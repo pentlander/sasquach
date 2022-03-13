@@ -29,6 +29,7 @@ import static com.pentlander.sasquach.SasquachParser.VariableDeclarationContext;
 import static com.pentlander.sasquach.ast.expression.Struct.StructKind;
 import static java.util.Objects.*;
 
+import com.pentlander.sasquach.Range.Single;
 import com.pentlander.sasquach.SasquachParser.ApplyExpressionContext;
 import com.pentlander.sasquach.SasquachParser.BooleanExpressionContext;
 import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
@@ -41,6 +42,9 @@ import com.pentlander.sasquach.SasquachParser.LoopExpressionContext;
 import com.pentlander.sasquach.SasquachParser.MemberApplicationContext;
 import com.pentlander.sasquach.SasquachParser.MemberApplicationExpressionContext;
 import com.pentlander.sasquach.SasquachParser.ModuleNamedTypeContext;
+import com.pentlander.sasquach.SasquachParser.TupleContext;
+import com.pentlander.sasquach.SasquachParser.TupleExpressionContext;
+import com.pentlander.sasquach.SasquachParser.TupleTypeContext;
 import com.pentlander.sasquach.SasquachParser.TypeAliasStatementContext;
 import com.pentlander.sasquach.SasquachParser.TypeArgumentListContext;
 import com.pentlander.sasquach.SasquachParser.TypeContext;
@@ -49,6 +53,7 @@ import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.ModuleScopedIdentifier;
 import com.pentlander.sasquach.ast.StructTypeNode;
+import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
@@ -91,7 +96,9 @@ import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Optional;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
@@ -380,6 +387,20 @@ public class Visitor {
           .map(VariableDeclaration.class::cast).toList();
       return new Loop(varDecls, loop.expression().accept(this), rangeFrom(ctx));
     }
+
+    @Override
+    public Expression visitTupleExpression(TupleExpressionContext ctx) {
+      var tupCtx = ctx.tuple();
+      var fields = new ArrayList<Field>();
+      var expression = tupCtx.expression();
+      for (int i = 0; i < expression.size(); i++) {
+        var exprCtx = expression.get(i);
+        var expr = exprCtx.accept(this);
+        fields.add(new Field(new Identifier("_" + i, (Single) rangeFrom(exprCtx)), expr));
+      }
+
+      return Struct.tupleStruct(fields, rangeFrom(ctx));
+    }
   }
 
   class TypeVisitor extends SasquachBaseVisitor<TypeNode<? extends Type>> {
@@ -422,6 +443,13 @@ public class Visitor {
       return new BasicTypeNode<>(new ModuleNamedType(
           new ModuleScopedIdentifier(id(ctx.moduleName().ID()), id(ctx.typeIdentifier().ID())),
           typeArguments(ctx.typeArgumentList())), rangeFrom(ctx));
+    }
+
+    @Override
+    public TupleTypeNode visitTupleType(TupleTypeContext ctx) {
+      var typeNodes =
+          ctx.type().stream().map(typeCtx -> typeNode(typeCtx, this)).toList();
+      return new TupleTypeNode(typeNodes, rangeFrom(ctx));
     }
 
     private List<TypeNode<Type>> typeArguments(TypeArgumentListContext ctx) {

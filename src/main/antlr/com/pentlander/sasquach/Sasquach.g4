@@ -19,7 +19,7 @@ functionName : ID ;
 functionArgument : ID ':' type ;
 functionParameterList : '(' (functionArgument)? (',' functionArgument)* ')' ;
 
-type : primitiveType | classType | structType | localNamedType | functionType | moduleNamedType ;
+type : primitiveType | classType | structType | localNamedType | functionType | moduleNamedType | tupleType ;
 primitiveType : 'Boolean' | 'String' ('[' ']')* | 'Char' | 'Byte' | 'Int' | 'Long' | 'Float' | 'Double' | 'Void' ;
 classType : qualifiedName ;
 structType : '{' NL* ID ':' NL* type (',' NL* ID ':' NL* type)* NL* '}' ;
@@ -27,6 +27,7 @@ functionType : functionParameterList '->' type ;
 typeArgumentList : ('[' type (',' type)* ']') ;
 localNamedType: typeIdentifier typeArgumentList? ;
 moduleNamedType: moduleName NL* '.' typeIdentifier typeArgumentList? ;
+tupleType : '(' type ',' ')'  | '(' type (',' type)+ ')' ;
 
 blockStatement : variableDeclaration | printStatement | expression ;
 
@@ -44,6 +45,7 @@ expressionList : expression (',' expression)* ;
 application :  LP expressionList? RP
   | LP expressionList? {notifyErrorListeners("Missing closing ')'");} ;
 memberApplication : memberName application ;
+tuple : '(' expression ',' ')' | '(' expression (',' expression)+ ')' ;
 
 expression :
   expression '.' memberApplication #memberApplicationExpression
@@ -63,7 +65,8 @@ expression :
   | block #blockExpression
   | loop #loopExpression
   | function #functionExpression
-  | expr=expression NL* APPLY NL* (functionCall | memberExpression=expression '.' memberApplication | foreignName '#' memberApplication) #applyExpression ;
+  | expr=expression NL* APPLY NL* (functionCall | memberExpression=expression '.' memberApplication | foreignName '#' memberApplication) #applyExpression
+  | tuple #tupleExpression ;
 
 struct : '{' NL* structStatement (',' NL* structStatement)* (',')? NL* '}' ;
 structStatement : use #useStatement
@@ -114,6 +117,7 @@ OR       : '||' ;
 APPLY    : '|>' ;
 
 // Identifiers
-ID : [a-zA-Z][a-zA-Z0-9]* ;
+ID : [_a-zA-Z][$a-zA-Z0-9]* ;
+FOREIGN_ID : [_a-zA-Z][$a-zA-Z0-9]* ;
 NL : '\n' | 'r' '\n'? ;
 WS : [ \t]+ -> skip ;

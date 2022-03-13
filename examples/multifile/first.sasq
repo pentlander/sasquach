@@ -11,6 +11,7 @@ First {
     use std/io/IO,
     use std/std/Integer,
     use std/std/List,
+    use std/std/Map,
     use foreign java/io/File,
     use foreign java/io/PrintStream,
     use foreign java/lang/System,
@@ -40,5 +41,13 @@ First {
           |> List.conj("18")
           |> List.reduce(0, (n: Int, str: String): Int -> n + Integer.parse(str))
         print sum
+
+        let mapper = (entry: (String, Int)): (Int, String) -> (4, "hi")
+        let map = Map.of("first", 1)
+          |> Map.assoc("second", 2)
+        print Map.get(map, "first")
+
+        let tup = (4, 5)
+        print tup._1
     }
 }

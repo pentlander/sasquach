@@ -6,6 +6,7 @@ import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
 import com.pentlander.sasquach.ast.StructTypeNode;
+import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.type.LocalNamedType;
@@ -68,6 +69,7 @@ public class NamedTypeResolver {
         namedTypes.putAll(result.namedTypes);
         errors.addAll(result.errors);
       }
+      case TupleTypeNode tupleTypeNode -> tupleTypeNode.fields().forEach(this::resolveTypeNode);
       case TypeParameter ignored -> {}
     }
     return new Result(namedTypes, errors.build());
