@@ -28,7 +28,6 @@ import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
-import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
@@ -53,6 +52,7 @@ import com.pentlander.sasquach.type.LocalNamedType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
+import com.pentlander.sasquach.type.MemberScopedTypeResolver;
 import com.pentlander.sasquach.type.TypeResolver;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -290,9 +290,10 @@ class BytecodeGeneratorTest {
             if (!resolutionResult.errors().errors().isEmpty()) {
                 throw new IllegalStateException(resolutionResult.errors().errors().toString());
             }
+
             typeResolver = new TypeResolver(resolutionResult);
-            typeResolver.resolve(compUnit);
-            var result = new BytecodeGenerator(nameResolver, typeResolver).generateBytecode(compUnit);
+            var typeResult = typeResolver.resolve(compUnit);
+            var result = new BytecodeGenerator(nameResolver, typeResult).generateBytecode(compUnit);
             result.generatedBytecode().forEach(cl::addClass);
             var clazz =  cl.loadClass(CLASS_NAME);
             Object box = invokeName(clazz, "baz", null);
@@ -432,9 +433,10 @@ class BytecodeGeneratorTest {
         if (!resolutionResult.errors().errors().isEmpty()) {
             throw new IllegalStateException(resolutionResult.errors().toString());
         }
+
         typeResolver = new TypeResolver(resolutionResult);
-        typeResolver.resolve(compilationUnit);
-        var result = new BytecodeGenerator(nameResolver, typeResolver).generateBytecode(compilationUnit);
+        var typeResult = typeResolver.resolve(compilationUnit);
+        var result = new BytecodeGenerator(nameResolver, typeResult).generateBytecode(compilationUnit);
         if (dumpClasses) {
             dumpGeneratedClasses(result.generatedBytecode());
         }

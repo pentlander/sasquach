@@ -38,6 +38,7 @@ import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.runtime.StructDispatch;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
+import com.pentlander.sasquach.type.ExistentialType;
 import com.pentlander.sasquach.type.ForeignFieldType;
 import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.Type;
@@ -337,24 +338,28 @@ class ExpressionGenerator {
             fieldType.descriptor());
       }
       case ForeignFunctionCall foreignFuncCall -> {
-        var foreignFuncCallType = typeFetcher.getType(foreignFuncCall.classAlias(),
+        var foreignFuncType = typeFetcher.getType(foreignFuncCall.classAlias(),
             foreignFuncCall.functionId());
-        String owner = foreignFuncCallType.ownerType().internalName();
-        if (foreignFuncCallType.callType() == SPECIAL) {
+        String owner = foreignFuncType.ownerType().internalName();
+        if (foreignFuncType.callType() == SPECIAL) {
           methodVisitor.visitTypeInsn(Opcodes.NEW, owner);
           methodVisitor.visitInsn(Opcodes.DUP);
         }
         foreignFuncCall.arguments().forEach(this::generate);
 
-        var foreignFuncType = typeFetcher.getType(foreignFuncCall.classAlias(),
-            foreignFuncCall.functionId());
-        int opCode = switch (foreignFuncCallType.callType()) {
+        int opCode = switch (foreignFuncType.callType()) {
           case SPECIAL -> Opcodes.INVOKESPECIAL;
           case STATIC -> Opcodes.INVOKESTATIC;
           case VIRTUAL -> Opcodes.INVOKEVIRTUAL;
+          case INTERFACE -> Opcodes.INVOKEINTERFACE;
         };
         var funcName = foreignFuncCall.name().equals("new") ? "<init>" : foreignFuncCall.name();
-        methodVisitor.visitMethodInsn(opCode, owner, funcName, foreignFuncType.descriptor(), false);
+        methodVisitor.visitMethodInsn(opCode, owner, funcName, foreignFuncType.descriptor(),
+            opCode == Opcodes.INVOKEINTERFACE);
+        var castType = foreignFuncType.castType();
+        if (castType != null) {
+          methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, castType.internalName());
+        }
       }
       case MemberFunctionCall structFuncCall -> {
         generate(structFuncCall.structExpression());
@@ -519,7 +524,7 @@ class ExpressionGenerator {
    */
   private void tryBox(Type actualType, Type expectedType) {
     if (actualType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT
-        && expectedType instanceof TypeVariable) {
+        && (expectedType instanceof ExistentialType || expectedType instanceof TypeVariable)) {
       methodVisitor.visitMethodInsn(
           Opcodes.INVOKESTATIC,
           "java/lang/Integer",
@@ -532,9 +537,8 @@ class ExpressionGenerator {
   /** Convert a boxed type into its primitive type. */
   private void tryUnbox(Type expectedType, Type actualType) {
     if (expectedType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT
-        && actualType instanceof TypeVariable) {
+        && (actualType instanceof ExistentialType || actualType instanceof TypeVariable)) {
       methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Integer");
-      methodVisitor.visitInsn(Opcodes.DUP);
       methodVisitor.visitMethodInsn(
           Opcodes.INVOKEVIRTUAL,
           "java/lang/Integer",

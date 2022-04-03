@@ -23,7 +23,7 @@ public record TypeVariable(String name) implements Type, ParameterizedType {
 
   @Override
   public String internalName() {
-    return Object.class.getCanonicalName();
+    return Object.class.getCanonicalName().replace('.', '/');
   }
 
   @Override

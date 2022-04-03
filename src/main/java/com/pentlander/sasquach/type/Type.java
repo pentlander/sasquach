@@ -1,13 +1,13 @@
 package com.pentlander.sasquach.type;
 
-import com.pentlander.sasquach.type.TypeResolver.UnknownType;
+import com.pentlander.sasquach.type.MemberScopedTypeResolver.UnknownType;
 
 /**
  * Represents the type of an expression.
  */
-public sealed interface Type permits ArrayType, BuiltinType, ClassType, ForeignFieldType,
-    ForeignFunctionType, NamedType, ParameterizedType, ResolvedNamedType, UnknownType,
-    TypeVariable {
+public sealed interface Type permits ArrayType, BuiltinType, ClassType, ExistentialType,
+    ForeignFieldType, ForeignFunctionType, FuncTypeParameter, UnknownType, NamedType,
+    ParameterizedType, ResolvedNamedType, TypeVariable {
   /**
    * Name of the type.
    */

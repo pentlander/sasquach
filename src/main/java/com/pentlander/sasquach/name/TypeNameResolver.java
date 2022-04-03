@@ -19,17 +19,17 @@ import java.util.List;
 import java.util.Map;
 
 /** Resolves named types to their corresponding aliases or type parameters. */
-public class NamedTypeResolver {
+public class TypeNameResolver {
   private final List<TypeParameter> contextTypeParams;
   private final ModuleScopedNameResolver moduleScopedNameResolver;
   // Map of named types to the name declaration, e.g. type alias or type parameter
   private final Map<TypeNode<Type>, NamedTypeDefinition> namedTypes = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
-  public NamedTypeResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
+  public TypeNameResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
     this(List.of(), moduleScopedNameResolver);
   }
-  private NamedTypeResolver(List<TypeParameter> contextTypeParams,
+  private TypeNameResolver(List<TypeParameter> contextTypeParams,
       ModuleScopedNameResolver moduleScopedNameResolver) {
     this.contextTypeParams = contextTypeParams;
     this.moduleScopedNameResolver = moduleScopedNameResolver;
@@ -51,7 +51,7 @@ public class NamedTypeResolver {
       case FunctionSignature functionSignature -> {
         var typeParams = new ArrayList<>(contextTypeParams);
         typeParams.addAll(functionSignature.typeParameters());
-        var resolver = new NamedTypeResolver(typeParams, moduleScopedNameResolver);
+        var resolver = new TypeNameResolver(typeParams, moduleScopedNameResolver);
         functionSignature.parameters().forEach(param -> {
           var result = resolver.resolveTypeNode(param.typeNode());
           namedTypes.putAll(result.namedTypes);
@@ -64,7 +64,7 @@ public class NamedTypeResolver {
       case TypeAlias typeAlias -> {
         var typeParams = new ArrayList<>(contextTypeParams);
         typeParams.addAll(typeAlias.typeParameters());
-        var resolver = new NamedTypeResolver(typeParams, moduleScopedNameResolver);
+        var resolver = new TypeNameResolver(typeParams, moduleScopedNameResolver);
         var result = resolver.resolveTypeNode(typeAlias.typeNode());
         namedTypes.putAll(result.namedTypes);
         errors.addAll(result.errors);

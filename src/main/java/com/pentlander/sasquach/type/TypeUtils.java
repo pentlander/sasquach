@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.type;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -13,16 +14,6 @@ public final class TypeUtils {
    * @return Optional of StructType or empty if conversion not possible.
    */
   public static Optional<StructType> asStructType(Type type) {
-    var x = 4;
-    var y = 5;
-    var z = 10;
-    if (x > y
-        && y == 10
-        || z == 13){}
-    // (x > y && y == 10) || z == 13
-    //
-
-    var e = 3;
     return switch (type) {
       case StructType structType -> Optional.of(structType);
       case ResolvedNamedType resolvedNamedType -> asStructType(resolvedNamedType.type());
@@ -42,5 +33,14 @@ public final class TypeUtils {
     var typeArgString = !typeArgs.isEmpty() ? typeArgs.stream().map(Type::toPrettyString)
         .collect(Collectors.joining(", ", "[", "]")) : "";
     return typeName + typeArgString;
+  }
+
+  public static void t() {
+    var list = new ArrayList<String>();
+    list.add("test");
+
+    var iter = list.iterator();
+    var item = iter.next();
+    System.out.println(item);
   }
 }

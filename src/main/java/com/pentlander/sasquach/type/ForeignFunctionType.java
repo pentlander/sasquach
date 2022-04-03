@@ -4,7 +4,9 @@ import com.pentlander.sasquach.ast.InvocationKind;
 import java.lang.invoke.MethodType;
 
 public record ForeignFunctionType(MethodType methodType, Type ownerType,
-                                  InvocationKind callType) implements Type {
+                                  InvocationKind callType, Type castType) implements Type {
+
+
   @Override
   public String typeName() {
     return methodType.toString();

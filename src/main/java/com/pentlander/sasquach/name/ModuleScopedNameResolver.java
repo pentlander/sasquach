@@ -101,7 +101,7 @@ public class ModuleScopedNameResolver {
 
     private void checkAliases(Collection<TypeAlias> typeAliases) {
       for (var typeAlias : typeAliases) {
-        var resolver = new NamedTypeResolver(ModuleScopedNameResolver.this);
+        var resolver = new TypeNameResolver(ModuleScopedNameResolver.this);
         var result = resolver.resolveTypeNode(typeAlias);
         namedTypes.putAll(result.namedTypes());
         errors.addAll(result.errors());

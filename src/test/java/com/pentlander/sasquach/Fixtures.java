@@ -104,7 +104,7 @@ public class Fixtures {
         boolean isStatic = Modifier.isStatic(m.getModifiers());
         return new ForeignFunctionHandle(
             MethodHandles.lookup().unreflect(m),
-            isStatic ? InvocationKind.STATIC : InvocationKind.VIRTUAL);
+            isStatic ? InvocationKind.STATIC : InvocationKind.VIRTUAL, m);
       } catch (IllegalAccessException e) {
         throw new IllegalStateException(e);
       }
@@ -120,7 +120,7 @@ public class Fixtures {
       try {
         return new ForeignFunctionHandle(
             MethodHandles.lookup().unreflectConstructor(c),
-            InvocationKind.SPECIAL);
+            InvocationKind.SPECIAL, c);
       } catch (IllegalAccessException e) {
         throw new IllegalStateException(e);
       }
