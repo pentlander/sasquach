@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.name;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toMap;
 
 import com.pentlander.sasquach.InternalCompilerException;
 import com.pentlander.sasquach.RangedErrorList;
@@ -30,7 +31,6 @@ import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.type.Type;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -171,7 +171,7 @@ public class MemberScopedNameResolver {
                 try {
                   var methodHandle = lookup.unreflectConstructor(constructor);
                     matchingForeignFunctions.add(new ForeignFunctionHandle(methodHandle,
-                        InvocationKind.SPECIAL));
+                        InvocationKind.SPECIAL, constructor));
                 } catch (IllegalAccessException e) {
                   // Ignore inaccessible constructors
                 }
@@ -179,11 +179,15 @@ public class MemberScopedNameResolver {
             } else {
               for (var method : clazz.getMethods()) {
                 boolean isStatic = Modifier.isStatic(method.getModifiers());
+                boolean isInterface = method.getDeclaringClass().isInterface();
                 try {
                   var methodHandle = lookup.unreflect(method);
                   if (method.getName().equals(funcName)) {
+                    var invocationKind = isStatic ? InvocationKind.STATIC
+                        : isInterface ? InvocationKind.INTERFACE : InvocationKind.VIRTUAL;
                     matchingForeignFunctions.add(new ForeignFunctionHandle(methodHandle,
-                        isStatic ? InvocationKind.STATIC : InvocationKind.VIRTUAL));
+                        invocationKind,
+                        method));
                   }
                 } catch (IllegalAccessException e) {
                   // Ignore inaccessible methods
@@ -250,7 +254,7 @@ public class MemberScopedNameResolver {
     }
 
     private void visit(FunctionSignature funcSignature) {
-      var resolver = new NamedTypeResolver(moduleScopedNameResolver);
+      var resolver = new TypeNameResolver(moduleScopedNameResolver);
       var result = resolver.resolveTypeNode(funcSignature);
       typeAliases.putAll(result.namedTypes());
       errors.addAll(result.errors());

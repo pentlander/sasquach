@@ -13,6 +13,7 @@ public class TypeUnifier {
    * Map of type variables to their resolved types.
    */
   private final Map<TypeVariable, Type> unifiedTypes = new HashMap<>();
+  private final Map<ExistentialType, Type> existentialTypes = new HashMap<>();
 
   /**
    * Resolves the type by replacing any type variables in a parameterized type with a concrete one.
@@ -20,6 +21,9 @@ public class TypeUnifier {
   public Type resolve(Type type) {
     if (type instanceof ParameterizedType paramType) {
       return switch (paramType) {
+        case ExistentialType existentialType -> existentialTypes.getOrDefault(
+            existentialType,
+            existentialType);
         case TypeVariable typeVariable -> unifiedTypes.getOrDefault(typeVariable, typeVariable);
         case FunctionType funcType -> {
           var paramTypes = resolve(funcType.parameterTypes());
@@ -40,6 +44,8 @@ public class TypeUnifier {
         case ResolvedLocalNamedType namedType -> new ResolvedLocalNamedType(namedType.name(),
             resolve(namedType.typeArgs()),
             resolve(namedType.type()));
+        case ClassType classType -> new ClassType(classType.typeClass(),
+            resolve(classType.typeArguments()));
       };
     }
     return type;
@@ -52,30 +58,49 @@ public class TypeUnifier {
   /**
    * Unifies a the destination type with the soure type.
    */
-  public Type unify(Type destType, Type sourceType) {
+  public void unify(Type destType, Type sourceType) {
     if (destType instanceof ResolvedNamedType resolvedNamedType) {
       destType = resolvedNamedType.type();
+    } else if (destType instanceof ForeignFieldType foreignFieldType) {
+      destType = foreignFieldType.type();
     }
+
     if (sourceType instanceof ResolvedNamedType resolvedNamedType) {
       sourceType = resolvedNamedType.type();
+    } else if (sourceType instanceof ForeignFieldType foreignFieldType) {
+      sourceType = foreignFieldType.type();
     }
 
     if (destType instanceof ParameterizedType destParamType) {
-      unify(destParamType, sourceType);
-      return sourceType;
+      unify(destParamType, resolve(sourceType));
+    } else if (sourceType instanceof ParameterizedType sourceParamType) {
+      unify(sourceParamType, resolve(destType));
     }
-    return destType;
+
+    if (!sourceType.isAssignableFrom(resolve(destType))) {
+      throw new UnificationException(destType, sourceType);
+    }
+  }
+
+  private void putType(TypeVariable typeVar, Type type) {
+    // Do not store a type var being equal to itself
+    if (type.equals(typeVar)) return;
+
+    unifiedTypes.put(typeVar, type);
+    unifiedTypes.replaceAll((v, varType) -> resolve(varType));
+  }
+
+  private void unifyTypeVariable(TypeVariable typeVar, Type sourceType) {
+    var unifiedType = unifiedTypes.get(typeVar);
+    if (unifiedType != null && !(unifiedType instanceof TypeVariable) && !unifiedType.equals(sourceType)) {
+      throw new UnificationException(typeVar, sourceType, unifiedType);
+    }
+    putType(typeVar, sourceType);
   }
 
   private void unify(ParameterizedType destType, Type sourceType) {
     switch (destType) {
-      case TypeVariable typeVar -> {
-        var unifiedType = unifiedTypes.get(typeVar);
-        if (unifiedType != null && !unifiedType.equals(sourceType)) {
-          throw new UnificationException(destType, sourceType, unifiedType);
-        }
-        unifiedTypes.put(typeVar, sourceType);
-      }
+      case TypeVariable typeVar -> unifyTypeVariable(typeVar, sourceType);
       case FunctionType destFuncType && sourceType instanceof FunctionType sourceFuncType -> {
         var paramCount = destFuncType.parameterTypes().size();
         if (paramCount != sourceFuncType.parameterTypes().size()) {
@@ -99,16 +124,33 @@ public class TypeUnifier {
           unify(destFieldType, sourceFieldType);
         }
       }
-      default -> throw new UnificationException(destType, sourceType);
+      case ClassType destClassType && sourceType instanceof ClassType sourceClassType -> {
+        for (int i = 0; i < destClassType.typeArguments().size(); i++) {
+          var destArgType = destClassType.typeArguments().get(i);
+          var sourceArgType = sourceClassType.typeArguments().get(i);
+          unify(destArgType, sourceArgType);
+        }
+      }
+      case ClassType destClassType && destClassType.typeClass().equals(Object.class) -> {
+        // Pass if the dest class is Object. This handles the situation where a method accepts an
+        // object without a generic param, e.g. Map::get
+      }
+      default -> {
+        if (sourceType instanceof TypeVariable typeVar) {
+          unifyTypeVariable(typeVar, destType);
+        } else {
+          throw new UnificationException(destType, sourceType);
+        }
+      }
     }
   }
 
   static class UnificationException extends RuntimeException {
-    private final ParameterizedType destType;
+    private final Type destType;
     private final Type sourceType;
     private final Type resolvedDestType;
 
-    UnificationException(ParameterizedType destType, Type sourceType, Type resolvedDestType) {
+    UnificationException(Type destType, Type sourceType, Type resolvedDestType) {
       super("Failed to unify types '%s' and '%s'"
           .formatted(destType.toPrettyString(), sourceType.toPrettyString()));
       this.destType = destType;
@@ -116,11 +158,11 @@ public class TypeUnifier {
       this.resolvedDestType = resolvedDestType;
     }
 
-    UnificationException(ParameterizedType destType, Type sourceType) {
+    UnificationException(Type destType, Type sourceType) {
       this(destType, sourceType, null);
     }
 
-    public ParameterizedType destType() {
+    public Type destType() {
       return destType;
     }
 

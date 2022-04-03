@@ -20,10 +20,6 @@ public record FunctionType(List<Type> parameterTypes, List<TypeParameter> typePa
     typeParameters = requireNonNullElse(typeParameters, List.of());
   }
 
-  public FunctionType(List<Type> parameterTypes, Type returnType) {
-    this(parameterTypes, List.of(), returnType);
-  }
-
   @Override
   public String typeName() {
     return parameterTypes.stream().map(Type::typeName).collect(joining(", ", "(", "): "))

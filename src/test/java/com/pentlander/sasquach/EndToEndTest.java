@@ -109,6 +109,43 @@ public class EndToEndTest {
   }
 
   @Test
+  void foreignFunctionCall_withField() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          use foreign java/io/PrintStream,
+          use foreign java/lang/System,
+          
+          foo = (): Void -> {
+            PrintStream#println(System#out, "test")
+          }
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    invokeName(clazz, "foo", null);
+  }
+
+  @Test
+  void foreignFunctionCall_mapGet() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          use foreign java/util/HashMap,
+          
+          foo = (): String -> {
+            let map = HashMap#new()
+            HashMap#put(map, "foo", "bar")
+            HashMap#get(map, "foo")
+          }
+        }
+        """);
+    var clazz = compileClassDebug(source, "main/Main");
+    String value = invokeName(clazz, "foo", null);
+
+    assertThat(value).isEqualTo("bar");
+  }
+
+  @Test
   void typeAliasStruct() throws Exception {
     var source = Source.fromString("main",
         """
@@ -169,6 +206,31 @@ public class EndToEndTest {
   }
 
   @Test
+  void typeCheckForeignParamType() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          use foreign java/util/ArrayList,
+          use foreign java/util/Iterator,
+          
+          stringFn = (str: String): Int -> 5,
+          main = (): { value: Int } -> {
+            let list = ArrayList#new()
+            ArrayList#add(list, "foo")
+            let iter = ArrayList#iterator(list)
+            
+            let n = iter |> Iterator#next() |> stringFn()
+            { value = n }
+          },
+        }
+        """);
+    var clazz = compileClassDebug(source, "main/Main");
+    Object boxedInt = invokeName(clazz, "main", null);
+
+    assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 5);
+  }
+
+  @Test
   void complexParameterizedExpression() throws Exception {
     var source = Source.fromString("main",
         """
@@ -182,6 +244,98 @@ public class EndToEndTest {
     Object boxedInt = invokeName(clazz, "main", null);
 
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
+  }
+
+  @Test
+  void complexParamaterizedExpression_multiModule() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Box {
+          type T[A] = { value: A },
+          
+          new = [A](value: A): T[A] -> { value = value },
+          unbox = [A](box: T[A]): A -> box.value,
+        }
+        
+        Main {
+          use main/Box,
+        
+          main = (): Int -> {
+            let box = Box.new(10)
+            Box.unbox(box)
+          }
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    int boxedInt = invokeName(clazz, "main", null);
+
+    assertThat(boxedInt).isEqualTo(10);
+  }
+
+  @Test
+  void complexParameterizedExpression_sameTypeVarName() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          type Box[A] = { value: A },
+        
+          new = [B](value: B): Box[B] -> { value = value },
+          main = (): Box[Int] -> {
+            let boxInt = new(10)
+            let boxStr = new("hello")
+            boxInt
+          }
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    Object boxedInt = invokeName(clazz, "main", null);
+
+    assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
+  }
+
+  @Test
+  void complexParameterizedExpression_sameTypeVarNamee() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          type Box[A] = { value: A },
+        
+          new = [B](value: B): Box[B] -> { value = value },
+          map = [A, B](box: Box[A], mapper: (value: A) -> B): Box[B] -> { value = mapper(box.value) },
+          main = (): String -> {
+            let box = new(10) |> map((n: Int): String -> "hi")
+            box.value
+          }
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    String str = invokeName(clazz, "main", null);
+
+    assertThat(str).isEqualTo("hi");
+  }
+
+  @Test
+  void complexParameterizedExpression_sameAliasParamName() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          type Box[A] = { value: A },
+          type BoxTwo[A, B] = { one: A, two: Box[B] },
+        
+          new = [A, B](one: A, two: B): BoxTwo[A, B] -> {
+            one = one,
+            two = { value = two },
+          },
+          main = (): Box[String] -> {
+            let box = new(10, "hello")
+            box.two
+          }
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    Object boxedStr = invokeName(clazz, "main", null);
+
+    assertThat(boxedStr).hasFieldOrPropertyWithValue("value", "hello");
   }
 
   @Test

@@ -6,6 +6,7 @@ import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.backend.BytecodeGenerator;
 import com.pentlander.sasquach.backend.BytecodeResult;
 import com.pentlander.sasquach.name.ModuleResolver;
+import com.pentlander.sasquach.type.MemberScopedTypeResolver;
 import com.pentlander.sasquach.type.TypeResolver;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -92,12 +93,11 @@ public class Compiler {
     nameResolutionResult.errors().throwIfNotEmpty(sources);
 
     var typeResolver = new TypeResolver(nameResolutionResult);
-    for (var compUnit : compUnits) {
-      typeResolver.resolve(compUnit).throwIfNotEmpty(sources);
-    }
+    var typeResolutionResult = typeResolver.resolve(compUnits);
+    typeResolutionResult.errors().throwIfNotEmpty(sources);
 
     var bytecodeResults = new HashMap<String, byte[]>();
-    var bytecodeGenerator = new BytecodeGenerator(nameResolver, typeResolver);
+    var bytecodeGenerator = new BytecodeGenerator(nameResolver, typeResolutionResult);
     for (var compUnit : compUnits) {
       bytecodeResults.putAll(bytecodeGenerator.generateBytecode(compUnit).generatedBytecode());
     }

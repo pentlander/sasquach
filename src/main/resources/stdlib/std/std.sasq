@@ -10,7 +10,7 @@ List {
   use foreign java/util/ArrayList,
   use foreign java/util/Iterator,
 
-  type T[A] = { list: ArrayList },
+  type T[A] = { list: ArrayList[A] },
 
   new = [A](): T[A] -> { list = ArrayList#new() },
 
@@ -74,7 +74,7 @@ Map {
   use foreign java/util/Iterator,
   use foreign java/util/Map$Entry,
 
-  type T[A, B] = { map: HashMap },
+  type T[A, B] = { map: HashMap[A, B] },
 
   new = [A, B](): T[A, B] -> { map = HashMap#new() },
 
@@ -98,5 +98,18 @@ Map {
     let newMap = HashMap#new(map.map)
     HashMap#remove(newMap, key)
     { map = newMap }
+  },
+
+  map = [A, B, C, D](map: T[A, B], mapper: (entry: (A, B)) -> (C, D)): T[A, B] -> {
+    let newMap = HashMap#new(HashMap#size(map.map))
+    let entrySet = HashMap#entrySet(map.map)
+    loop (let iter = Set#iterator(entrySet)) ->
+      if Iterator#hasNext(iter) {
+        let entry = Iterator#next(iter)
+        HashMap#put(newMap, Map$Entry#getKey(entry), Map$Entry#getValue(entry))
+        recur(iter)
+      } else {
+        { map = newMap }
+      }
   },
 }

@@ -39,23 +39,23 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class TypeResolverTest {
+class MemberScopedTypeResolverTest {
   private static final String MOD_NAME = "Test";
   NameResolutionResult nameResolutionResult;
-  TypeResolver typeResolver;
+  MemberScopedTypeResolver memberScopedTypeResolver;
   boolean shouldAssertErrorsEmpty = true;
 
   @BeforeEach
   void setUp() {
     nameResolutionResult = mock(NameResolutionResult.class);
-    typeResolver = new TypeResolver(nameResolutionResult);
+    memberScopedTypeResolver = new MemberScopedTypeResolver(nameResolutionResult, a -> null);
     shouldAssertErrorsEmpty = true;
   }
 
   @AfterEach
   void tearDown() {
     if (shouldAssertErrorsEmpty) {
-      assertThat(typeResolver.getErrors()).isEmpty();
+      assertThat(memberScopedTypeResolver.errors().errors()).isEmpty();
     }
     shouldAssertErrorsEmpty = true;
   }
@@ -102,10 +102,11 @@ class TypeResolverTest {
     @Test
     void typeMismatch() {
       var range = range();
+      var str = stringValue("11");
       resolveExpr(
-          new CompareExpression(CompareOperator.EQ, intValue("10"), stringValue("11"), range));
+          new CompareExpression(CompareOperator.EQ, intValue("10"), str, range));
 
-      assertErrorRange(range);
+      assertErrorRange(str.range());
     }
   }
 
@@ -217,7 +218,7 @@ class TypeResolverTest {
 //          Optional.of(new BasicTypeNode<>(new TypeParameter(id("T")), range())));
 
       var namedType = new LocalNamedType(id("Option"), List.of(typeNode(BuiltinType.INT)));
-      var resolvedType  = typeResolver.resolveNamedType(namedType);
+      var resolvedType  = memberScopedTypeResolver.resolveNamedType(namedType, range());
 
       assertThat(resolvedType).isEqualTo(new ResolvedLocalNamedType("Option",
           List.of(),
@@ -252,6 +253,7 @@ class TypeResolverTest {
       void setUp() {
         when(nameResolutionResult.getLocalFunction(any())).thenReturn(new QualifiedFunction(qualId(
             "foo"), func));
+        memberScopedTypeResolver.checkType(func);
       }
 
       @Test
@@ -280,9 +282,8 @@ class TypeResolverTest {
         var badArg = stringValue("other");
         var call = new LocalFunctionCall(id("foo"), List.of(stringValue("test"), badArg), range());
 
-        var t = resolveExpr(call);
+        resolveExpr(call);
 
-        System.out.println(t);
         assertErrorRange(badArg);
       }
     }
@@ -357,7 +358,7 @@ class TypeResolverTest {
   }
 
   private Type resolveExpr(Expression expr) {
-    return typeResolver.resolveExprType(expr);
+    return memberScopedTypeResolver.infer(expr);
   }
 
   private void assertErrorRange(Node node) {
@@ -366,6 +367,6 @@ class TypeResolverTest {
 
   private void assertErrorRange(Range range) {
     shouldAssertErrorsEmpty = false;
-    assertThat(typeResolver.getErrors().get(0).range()).isEqualTo(range);
+    assertThat(memberScopedTypeResolver.errors().errors().get(0).range()).isEqualTo(range);
   }
 }
