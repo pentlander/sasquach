@@ -8,6 +8,7 @@ import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Type signature of a function, including the function parameters, type parameters, and return
@@ -15,15 +16,10 @@ import java.util.List;
  */
 public record FunctionSignature(List<FunctionParameter> parameters,
                                 List<TypeParameter> typeParameters,
-                                TypeNode<Type> returnTypeNode, Range range) implements Node,
-    TypeNode<FunctionType> {
-  public FunctionSignature(List<FunctionParameter> parameters, TypeNode<Type> returnTypeNode,
+                                TypeNode returnTypeNode, Range range) implements Node, TypeNode {
+  public FunctionSignature(List<FunctionParameter> parameters, TypeNode returnTypeNode,
       Range range) {
     this(parameters, List.of(), returnTypeNode, range);
-  }
-
-  public Type returnType() {
-    return returnTypeNode.type();
   }
 
   @Override

@@ -9,9 +9,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 /** Type node for a struct that contains type nodes for all of its fields. */
-public record StructTypeNode(Map<String, TypeNode<Type>> fieldTypeNodes,
-                             Range range) implements
-    TypeNode<StructType> {
+public record StructTypeNode(Map<String, TypeNode> fieldTypeNodes,
+                             Range range) implements TypeNode {
   public StructType type() {
     var fieldTypes = fieldTypeNodes.entrySet().stream()
         .collect(toMap(Entry::getKey, entry -> entry.getValue().type()));

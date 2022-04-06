@@ -8,7 +8,7 @@ import com.pentlander.sasquach.ast.TypeNode;
 /**
  * Represents a type parameter defined as part of a type alias or function signature.
  */
-public record TypeParameter(Id id) implements TypeNode<Type>, NamedTypeDefinition {
+public record TypeParameter(Id id) implements TypeNode, NamedTypeDefinition {
   @Override
   public Type type() {
     return new TypeVariable(id.name());

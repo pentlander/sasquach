@@ -1,11 +1,14 @@
 package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.RangedErrorList;
+import com.pentlander.sasquach.Util;
 import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
 import com.pentlander.sasquach.ast.StructTypeNode;
+import com.pentlander.sasquach.ast.SumTypeNode;
+import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -13,7 +16,7 @@ import com.pentlander.sasquach.type.LocalNamedType;
 import com.pentlander.sasquach.type.ModuleNamedType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
-import java.util.ArrayList;
+import com.pentlander.sasquach.type.VariantType;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,7 +26,8 @@ public class TypeNameResolver {
   private final List<TypeParameter> contextTypeParams;
   private final ModuleScopedNameResolver moduleScopedNameResolver;
   // Map of named types to the name declaration, e.g. type alias or type parameter
-  private final Map<TypeNode<Type>, NamedTypeDefinition> namedTypes = new HashMap<>();
+  private final Map<TypeNode, NamedTypeDefinition> namedTypes = new HashMap<>();
+  private final Map<String, VariantTypeNode> variantNodes = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
   public TypeNameResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
@@ -35,22 +39,20 @@ public class TypeNameResolver {
     this.moduleScopedNameResolver = moduleScopedNameResolver;
   }
 
-  @SuppressWarnings("unchecked")
-  private void putNamedType(TypeNode<? extends Type> typeNode, NamedTypeDefinition namedTypeDef) {
-    var existing = namedTypes.put((TypeNode<Type>) typeNode,  namedTypeDef);
+  private void putNamedType(TypeNode typeNode, NamedTypeDefinition namedTypeDef) {
+    var existing = namedTypes.put(typeNode,  namedTypeDef);
     if (existing != null) {
       throw new IllegalStateException();
     }
   }
 
-  public Result resolveTypeNode(TypeNode<? extends Type> typeNode) {
+  public Result resolveTypeNode(TypeNode typeNode) {
     switch (typeNode) {
-      case BasicTypeNode ignored -> resolveType(typeNode);
+      case BasicTypeNode<?> basicTypeNode -> resolveNamedType(basicTypeNode);
       case StructTypeNode structTypeNode -> structTypeNode.fieldTypeNodes().values()
           .forEach(this::resolveTypeNode);
       case FunctionSignature functionSignature -> {
-        var typeParams = new ArrayList<>(contextTypeParams);
-        typeParams.addAll(functionSignature.typeParameters());
+        var typeParams = Util.concat(contextTypeParams, functionSignature.typeParameters());
         var resolver = new TypeNameResolver(typeParams, moduleScopedNameResolver);
         functionSignature.parameters().forEach(param -> {
           var result = resolver.resolveTypeNode(param.typeNode());
@@ -62,8 +64,7 @@ public class TypeNameResolver {
         errors.addAll(result.errors);
       }
       case TypeAlias typeAlias -> {
-        var typeParams = new ArrayList<>(contextTypeParams);
-        typeParams.addAll(typeAlias.typeParameters());
+        var typeParams = Util.concat(contextTypeParams, typeAlias.typeParameters());
         var resolver = new TypeNameResolver(typeParams, moduleScopedNameResolver);
         var result = resolver.resolveTypeNode(typeAlias.typeNode());
         namedTypes.putAll(result.namedTypes);
@@ -71,14 +72,23 @@ public class TypeNameResolver {
       }
       case TupleTypeNode tupleTypeNode -> tupleTypeNode.fields().forEach(this::resolveTypeNode);
       case TypeParameter ignored -> {}
+      case SumTypeNode sumTypeNode -> sumTypeNode.variantTypeNodes().forEach(this::resolveTypeNode);
+      case VariantTypeNode variantTypeNode -> {
+        variantNodes.put(variantTypeNode.typeName(), variantTypeNode);
+        switch (variantTypeNode) {
+          case VariantTypeNode.Singleton ignored -> {}
+          case VariantTypeNode.Tuple tuple -> resolveTypeNode(tuple.typeNode());
+          case VariantTypeNode.Struct struct -> resolveTypeNode(struct.typeNode());
+        }
+      }
     }
-    return new Result(namedTypes, errors.build());
+    return new Result(namedTypes, variantNodes, errors.build());
   }
 
-  private void resolveType(TypeNode<? extends Type> typeNode) {
+  private void resolveNamedType(TypeNode typeNode) {
     var type = typeNode.type();
     if (type instanceof LocalNamedType localNamedType) {
-      localNamedType.typeArgumentNodes().forEach(this::resolveType);
+      localNamedType.typeArgumentNodes().forEach(this::resolveNamedType);
       // Check if the named type matches a type parameter
       var name = type.typeName();
       var typeParam = contextTypeParams.stream().filter(param -> param.typeName().equals(name))
@@ -102,7 +112,7 @@ public class TypeNameResolver {
         errors.add(new NameNotFoundError(localNamedType.id(), "named type"));
       }
     } else if (type instanceof ModuleNamedType moduleNamedType) {
-      moduleNamedType.typeArgumentNodes().forEach(this::resolveType);
+      moduleNamedType.typeArgumentNodes().forEach(this::resolveNamedType);
       var moduleScopedResolver = moduleScopedNameResolver.resolveModuleResolver(moduleNamedType.moduleName());
       moduleScopedResolver.flatMap(m -> m.resolveTypeAlias(moduleNamedType.name()))
           .ifPresentOrElse(alias -> putNamedType(typeNode, alias),
@@ -110,5 +120,6 @@ public class TypeNameResolver {
     }
   }
 
-  public record Result(Map<TypeNode<Type>, NamedTypeDefinition> namedTypes, RangedErrorList errors) {}
+  public record Result(Map<TypeNode, NamedTypeDefinition> namedTypes,
+                       Map<String, VariantTypeNode> variantTypeNodes, RangedErrorList errors) {}
 }

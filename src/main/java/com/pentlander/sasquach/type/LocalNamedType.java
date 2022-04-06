@@ -8,7 +8,7 @@ import java.util.Objects;
 /**
  * Unqualified named type. It can refer to a local type alias or a type parameter.
  */
-public record LocalNamedType(Identifier id, List<TypeNode<Type>> typeArgumentNodes) implements NamedType {
+public record LocalNamedType(Identifier id, List<TypeNode> typeArgumentNodes) implements NamedType {
   public LocalNamedType {
     Objects.requireNonNull(typeArgumentNodes);
   }

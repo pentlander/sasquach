@@ -28,6 +28,12 @@ typeArgumentList : ('[' type (',' type)* ']') ;
 localNamedType: typeIdentifier typeArgumentList? ;
 moduleNamedType: moduleName NL* '.' typeIdentifier typeArgumentList? ;
 tupleType : '(' type ',' ')'  | '(' type (',' type)+ ')' ;
+sumType : ('|' typeIdentifier variantType )+ ;
+variantType :
+    () #singletonType
+  | '(' type ')' #singleTupleType
+  | '(' type (',' NL* type)+ ')' #multiTupleType
+  | structType #structSumType;
 
 blockStatement : variableDeclaration | printStatement | expression ;
 
@@ -70,7 +76,7 @@ expression :
 
 struct : '{' NL* structStatement (',' NL* structStatement)* (',')? NL* '}' ;
 structStatement : use #useStatement
-  | TYPEALIAS typeIdentifier typeParameterList? EQUALS type #typeAliasStatement
+  | TYPEALIAS typeIdentifier typeParameterList? EQUALS (type|sumType) #typeAliasStatement
   | memberName EQUALS (function|expression) #identifierStatement ;
 
 value : NUMBER #intLiteral

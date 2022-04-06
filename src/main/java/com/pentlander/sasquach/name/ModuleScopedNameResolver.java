@@ -23,7 +23,7 @@ public class ModuleScopedNameResolver {
   private final Map<String, ModuleScopedNameResolver> moduleImports = new HashMap<>();
   private final Map<String, Class<?>> foreignClasses = new HashMap<>();
   private final Map<String, TypeAlias> typeAliasNames = new HashMap<>();
-  private final Map<TypeNode<Type>, NamedTypeDefinition> namedTypes = new HashMap<>();
+  private final Map<TypeNode, NamedTypeDefinition> namedTypes = new HashMap<>();
   private final Map<String, Struct.Field> fields = new HashMap<>();
   private final Map<Struct.Field, NameResolutionResult> fieldResults = new HashMap<>();
   private final Map<String, NamedFunction> functions = new HashMap<>();
@@ -58,7 +58,7 @@ public class ModuleScopedNameResolver {
 
   private class Visitor implements NodeVisitor<Void> {
     @Override
-    public Void visit(TypeNode<? extends Type> typeNode) {
+    public Void visit(TypeNode typeNode) {
       throw new IllegalStateException();
     }
 

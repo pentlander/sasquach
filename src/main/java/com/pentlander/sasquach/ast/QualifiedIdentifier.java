@@ -15,8 +15,7 @@ public record QualifiedIdentifier(String name, Range.Single range) implements No
     }
   }
 
-  public String unqualifiedName() {
-    var parts =  name.split("/");
-    return parts[parts.length - 1];
+  public QualifiedModuleName toQualifiedName() {
+    return QualifiedModuleName.fromString(name);
   }
 }

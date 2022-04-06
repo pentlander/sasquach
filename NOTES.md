@@ -66,6 +66,15 @@ Should mutability be allowed in structs? Leaning towards no, but might need it f
 As least would want some sort of marker on fields and functions that mutate a struct. That could
 possibly tie into the Java interop to make mutable OO code more sane to deal with. 
 
+## Dealing with Null
+Code has to somehow deal with null values that come from foreign functions. There are a few options on how to handle this:
+1. Do nothing, foreign code is the wild west and you have to be careful when integrating. Definitely not doing this.
+2. Integrate null into the type system somehow. Also don't want to do this as Sasquach code is expected to use the Option type instead. 
+3. Add null checks to every return value from a foreign function that is not a primitive. Could also perform analysis so that a check is not generated when the return value isn't used. Users can opt out of the null check by adding a `!` to the end of the method name. 
+4. Make every foreign function that returns a non-primitive value return an `Option`. Users can opt out by adding an `!` to return the bare value with a null check and a `!!` for the bare values without a null check. Would still want to do code analysis to not wrap calls where the return value isn't used. 
+
+The last option seems like the best right now. It involves the least extra typing when integrating with Java code. 
+
 ## Private Fields/Functions in Struct
 How do we handle private in structs? It might only make sense to allow it in modules, since I 
 can't think of a usecase for private fields/funcs in anon structs. Should test this out more. 
@@ -106,6 +115,12 @@ mod Result {
 * https://www.oilshell.org/blog/2020/04/release-0.8.pre4.html#dependency-inversion-leads-to-pure-interpreters
 * Row Polymorphism - https://news.ycombinator.com/item?id=13047934
 * Row inference - https://gilmi.me/blog/post/2021/04/10/giml-typing-records
+* Reading lang papers - https://blog.acolyer.org/2018/01/26/a-practitioners-guide-to-reading-programming-languages-papers/
+
+### Bidirectional Typing
+* Complete and easy - https://arxiv.org/pdf/1306.6032.pdf
+* Ocaml impl - https://gist.github.com/mb64/87ac275c327ea923a8d587df7863d8c7#file-tychk-ml
+* Rust impl - https://github.com/JDemler/BidirectionalTypechecking/blob/master/src/original.rs
 
 ## IDE
 * https://rust-analyzer.github.io/blog/2020/07/20/three-architectures-for-responsive-ide.html
@@ -137,3 +152,4 @@ mod Result {
 ## Error Messages
 * https://news.ycombinator.com/item?id=9808317
 * https://elm-lang.org/news/compilers-as-assistants
+* https://git.sr.ht/~awsmith/hudson/tree/master/item/src/prelude/reporting.m

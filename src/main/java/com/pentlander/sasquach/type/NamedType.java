@@ -7,7 +7,7 @@ import java.util.List;
 public sealed interface NamedType extends Type permits LocalNamedType, ModuleNamedType {
   Id id();
 
-  List<TypeNode<Type>> typeArgumentNodes();
+  List<TypeNode> typeArgumentNodes();
 
   default List<Type> typeArguments() {
     return typeArgumentNodes().stream().map(TypeNode::type).toList();
