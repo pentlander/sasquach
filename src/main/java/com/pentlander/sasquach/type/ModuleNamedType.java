@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * Module qualified named type. It can only refer to a type alias defined in another module.
  */
-public record ModuleNamedType(ModuleScopedIdentifier id, List<TypeNode<Type>> typeArgumentNodes) implements NamedType {
+public record ModuleNamedType(ModuleScopedIdentifier id, List<TypeNode> typeArgumentNodes) implements NamedType {
   public String name() {
     return id.id().name();
   }

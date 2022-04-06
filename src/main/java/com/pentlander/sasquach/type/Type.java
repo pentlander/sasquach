@@ -7,7 +7,7 @@ import com.pentlander.sasquach.type.MemberScopedTypeResolver.UnknownType;
  */
 public sealed interface Type permits ArrayType, BuiltinType, ClassType, ExistentialType,
     ForeignFieldType, ForeignFunctionType, FuncTypeParameter, UnknownType, NamedType,
-    ParameterizedType, ResolvedNamedType, TypeVariable {
+    ParameterizedType, ResolvedNamedType, SumType, TypeVariable, VariantType {
   /**
    * Name of the type.
    */

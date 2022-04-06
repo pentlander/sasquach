@@ -35,7 +35,7 @@ public class NameResolutionResult {
       Map.of(),
       new RangedErrorList(List.of()));
 
-  private final Map<TypeNode<Type>, NamedTypeDefinition> typeAliases;
+  private final Map<TypeNode, NamedTypeDefinition> typeAliases;
   private final Map<Type, NamedTypeDefinition> typeNameAliases;
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses;
   private final Map<Identifier, ForeignFunctions> foreignFunctions;
@@ -45,7 +45,7 @@ public class NameResolutionResult {
   private final Map<Recur, RecurPoint> recurPoints;
   private final RangedErrorList errors;
 
-  public NameResolutionResult(Map<TypeNode<Type>, NamedTypeDefinition> typeAliases,
+  public NameResolutionResult(Map<TypeNode, NamedTypeDefinition> typeAliases,
       Map<ForeignFieldAccess, Field> foreignFieldAccesses,
       Map<Identifier, ForeignFunctions> foreignFunctions,
       Map<Identifier, FunctionCallTarget> localFunctionCalls,
@@ -64,7 +64,7 @@ public class NameResolutionResult {
   }
 
   private static Map<Type, NamedTypeDefinition> typeNameAliases(
-      Map<TypeNode<Type>, NamedTypeDefinition> typeAliases) {
+      Map<TypeNode, NamedTypeDefinition> typeAliases) {
     return typeAliases.entrySet().stream()
         .collect(Collectors.toMap(entry -> entry.getKey().type(), Entry::getValue, (a, b) -> a));
   }
@@ -77,7 +77,7 @@ public class NameResolutionResult {
         varIndexes, recurPoints, this.errors.concat(errors));
   }
 
-  public NameResolutionResult withNamedTypes(Map<TypeNode<Type>, NamedTypeDefinition> namedTypes) {
+  public NameResolutionResult withNamedTypes(Map<TypeNode, NamedTypeDefinition> namedTypes) {
     var mergedNamedTypes = new HashMap<>(this.typeAliases);
     mergedNamedTypes.putAll(namedTypes);
     return new NameResolutionResult(mergedNamedTypes,

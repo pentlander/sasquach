@@ -50,12 +50,12 @@ public class Fixtures {
     }
 
     @SuppressWarnings("unchecked")
-    public static TypeNode<Type> typeNode(Type type) {
+    public static TypeNode typeNode(Type type) {
       if (type instanceof StructType structType) {
          var structTypeNode =
-             (TypeNode<? extends Type>) new StructTypeNode(structType.fieldTypes().entrySet().stream().collect(toMap(Entry
+             (TypeNode) new StructTypeNode(structType.fieldTypes().entrySet().stream().collect(toMap(Entry
         ::getKey, entry -> typeNode(entry.getValue()))), range());
-         return (TypeNode<Type>) structTypeNode;
+         return structTypeNode;
       }
       return new BasicTypeNode<>(type, range());
     }

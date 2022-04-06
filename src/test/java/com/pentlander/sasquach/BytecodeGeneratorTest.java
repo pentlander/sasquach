@@ -404,9 +404,9 @@ class BytecodeGeneratorTest {
         return param(name, new BasicTypeNode<>(type, range()));
     }
 
-    private <T extends TypeNode<? extends Type>> FunctionParameter param(String name, T typeNode) {
+    private <T extends TypeNode> FunctionParameter param(String name, T typeNode) {
         var id = id(name);
-        return new FunctionParameter(id, (TypeNode<Type>) typeNode);
+        return new FunctionParameter(id, typeNode);
     }
 
     @SuppressWarnings("unchecked")

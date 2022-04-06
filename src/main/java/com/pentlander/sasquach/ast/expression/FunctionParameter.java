@@ -8,7 +8,7 @@ import com.pentlander.sasquach.type.Type;
 /**
  * Function parameter name with a type.
  */
-public record FunctionParameter(Identifier id, TypeNode<Type> typeNode) implements LocalVariable {
+public record FunctionParameter(Identifier id, TypeNode typeNode) implements LocalVariable {
   /**
    * Name of the parameter variable.
    */

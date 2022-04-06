@@ -62,7 +62,7 @@ localFunction()
 public class MemberScopedNameResolver {
   // Map of import alias names to resolved foreign classes
   private final ModuleScopedNameResolver moduleScopedNameResolver;
-  private final Map<TypeNode<Type>, NamedTypeDefinition> typeAliases = new HashMap<>();
+  private final Map<TypeNode, NamedTypeDefinition> typeAliases = new HashMap<>();
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses = new HashMap<>();
   private final Map<Identifier, ForeignFunctions> foreignFunctions = new HashMap<>();
   private final Map<Identifier, FunctionCallTarget> localFunctionCalls = new HashMap<>();

@@ -11,7 +11,7 @@ public interface NodeVisitor<T> {
       case FunctionSignature funcSig -> visit(funcSig);
       case ModuleDeclaration modDecl -> visit(modDecl);
       case TypeAlias typeAlias -> visit(typeAlias);
-      case TypeNode<? extends Type> typeNode -> visit(typeNode);
+      case TypeNode typeNode -> visit(typeNode);
       case Use use -> visit(use);
       case Expression expression -> visit(expression);
       case null, default -> throw new IllegalStateException();
@@ -32,7 +32,7 @@ public interface NodeVisitor<T> {
     return visit(moduleDeclaration.struct());
   }
 
-  T visit(TypeNode<? extends Type> typeNode);
+  T visit(TypeNode typeNode);
 
 
   T visit(TypeAlias typeAlias);
