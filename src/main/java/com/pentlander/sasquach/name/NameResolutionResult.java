@@ -90,6 +90,19 @@ public class NameResolutionResult {
         errors);
   }
 
+  public NameResolutionResult withf(Map<TypeNode, NamedTypeDefinition> namedTypes) {
+    var mergedNamedTypes = new HashMap<>(this.typeAliases);
+    mergedNamedTypes.putAll(namedTypes);
+    return new NameResolutionResult(mergedNamedTypes,
+        foreignFieldAccesses,
+        foreignFunctions,
+        localFunctionCalls,
+        varReferences,
+        varIndexes,
+        recurPoints,
+        errors);
+  }
+
   public static NameResolutionResult empty() {
     return EMPTY;
   }

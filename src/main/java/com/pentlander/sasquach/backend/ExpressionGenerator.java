@@ -33,6 +33,7 @@ import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
+import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStruct;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.runtime.StructDispatch;
@@ -41,6 +42,7 @@ import com.pentlander.sasquach.type.ClassType;
 import com.pentlander.sasquach.type.ExistentialType;
 import com.pentlander.sasquach.type.ForeignFieldType;
 import com.pentlander.sasquach.type.FunctionType;
+import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeFetcher;
 import com.pentlander.sasquach.type.TypeUtils;
@@ -162,6 +164,10 @@ class ExpressionGenerator {
               module.moduleDeclaration().name(),
               INSTANCE_FIELD,
               type(varReference).descriptor());
+          case ReferenceDeclaration.Singleton singleton -> methodVisitor.visitFieldInsn(Opcodes.GETSTATIC,
+              singleton.node().type().internalName(),
+              INSTANCE_FIELD,
+              type(varReference).descriptor());
         }
       }
       case Value value -> {
@@ -233,6 +239,8 @@ class ExpressionGenerator {
             generateArgs(funcCall.arguments(), type.parameterTypes());
             generateMemberCall(type, "_invoke");
           }
+          case VariantStruct variantStruct ->
+              generateStructInit((StructType) type(variantStruct.id()), variantStruct.struct());
         }
       }
       case BinaryExpression binExpr -> {
@@ -437,6 +445,20 @@ class ExpressionGenerator {
     methodVisitor.visitMethodInsn(
         Opcodes.INVOKESPECIAL,
         funcStructInternalName,
+        "<init>",
+        initDescriptor,
+        false);
+  }
+
+  void generateStructInit(StructType structType, Struct struct) {
+    var structName = structType.internalName();
+    methodVisitor.visitTypeInsn(Opcodes.NEW, structName);
+    methodVisitor.visitInsn(Opcodes.DUP);
+    struct.fields().forEach(field -> generateExpr(field.value()));
+    var initDescriptor = constructorType(structType.fieldTypes().values());
+    methodVisitor.visitMethodInsn(
+        Opcodes.INVOKESPECIAL,
+        structName,
         "<init>",
         initDescriptor,
         false);

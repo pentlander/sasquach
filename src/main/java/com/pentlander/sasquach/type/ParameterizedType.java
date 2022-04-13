@@ -5,4 +5,4 @@ package com.pentlander.sasquach.type;
  * <p>If any field in the struct is a {@link Type}, it should implement this interface. </p>
  */
 public sealed interface ParameterizedType extends Type permits FunctionType, StructType,
-    TypeVariable, ExistentialType, ResolvedNamedType, ClassType {}
+    TypeVariable, ExistentialType, ResolvedNamedType, ClassType, SumType {}

@@ -5,6 +5,7 @@ import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.QualifiedIdentifier;
+import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,6 +31,24 @@ public class ModuleScopedTypeResolver {
   public StructType resolveModuleType() {
     var struct = moduleDecl.struct();
     var fieldTypes = new HashMap<String, Type>();
+    struct.typeAliases().forEach(typeAlias -> {
+      // Add the types of all the sum type nodes.
+      if (typeAlias.typeNode() instanceof SumTypeNode sumTypeNode) {
+        var typeParams = MemberScopedTypeResolver.typeParams(typeAlias.typeParameters(),
+            param -> new ExistentialType(param.typeName(), 0));
+        var sumType = (SumType) namedTypeResolver.resolveNamedType(sumTypeNode.type(),
+            typeParams,
+            sumTypeNode.range());
+        idTypes.put(sumTypeNode.id(), sumType);
+        for (int i = 0; i < sumTypeNode.variantTypeNodes().size(); i++) {
+          var variantTypeNode = sumTypeNode.variantTypeNodes().get(i);
+          var type = namedTypeResolver.resolveNamedType(variantTypeNode.type(),
+              typeParams,
+              variantTypeNode.range());
+          idTypes.put(sumTypeNode.variantTypeNodes().get(i).id(), type);
+        }
+      }
+    });
     struct.functions().forEach(func -> {
       var type = resolveFuncSignatureType(func.functionSignature());
       fieldTypes.put(func.name(), type);

@@ -42,18 +42,20 @@ import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Local;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Module;
+import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Singleton;
+import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStruct;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.type.ModuleScopedTypeResolver.ModuleTypeProvider;
 import com.pentlander.sasquach.type.TypeUnifier.UnificationException;
 import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Executable;
-import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.GenericDeclaration;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.WildcardType;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -203,8 +205,8 @@ public class MemberScopedTypeResolver implements TypeFetcher {
       case VarReference varRef -> switch (nameResolutionResult.getVarReference(varRef)) {
         case Local local -> getIdType(local.localVariable()
             .id()).orElseThrow(() -> new IllegalStateException("Unable to find local: " + local));
-        // TODO Replace the resolveExprType with a getId or getExpr from a passed in TypeFetcher
         case Module module -> moduleTypeProvider.getModuleType(module.moduleDeclaration().id());
+        case Singleton singleton -> singleton.node().type();
       };
       case BinaryExpression binExpr -> {
         var leftType = infer(binExpr.left());
@@ -216,7 +218,6 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         };
       }
       case ArrayValue arrayVal -> {
-        // TODO: Asert expression types are equal to element type
         var elemType = arrayVal.elementType();
         arrayVal.expressions().forEach(arrayExpr -> check(expr, elemType));
         yield new ArrayType(elemType);
@@ -360,9 +361,20 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         var type =  switch (callTarget) {
           case QualifiedFunction qualFunc -> qualFunc.function().functionSignature().type();
           case LocalVariable localVar -> getIdType(localVar.id()).orElseThrow();
+          // TODO Need to store the ID -> variant type signature and check that they match here.
+          // Possibly need to include the qualified name of the owning module
+          case VariantStruct struct -> {
+            var structType = (StructType) struct.type();
+            // Ensure that the struct expr and fields have their types in the type map
+            infer(struct.struct());
+            yield new FunctionType(
+                structType.fieldTypes().values().stream()
+                    .sorted(Comparator.comparing(Type::typeName)).toList(),
+                struct.typeParameters(),
+                struct.type());
+          }
         };
-        funcType = TypeUtils.asFunctionType(type).orElse(null);
-        if (funcType == null) return UNKNOWN_TYPE;
+        funcType = TypeUtils.asFunctionType(type).orElseThrow();
       }
       case MemberFunctionCall structFuncCall -> {
         var exprType = infer(structFuncCall.structExpression());

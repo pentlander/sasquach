@@ -89,7 +89,8 @@ public class NamedTypeResolver {
       return resolveNamedTypeNode(namedType, typeArgs, range);
     } else if (type instanceof ParameterizedType parameterizedType) {
       return switch (parameterizedType) {
-        case StructType structType -> new StructType(structType.fieldTypes().entrySet().stream()
+        case StructType structType -> new StructType(structType.typeName(),
+            structType.fieldTypes().entrySet().stream()
             .collect(toMap(Entry::getKey, e -> resolveNamedType(e.getValue(), typeArgs, range))));
         case FunctionType funcType -> {
           var newTypeArgs = new HashMap<>(typeArgs);
@@ -101,6 +102,10 @@ public class NamedTypeResolver {
         case ExistentialType existentialType -> typeArgs.getOrDefault(existentialType.typeName(),
             existentialType);
         case TypeVariable typeVariable -> typeVariable;
+        case SumType sumType -> new SumType(sumType.moduleName(),
+            sumType.name(),
+            sumType.types().stream().map(t -> resolveNamedType(t, typeArgs, range))
+                .map(VariantType.class::cast).toList());
         case ResolvedModuleNamedType namedType -> new ResolvedModuleNamedType(namedType.moduleName(),
             namedType.name(),
             resolveNamedTypes(namedType.typeArgs(), typeArgs,  range),

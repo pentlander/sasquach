@@ -5,9 +5,15 @@ import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
-public record TupleTypeNode(List<TypeNode> fields, Range range) implements TypeNode {
+public record TupleTypeNode(String name, List<TypeNode> fields, Range range) implements TypeNode {
+
+  public TupleTypeNode(List<TypeNode> fields, Range range) {
+    this(null, fields, range);
+  }
+
   @Override
   public StructType type() {
     var fieldTypes = new HashMap<String, Type>();
@@ -16,12 +22,12 @@ public record TupleTypeNode(List<TypeNode> fields, Range range) implements TypeN
       var typeNode = typeNodes.get(i);
       fieldTypes.put("_" + i, typeNode.type());
     }
-    return new StructType(fieldTypes);
+    return new StructType(typeName(), fieldTypes);
   }
 
   @Override
   public String typeName() {
-    return "Tuple" + fields.size();
+    return Objects.requireNonNullElse(name, "Tuple" + fields.size());
   }
 
   @Override

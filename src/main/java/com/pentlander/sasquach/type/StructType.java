@@ -14,16 +14,17 @@ import java.util.Objects;
  *                   functions.
  */
 public record StructType(String typeName, Map<String, Type> fieldTypes) implements
-    ParameterizedType {
+    ParameterizedType, VariantType {
   private static final String PREFIX = "Struct";
 
   public StructType {
     fieldTypes = Objects.requireNonNullElse(fieldTypes, Map.of());
     fieldTypes.values().forEach(value -> Objects.requireNonNull(value, toString()));
+    typeName = Objects.requireNonNullElse(typeName, PREFIX + hashFieldTypes(fieldTypes));
   }
 
   public StructType(Map<String, Type> fieldTypes) {
-    this(PREFIX + hashFieldTypes(fieldTypes), fieldTypes);
+    this(null, fieldTypes);
   }
 
   private static String hashFieldTypes(Map<String, Type> fieldTypes) {

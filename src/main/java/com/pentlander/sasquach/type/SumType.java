@@ -1,26 +1,33 @@
 package com.pentlander.sasquach.type;
 
 import com.pentlander.sasquach.ast.QualifiedModuleName;
+import com.pentlander.sasquach.runtime.StructBase;
 import java.util.List;
 
-public record SumType(QualifiedModuleName moduleName, String name, List<VariantType> types) implements Type {
+public record SumType(QualifiedModuleName moduleName, String name, List<VariantType> types) implements Type,
+    ParameterizedType {
   @Override
   public String typeName() {
-    return null;
+    return name;
   }
 
   @Override
   public Class<?> typeClass() {
-    return null;
+    return StructBase.class;
   }
 
   @Override
   public String descriptor() {
-    return null;
+    return StructBase.class.descriptorString();
   }
 
   @Override
   public String internalName() {
-    return null;
+    return (moduleName.toString()  + "$" + typeName()).replace(".", "/");
+  }
+
+  @Override
+  public boolean isAssignableFrom(Type other) {
+    return this.equals(other) || types.stream().anyMatch(type -> type.isAssignableFrom(other));
   }
 }

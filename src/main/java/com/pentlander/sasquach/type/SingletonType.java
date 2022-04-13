@@ -10,16 +10,16 @@ public record SingletonType(QualifiedModuleName moduleName, String name) impleme
 
   @Override
   public Class<?> typeClass() {
-    return null;
+    throw new IllegalStateException();
   }
 
   @Override
   public String descriptor() {
-    return null;
+    return "L" + moduleName.qualify(name) + ";";
   }
 
   @Override
   public String internalName() {
-    return null;
+    return moduleName.qualify(name);
   }
 }

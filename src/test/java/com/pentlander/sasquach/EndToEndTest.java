@@ -2,6 +2,7 @@ package com.pentlander.sasquach;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class EndToEndTest {
@@ -106,6 +107,76 @@ public class EndToEndTest {
     int sum = invokeName(clazz, "foo", null);
 
     assertThat(sum).isEqualTo(27);
+  }
+
+  @Test
+  void sumTypeTuple() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          type Option[T] = | Some(T) | None,
+          
+          identity = [T](option: Option[T]): Option[T] -> option,
+          
+          foo = (): String -> {
+            let some = Some("foo")
+            let opt = None
+            let ident = identity(None)
+            some._0
+          },
+        }
+        """);
+    var clazz = compileClassDebug(source, "main/Main");
+    String sum = invokeName(clazz, "foo", null);
+
+    assertThat(sum).isEqualTo("foo");
+  }
+
+  @Test
+  void sumTypeSingleton() throws Exception {
+    var source = Source.fromString("main",
+        """
+        Main {
+          type Option[T] = | Some(T) | None,
+          
+          identity = [T](option: Option[T]): Option[T] -> option,
+          
+          foo = (): Option[String] -> {
+            let opt = None
+            let ident = identity(None)
+            ident
+          },
+        }
+        """);
+    var clazz = compileClassDebug(source, "main/Main");
+    Object singleton = invokeName(clazz, "foo", null);
+
+    assertThat(singleton.getClass().getName()).isEqualTo("main.Main$None");
+  }
+
+  @Test
+  @Disabled
+  // Need to generate an interface for the sum type or more likely generate a class that takes a
+  // function object in the constructor
+  void sumTypeWithFunc() throws Exception {
+    // let none = identity(None)
+    var source = Source.fromString("main",
+        """
+        Main {
+          type Option[T] = | Test { foo: (bar: Int) -> String },
+          
+          identity = [T](option: Option[T]): Option[T] -> option,
+          
+          foo = (): String -> {
+            let some = Test { foo = (bar: Int): String -> Int.toString(bar) }
+            some._0
+          },
+        }
+        """);
+    var clazz = compileClass(source, "main/Main");
+    String sum = invokeName(clazz, "foo", null);
+
+    assertThat(sum).isEqualTo("foo");
   }
 
   @Test

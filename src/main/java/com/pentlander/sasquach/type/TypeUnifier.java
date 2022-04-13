@@ -13,7 +13,6 @@ public class TypeUnifier {
    * Map of type variables to their resolved types.
    */
   private final Map<TypeVariable, Type> unifiedTypes = new HashMap<>();
-  private final Map<ExistentialType, Type> existentialTypes = new HashMap<>();
 
   /**
    * Resolves the type by replacing any type variables in a parameterized type with a concrete one.
@@ -21,9 +20,7 @@ public class TypeUnifier {
   public Type resolve(Type type) {
     if (type instanceof ParameterizedType paramType) {
       return switch (paramType) {
-        case ExistentialType existentialType -> existentialTypes.getOrDefault(
-            existentialType,
-            existentialType);
+        case ExistentialType existentialType -> existentialType;
         case TypeVariable typeVariable -> unifiedTypes.getOrDefault(typeVariable, typeVariable);
         case FunctionType funcType -> {
           var paramTypes = resolve(funcType.parameterTypes());
@@ -34,7 +31,7 @@ public class TypeUnifier {
           var fieldTypes = new HashMap<String, Type>();
           structType.fieldTypes()
               .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType)));
-          yield new StructType(fieldTypes);
+          yield new StructType(structType.typeName(), fieldTypes);
         }
         case ResolvedModuleNamedType namedType -> new ResolvedModuleNamedType(
             namedType.moduleName(),
@@ -46,6 +43,9 @@ public class TypeUnifier {
             resolve(namedType.type()));
         case ClassType classType -> new ClassType(classType.typeClass(),
             resolve(classType.typeArguments()));
+        case SumType sumType -> new SumType(sumType.moduleName(),
+            sumType.name(),
+            sumType.types().stream().map(this::resolve).map(VariantType.class::cast).toList());
       };
     }
     return type;
@@ -123,6 +123,26 @@ public class TypeUnifier {
           }
           unify(destFieldType, sourceFieldType);
         }
+      }
+      case SumType destSumType && sourceType instanceof SumType sourceSumType
+          && destSumType.typeName().equals(sourceSumType.typeName()) -> {
+        for (int i = 0; i < destSumType.types().size(); i++) {
+          var destVariantType= destSumType.types().get(i);
+          var sourceVariantType = sourceSumType.types().get(i);
+          unify(destVariantType, sourceVariantType);
+        }
+      }
+      case SumType destSumType && sourceType instanceof SingletonType sourceSingletonType -> {
+        var matchingVariant = destSumType.types().stream()
+            .filter(t -> t.isAssignableFrom(sourceSingletonType)).findFirst()
+            .orElseThrow(() -> new UnificationException(destType, sourceType));
+//        unify(destSumType, matchingVariant);
+      }
+      case StructType destSumType && sourceType instanceof SumType sourceSumType -> {
+        var matchingVariant = sourceSumType.types().stream()
+            .filter(t -> t.isAssignableFrom(destSumType)).findFirst()
+            .orElseThrow(() -> new UnificationException(destType, sourceType));
+        unify(destSumType, matchingVariant);
       }
       case ClassType destClassType && sourceType instanceof ClassType sourceClassType -> {
         for (int i = 0; i < destClassType.typeArguments().size(); i++) {

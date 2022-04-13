@@ -399,15 +399,8 @@ public class Visitor {
     @Override
     public Expression visitTupleExpression(TupleExpressionContext ctx) {
       var tupCtx = ctx.tuple();
-      var fields = new ArrayList<Field>();
-      var expression = tupCtx.expression();
-      for (int i = 0; i < expression.size(); i++) {
-        var exprCtx = expression.get(i);
-        var expr = exprCtx.accept(this);
-        fields.add(new Field(new Identifier("_" + i, (Single) rangeFrom(exprCtx)), expr));
-      }
-
-      return Struct.tupleStruct(fields, rangeFrom(ctx));
+      var expressions = tupCtx.expression().stream().map(exprCtx -> exprCtx.accept(this)).toList();
+      return Struct.tupleStruct(expressions, rangeFrom(ctx));
     }
   }
 
@@ -575,11 +568,12 @@ public class Visitor {
   private TypeNode sumTypeNode(SumTypeContext ctx, String moduleName, Identifier aliasId) {
     var numVariants = ctx.typeIdentifier().size();
     var variantNodes = new ArrayList<VariantTypeNode>();
-    var qualModuleName = new QualifiedModuleName(packageName.name(), moduleName);
+    var unqualifiedIdx = moduleName.lastIndexOf('/') + 1;
+    var qualModuleName = new QualifiedModuleName(packageName.name(), moduleName.substring(unqualifiedIdx));
     for (int i = 0; i < numVariants; i++) {
       var id = id(ctx.typeIdentifier(i).ID());
       var variantTypeCtx = ctx.variantType(i);
-      variantNodes.add(variantTypeNode(qualModuleName, id, variantTypeCtx));
+      variantNodes.add(variantTypeNode(qualModuleName, aliasId, id, variantTypeCtx));
     }
     return new SumTypeNode(qualModuleName,
         aliasId,
@@ -587,24 +581,29 @@ public class Visitor {
         rangeFrom(ctx));
   }
 
-  private VariantTypeNode variantTypeNode(QualifiedModuleName moduleName,
+  private VariantTypeNode variantTypeNode(QualifiedModuleName moduleName, Identifier aliasId,
       Identifier id, VariantTypeContext ctx) {
     return switch (ctx) {
-      case SingletonTypeContext ignored -> new VariantTypeNode.Singleton(moduleName, id);
+      case SingletonTypeContext ignored -> new VariantTypeNode.Singleton(moduleName, aliasId, id);
       case SingleTupleTypeContext tupCtx -> {
-        var typeNode = new TupleTypeNode(List.of(typeNode(tupCtx.type(), new TypeVisitor())),
+        var typeNode = new TupleTypeNode(id.name(), List.of(typeNode(tupCtx.type(),
+            new TypeVisitor())),
             rangeFrom(ctx));
-        yield new VariantTypeNode.Tuple(moduleName, id, typeNode);
+        yield new VariantTypeNode.Tuple(moduleName, aliasId, id, typeNode);
       }
       case MultiTupleTypeContext tupCtx -> {
         var visitor = new TypeVisitor();
         var typeNodes = tupCtx.type().stream().map(t -> typeNode(t, visitor)).toList();
-        var typeNode = new TupleTypeNode(typeNodes, rangeFrom(ctx));
-        yield new VariantTypeNode.Tuple(moduleName, id, typeNode);
+        var typeNode = new TupleTypeNode(id.name(), typeNodes, rangeFrom(ctx));
+        yield new VariantTypeNode.Tuple(moduleName, aliasId, id, typeNode);
       }
       case StructSumTypeContext structSumCtx -> {
         var typeNode = new TypeVisitor().visitStructType(structSumCtx.structType());
-        yield new VariantTypeNode.Struct(moduleName, id, typeNode);
+        yield new VariantTypeNode.Struct(
+            moduleName,
+            aliasId,
+            id,
+            new StructTypeNode(id.name(), typeNode.fieldTypeNodes(), typeNode.range()));
       }
       default -> throw new IllegalStateException();
     };

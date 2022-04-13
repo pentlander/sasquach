@@ -11,6 +11,10 @@ public record QualifiedModuleName(String packageName, String moduleName) {
         qualifiedModuleName.substring(lastSlash + 1));
   }
 
+  public String qualify(String name) {
+    return this + "$" + name;
+  }
+
   @Override
   public String toString() {
     return packageName + "/" + moduleName;
