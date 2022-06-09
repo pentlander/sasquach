@@ -33,6 +33,9 @@ For now, it's probably simplest to just consider two cases:
 
 The one subtle thing is figuring out how typecheck a module with a method against a struct with a func struct. This implies that the transformation from Function to Struct must only occur at the codegen level, otherwise the typechecking code gets more complicated. The struct method dispatch must also be adjusted to account for this. 
 
+## Sum types
+When defining a sum type, you are actually adding multiple functions to the module that each create a variant of the sum type. Otherwise, you would have to do `Foo.T.Bar(...)` which looks a bit ugly. I'm not sure how this would work exactly if a user wanted to directly refer to one of the variants. It would still have to look like the statement above.
+
 # To Investigate
 
 ## Indy for lazy anonymous struct creation
@@ -143,6 +146,9 @@ mod Result {
 * https://docs.oracle.com/en/java/javase/16/docs/api/jdk.dynalink/module-summary.html
 * https://github.com/fangyuchen86/jsr292-cookbook
 * http://wiki.jvmlangsummit.com/images/9/93/2011_Forax.pdf
+
+### Type Switch
+* https://betterprogramming.pub/java-20-pattern-matching-for-switch-whats-under-the-hood-223a109f5e2f
 
 ## Performance
 * https://blog.nelhage.com/post/reflections-on-performance/

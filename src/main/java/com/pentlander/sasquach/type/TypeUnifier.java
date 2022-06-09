@@ -20,7 +20,7 @@ public class TypeUnifier {
   public Type resolve(Type type) {
     if (type instanceof ParameterizedType paramType) {
       return switch (paramType) {
-        case ExistentialType existentialType -> existentialType;
+        case UniversalType universalType -> universalType;
         case TypeVariable typeVariable -> unifiedTypes.getOrDefault(typeVariable, typeVariable);
         case FunctionType funcType -> {
           var paramTypes = resolve(funcType.parameterTypes());
@@ -101,7 +101,7 @@ public class TypeUnifier {
   private void unify(ParameterizedType destType, Type sourceType) {
     switch (destType) {
       case TypeVariable typeVar -> unifyTypeVariable(typeVar, sourceType);
-      case FunctionType destFuncType && sourceType instanceof FunctionType sourceFuncType -> {
+      case FunctionType destFuncType when sourceType instanceof FunctionType sourceFuncType -> {
         var paramCount = destFuncType.parameterTypes().size();
         if (paramCount != sourceFuncType.parameterTypes().size()) {
           throw new UnificationException(destType, sourceType);
@@ -114,7 +114,7 @@ public class TypeUnifier {
         }
         unify(destFuncType.returnType(), sourceFuncType.returnType());
       }
-      case StructType destStructType && sourceType instanceof StructType sourceStructType -> {
+      case StructType destStructType when sourceType instanceof StructType sourceStructType -> {
         for (var entry : destStructType.fieldTypes().entrySet()) {
           var destFieldType = entry.getValue();
           var sourceFieldType = sourceStructType.fieldType(entry.getKey());
@@ -124,34 +124,34 @@ public class TypeUnifier {
           unify(destFieldType, sourceFieldType);
         }
       }
-      case SumType destSumType && sourceType instanceof SumType sourceSumType
+      case SumType destSumType when sourceType instanceof SumType sourceSumType
           && destSumType.typeName().equals(sourceSumType.typeName()) -> {
         for (int i = 0; i < destSumType.types().size(); i++) {
-          var destVariantType= destSumType.types().get(i);
+          var destVariantType = destSumType.types().get(i);
           var sourceVariantType = sourceSumType.types().get(i);
           unify(destVariantType, sourceVariantType);
         }
       }
-      case SumType destSumType && sourceType instanceof SingletonType sourceSingletonType -> {
+      case SumType destSumType when sourceType instanceof SingletonType sourceSingletonType -> {
         var matchingVariant = destSumType.types().stream()
             .filter(t -> t.isAssignableFrom(sourceSingletonType)).findFirst()
             .orElseThrow(() -> new UnificationException(destType, sourceType));
 //        unify(destSumType, matchingVariant);
       }
-      case StructType destSumType && sourceType instanceof SumType sourceSumType -> {
+      case StructType destSumType when sourceType instanceof SumType sourceSumType -> {
         var matchingVariant = sourceSumType.types().stream()
             .filter(t -> t.isAssignableFrom(destSumType)).findFirst()
             .orElseThrow(() -> new UnificationException(destType, sourceType));
         unify(destSumType, matchingVariant);
       }
-      case ClassType destClassType && sourceType instanceof ClassType sourceClassType -> {
+      case ClassType destClassType when sourceType instanceof ClassType sourceClassType -> {
         for (int i = 0; i < destClassType.typeArguments().size(); i++) {
           var destArgType = destClassType.typeArguments().get(i);
           var sourceArgType = sourceClassType.typeArguments().get(i);
           unify(destArgType, sourceArgType);
         }
       }
-      case ClassType destClassType && destClassType.typeClass().equals(Object.class) -> {
+      case ClassType destClassType when destClassType.typeClass().equals(Object.class) -> {
         // Pass if the dest class is Object. This handles the situation where a method accepts an
         // object without a generic param, e.g. Map::get
       }

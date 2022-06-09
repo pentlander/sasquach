@@ -5,8 +5,8 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
 
-public sealed interface Expression extends Node permits ArrayValue, BinaryExpression, ApplyOperator,
-    Block, FieldAccess, ForeignFieldAccess, Function, FunctionCall, IfExpression, Loop,
+public sealed interface Expression extends Node permits ApplyOperator, ArrayValue, BinaryExpression,
+    Block, FieldAccess, ForeignFieldAccess, Function, FunctionCall, IfExpression, Loop, Match,
     PrintStatement, Recur, Struct, Field, Value, VarReference, VariableDeclaration {
   @JsonIgnore
   Range range();

@@ -12,7 +12,7 @@ public record SumTypeNode(QualifiedModuleName moduleName, Identifier id,
                           List<VariantTypeNode> variantTypeNodes,
                           Range range) implements TypeNode {
   public SumTypeNode {
-    if (variantTypeNodes.size() < 1) {
+    if (variantTypeNodes.isEmpty()) {
       throw new IllegalArgumentException("Sum type must have at least one node");
     }
   }
@@ -51,6 +51,10 @@ public record SumTypeNode(QualifiedModuleName moduleName, Identifier id,
       @Override
       public SingletonType type() {
         return new SingletonType(moduleName(), id().name());
+      }
+
+      public QualifiedIdentifier qualifiedId() {
+        return new QualifiedIdentifier(moduleName.qualify(id.name()), id.range());
       }
     }
 

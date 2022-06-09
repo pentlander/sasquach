@@ -1,13 +1,18 @@
 package com.pentlander.sasquach.backend;
 
 import static com.pentlander.sasquach.ast.InvocationKind.SPECIAL;
+import static com.pentlander.sasquach.ast.Pattern.Singleton;
+import static com.pentlander.sasquach.ast.Pattern.VariantStruct;
+import static com.pentlander.sasquach.ast.Pattern.VariantTuple;
 import static com.pentlander.sasquach.backend.ClassGenerator.INSTANCE_FIELD;
 import static com.pentlander.sasquach.backend.ClassGenerator.STRUCT_BASE_INTERNAL_NAME;
 import static com.pentlander.sasquach.backend.ClassGenerator.constructorType;
 import static com.pentlander.sasquach.backend.ClassGenerator.signatureDescriptor;
+import static org.objectweb.asm.Type.VOID_TYPE;
 
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Node;
+import com.pentlander.sasquach.ast.PatternVariable;
 import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
@@ -19,10 +24,12 @@ import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
+import com.pentlander.sasquach.ast.expression.HiddenVariable;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Loop;
+import com.pentlander.sasquach.ast.expression.Match;
 import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
 import com.pentlander.sasquach.ast.expression.PrintStatement;
 import com.pentlander.sasquach.ast.expression.Recur;
@@ -33,13 +40,13 @@ import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
-import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStruct;
+import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStructConstructor;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.runtime.StructDispatch;
+import com.pentlander.sasquach.runtime.SwitchBootstraps;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
-import com.pentlander.sasquach.type.ExistentialType;
 import com.pentlander.sasquach.type.ForeignFieldType;
 import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.StructType;
@@ -47,6 +54,7 @@ import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeFetcher;
 import com.pentlander.sasquach.type.TypeUtils;
 import com.pentlander.sasquach.type.TypeVariable;
+import com.pentlander.sasquach.type.UniversalType;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
@@ -63,9 +71,11 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
 class ExpressionGenerator {
-  String BOOTSTRAP_DESCRIPTOR = MethodType.methodType(
-      CallSite.class,
+  private static final String DISPATCH_BOOTSTRAP_DESCRIPTOR = MethodType.methodType(CallSite.class,
       List.of(Lookup.class, String.class, MethodType.class)).descriptorString();
+  private static final String MATCH_BOOTSTRAP_DESCRIPTOR = MethodType.methodType(CallSite.class,
+          List.of(Lookup.class, String.class, MethodType.class, Object[].class))
+      .descriptorString();
   private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
   private final Deque<Label> loopLabels = new ArrayDeque<>();
   private final Deque<LocalVarLabel> localVarLabels = new ArrayDeque<>();
@@ -114,6 +124,7 @@ class ExpressionGenerator {
         var varDecl = localVarLabel.varDecl();
         var idx = nameResolutionResult.getVarIndex(varDecl);
         var varType = type(varDecl.expression());
+
         methodVisitor.visitLocalVariable(varDecl.name(),
             varType.descriptor(),
             signatureDescriptor(varType),
@@ -157,17 +168,17 @@ class ExpressionGenerator {
       case VarReference varReference -> {
         var refDecl = nameResolutionResult.getVarReference(varReference);
         switch (refDecl) {
-          case ReferenceDeclaration.Local local -> generateLoadVar(methodVisitor,
-              type(varReference),
-              local.index());
+          case ReferenceDeclaration.Local local ->
+              generateLoadVar(methodVisitor, type(varReference), local.index());
           case ReferenceDeclaration.Module module -> methodVisitor.visitFieldInsn(Opcodes.GETSTATIC,
               module.moduleDeclaration().name(),
               INSTANCE_FIELD,
               type(varReference).descriptor());
-          case ReferenceDeclaration.Singleton singleton -> methodVisitor.visitFieldInsn(Opcodes.GETSTATIC,
-              singleton.node().type().internalName(),
-              INSTANCE_FIELD,
-              type(varReference).descriptor());
+          case ReferenceDeclaration.Singleton singleton ->
+              methodVisitor.visitFieldInsn(Opcodes.GETSTATIC,
+                  singleton.node().type().internalName(),
+                  INSTANCE_FIELD,
+                  type(varReference).descriptor());
         }
       }
       case Value value -> {
@@ -234,13 +245,17 @@ class ExpressionGenerator {
             var type = switch (localVar) {
               case VariableDeclaration varDecl -> funcType(varDecl.expression());
               case FunctionParameter funcParam -> funcType(funcParam.id());
+              case PatternVariable patternVariable -> funcType(patternVariable.id());
+              // Hidden variable won't be a function
+              case HiddenVariable hiddenVariable -> throw new IllegalStateException();
             };
             generateLoadVar(methodVisitor, type, idx);
             generateArgs(funcCall.arguments(), type.parameterTypes());
             generateMemberCall(type, "_invoke");
           }
-          case VariantStruct variantStruct ->
-              generateStructInit((StructType) type(variantStruct.id()), variantStruct.struct());
+          case VariantStructConstructor variantStructConstructor ->
+              generateStructInit((StructType) type(variantStructConstructor.id()),
+                  variantStructConstructor.struct());
         }
       }
       case BinaryExpression binExpr -> {
@@ -319,18 +334,11 @@ class ExpressionGenerator {
         var fieldAccessType = TypeUtils.asStructType(type(fieldAccess.expr()));
         if (fieldAccessType.isPresent()) {
           generate(fieldAccess.expr());
-          var fieldDescriptor =
-              fieldAccessType.get().fieldType(fieldAccess.fieldName()).descriptor();
-          var handle = new Handle(Opcodes.H_INVOKESTATIC,
-              new ClassType(StructDispatch.class).internalName(),
-              "bootstrapField",
-              BOOTSTRAP_DESCRIPTOR,
-              false);
-          methodVisitor.visitInvokeDynamicInsn(fieldAccess.fieldName(),
-              "(L%s;)%s".formatted(STRUCT_BASE_INTERNAL_NAME, fieldDescriptor),
-              handle);
+          generateFieldAccess(fieldAccess.fieldName(),
+              fieldAccessType.get().fieldType(fieldAccess.fieldName()));
         } else {
-          throw new IllegalStateException("Failed to generate field access of type %s".formatted(fieldAccessType));
+          throw new IllegalStateException("Failed to generate field access of type %s".formatted(
+              fieldAccessType));
         }
       }
       case Block block -> generateBlock(block);
@@ -362,7 +370,10 @@ class ExpressionGenerator {
           case INTERFACE -> Opcodes.INVOKEINTERFACE;
         };
         var funcName = foreignFuncCall.name().equals("new") ? "<init>" : foreignFuncCall.name();
-        methodVisitor.visitMethodInsn(opCode, owner, funcName, foreignFuncType.descriptor(),
+        methodVisitor.visitMethodInsn(opCode,
+            owner,
+            funcName,
+            foreignFuncType.descriptor(),
             opCode == Opcodes.INVOKEINTERFACE);
         var castType = foreignFuncType.castType();
         if (castType != null) {
@@ -373,8 +384,8 @@ class ExpressionGenerator {
         generate(structFuncCall.structExpression());
 
         var structType = TypeUtils.asStructType(type(structFuncCall.structExpression())).get();
-        var funcType =
-            TypeUtils.asFunctionType(Objects.requireNonNull(structType.fieldType(structFuncCall.name()))).get();
+        var funcType = TypeUtils.asFunctionType(Objects.requireNonNull(structType.fieldType(
+            structFuncCall.name()))).get();
         var arguments = structFuncCall.arguments();
 
         generateArgs(arguments, funcType.parameterTypes());
@@ -413,8 +424,105 @@ class ExpressionGenerator {
         generateFuncInit(name, List.of());
       }
       case ApplyOperator applyOperator -> generate(applyOperator.toFunctionCall());
+      // Need to implement this
+      case Match match -> {
+        generate(match.expr());
+        methodVisitor.visitInsn(Opcodes.DUP);
+        // Kind of a hack. Need to move var index resolution into the expression generator
+        int exprVarIdx = nameResolutionResult.getVarIndex(new HiddenVariable(match));
+        generateStoreVar(methodVisitor, type(match.expr()), exprVarIdx);
+
+        methodVisitor.visitInsn(Opcodes.ICONST_0);
+        var handle = new Handle(Opcodes.H_INVOKESTATIC,
+            new ClassType(SwitchBootstraps.class).internalName(),
+            "bootstrapSwitch",
+            MATCH_BOOTSTRAP_DESCRIPTOR,
+            false);
+
+        var branches = match.branches();
+        var branchTypes = branches.stream()
+            .map(branch -> type((Identifier) branch.pattern().id()))
+            .map(type -> org.objectweb.asm.Type.getObjectType(type.internalName()))
+            .toArray();
+        methodVisitor.visitInvokeDynamicInsn("match",
+            SwitchBootstraps.DO_TYPE_SWITCH_TYPE.descriptorString(),
+            handle,
+            branchTypes);
+
+        var defaultLabel = new Label();
+        var labels = new Label[branches.size()];
+        for (int i = 0; i < branches.size(); i++) {
+          labels[i] = new Label();
+        }
+        methodVisitor.visitTableSwitchInsn(0, branches.size() - 1, defaultLabel, labels);
+
+        methodVisitor.visitLabel(defaultLabel);
+        var exType = org.objectweb.asm.Type.getType(MatchException.class);
+        methodVisitor.visitTypeInsn(Opcodes.NEW, exType.getInternalName());
+        methodVisitor.visitInsn(Opcodes.DUP);
+        methodVisitor.visitInsn(Opcodes.ACONST_NULL);
+        methodVisitor.visitInsn(Opcodes.ACONST_NULL);
+        methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL,
+            exType.getInternalName(),
+            "<init>",
+            org.objectweb.asm.Type.getMethodDescriptor(VOID_TYPE,
+                org.objectweb.asm.Type.getType(String.class),
+                org.objectweb.asm.Type.getType(Throwable.class)),
+            false);
+        methodVisitor.visitInsn(Opcodes.ATHROW);
+
+        var endLabel = new Label();
+        for (int i = 0; i < branches.size(); i++) {
+          methodVisitor.visitLabel(labels[i]);
+          var branch = branches.get(i);
+          switch (branch.pattern()) {
+            // No-op, don't need to load any vars
+            case Singleton singleton -> {}
+            case VariantTuple variantTuple -> {
+              var variantType = (StructType) type((Identifier) variantTuple.id());
+              var tupleFieldTypes = variantType.sortedFields();
+              var bindings = variantTuple.bindings();
+              // Need to look up the types of the bindings, allocate a variable for each field,
+              // then store the value of the field in the variable
+              for (int j = 0; j < bindings.size(); j++) {
+                // Load the value of the field and cast it
+                generateLoadVar(methodVisitor, variantType, exprVarIdx);
+                methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, variantType.internalName());
+
+                var field = tupleFieldTypes.get(j);
+                generateFieldAccess(field.getKey(), field.getValue());
+
+                // Store the value in the pattern variable
+                var binding = bindings.get(j);
+                var bindType = type(binding.id());
+                var idx = nameResolutionResult.getVarIndex(binding);
+                generateStoreVar(methodVisitor, bindType, idx);
+              }
+            }
+            case VariantStruct variantStruct -> {
+              throw new IllegalStateException("Not implemented");
+            }
+          }
+          ;
+          generate(branches.get(i).expr());
+          methodVisitor.visitJumpInsn(Opcodes.GOTO, endLabel);
+        }
+        methodVisitor.visitLabel(endLabel);
+      }
       case default -> throw new IllegalStateException("Unrecognized expression: " + expression);
     }
+  }
+
+  private void generateFieldAccess(String fieldName, Type fieldType) {
+    var fieldDescriptor = fieldType.descriptor();
+    var handle = new Handle(Opcodes.H_INVOKESTATIC,
+        new ClassType(StructDispatch.class).internalName(),
+        "bootstrapField",
+        DISPATCH_BOOTSTRAP_DESCRIPTOR,
+        false);
+    methodVisitor.visitInvokeDynamicInsn(fieldName,
+        "(L%s;)%s".formatted(STRUCT_BASE_INTERNAL_NAME, fieldDescriptor),
+        handle);
   }
 
   private void generateArgs(List<Expression> arguments, List<Type> paramTypes) {
@@ -429,7 +537,7 @@ class ExpressionGenerator {
     var handle = new Handle(Opcodes.H_INVOKESTATIC,
         new ClassType(StructDispatch.class).internalName(),
         "bootstrapMethod",
-        BOOTSTRAP_DESCRIPTOR,
+        DISPATCH_BOOTSTRAP_DESCRIPTOR,
         false);
     methodVisitor.visitInvokeDynamicInsn(funcCallName,
         funcType.funcDescriptorWith(0, new ClassType(StructBase.class)),
@@ -440,10 +548,8 @@ class ExpressionGenerator {
     methodVisitor.visitTypeInsn(Opcodes.NEW, funcStructInternalName);
     methodVisitor.visitInsn(Opcodes.DUP);
     captures.forEach(this::generateExpr);
-    var initDescriptor =
-        ClassGenerator.constructorType(captures, typeFetcher);
-    methodVisitor.visitMethodInsn(
-        Opcodes.INVOKESPECIAL,
+    var initDescriptor = ClassGenerator.constructorType(captures, typeFetcher);
+    methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL,
         funcStructInternalName,
         "<init>",
         initDescriptor,
@@ -456,8 +562,7 @@ class ExpressionGenerator {
     methodVisitor.visitInsn(Opcodes.DUP);
     struct.fields().forEach(field -> generateExpr(field.value()));
     var initDescriptor = constructorType(structType.fieldTypes().values());
-    methodVisitor.visitMethodInsn(
-        Opcodes.INVOKESPECIAL,
+    methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL,
         structName,
         "<init>",
         initDescriptor,
@@ -470,8 +575,7 @@ class ExpressionGenerator {
     methodVisitor.visitInsn(Opcodes.DUP);
     struct.fields().forEach(field -> generateExpr(field.value()));
     var initDescriptor = constructorType(struct.fields(), typeFetcher);
-    methodVisitor.visitMethodInsn(
-        Opcodes.INVOKESPECIAL,
+    methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL,
         structName,
         "<init>",
         initDescriptor,
@@ -545,10 +649,9 @@ class ExpressionGenerator {
    * parameters, as the parameter type is {@link Object}.</p>
    */
   private void tryBox(Type actualType, Type expectedType) {
-    if (actualType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT
-        && (expectedType instanceof ExistentialType || expectedType instanceof TypeVariable)) {
-      methodVisitor.visitMethodInsn(
-          Opcodes.INVOKESTATIC,
+    if (actualType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT && (
+        expectedType instanceof UniversalType || expectedType instanceof TypeVariable)) {
+      methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC,
           "java/lang/Integer",
           "valueOf",
           "(I)Ljava/lang/Integer;",
@@ -556,13 +659,14 @@ class ExpressionGenerator {
     }
   }
 
-  /** Convert a boxed type into its primitive type. */
+  /**
+   * Convert a boxed type into its primitive type.
+   */
   private void tryUnbox(Type expectedType, Type actualType) {
-    if (expectedType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT
-        && (actualType instanceof ExistentialType || actualType instanceof TypeVariable)) {
+    if (expectedType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT && (
+        actualType instanceof UniversalType || actualType instanceof TypeVariable)) {
       methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Integer");
-      methodVisitor.visitMethodInsn(
-          Opcodes.INVOKEVIRTUAL,
+      methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
           "java/lang/Integer",
           "intValue",
           "()I",
@@ -574,5 +678,9 @@ class ExpressionGenerator {
     public LocalVarLabel(VariableDeclaration varDecl) {
       this(varDecl, new Label());
     }
+  }
+
+  private static String getInternalName(Class<?> clazz) {
+    return org.objectweb.asm.Type.getInternalName(clazz);
   }
 }

@@ -43,10 +43,10 @@ import org.objectweb.asm.Opcodes;
 class ClassGenerator {
   static final String STRUCT_BASE_INTERNAL_NAME = new ClassType(StructBase.class).internalName();
   static final String INSTANCE_FIELD = "INSTANCE";
-  private static final int CLASS_VERSION = Opcodes.V16;
-  private final ClassWriter classWriter = new ClassWriter(
-      ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
+  private static final int CLASS_VERSION = Opcodes.V19;
   private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
+  private final ClassWriter classWriter = new SasqClassWriter(generatedClasses,
+      ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
   private final NameResolutionResult nameResolutionResult;
   private final TypeFetcher typeFetcher;
   private Node contextNode;
@@ -78,36 +78,52 @@ class ClassGenerator {
   }
 
   static String constructorType(Collection<Type> fieldTypes) {
-    String paramDescriptor = fieldTypes.stream().map(Type::descriptor)
+    String paramDescriptor = fieldTypes.stream()
+        .map(Type::descriptor)
         .collect(joining("", "(", ")"));
     return paramDescriptor + BuiltinType.VOID.descriptor();
   }
 
   static String constructorType(List<? extends Expression> fields, TypeFetcher typeFetcher) {
-    String paramDescriptor = fields.stream().map(typeFetcher::getType).map(Type::descriptor)
+    String paramDescriptor = fields.stream()
+        .map(typeFetcher::getType)
+        .map(Type::descriptor)
         .collect(joining("", "(", ")"));
     return paramDescriptor + BuiltinType.VOID.descriptor();
   }
 
   private MethodVisitor generateStructStart(String internalName, Range range,
       Map<String, Type> fields) {
-    var entries = fields.entrySet().stream()
-        .filter(entry -> !(entry.getValue() instanceof FunctionType)).toList();
+    return generateStructStart(internalName, range, fields, List.of());
+  }
+
+  private MethodVisitor generateStructStart(String internalName, Range range,
+      Map<String, Type> fields, List<String> interfaces) {
+    var entries = fields.entrySet()
+        .stream()
+        .filter(entry -> !(entry.getValue() instanceof FunctionType))
+        .toList();
     generatedClasses.put(internalName.replace('/', '.'), classWriter);
+
+    var allInterfaces = new String[interfaces.size() + 1];
+    allInterfaces[0] = STRUCT_BASE_INTERNAL_NAME;
+    for (int i = 0; i < interfaces.size(); i++) {
+      allInterfaces[i + 1] = interfaces.get(i);
+    }
+
     classWriter.visit(CLASS_VERSION,
         Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL,
         internalName,
         null,
         "java/lang/Object",
-        new String[]{STRUCT_BASE_INTERNAL_NAME});
+        allInterfaces);
     var sourcePath = range.sourcePath().filepath();
     classWriter.visitSource(sourcePath, null);
     // Generate fields
     for (var entry : entries) {
       var name = entry.getKey();
       var type = entry.getValue();
-      var fv = classWriter.visitField(
-          Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL,
+      var fv = classWriter.visitField(Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL,
           name,
           type.descriptor(),
           null,
@@ -146,27 +162,29 @@ class ClassGenerator {
     var internalName = sumType.internalName();
     generatedClasses.put(internalName.replace('/', '.'), classWriter);
     classWriter.visit(CLASS_VERSION,
-        Opcodes.ACC_PUBLIC +  Opcodes.ACC_ABSTRACT + Opcodes.ACC_INTERFACE,
+        Opcodes.ACC_PUBLIC + Opcodes.ACC_ABSTRACT + Opcodes.ACC_INTERFACE,
         internalName,
         null,
         "java/lang/Object",
         new String[]{STRUCT_BASE_INTERNAL_NAME});
+    for (var variantType : sumType.types()) {
+      classWriter.visitPermittedSubclass(variantType.internalName());
+    }
 //    var sourcePath = range.sourcePath().filepath();
 //    classWriter.visitSource(sourcePath, null);
     classWriter.visitEnd();
   }
 
-  void generateSingleton(SingletonType singleton, Range range) {
+  void generateSingleton(SingletonType singleton, SumType sumType, Range range) {
     var internalName = singleton.internalName();
-    var mv = generateStructStart(internalName, range, Map.of());
+    var mv = generateStructStart(internalName, range, Map.of(), List.of(sumType.internalName()));
     mv.visitMaxs(-1, -1);
 
     generateStaticInstance(singleton.descriptor(), internalName, methodVisitor -> {
       methodVisitor.visitTypeInsn(Opcodes.NEW, internalName);
       methodVisitor.visitInsn(Opcodes.DUP);
       var initDescriptor = constructorType(List.of(), typeFetcher);
-      methodVisitor.visitMethodInsn(
-          Opcodes.INVOKESPECIAL,
+      methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL,
           internalName,
           "<init>",
           initDescriptor,
@@ -175,8 +193,11 @@ class ClassGenerator {
     classWriter.visitEnd();
   }
 
-  void generateStruct(StructType structType, Range range) {
-    var mv = generateStructStart(structType.internalName(), range, structType.fieldTypes());
+  void generateVariantStruct(StructType structType, SumType sumType, Range range) {
+    var mv = generateStructStart(structType.internalName(),
+        range,
+        structType.fieldTypes(),
+        List.of(sumType.internalName()));
     // Class footer
     mv.visitMaxs(-1, -1);
     classWriter.visitEnd();
@@ -192,24 +213,31 @@ class ClassGenerator {
 
     // Add a static INSTANCE field of the struct to make a singleton class.
     if (struct.structKind() == StructKind.MODULE) {
-      struct.typeAliases().stream().map(TypeAlias::typeNode)
+      struct.typeAliases()
+          .stream()
+          .map(TypeAlias::typeNode)
           .flatMap(type -> type instanceof SumTypeNode sumTypeNode ? Stream.of(sumTypeNode)
-              : Stream.empty()).forEach(sumTypeNode -> {
-                var sumType = (SumType) type(sumTypeNode.id());
-                var sumTypeGenerator = new ClassGenerator(nameResolutionResult, typeFetcher);
-                sumTypeGenerator.generateSumType(sumType);
-                generatedClasses.putAll(sumTypeGenerator.getGeneratedClasses());
-                sumTypeNode.variantTypeNodes().forEach(variantTypeNode -> {
-                  var variantType = (VariantType) type(variantTypeNode.id());
-                  var variantGenerator = new ClassGenerator(nameResolutionResult, typeFetcher);
-                  switch (variantType) {
-                    case StructType variantStructType -> variantGenerator.generateStruct(variantStructType,
+              : Stream.empty())
+          .forEach(sumTypeNode -> {
+            var sumType = (SumType) type(sumTypeNode.id());
+            var sumTypeGenerator = new ClassGenerator(nameResolutionResult, typeFetcher);
+            sumTypeGenerator.generateSumType(sumType);
+            generatedClasses.putAll(sumTypeGenerator.getGeneratedClasses());
+            sumTypeNode.variantTypeNodes().forEach(variantTypeNode -> {
+              var variantType = (VariantType) type(variantTypeNode.id());
+              var variantGenerator = new ClassGenerator(nameResolutionResult, typeFetcher);
+              switch (variantType) {
+                case StructType variantStructType -> variantGenerator.generateVariantStruct(
+                    variantStructType,
+                    sumType,
+                    variantTypeNode.range());
+                case SingletonType singletonType ->
+                    variantGenerator.generateSingleton(singletonType,
+                        sumType,
                         variantTypeNode.range());
-                    case SingletonType singletonType -> variantGenerator.generateSingleton(singletonType,
-                        variantTypeNode.range());
-                  }
-                  generatedClasses.putAll(variantGenerator.getGeneratedClasses());
-                });
+              }
+              generatedClasses.putAll(variantGenerator.getGeneratedClasses());
+            });
           });
 
       generateStaticInstance(type(struct).descriptor(),
@@ -234,8 +262,7 @@ class ClassGenerator {
   void generateStaticInstance(String descriptor, String ownerInternalName,
       Consumer<MethodVisitor> structInitGenerator) {
     // Generate INSTANCE field
-    var field = classWriter.visitField(
-        Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL + Opcodes.ACC_STATIC,
+    var field = classWriter.visitField(Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL + Opcodes.ACC_STATIC,
         INSTANCE_FIELD,
         descriptor,
         null,
@@ -246,11 +273,7 @@ class ClassGenerator {
     var smv = classWriter.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
     smv.visitCode();
     structInitGenerator.accept(smv);
-    smv.visitFieldInsn(
-        Opcodes.PUTSTATIC,
-        ownerInternalName,
-        INSTANCE_FIELD,
-        descriptor);
+    smv.visitFieldInsn(Opcodes.PUTSTATIC, ownerInternalName, INSTANCE_FIELD, descriptor);
     smv.visitInsn(Opcodes.RETURN);
 
     // Method footer
@@ -276,7 +299,7 @@ class ClassGenerator {
   static String signatureDescriptor(Type type) {
     return switch (type) {
       case TypeVariable typeVar -> "T" + typeVar.typeName() + ";";
-      case BuiltinType builtinType && builtinType == BuiltinType.VOID -> null;
+      case BuiltinType builtinType when builtinType == BuiltinType.VOID -> null;
       case default -> type.descriptor();
     };
   }
@@ -284,14 +307,15 @@ class ClassGenerator {
   private void generateFunction(String funcName, FunctionType funcType, Function function) {
     String signature = null;
     if (!funcType.typeParameters().isEmpty()) {
-      signature =
-          funcType.typeParameters().stream().map(typeParameter -> typeParameter.typeName() + ":Ljava/lang/Object;")
-          .collect(joining("", "<", ">")) + funcType.parameterTypes().stream()
-          .map(ClassGenerator::signatureDescriptor).collect(joining("", "(", ")")) + signatureDescriptor(
-          funcType.returnType());
+      signature = funcType.typeParameters()
+          .stream()
+          .map(typeParameter -> typeParameter.typeName() + ":Ljava/lang/Object;")
+          .collect(joining("", "<", ">")) + funcType.parameterTypes()
+          .stream()
+          .map(ClassGenerator::signatureDescriptor)
+          .collect(joining("", "(", ")")) + signatureDescriptor(funcType.returnType());
     }
-    var methodVisitor = classWriter.visitMethod(
-        Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC,
+    var methodVisitor = classWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC,
         funcName,
         funcType.funcDescriptor(),
         signature,

@@ -47,6 +47,14 @@ ifBlock : IF ifCondition=expression trueBlock=expression (ELSE falseBlock=expres
 functionCall : functionName application ;
 loop : LOOP '(' variableDeclaration? (',' NL* variableDeclaration)* ')' '->' NL* expression ;
 
+pattern :
+    typeIdentifier #singletonPattern
+  | typeIdentifier '(' ID ')' #singleTupleVariantPattern
+  | typeIdentifier '(' ID (',' NL* ID)+ ')' #multiTupleVariantPattern
+  | typeIdentifier '{' NL* ID (',' NL* ID)* (',')? NL* '}' #structVariantPattern ;
+branch : pattern '->' expression ;
+match : MATCH expression '{' NL* (branch ',' NL*)+ '}' ;
+
 expressionList : expression (',' expression)* ;
 application :  LP expressionList? RP
   | LP expressionList? {notifyErrorListeners("Missing closing ')'");} ;
@@ -72,7 +80,8 @@ expression :
   | loop #loopExpression
   | function #functionExpression
   | expr=expression NL* APPLY NL* (functionCall | memberExpression=expression '.' memberApplication | foreignName '#' memberApplication) #applyExpression
-  | tuple #tupleExpression ;
+  | tuple #tupleExpression
+  | match # matchExpression;
 
 struct : '{' NL* structStatement (',' NL* structStatement)* (',')? NL* '}' ;
 structStatement : use #useStatement
@@ -97,6 +106,7 @@ FOREIGN : 'foreign' ;
 USE : 'use' ;
 TYPEALIAS : 'type' ;
 LOOP : 'loop' ;
+MATCH : 'match' ;
 
 // Literals
 NUMBER : '0'|[1-9][0-9]* ;

@@ -6,4 +6,9 @@ public record SourcePath(String filepath) {
   public static SourcePath fromPath(Path path) {
     return new SourcePath(path.toString());
   }
+
+  @Override
+  public String toString() {
+    return filepath();
+  }
 }

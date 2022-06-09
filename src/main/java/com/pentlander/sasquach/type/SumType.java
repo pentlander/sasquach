@@ -23,7 +23,7 @@ public record SumType(QualifiedModuleName moduleName, String name, List<VariantT
 
   @Override
   public String internalName() {
-    return (moduleName.toString()  + "$" + typeName()).replace(".", "/");
+    return moduleName.qualify(typeName()).replace(".", "/");
   }
 
   @Override
