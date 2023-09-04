@@ -14,9 +14,7 @@ import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.type.LocalNamedType;
 import com.pentlander.sasquach.type.ModuleNamedType;
-import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
-import com.pentlander.sasquach.type.VariantType;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,33 +54,39 @@ public class TypeNameResolver {
         var resolver = new TypeNameResolver(typeParams, moduleScopedNameResolver);
         functionSignature.parameters().forEach(param -> {
           var result = resolver.resolveTypeNode(param.typeNode());
-          namedTypes.putAll(result.namedTypes);
-          errors.addAll(result.errors);
+          mergeResult(result);
         });
         var result = resolver.resolveTypeNode(functionSignature.returnTypeNode());
-        namedTypes.putAll(result.namedTypes);
-        errors.addAll(result.errors);
+        mergeResult(result);
       }
       case TypeAlias typeAlias -> {
         var typeParams = Util.concat(contextTypeParams, typeAlias.typeParameters());
         var resolver = new TypeNameResolver(typeParams, moduleScopedNameResolver);
         var result = resolver.resolveTypeNode(typeAlias.typeNode());
-        namedTypes.putAll(result.namedTypes);
-        errors.addAll(result.errors);
+        mergeResult(result);
       }
       case TupleTypeNode tupleTypeNode -> tupleTypeNode.fields().forEach(this::resolveTypeNode);
       case TypeParameter ignored -> {}
       case SumTypeNode sumTypeNode -> sumTypeNode.variantTypeNodes().forEach(this::resolveTypeNode);
       case VariantTypeNode variantTypeNode -> {
-        variantNodes.put(variantTypeNode.typeName(), variantTypeNode);
+        variantNodes.put(variantTypeNode.id().name(), variantTypeNode);
         switch (variantTypeNode) {
-          case VariantTypeNode.Singleton ignored -> {}
+          case VariantTypeNode.Singleton singleton -> {
+            var typeAlias = moduleScopedNameResolver.resolveTypeAlias(singleton.aliasId().name()).get();
+            putNamedType(singleton, typeAlias);
+          }
           case VariantTypeNode.Tuple tuple -> resolveTypeNode(tuple.typeNode());
           case VariantTypeNode.Struct struct -> resolveTypeNode(struct.typeNode());
         }
       }
     }
     return new Result(namedTypes, variantNodes, errors.build());
+  }
+
+  private void mergeResult(Result result) {
+    namedTypes.putAll(result.namedTypes);
+    variantNodes.putAll(result.variantTypes);
+    errors.addAll(result.errors);
   }
 
   private void resolveNamedType(TypeNode typeNode) {
@@ -121,5 +125,5 @@ public class TypeNameResolver {
   }
 
   public record Result(Map<TypeNode, NamedTypeDefinition> namedTypes,
-                       Map<String, VariantTypeNode> variantTypeNodes, RangedErrorList errors) {}
+                       Map<String, VariantTypeNode> variantTypes, RangedErrorList errors) {}
 }

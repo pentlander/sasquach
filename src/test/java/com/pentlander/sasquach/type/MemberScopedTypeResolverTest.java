@@ -48,7 +48,8 @@ class MemberScopedTypeResolverTest {
   @BeforeEach
   void setUp() {
     nameResolutionResult = mock(NameResolutionResult.class);
-    memberScopedTypeResolver = new MemberScopedTypeResolver(nameResolutionResult, a -> null);
+    memberScopedTypeResolver = new MemberScopedTypeResolver(Map.of(), nameResolutionResult,
+        a -> null);
     shouldAssertErrorsEmpty = true;
   }
 

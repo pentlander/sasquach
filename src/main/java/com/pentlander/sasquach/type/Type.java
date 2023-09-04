@@ -5,7 +5,7 @@ import com.pentlander.sasquach.type.MemberScopedTypeResolver.UnknownType;
 /**
  * Represents the type of an expression.
  */
-public sealed interface Type permits ArrayType, BuiltinType, ClassType, ExistentialType,
+public sealed interface Type permits ArrayType, BuiltinType, ClassType, UniversalType,
     ForeignFieldType, ForeignFunctionType, FuncTypeParameter, UnknownType, NamedType,
     ParameterizedType, ResolvedNamedType, SumType, TypeVariable, VariantType {
   /**

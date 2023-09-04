@@ -25,6 +25,7 @@ public interface ExpressionVisitor<T> {
       case Recur recur -> visit(recur);
       case Loop loop -> visit(loop);
       case ApplyOperator applyOperator -> visit(applyOperator);
+      case Match match -> visit(match);
     };
   }
 
@@ -132,6 +133,8 @@ public interface ExpressionVisitor<T> {
     recur.arguments().forEach(this::visit);
     return defaultValue();
   }
+
+  T visit(Match match);
 
   T visit(Node node);
 }

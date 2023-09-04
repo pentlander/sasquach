@@ -51,5 +51,10 @@ public sealed interface Range {
     public Position end() {
       return new Position(start.line(), start.column() + length);
     }
+
+    @Override
+    public String toString() {
+      return sourcePath.toString() + ":" + start.line() + ":" + start.column() + "-" + start.column() + length;
+    }
   }
 }

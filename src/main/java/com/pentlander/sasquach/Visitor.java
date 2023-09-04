@@ -39,13 +39,18 @@ import com.pentlander.sasquach.SasquachParser.ForeignMemberApplicationExpression
 import com.pentlander.sasquach.SasquachParser.ForeignNameContext;
 import com.pentlander.sasquach.SasquachParser.LocalNamedTypeContext;
 import com.pentlander.sasquach.SasquachParser.LoopExpressionContext;
+import com.pentlander.sasquach.SasquachParser.MatchExpressionContext;
 import com.pentlander.sasquach.SasquachParser.MemberApplicationContext;
 import com.pentlander.sasquach.SasquachParser.MemberApplicationExpressionContext;
 import com.pentlander.sasquach.SasquachParser.ModuleNamedTypeContext;
 import com.pentlander.sasquach.SasquachParser.MultiTupleTypeContext;
+import com.pentlander.sasquach.SasquachParser.MultiTupleVariantPatternContext;
 import com.pentlander.sasquach.SasquachParser.SingleTupleTypeContext;
+import com.pentlander.sasquach.SasquachParser.SingleTupleVariantPatternContext;
+import com.pentlander.sasquach.SasquachParser.SingletonPatternContext;
 import com.pentlander.sasquach.SasquachParser.SingletonTypeContext;
 import com.pentlander.sasquach.SasquachParser.StructSumTypeContext;
+import com.pentlander.sasquach.SasquachParser.StructVariantPatternContext;
 import com.pentlander.sasquach.SasquachParser.SumTypeContext;
 import com.pentlander.sasquach.SasquachParser.TupleExpressionContext;
 import com.pentlander.sasquach.SasquachParser.TupleTypeContext;
@@ -55,8 +60,11 @@ import com.pentlander.sasquach.SasquachParser.TypeContext;
 import com.pentlander.sasquach.SasquachParser.TypeParameterListContext;
 import com.pentlander.sasquach.SasquachParser.VariantTypeContext;
 import com.pentlander.sasquach.ast.BasicTypeNode;
+import com.pentlander.sasquach.ast.Branch;
 import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.ModuleScopedIdentifier;
+import com.pentlander.sasquach.ast.Pattern;
+import com.pentlander.sasquach.ast.PatternVariable;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode;
@@ -87,6 +95,7 @@ import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.Loop;
+import com.pentlander.sasquach.ast.expression.Match;
 import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.PrintStatement;
@@ -399,15 +408,35 @@ public class Visitor {
     @Override
     public Expression visitTupleExpression(TupleExpressionContext ctx) {
       var tupCtx = ctx.tuple();
-      var fields = new ArrayList<Field>();
-      var expression = tupCtx.expression();
-      for (int i = 0; i < expression.size(); i++) {
-        var exprCtx = expression.get(i);
-        var expr = exprCtx.accept(this);
-        fields.add(new Field(new Identifier("_" + i, (Single) rangeFrom(exprCtx)), expr));
-      }
+      var expressions = tupCtx.expression().stream().map(exprCtx -> exprCtx.accept(this)).toList();
+      return Struct.tupleStruct(expressions, rangeFrom(ctx));
+    }
 
-      return Struct.tupleStruct(fields, rangeFrom(ctx));
+    @Override
+    public Expression visitMatchExpression(MatchExpressionContext ctx) {
+      var match = ctx.match();
+      var branches = match.branch().stream().map(branch -> {
+        var pattern = switch (branch.pattern()) {
+          case SingletonPatternContext pat -> new Pattern.Singleton(id(pat.typeIdentifier().ID()));
+          case SingleTupleVariantPatternContext pat ->
+              new Pattern.VariantTuple(id(pat.typeIdentifier().ID()),
+                  List.of(new PatternVariable(id(pat.ID()))),
+                  rangeFrom(pat));
+          case MultiTupleVariantPatternContext pat ->
+              new Pattern.VariantTuple(id(pat.typeIdentifier().ID()),
+                  pat.ID().stream().map(Visitor.this::id).map(PatternVariable::new).toList(),
+                  rangeFrom(pat));
+          case StructVariantPatternContext pat ->
+              new Pattern.VariantStruct(id(pat.typeIdentifier().ID()),
+                  pat.ID().stream().map(Visitor.this::id).map(PatternVariable::new).toList(),
+                  rangeFrom(pat));
+          default -> throw new IllegalStateException(
+              "Unknown match branch: " + branch.pattern().getText());
+        };
+        return new Branch(pattern, branch.expression().accept(this), rangeFrom(branch));
+      }).toList();
+
+      return new Match(match.expression().accept(this), branches, rangeFrom(ctx));
     }
   }
 
@@ -575,11 +604,12 @@ public class Visitor {
   private TypeNode sumTypeNode(SumTypeContext ctx, String moduleName, Identifier aliasId) {
     var numVariants = ctx.typeIdentifier().size();
     var variantNodes = new ArrayList<VariantTypeNode>();
-    var qualModuleName = new QualifiedModuleName(packageName.name(), moduleName);
+    var unqualifiedIdx = moduleName.lastIndexOf('/') + 1;
+    var qualModuleName = new QualifiedModuleName(packageName.name(), moduleName.substring(unqualifiedIdx));
     for (int i = 0; i < numVariants; i++) {
       var id = id(ctx.typeIdentifier(i).ID());
       var variantTypeCtx = ctx.variantType(i);
-      variantNodes.add(variantTypeNode(qualModuleName, id, variantTypeCtx));
+      variantNodes.add(variantTypeNode(qualModuleName, aliasId, id, variantTypeCtx));
     }
     return new SumTypeNode(qualModuleName,
         aliasId,
@@ -587,24 +617,29 @@ public class Visitor {
         rangeFrom(ctx));
   }
 
-  private VariantTypeNode variantTypeNode(QualifiedModuleName moduleName,
+  private VariantTypeNode variantTypeNode(QualifiedModuleName moduleName, Identifier aliasId,
       Identifier id, VariantTypeContext ctx) {
     return switch (ctx) {
-      case SingletonTypeContext ignored -> new VariantTypeNode.Singleton(moduleName, id);
+      case SingletonTypeContext ignored -> new VariantTypeNode.Singleton(moduleName, aliasId, id);
       case SingleTupleTypeContext tupCtx -> {
-        var typeNode = new TupleTypeNode(List.of(typeNode(tupCtx.type(), new TypeVisitor())),
+        var typeNode = new TupleTypeNode(id.name(), List.of(typeNode(tupCtx.type(),
+            new TypeVisitor())),
             rangeFrom(ctx));
-        yield new VariantTypeNode.Tuple(moduleName, id, typeNode);
+        yield new VariantTypeNode.Tuple(moduleName, aliasId, id, typeNode);
       }
       case MultiTupleTypeContext tupCtx -> {
         var visitor = new TypeVisitor();
         var typeNodes = tupCtx.type().stream().map(t -> typeNode(t, visitor)).toList();
-        var typeNode = new TupleTypeNode(typeNodes, rangeFrom(ctx));
-        yield new VariantTypeNode.Tuple(moduleName, id, typeNode);
+        var typeNode = new TupleTypeNode(id.name(), typeNodes, rangeFrom(ctx));
+        yield new VariantTypeNode.Tuple(moduleName, aliasId, id, typeNode);
       }
       case StructSumTypeContext structSumCtx -> {
         var typeNode = new TypeVisitor().visitStructType(structSumCtx.structType());
-        yield new VariantTypeNode.Struct(moduleName, id, typeNode);
+        yield new VariantTypeNode.Struct(
+            moduleName,
+            aliasId,
+            id,
+            new StructTypeNode(id.name(), typeNode.fieldTypeNodes(), typeNode.range()));
       }
       default -> throw new IllegalStateException();
     };

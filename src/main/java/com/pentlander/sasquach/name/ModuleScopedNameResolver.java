@@ -1,20 +1,24 @@
 package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.RangedErrorList;
+import com.pentlander.sasquach.ast.FunctionSignature;
+import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.NodeVisitor;
+import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Struct;
-import com.pentlander.sasquach.type.Type;
 import java.lang.invoke.MethodHandles;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -24,6 +28,7 @@ public class ModuleScopedNameResolver {
   private final Map<String, Class<?>> foreignClasses = new HashMap<>();
   private final Map<String, TypeAlias> typeAliasNames = new HashMap<>();
   private final Map<TypeNode, NamedTypeDefinition> namedTypes = new HashMap<>();
+  private final Map<String, VariantTypeNode> variantTypes = new HashMap<>();
   private final Map<String, Struct.Field> fields = new HashMap<>();
   private final Map<Struct.Field, NameResolutionResult> fieldResults = new HashMap<>();
   private final Map<String, NamedFunction> functions = new HashMap<>();
@@ -104,6 +109,7 @@ public class ModuleScopedNameResolver {
         var resolver = new TypeNameResolver(ModuleScopedNameResolver.this);
         var result = resolver.resolveTypeNode(typeAlias);
         namedTypes.putAll(result.namedTypes());
+        variantTypes.putAll(result.variantTypes());
         errors.addAll(result.errors());
       }
     }
@@ -166,5 +172,9 @@ public class ModuleScopedNameResolver {
 
   Optional<TypeAlias> resolveTypeAlias(String typeAlias) {
     return Optional.ofNullable(typeAliasNames.get(typeAlias));
+  }
+
+  Optional<VariantTypeNode> resolveVariantTypeNode(String variantName) {
+    return Optional.ofNullable(variantTypes.get(variantName));
   }
 }

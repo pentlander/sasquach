@@ -5,10 +5,10 @@ import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.QualifiedIdentifier;
+import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class ModuleScopedTypeResolver {
   private final NameResolutionResult nameResolutionResult;
@@ -30,6 +30,24 @@ public class ModuleScopedTypeResolver {
   public StructType resolveModuleType() {
     var struct = moduleDecl.struct();
     var fieldTypes = new HashMap<String, Type>();
+    struct.typeAliases().forEach(typeAlias -> {
+      // Add the types of all the sum type nodes.
+      if (typeAlias.typeNode() instanceof SumTypeNode sumTypeNode) {
+        var typeParams = MemberScopedTypeResolver.typeParams(typeAlias.typeParameters(),
+            param -> new TypeVariable(param.typeName()));
+        var sumType = (SumType) namedTypeResolver.resolveNamedType(sumTypeNode.type(),
+            typeParams,
+            sumTypeNode.range());
+        idTypes.put(sumTypeNode.id(), sumType);
+        for (int i = 0; i < sumTypeNode.variantTypeNodes().size(); i++) {
+          var variantTypeNode = sumTypeNode.variantTypeNodes().get(i);
+          var type = namedTypeResolver.resolveNamedType(variantTypeNode.type(),
+              typeParams,
+              variantTypeNode.range());
+          idTypes.put(variantTypeNode.id(), type);
+        }
+      }
+    });
     struct.functions().forEach(func -> {
       var type = resolveFuncSignatureType(func.functionSignature());
       fieldTypes.put(func.name(), type);
@@ -37,7 +55,8 @@ public class ModuleScopedTypeResolver {
     });
     struct.fields()
         .forEach(field -> {
-          var resolver = new MemberScopedTypeResolver(nameResolutionResult, moduleTypeProvider);
+          var resolver = new MemberScopedTypeResolver(idTypes, nameResolutionResult,
+              moduleTypeProvider);
           var result = resolver.inferType(field);
           errors.addAll(result.errors());
         });
@@ -51,7 +70,8 @@ public class ModuleScopedTypeResolver {
 
   public TypeResolutionResult resolveFunctions() {
     var mergedResult = moduleDecl.struct().functions().stream()
-        .map(func -> new MemberScopedTypeResolver(nameResolutionResult, moduleTypeProvider).checkType(func))
+        .map(func -> new MemberScopedTypeResolver(idTypes, nameResolutionResult,
+            moduleTypeProvider).checkType(func))
         .reduce(TypeResolutionResult.EMPTY, TypeResolutionResult::merge);
     return new TypeResolutionResult(
         idTypes,
@@ -62,7 +82,7 @@ public class ModuleScopedTypeResolver {
 
   FunctionType resolveFuncSignatureType(FunctionSignature funcSignature) {
     var typeParams = MemberScopedTypeResolver.typeParams(funcSignature.typeParameters(),
-        param -> new ExistentialType(param.typeName(), 0));
+        param -> new UniversalType(param.typeName(), 0));
     return TypeUtils.asFunctionType(namedTypeResolver.resolveNamedType(funcSignature.type(),
         typeParams, funcSignature.range())).orElseThrow();
   }

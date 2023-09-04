@@ -1,7 +1,7 @@
 package com.pentlander.sasquach.type;
 
-import static com.pentlander.sasquach.type.MemberScopedTypeResolver.UnknownType.UNKNOWN_TYPE;
 import static java.util.Objects.requireNonNull;
+import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
@@ -10,14 +10,17 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.Source;
+import com.pentlander.sasquach.ast.Branch;
+import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Node;
+import com.pentlander.sasquach.ast.Pattern;
+import com.pentlander.sasquach.ast.Pattern.VariantTuple;
 import com.pentlander.sasquach.ast.expression.ApplyOperator;
+import com.pentlander.sasquach.ast.expression.ArrayValue;
+import com.pentlander.sasquach.ast.expression.BinaryExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathExpression;
-import com.pentlander.sasquach.ast.Identifier;
-import com.pentlander.sasquach.ast.Node;
-import com.pentlander.sasquach.ast.expression.ArrayValue;
-import com.pentlander.sasquach.ast.expression.BinaryExpression;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.FieldAccess;
@@ -30,6 +33,7 @@ import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Loop;
+import com.pentlander.sasquach.ast.expression.Match;
 import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.PrintStatement;
@@ -42,18 +46,20 @@ import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Local;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Module;
+import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Singleton;
+import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStructConstructor;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.type.ModuleScopedTypeResolver.ModuleTypeProvider;
 import com.pentlander.sasquach.type.TypeUnifier.UnificationException;
 import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Executable;
-import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.GenericDeclaration;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.WildcardType;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,8 +81,9 @@ public class MemberScopedTypeResolver implements TypeFetcher {
   private Node nodeResolving = null;
   private Node currentNode = null;
 
-  public MemberScopedTypeResolver(NameResolutionResult nameResolutionResult,
-      ModuleTypeProvider moduleTypeProvider) {
+  public MemberScopedTypeResolver(Map<Identifier, Type> idTypes,
+      NameResolutionResult nameResolutionResult, ModuleTypeProvider moduleTypeProvider) {
+    this.idTypes.putAll(idTypes);
     this.nameResolutionResult = nameResolutionResult;
     this.namedTypeResolver = new NamedTypeResolver(nameResolutionResult);
     this.moduleTypeProvider = moduleTypeProvider;
@@ -126,7 +133,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
 
   // Resolve a named type into the underlying type that is represented.
   Type resolveNamedType(Type type, Range range) {
-    return namedTypeResolver.resolveNamedType(type,  range);
+    return namedTypeResolver.resolveNamedType(type, range);
   }
 
   Type resolveNamedType(Type type, Map<String, Type> typeMap, Range range) {
@@ -137,8 +144,11 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     if (clazz.componentType() != null) {
       return new ArrayType(builtinOrClassType(clazz.componentType(), typeArgs));
     }
-    return Arrays.stream(BuiltinType.values()).filter(type -> type.typeClass().equals(clazz))
-        .findFirst().map(Type.class::cast).orElseGet(() -> new ClassType(clazz, typeArgs));
+    return Arrays.stream(BuiltinType.values())
+        .filter(type -> type.typeClass().equals(clazz))
+        .findFirst()
+        .map(Type.class::cast)
+        .orElseGet(() -> new ClassType(clazz, typeArgs));
   }
 
   static Map<String, Type> typeParams(Collection<TypeParameter> typeParams,
@@ -150,7 +160,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
   public void check(Expression expr, Type type) {
     switch (expr) {
       // Check that the function matches the given type
-      case Function func && type instanceof FunctionType funcType -> {
+      case Function func when type instanceof FunctionType funcType -> {
         var level = typeVarNum.getAndIncrement();
         var typeParams = typeParams(funcType.typeParameters(),
             param -> new TypeVariable(param.typeName() + level));
@@ -176,10 +186,14 @@ public class MemberScopedTypeResolver implements TypeFetcher {
               idTypes.replaceAll((_id, idType) -> typeUnifier.resolve(idType));
               exprTypes.replaceAll((_expr, exprType) -> typeUnifier.resolve(exprType));
             } catch (UnificationException e) {
-              addError(new TypeMismatchError("Type '%s' should be '%s', but found '%s'".formatted(
-                  e.destType().toPrettyString(),
-                  e.resolvedDestType().map(Type::toPrettyString).orElse("none"),
-                  e.sourceType().toPrettyString()), expr.range()));
+              var msg = e.resolvedDestType()
+                  .map(resolvedDestType -> "Type '%s' should be '%s', but found '%s'".formatted(e.destType()
+                          .toPrettyString(),
+                      resolvedDestType.toPrettyString(),
+                      e.sourceType().toPrettyString()))
+                  .orElseGet(() -> "Type should be '%s', but found '%s'".formatted(e.sourceType()
+                      .toPrettyString(), e.destType().toPrettyString()));
+              addError(new TypeMismatchError(msg, expr.range()));
             }
           }
         }
@@ -195,16 +209,22 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     }
 
     type = switch (expr) {
-      case Value value ->  value.type();
+      case Value value -> value.type();
       case VariableDeclaration varDecl -> {
         putIdType(varDecl.id(), infer(varDecl.expression()));
         yield BuiltinType.VOID;
       }
       case VarReference varRef -> switch (nameResolutionResult.getVarReference(varRef)) {
-        case Local local -> getIdType(local.localVariable()
-            .id()).orElseThrow(() -> new IllegalStateException("Unable to find local: " + local));
-        // TODO Replace the resolveExprType with a getId or getExpr from a passed in TypeFetcher
+        case Local local ->
+            getIdType(local.localVariable().id()).orElseThrow(() -> new IllegalStateException(
+                "Unable to find local: " + local));
         case Module module -> moduleTypeProvider.getModuleType(module.moduleDeclaration().id());
+        case Singleton(var node) ->
+          // Actually if we're seeing a bare (i.e. not qualified by a module) singleton, it
+          // must've been defined in this module. So we don't actually need a qualified ID.
+          // However, this does mean that I need to update the member access checker to look for
+          // variant constructors
+            (SumType) getType(node.aliasId());
       };
       case BinaryExpression binExpr -> {
         var leftType = infer(binExpr.left());
@@ -216,7 +236,6 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         };
       }
       case ArrayValue arrayVal -> {
-        // TODO: Asert expression types are equal to element type
         var elemType = arrayVal.elementType();
         arrayVal.expressions().forEach(arrayExpr -> check(expr, elemType));
         yield new ArrayType(elemType);
@@ -230,8 +249,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
       }
       case FieldAccess fieldAccess -> resolveFieldAccess(fieldAccess);
       case ForeignFieldAccess foreignFieldAccess -> resolveForeignFieldAccess(foreignFieldAccess);
-      case ForeignFunctionCall foreignFuncCall -> resolveForeignFunctionCall(
-          foreignFuncCall);
+      case ForeignFunctionCall foreignFuncCall -> resolveForeignFunctionCall(foreignFuncCall);
       case FunctionCall funcCall -> resolveFunctionCall(funcCall);
       case IfExpression ifExpr -> resolveIfExpression(ifExpr);
       case PrintStatement printStatement -> {
@@ -245,9 +263,9 @@ public class MemberScopedTypeResolver implements TypeFetcher {
           fieldTypes.put(func.name(), funcType);
           putIdType(func.id(), funcType);
         });
-        struct.fields()
-            .forEach(field -> fieldTypes.put(field.name(), infer(field)));
-        yield struct.name().map(name -> new StructType(name, fieldTypes))
+        struct.fields().forEach(field -> fieldTypes.put(field.name(), infer(field)));
+        yield struct.name()
+            .map(name -> new StructType(name, fieldTypes))
             .orElseGet(() -> new StructType(fieldTypes));
       }
       case Field field -> infer(field.value());
@@ -258,8 +276,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
             var lvl = typeVarNum.getAndIncrement();
             var typeParams = typeParams(func.functionSignature().typeParameters(),
                 param -> new TypeVariable(param.typeName() + lvl));
-            var funcType = TypeUtils.asFunctionType(resolveNamedType(
-                infer(func),
+            var funcType = TypeUtils.asFunctionType(resolveNamedType(infer(func),
                 typeParams,
                 func.range())).orElseThrow();
             yield resolveParams("recur",
@@ -285,7 +302,8 @@ public class MemberScopedTypeResolver implements TypeFetcher {
       // Should only infer anonymous function, not ones defined at the module level
       case Function func -> {
         var lvl = typeVarNum.getAndIncrement();
-        var paramTypes = func.parameters().stream()
+        var paramTypes = func.parameters()
+            .stream()
             .collect(toMap(FunctionParameter::name, param -> {
               var paramType = new TypeVariable(param.name() + lvl);
               putIdType(param.id(), paramType);
@@ -295,6 +313,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         yield new FunctionType(List.copyOf(paramTypes.values()), List.of(), returnType);
       }
       case ApplyOperator applyOperator -> infer(applyOperator.toFunctionCall());
+      case Match match -> resolveMatch(match);
     };
 
     putExprType(expr, requireNonNull(type, () -> "Null expression type for: %s".formatted(expr)));
@@ -313,6 +332,60 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     return BuiltinType.VOID;
   }
 
+  private Type resolveMatch(Match match) {
+    var exprType = infer(match.expr());
+    if (exprType instanceof SumType sumType) {
+      // All the variants of the sum type with any type parameters already filled in
+      var exprVariantTypes = sumType.types().stream().collect(toMap(Type::typeName, identity()));
+      var matchTypeNodes = nameResolutionResult.getMatchTypeNodes(match);
+      List<Branch> branches = match.branches();
+      Type returnType = null;
+      for (int i = 0; i < branches.size(); i++) {
+        var branch = branches.get(i);
+        var typeNode = matchTypeNodes.get(i);
+        var branchVariantTypeName = typeNode.typeName();
+        var variantType = requireNonNull(exprVariantTypes.remove(branchVariantTypeName));
+        switch (branch.pattern()) {
+          case Pattern.Singleton singleton -> putIdType((Identifier) singleton.id(), variantType);
+          case VariantTuple tuple -> {
+            putIdType((Identifier) tuple.id(), variantType);
+            var tupleType = (StructType) variantType;
+            // The fields types are stored in a hashmap, but we sort them to bind the variables
+            // in a // consistent order. This works because the fields are named by number,
+            // e.g _0, _1, etc.
+            var tupleFieldTypes = tupleType.sortedFieldTypes();
+            for (int j = 0; j < tuple.bindings().size(); j++) {
+              var binding = tuple.bindings().get(i);
+              var fieldType = tupleFieldTypes.get(i);
+              putIdType(binding.id(), fieldType);
+            }
+          }
+          case Pattern.VariantStruct struct -> {
+            var structType = (StructType) variantType;
+            for (var binding : struct.bindings()) {
+              var fieldType = structType.fieldType(binding.id().name());
+              putIdType(binding.id(), fieldType);
+            }
+          }
+        }
+
+        if (i == 0) {
+          returnType = infer(branch.expr());
+        } else {
+          check(branch.expr(), returnType);
+        }
+      }
+      if (!exprVariantTypes.isEmpty()) {
+        return addError(new MatchNotExhaustive("Match is not exhaustive", match.range()));
+      }
+
+      return returnType;
+    } else {
+      return addError(new TypeMismatchError("Type '%s' in match is not a sum type".formatted(
+          exprType.toPrettyString()), match.expr().range()));
+    }
+  }
+
   private Type resolveFieldAccess(FieldAccess fieldAccess) {
     var exprType = infer(fieldAccess.expr());
     var structType = TypeUtils.asStructType(exprType);
@@ -322,8 +395,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
       if (fieldType != null) {
         return fieldType;
       } else {
-        return addError(new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(
-            structType.get().typeName(),
+        return addError(new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(structType.get().typeName(),
             fieldAccess.fieldName()), fieldAccess.range()));
       }
     }
@@ -337,9 +409,9 @@ public class MemberScopedTypeResolver implements TypeFetcher {
       Type returnType) {
     // Handle mismatch between arg count and parameter count
     if (args.size() != paramTypes.size()) {
-      return addError(new TypeMismatchError("Function '%s' expects %s arguments but found %s"
-          .formatted(name, paramTypes.size(), args.size()),
-          range));
+      return addError(new TypeMismatchError("Function '%s' expects %s arguments but found %s".formatted(name,
+          paramTypes.size(),
+          args.size()), range));
     }
 
     // Handle mismatch between arg types and parameter types
@@ -357,12 +429,23 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     switch (funcCall) {
       case LocalFunctionCall localFuncCall -> {
         var callTarget = nameResolutionResult.getLocalFunction(localFuncCall);
-        var type =  switch (callTarget) {
+        var type = switch (callTarget) {
           case QualifiedFunction qualFunc -> qualFunc.function().functionSignature().type();
           case LocalVariable localVar -> getIdType(localVar.id()).orElseThrow();
+          // TODO Need to store the ID -> variant type signature and check that they match here.
+          // Possibly need to include the qualified name of the owning module
+          case VariantStructConstructor struct -> {
+            var structType = (StructType) struct.type();
+            // Ensure that the struct expr and fields have their types in the type map
+            var t = infer(struct.struct());
+            yield new FunctionType(structType.fieldTypes()
+                .values()
+                .stream()
+                .sorted(Comparator.comparing(Type::typeName))
+                .toList(), struct.typeParameters(), getType(struct.sumAliasId()));
+          }
         };
-        funcType = TypeUtils.asFunctionType(type).orElse(null);
-        if (funcType == null) return UNKNOWN_TYPE;
+        funcType = TypeUtils.asFunctionType(type).orElseThrow();
       }
       case MemberFunctionCall structFuncCall -> {
         var exprType = infer(structFuncCall.structExpression());
@@ -375,12 +458,10 @@ public class MemberScopedTypeResolver implements TypeFetcher {
           if (fieldType instanceof FunctionType fieldFuncType) {
             funcType = fieldFuncType;
           } else if (fieldType == null) {
-            return addError(new TypeMismatchError("Struct of type '%s' has no field named '%s'".formatted(
-                structType.get().toPrettyString(),
+            return addError(new TypeMismatchError("Struct of type '%s' has no field named '%s'".formatted(structType.get().toPrettyString(),
                 funcName), structFuncCall.range()));
           } else {
-            return addError(new TypeMismatchError("Field '%s' of type '%s' is not a function".formatted(
-                funcName,
+            return addError(new TypeMismatchError("Field '%s' of type '%s' is not a function".formatted(funcName,
                 fieldType.toPrettyString()), structFuncCall.functionId().range()));
           }
         } else {
@@ -397,8 +478,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         param -> new TypeVariable(param.typeName() + lvl));
     funcType = TypeUtils.asFunctionType(resolveNamedType(funcType, typeParams, funcCall.range()))
         .orElseThrow();
-    var p = resolveParams(
-        funcCall.name(),
+    var p = resolveParams(funcCall.name(),
         funcCall.arguments(),
         funcCall.range(),
         funcType.parameterTypes(),
@@ -411,12 +491,15 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     var classType = new ClassType(field.getDeclaringClass());
     var accessKind =
         Modifier.isStatic(field.getModifiers()) ? FieldAccessKind.STATIC : FieldAccessKind.INSTANCE;
-    return new ForeignFieldType(builtinOrClassType(field.getType(), List.of()), classType,
+    return new ForeignFieldType(builtinOrClassType(field.getType(), List.of()),
+        classType,
         accessKind);
   }
 
   private boolean argsMatchParamTypes(List<Type> params, List<Type> args) {
-    if (params.size() != args.size()) return false;
+    if (params.size() != args.size()) {
+      return false;
+    }
     for (int i = 0; i < args.size(); i++) {
       if (!params.get(i).isAssignableFrom(args.get(i))) {
         return false;
@@ -429,16 +512,18 @@ public class MemberScopedTypeResolver implements TypeFetcher {
       Map<String, TypeVariable> typeVariables) {
     return switch (type) {
       case Class<?> clazz -> {
-        var typeArgs =
-            Arrays.stream(clazz.getTypeParameters()).map(t -> javaTypeToType(t, typeVariables)).toList();
+        var typeArgs = Arrays.stream(clazz.getTypeParameters())
+            .map(t -> javaTypeToType(t, typeVariables))
+            .toList();
         yield builtinOrClassType(clazz, typeArgs);
       }
-      case java.lang.reflect.TypeVariable<?> typeVariable -> typeVariables.getOrDefault(
-          typeVariable.getName(),
-          new TypeVariable(typeVariable.getName() + typeVarNum.getAndIncrement()));
+      case java.lang.reflect.TypeVariable<?> typeVariable ->
+          typeVariables.getOrDefault(typeVariable.getName(),
+              new TypeVariable(typeVariable.getName() + typeVarNum.getAndIncrement()));
       case java.lang.reflect.ParameterizedType paramType -> {
         var typeArgs = Arrays.stream(paramType.getActualTypeArguments())
-            .map(t -> javaTypeToType(t, typeVariables)).toList();
+            .map(t -> javaTypeToType(t, typeVariables))
+            .toList();
         yield new ClassType((Class<?>) paramType.getRawType(), typeArgs);
       }
       case WildcardType wildcard -> javaTypeToType(wildcard.getUpperBounds()[0], typeVariables);
@@ -446,14 +531,14 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     };
   }
 
-  private List<? extends java.lang.reflect.TypeVariable<?
-      extends GenericDeclaration>> javaTypeParams(java.lang.reflect.Type type) {
+  private List<? extends java.lang.reflect.TypeVariable<? extends GenericDeclaration>> javaTypeParams(
+      java.lang.reflect.Type type) {
     return switch (type) {
       case Class<?> clazz -> Arrays.stream(clazz.getTypeParameters()).toList();
       case ParameterizedType paramType -> Arrays.stream(paramType.getActualTypeArguments())
-          .flatMap(t -> t instanceof java.lang.reflect.TypeVariable<?> typeVar ?
-              Stream.of(typeVar)
-              : Stream.empty()).toList();
+          .flatMap(t -> t instanceof java.lang.reflect.TypeVariable<?> typeVar ? Stream.of(typeVar)
+              : Stream.empty())
+          .toList();
       default -> List.of();
     };
   }
@@ -463,9 +548,9 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         .map(AnnotatedType::getType);
     var receiverTypeParams = receiverType.stream().flatMap(t -> javaTypeParams(t).stream());
     var lvl = typeVarNum.getAndIncrement();
-    return Stream.concat(Arrays.stream(executable.getTypeParameters()),
-        receiverTypeParams).collect(toMap(java.lang.reflect.TypeVariable::getName,
-        t -> new TypeVariable(t.getName() + lvl)));
+    return Stream.concat(Arrays.stream(executable.getTypeParameters()), receiverTypeParams)
+        .collect(toMap(java.lang.reflect.TypeVariable::getName,
+            t -> new TypeVariable(t.getName() + lvl)));
   }
 
   private List<Type> executableParamTypes(Executable executable,
@@ -473,7 +558,8 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     var receiverType = Stream.ofNullable(executable.getAnnotatedReceiverType())
         .map(AnnotatedType::getType);
     return Stream.concat(receiverType, Arrays.stream(executable.getGenericParameterTypes()))
-        .map(type -> javaTypeToType(type, typeParams)).toList();
+        .map(type -> javaTypeToType(type, typeParams))
+        .toList();
   }
 
   private Type resolveForeignFunctionCall(ForeignFunctionCall funcCall) {
@@ -501,16 +587,19 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         };
 
         var castType = returnType instanceof TypeVariable ? resolvedReturnType : null;
-        putForeignFuncType(funcCall, new ForeignFunctionType(methodType, classType,
-            foreignFuncHandle.invocationKind(), castType));
+        putForeignFuncType(funcCall,
+            new ForeignFunctionType(methodType,
+                classType,
+                foreignFuncHandle.invocationKind(),
+                castType));
         return resolvedReturnType;
       }
     }
 
-    var methodSignature = funcCall.name() + argTypes.stream().map(Type::toPrettyString)
+    var methodSignature = funcCall.name() + argTypes.stream()
+        .map(Type::toPrettyString)
         .collect(joining("," + " ", "(", ")"));
-    return addError(new TypeLookupError("No method '%s' found on class '%s'".formatted(
-        methodSignature,
+    return addError(new TypeLookupError("No method '%s' found on class '%s'".formatted(methodSignature,
         classType.typeClass().getName()), funcCall.range()));
   }
 
@@ -522,7 +611,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
 
   private Type addError(RangedError error) {
     errors.add(error);
-    return UNKNOWN_TYPE;
+    return new UnknownType();
   }
 
   private void putExprType(Expression expr, Type type) {
@@ -571,29 +660,46 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     }
   }
 
-  static final class UnknownType implements Type {
-    public static final UnknownType UNKNOWN_TYPE = new UnknownType();
+  record MatchNotExhaustive(String message, Range range) implements RangedError {
+    @Override
+    public String toPrettyString(Source source) {
+      return """
+          %s
+          %s
+          """.formatted(message, source.highlight(range));
+    }
+  }
 
-    private UnknownType() {}
+  static final class UnknownType implements Type {
+    private final UnknownTypeException exception;
+
+    UnknownType() {
+      this.exception = new UnknownTypeException();
+    }
 
     @Override
     public String typeName() {
-      throw new UnknownTypeException();
+      throw exception;
     }
 
     @Override
     public Class<?> typeClass() {
-      throw new UnknownTypeException();
+      throw exception;
     }
 
     @Override
     public String descriptor() {
-      throw new UnknownTypeException();
+      throw exception;
     }
 
     @Override
     public String internalName() {
-      throw new UnknownTypeException();
+      throw exception;
+    }
+
+    @Override
+    public String toPrettyString() {
+      return "unknown";
     }
   }
 

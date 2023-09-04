@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.type;
 
 import com.pentlander.sasquach.ast.QualifiedModuleName;
+import com.pentlander.sasquach.runtime.StructBase;
 
 public record SingletonType(QualifiedModuleName moduleName, String name) implements VariantType {
   @Override
@@ -10,16 +11,16 @@ public record SingletonType(QualifiedModuleName moduleName, String name) impleme
 
   @Override
   public Class<?> typeClass() {
-    return null;
+    throw new IllegalStateException();
   }
 
   @Override
   public String descriptor() {
-    return null;
+    return StructBase.class.descriptorString();
   }
 
   @Override
   public String internalName() {
-    return null;
+    return moduleName.qualify(name);
   }
 }
