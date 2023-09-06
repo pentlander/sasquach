@@ -109,9 +109,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
   public TypeResolutionResult checkType(NamedFunction namedFunction) {
     nodeResolving = namedFunction;
     try {
-      var funcType = resolveNamedType(namedFunction.function().functionSignature().type(),
-          namedFunction.range());
-      check(namedFunction.function(), funcType);
+      check(namedFunction.function(), namedFunction.functionSignature().type());
     } catch (RuntimeException e) {
       throw new TypeResolutionException("Failed at node: " + currentNode, e);
     }
@@ -133,11 +131,23 @@ public class MemberScopedTypeResolver implements TypeFetcher {
 
   // Resolve a named type into the underlying type that is represented.
   Type resolveNamedType(Type type, Range range) {
-    return namedTypeResolver.resolveNamedType(type, range);
+    return namedTypeResolver.resolveNames(type, range);
   }
 
   Type resolveNamedType(Type type, Map<String, Type> typeMap, Range range) {
-    return namedTypeResolver.resolveNamedType(type, typeMap, range);
+    return namedTypeResolver.resolveNames(type, typeMap, range);
+  }
+
+  FunctionType convertUniversals(FunctionType type, Range range) {
+    var typeParams = typeParams(type.typeParameters(),
+        param -> new TypeVariable(param.typeName() + typeVarNum.getAndIncrement()));
+    return (FunctionType) namedTypeResolver.resolveNames(type, typeParams, range);
+  }
+
+  SumType convertUniversals(SumType type, Range range) {
+    var typeParams = typeParams(type.typeParameters(),
+        param -> new TypeVariable(param.typeName() + typeVarNum.getAndIncrement()));
+    return (SumType) namedTypeResolver.resolveNames(type, typeParams, range);
   }
 
   private static Type builtinOrClassType(Class<?> clazz, List<Type> typeArgs) {
@@ -161,12 +171,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     switch (expr) {
       // Check that the function matches the given type
       case Function func when type instanceof FunctionType funcType -> {
-        var level = typeVarNum.getAndIncrement();
-        var typeParams = typeParams(funcType.typeParameters(),
-            param -> new TypeVariable(param.typeName() + level));
-        var resolvedType = TypeUtils.asFunctionType(resolveNamedType(funcType,
-            typeParams,
-            func.range())).orElseThrow();
+        var resolvedType = convertUniversals(funcType, func.range());
         for (int i = 0; i < func.parameters().size(); i++) {
           var param = func.parameters().get(i);
           var paramType = resolvedType.parameterTypes().get(i);
@@ -222,9 +227,9 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         case Singleton(var node) ->
           // Actually if we're seeing a bare (i.e. not qualified by a module) singleton, it
           // must've been defined in this module. So we don't actually need a qualified ID.
-          // However, this does mean that I need to update the member access checker to look for
-          // variant constructors
-            (SumType) getType(node.aliasId());
+
+          // Need to initialize the sum type with a type variable in place of any type args
+            convertUniversals((SumType) getType(node.aliasId()), node.range());
       };
       case BinaryExpression binExpr -> {
         var leftType = infer(binExpr.left());
@@ -273,12 +278,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         var recurPoint = nameResolutionResult.getRecurPoint(recur);
         yield switch (recurPoint) {
           case Function func -> {
-            var lvl = typeVarNum.getAndIncrement();
-            var typeParams = typeParams(func.functionSignature().typeParameters(),
-                param -> new TypeVariable(param.typeName() + lvl));
-            var funcType = TypeUtils.asFunctionType(resolveNamedType(infer(func),
-                typeParams,
-                func.range())).orElseThrow();
+            var funcType = convertUniversals((FunctionType) infer(func), func.range());
             yield resolveParams("recur",
                 recur.arguments(),
                 recur.range(),
@@ -355,8 +355,8 @@ public class MemberScopedTypeResolver implements TypeFetcher {
             // e.g _0, _1, etc.
             var tupleFieldTypes = tupleType.sortedFieldTypes();
             for (int j = 0; j < tuple.bindings().size(); j++) {
-              var binding = tuple.bindings().get(i);
-              var fieldType = tupleFieldTypes.get(i);
+              var binding = tuple.bindings().get(j);
+              var fieldType = tupleFieldTypes.get(j);
               putIdType(binding.id(), fieldType);
             }
           }
@@ -435,14 +435,16 @@ public class MemberScopedTypeResolver implements TypeFetcher {
           // TODO Need to store the ID -> variant type signature and check that they match here.
           // Possibly need to include the qualified name of the owning module
           case VariantStructConstructor struct -> {
-            var structType = (StructType) struct.type();
+            var structType = struct.type();
             // Ensure that the struct expr and fields have their types in the type map
             var t = infer(struct.struct());
+            // Need to unify the type params of the sum type with the type params of the struct
+            var sumType = getType(struct.sumAliasId());
             yield new FunctionType(structType.fieldTypes()
                 .values()
                 .stream()
                 .sorted(Comparator.comparing(Type::typeName))
-                .toList(), struct.typeParameters(), getType(struct.sumAliasId()));
+                .toList(), struct.typeParameters(), sumType);
           }
         };
         funcType = TypeUtils.asFunctionType(type).orElseThrow();
@@ -473,11 +475,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
       case ForeignFunctionCall f -> throw new IllegalStateException(f.toString());
     }
 
-    var lvl = typeVarNum.getAndIncrement();
-    var typeParams = typeParams(funcType.typeParameters(),
-        param -> new TypeVariable(param.typeName() + lvl));
-    funcType = TypeUtils.asFunctionType(resolveNamedType(funcType, typeParams, funcCall.range()))
-        .orElseThrow();
+    funcType = convertUniversals(funcType, funcCall.range());
     var p = resolveParams(funcCall.name(),
         funcCall.arguments(),
         funcCall.range(),

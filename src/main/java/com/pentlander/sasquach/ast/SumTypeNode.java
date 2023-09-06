@@ -4,13 +4,14 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.type.SingletonType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.SumType;
+import com.pentlander.sasquach.type.TypeParameter;
 import com.pentlander.sasquach.type.VariantType;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public record SumTypeNode(QualifiedModuleName moduleName, Identifier id,
-                          List<VariantTypeNode> variantTypeNodes,
-                          Range range) implements TypeNode {
+                          List<TypeParameter> typeParameters,
+                          List<VariantTypeNode> variantTypeNodes, Range range) implements TypeNode {
   public SumTypeNode {
     if (variantTypeNodes.isEmpty()) {
       throw new IllegalArgumentException("Sum type must have at least one node");
@@ -22,6 +23,7 @@ public record SumTypeNode(QualifiedModuleName moduleName, Identifier id,
     return new SumType(
         moduleName,
         id.name(),
+        typeParameters,
         variantTypeNodes.stream().map(VariantTypeNode::type).toList());
   }
 
@@ -32,17 +34,22 @@ public record SumTypeNode(QualifiedModuleName moduleName, Identifier id,
 
   @Override
   public String toPrettyString() {
-    return typeName() + variantTypeNodes.stream().map(VariantTypeNode::toPrettyString)
+    return typeName() + variantTypeNodes.stream()
+        .map(VariantTypeNode::toPrettyString)
         .collect(Collectors.joining());
   }
 
   public sealed interface VariantTypeNode extends TypeNode {
     QualifiedModuleName moduleName();
+
     Identifier aliasId();
+
     Identifier id();
+
     VariantType type();
 
-    record Singleton(QualifiedModuleName moduleName, Identifier aliasId, Identifier id) implements VariantTypeNode {
+    record Singleton(QualifiedModuleName moduleName, Identifier aliasId, Identifier id) implements
+        VariantTypeNode {
       @Override
       public Range range() {
         return id.range();

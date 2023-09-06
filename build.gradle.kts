@@ -21,10 +21,10 @@ java {
 
 dependencies {
     antlr("org.antlr:antlr4:4.9.2")
-    annotationProcessor("io.soabase.record-builder:record-builder-processor:34")
+    annotationProcessor("io.soabase.record-builder:record-builder-processor:37")
     annotationProcessor("org.atteo.classindex:classindex:3.13")
 
-    compileOnly("io.soabase.record-builder:record-builder-core:22")
+    compileOnly("io.soabase.record-builder:record-builder-core:37")
 
     implementation("org.atteo.classindex:classindex:3.13")
     implementation("org.ow2.asm:asm:9.5")

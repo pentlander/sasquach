@@ -33,18 +33,19 @@ public class TypeUnifier {
               .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType)));
           yield new StructType(structType.typeName(), fieldTypes);
         }
-        case ResolvedModuleNamedType namedType -> new ResolvedModuleNamedType(
-            namedType.moduleName(),
-            namedType.name(),
-            resolve(namedType.typeArgs()),
-            resolve(namedType.type()));
+        case ResolvedModuleNamedType namedType ->
+            new ResolvedModuleNamedType(namedType.moduleName(),
+                namedType.name(),
+                resolve(namedType.typeArgs()),
+                resolve(namedType.type()));
         case ResolvedLocalNamedType namedType -> new ResolvedLocalNamedType(namedType.name(),
             resolve(namedType.typeArgs()),
             resolve(namedType.type()));
-        case ClassType classType -> new ClassType(classType.typeClass(),
-            resolve(classType.typeArguments()));
+        case ClassType classType ->
+            new ClassType(classType.typeClass(), resolve(classType.typeArguments()));
         case SumType sumType -> new SumType(sumType.moduleName(),
             sumType.name(),
+            sumType.typeParameters(),
             sumType.types().stream().map(this::resolve).map(VariantType.class::cast).toList());
       };
     }
@@ -84,7 +85,7 @@ public class TypeUnifier {
 
   private void putType(TypeVariable typeVar, Type type) {
     // Do not store a type var being equal to itself
-    if (type.equals(typeVar)) return;
+    if (type.equals(typeVar)) {return;}
 
     unifiedTypes.put(typeVar, type);
     unifiedTypes.replaceAll((v, varType) -> resolve(varType));
@@ -92,7 +93,8 @@ public class TypeUnifier {
 
   private void unifyTypeVariable(TypeVariable typeVar, Type sourceType) {
     var unifiedType = unifiedTypes.get(typeVar);
-    if (unifiedType != null && !(unifiedType instanceof TypeVariable) && !unifiedType.equals(sourceType)) {
+    if (unifiedType != null && !(unifiedType instanceof TypeVariable) && !unifiedType.equals(
+        sourceType)) {
       throw new UnificationException(typeVar, sourceType, unifiedType);
     }
     putType(typeVar, sourceType);
@@ -133,14 +135,18 @@ public class TypeUnifier {
         }
       }
       case SumType destSumType when sourceType instanceof SingletonType sourceSingletonType -> {
-        var matchingVariant = destSumType.types().stream()
-            .filter(t -> t.isAssignableFrom(sourceSingletonType)).findFirst()
+        var matchingVariant = destSumType.types()
+            .stream()
+            .filter(t -> t.isAssignableFrom(sourceSingletonType))
+            .findFirst()
             .orElseThrow(() -> new UnificationException(destType, sourceType));
 //        unify(destSumType, matchingVariant);
       }
       case StructType destSumType when sourceType instanceof SumType sourceSumType -> {
-        var matchingVariant = sourceSumType.types().stream()
-            .filter(t -> t.isAssignableFrom(destSumType)).findFirst()
+        var matchingVariant = sourceSumType.types()
+            .stream()
+            .filter(t -> t.isAssignableFrom(destSumType))
+            .findFirst()
             .orElseThrow(() -> new UnificationException(destType, sourceType));
         unify(destSumType, matchingVariant);
       }
@@ -171,8 +177,8 @@ public class TypeUnifier {
     private final Type resolvedDestType;
 
     UnificationException(Type destType, Type sourceType, Type resolvedDestType) {
-      super("Failed to unify types '%s' and '%s'"
-          .formatted(destType.toPrettyString(), sourceType.toPrettyString()));
+      super("Failed to unify types '%s' and '%s'".formatted(destType.toPrettyString(),
+          sourceType.toPrettyString()));
       this.destType = destType;
       this.sourceType = sourceType;
       this.resolvedDestType = resolvedDestType;

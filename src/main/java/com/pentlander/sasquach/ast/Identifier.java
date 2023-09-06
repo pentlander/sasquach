@@ -5,4 +5,9 @@ import com.pentlander.sasquach.Range;
 /**
  * An unqualified id.
  */
-public record Identifier(String name, Range.Single range) implements Node, Id {}
+public record Identifier(String name, Range.Single range) implements Node, Id {
+  @Override
+  public String toString() {
+    return "%s[%s]".formatted(name, range);
+  }
+}

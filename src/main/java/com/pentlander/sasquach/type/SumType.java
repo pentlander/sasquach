@@ -4,7 +4,8 @@ import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.runtime.StructBase;
 import java.util.List;
 
-public record SumType(QualifiedModuleName moduleName, String name, List<VariantType> types) implements Type,
+public record SumType(QualifiedModuleName moduleName, String name,
+                      List<TypeParameter> typeParameters, List<VariantType> types) implements Type,
     ParameterizedType {
   @Override
   public String typeName() {

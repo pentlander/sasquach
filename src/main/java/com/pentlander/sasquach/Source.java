@@ -9,8 +9,7 @@ import java.util.List;
  */
 public record Source(SourcePath path, String packageName, List<String> sourceLines) {
   public static Source fromString(String packageName, String source) {
-    return new Source(new SourcePath("anonymous.sasq"), packageName,
-        Arrays.asList(source.split("\n")));
+    return new Source(new SourcePath("anon.sasq"), packageName, Arrays.asList(source.split("\n")));
   }
 
   public String sourceString() {

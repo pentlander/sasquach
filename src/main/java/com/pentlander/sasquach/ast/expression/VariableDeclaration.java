@@ -11,4 +11,9 @@ public record VariableDeclaration(Identifier id, Expression expression, Range ra
   public Range.Single nameRange() {
     return id.range();
   }
+
+  @Override
+  public String toPrettyString() {
+    return "%s = %s".formatted(id.name(), expression.toPrettyString());
+  }
 }

@@ -1,6 +1,7 @@
 package com.pentlander.sasquach;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -118,10 +119,30 @@ public class EndToEndTest {
           },
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClassDebug(source, "main/Main");
     String sum = invokeName(clazz, "foo", null);
 
     assertThat(sum).isEqualTo("foo");
+  }
+
+  // should fail
+  @Test
+  void matchSumType_sameParam_multipleVariants() throws Exception {
+    var source = Source.fromString("main", """
+        Main {
+          type Same[T] = | A(T) | B(T),
+          
+          foo = (): String -> {
+            let option = if (true) A("foo") else B(10)
+            match option {
+              A(str) -> str,
+              B(int) -> int,
+            }
+          },
+        }
+        """);
+    var ex = assertThrows(CompilationException.class, () -> compileClass(source, "main/Main"));
+    assertThat(ex).hasMessageContaining("should be 'String'");
   }
 
   @Test
@@ -129,14 +150,10 @@ public class EndToEndTest {
     var source = Source.fromString("main", """
         Main {
           type Option[T] = | Some(T) | None,
-          type Foo = { test: String },
           
-          test = (s: String): Foo -> { test = s },
           identity = [T](option: Option[T]): Option[T] -> option,
           
           foo = (): Option[String] -> {
-            let t = test("hi")
-            print(t.test)
             let opt = None
             let ident = identity(None)
             ident

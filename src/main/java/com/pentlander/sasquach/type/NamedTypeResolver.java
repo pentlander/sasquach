@@ -7,12 +7,21 @@ import static java.util.stream.Collectors.toMap;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
+import com.pentlander.sasquach.ast.BasicTypeNode;
+import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
+import com.pentlander.sasquach.ast.StructTypeNode;
+import com.pentlander.sasquach.ast.SumTypeNode;
+import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
+import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
+import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.type.MemberScopedTypeResolver.TypeMismatchError;
 import com.pentlander.sasquach.type.MemberScopedTypeResolver.UnknownType;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,8 +34,73 @@ public class NamedTypeResolver {
   public NamedTypeResolver(NameResolutionResult nameResolutionResult) {
     this.nameResolutionResult = nameResolutionResult;
   }
+  // Create a more general transform API for Types so e.g. can turn a FunctionType populated with
+  // universal types into a FunctionType populated with type variables
 
-  Type resolveNamedTypeNode(NamedType namedType, Map<String, Type> typeArgs, Range range) {
+  public <T extends TypeNode> T resolveTypeNode(T typeNode, Map<String, Type> typeArgs) {
+    return (T) switch (typeNode) {
+      case BasicTypeNode<?>(var type, var range) ->
+          new BasicTypeNode<>(resolveNames(type, typeArgs, range), range);
+      case FunctionSignature(var parameters, var typeParameters, var returnType, var range) -> {
+        var newTypeArgs = new HashMap<>(typeArgs);
+        newTypeArgs.putAll(MemberScopedTypeResolver.typeParams(typeParameters,
+            param -> new UniversalType(param.typeName(), 0)));
+        var resolvedParameters = parameters.stream()
+            .map(p -> new FunctionParameter(p.id(), resolveTypeNode(p.typeNode(), newTypeArgs)))
+            .toList();
+        yield new FunctionSignature(resolvedParameters,
+            typeParameters,
+            resolveTypeNode(returnType, newTypeArgs),
+            range);
+      }
+      case StructTypeNode(var name, var fieldTypeNodes, var range) -> {
+        var resolvedFieldTypes = fieldTypeNodes.entrySet()
+            .stream()
+            .map(e -> Map.entry(e.getKey(), resolveTypeNode(e.getValue(), typeArgs)))
+            .collect(toMap(Entry::getKey, Entry::getValue));
+        yield new StructTypeNode(name, resolvedFieldTypes, range);
+      }
+      case SumTypeNode(
+          var moduleName, var id, var typeParameters, var variantTypeNodes, var range
+      ) -> new SumTypeNode(moduleName,
+          id,
+          typeParameters,
+          mapResolveTypeNode(variantTypeNodes, typeArgs),
+          range);
+      case TupleTypeNode(var name, var fields, var range) ->
+          new TupleTypeNode(name, mapResolveTypeNode(fields, typeArgs), range);
+      case TypeAlias(var id, var typeParameters, var aliasTypeNode, var range) -> {
+        var newTypeArgs = new HashMap<>(typeArgs);
+        newTypeArgs.putAll(MemberScopedTypeResolver.typeParams(typeParameters,
+            param -> new TypeVariable(param.typeName())));
+        yield new TypeAlias(id, typeParameters, resolveTypeNode(aliasTypeNode, newTypeArgs), range);
+      }
+      case TypeParameter typeParameter -> typeParameter;
+      case VariantTypeNode.Singleton(var moduleName, var aliasId, var id) ->
+          new VariantTypeNode.Singleton(moduleName, aliasId, id);
+      case VariantTypeNode.Tuple(var moduleName, var aliasId, var id, var tupleTypeNode) ->
+          new VariantTypeNode.Tuple(moduleName,
+              aliasId,
+              id,
+              resolveTypeNode(tupleTypeNode, typeArgs));
+      case VariantTypeNode.Struct(var moduleName, var aliasId, var id, var structTypeNode) ->
+          new VariantTypeNode.Struct(moduleName,
+              aliasId,
+              id,
+              resolveTypeNode(structTypeNode, typeArgs));
+    };
+  }
+
+  public <T extends TypeNode> List<T> mapResolveTypeNode(Collection<T> typeNodes) {
+    return typeNodes.stream().map(t -> resolveTypeNode(t, Map.of())).toList();
+  }
+
+  <T extends TypeNode> List<T> mapResolveTypeNode(Collection<T> typeNodes,
+      Map<String, Type> typeArgs) {
+    return typeNodes.stream().map(t -> resolveTypeNode(t, typeArgs)).toList();
+  }
+
+  Type resolveNamedType(NamedType namedType, Map<String, Type> typeArgs, Range range) {
     var typeDefNode = nameResolutionResult.getNamedType(namedType)
         .orElseThrow(() -> new IllegalStateException("Unable to find named type: " + namedType));
 
@@ -37,8 +111,8 @@ public class NamedTypeResolver {
 //          "No mapping for type param '%s'".formatted(typeParameter.typeName()));
 //      case TypeParameter typeParameter -> typeArgs.getOrDefault(typeParameter.typeName(),
 //          new TypeVariable(typeParameter.typeName()));
-      case TypeParameter typeParameter -> typeArgs.getOrDefault(typeParameter.typeName(),
-          namedType);
+      case TypeParameter typeParameter ->
+          typeArgs.getOrDefault(typeParameter.typeName(), namedType);
       case TypeAlias typeAlias -> {
         if (typeAlias.typeParameters().size() != namedType.typeArguments().size()) {
           yield addError(new TypeMismatchError(
@@ -51,19 +125,21 @@ public class NamedTypeResolver {
         var resolvedTypeArgs = new ArrayList<Type>();
         for (int i = 0; i < typeAlias.typeParameters().size(); i++) {
           var typeParam = typeAlias.typeParameters().get(i);
-          var typeArg = resolveNamedType(namedType.typeArguments().get(i), typeArgs, range);
+          var typeArg = resolveNames(namedType.typeArguments().get(i), typeArgs, range);
           newTypeArgs.put(typeParam.typeName(), typeArg);
           resolvedTypeArgs.add(typeArg);
         }
 
         yield switch (namedType) {
-          case ModuleNamedType moduleNamedType -> new ResolvedModuleNamedType(moduleNamedType.moduleName(),
-              moduleNamedType.name(),
-              resolvedTypeArgs,
-              resolveNamedType(typeAlias.type(), newTypeArgs, range));
-          case LocalNamedType localNamedType -> new ResolvedLocalNamedType(localNamedType.typeName(),
-              resolvedTypeArgs,
-              resolveNamedType(typeAlias.type(), newTypeArgs, range));
+          case ModuleNamedType moduleNamedType ->
+              new ResolvedModuleNamedType(moduleNamedType.moduleName(),
+                  moduleNamedType.name(),
+                  resolvedTypeArgs,
+                  resolveNames(typeAlias.type(), newTypeArgs, range));
+          case LocalNamedType localNamedType ->
+              new ResolvedLocalNamedType(localNamedType.typeName(),
+                  resolvedTypeArgs,
+                  resolveNames(typeAlias.type(), newTypeArgs, range));
         };
       }
       case ForeignClass foreignClass -> {
@@ -79,14 +155,16 @@ public class NamedTypeResolver {
     };
   }
 
-  public Type resolveNamedType(Type type, Range range) {
-    return resolveNamedType(type, Map.of(), range);
+  public Type resolveNames(Type type, Range range) {
+    return resolveNames(type, Map.of(), range);
   }
 
-  public Type resolveNamedType(Type type, Map<String, Type> typeArgs, Range range) {
+  public Type resolveNames(Type type, Map<String, Type> typeArgs, Range range) {
     if (type instanceof NamedType namedType) {
-      return resolveNamedTypeNode(namedType, typeArgs, range);
-    } else if (type instanceof ParameterizedType parameterizedType) {
+      return resolveNamedType(namedType, typeArgs, range);
+    }
+
+    if (type instanceof ParameterizedType parameterizedType) {
       return resolveParameterizedType(parameterizedType, typeArgs, range);
     }
 
@@ -94,36 +172,38 @@ public class NamedTypeResolver {
   }
 
   // For any parameterized type, you must recursively resolve any nested named types.
-  private Type resolveParameterizedType(ParameterizedType parameterizedType, Map<String, Type> typeArgs, Range range) {
+  private Type resolveParameterizedType(ParameterizedType parameterizedType,
+      Map<String, Type> typeArgs, Range range) {
     return switch (parameterizedType) {
       case StructType structType -> new StructType(structType.typeName(),
           structType.fieldTypes()
               .entrySet()
               .stream()
-              .collect(toMap(Entry::getKey, e -> resolveNamedType(e.getValue(), typeArgs, range))));
+              .collect(toMap(Entry::getKey, e -> resolveNames(e.getValue(), typeArgs, range))));
       case FunctionType funcType -> {
         var newTypeArgs = new HashMap<>(typeArgs);
         yield new FunctionType(resolveNamedTypes(funcType.parameterTypes(), newTypeArgs, range),
             funcType.typeParameters(),
-            resolveNamedType(funcType.returnType(), newTypeArgs, range));
+            resolveNames(funcType.returnType(), newTypeArgs, range));
       }
       case UniversalType universalType ->
           typeArgs.getOrDefault(universalType.typeName(), universalType);
       case TypeVariable typeVariable -> typeVariable;
       case SumType sumType -> new SumType(sumType.moduleName(),
           sumType.name(),
+          sumType.typeParameters(),
           sumType.types()
               .stream()
-              .map(t -> resolveNamedType(t, typeArgs, range))
+              .map(t -> resolveNames(t, typeArgs, range))
               .map(VariantType.class::cast)
               .toList());
       case ResolvedModuleNamedType namedType -> new ResolvedModuleNamedType(namedType.moduleName(),
           namedType.name(),
           resolveNamedTypes(namedType.typeArgs(), typeArgs, range),
-          resolveNamedType(namedType.type(), typeArgs, range));
+          resolveNames(namedType.type(), typeArgs, range));
       case ResolvedLocalNamedType namedType -> new ResolvedLocalNamedType(namedType.name(),
           resolveNamedTypes(namedType.typeArgs(), typeArgs, range),
-          resolveNamedType(namedType.type(), typeArgs, range));
+          resolveNames(namedType.type(), typeArgs, range));
       case ClassType classType -> new ClassType(classType.typeClass(),
           resolveNamedTypes(classType.typeArguments(), typeArgs, range));
     };
@@ -134,7 +214,7 @@ public class NamedTypeResolver {
   }
 
   private List<Type> resolveNamedTypes(List<Type> types, Map<String, Type> typeArgs, Range range) {
-    return types.stream().map(t -> resolveNamedType(t, typeArgs, range)).toList();
+    return types.stream().map(t -> resolveNames(t, typeArgs, range)).toList();
   }
 
   private Type addError(RangedError error) {

@@ -27,9 +27,8 @@ import static com.pentlander.sasquach.SasquachParser.UseStatementContext;
 import static com.pentlander.sasquach.SasquachParser.VarReferenceContext;
 import static com.pentlander.sasquach.SasquachParser.VariableDeclarationContext;
 import static com.pentlander.sasquach.ast.expression.Struct.StructKind;
-import static java.util.Objects.*;
+import static java.util.Objects.requireNonNullElse;
 
-import com.pentlander.sasquach.Range.Single;
 import com.pentlander.sasquach.SasquachParser.ApplyExpressionContext;
 import com.pentlander.sasquach.SasquachParser.BooleanExpressionContext;
 import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
@@ -62,27 +61,25 @@ import com.pentlander.sasquach.SasquachParser.VariantTypeContext;
 import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.Branch;
 import com.pentlander.sasquach.ast.CompilationUnit;
+import com.pentlander.sasquach.ast.FunctionSignature;
+import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.ModuleScopedIdentifier;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.PatternVariable;
+import com.pentlander.sasquach.ast.QualifiedIdentifier;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
-import com.pentlander.sasquach.ast.expression.ApplyOperator;
-import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
-import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator;
-import com.pentlander.sasquach.ast.expression.FunctionCall;
-import com.pentlander.sasquach.ast.expression.FunctionParameter;
-import com.pentlander.sasquach.ast.FunctionSignature;
-import com.pentlander.sasquach.ast.Identifier;
-import com.pentlander.sasquach.ast.ModuleDeclaration;
-import com.pentlander.sasquach.ast.QualifiedIdentifier;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
+import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
+import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
+import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathOperator;
@@ -92,6 +89,8 @@ import com.pentlander.sasquach.ast.expression.FieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.FunctionCall;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.Loop;
@@ -107,12 +106,9 @@ import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
-import com.pentlander.sasquach.type.ModuleNamedType;
 import com.pentlander.sasquach.type.LocalNamedType;
-import com.pentlander.sasquach.type.SumType;
-import com.pentlander.sasquach.type.Type;
+import com.pentlander.sasquach.type.ModuleNamedType;
 import com.pentlander.sasquach.type.TypeParameter;
-import com.pentlander.sasquach.type.VariantType;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -139,18 +135,17 @@ public class Visitor {
     Token end = context.getStop();
     var pos = new Position(start.getLine(), start.getCharPositionInLine());
     if (start.getLine() == end.getLine()) {
-      return new Range.Single(sourcePath, pos,
+      return new Range.Single(sourcePath,
+          pos,
           end.getCharPositionInLine() - start.getCharPositionInLine() + 1);
     }
-    return new Range.Multi(
-        sourcePath,
+    return new Range.Multi(sourcePath,
         pos,
         new Position(end.getLine(), end.getCharPositionInLine() + end.getText().length()));
   }
 
   Range.Single rangeFrom(Token token) {
-    return new Range.Single(
-        sourcePath,
+    return new Range.Single(sourcePath,
         new Position(token.getLine(), token.getCharPositionInLine()),
         token.getText().length());
   }
@@ -166,9 +161,10 @@ public class Visitor {
   class CompilationUnitVisitor extends SasquachBaseVisitor<CompilationUnit> {
     @Override
     public CompilationUnit visitCompilationUnit(CompilationUnitContext ctx) {
-      var modules = ctx.moduleDeclaration().stream()
-          .map(moduleDecl -> moduleDecl.accept(new ModuleVisitor(
-              packageName.toString()))).toList();
+      var modules = ctx.moduleDeclaration()
+          .stream()
+          .map(moduleDecl -> moduleDecl.accept(new ModuleVisitor(packageName.toString())))
+          .toList();
       return new CompilationUnit(sourcePath, packageName.toString(), modules);
     }
   }
@@ -204,8 +200,7 @@ public class Visitor {
       var typeVisitor = new TypeVisitor();
       var params = parameterList(typeVisitor, ctx.functionParameterList());
 
-      return new FunctionSignature(
-          params,
+      return new FunctionSignature(params,
           typeParams(ctx.typeParameterList()),
           typeNode(ctx.type(), typeVisitor),
           rangeFrom(ctx));
@@ -230,8 +225,7 @@ public class Visitor {
       var visitor = new ExpressionVisitor();
       var leftExpr = ctx.left.accept(visitor);
       var rightExpr = ctx.right.accept(visitor);
-      return new BinaryExpression.MathExpression(
-          MathOperator.fromString(operatorString),
+      return new BinaryExpression.MathExpression(MathOperator.fromString(operatorString),
           leftExpr,
           rightExpr,
           rangeFrom(ctx));
@@ -252,8 +246,7 @@ public class Visitor {
     public Expression visitCompareExpression(CompareExpressionContext ctx) {
       var leftExpr = ctx.left.accept(this);
       var rightExpr = ctx.right.accept(this);
-      return new CompareExpression(
-          CompareOperator.fromString(ctx.operator.getText()),
+      return new CompareExpression(CompareOperator.fromString(ctx.operator.getText()),
           leftExpr,
           rightExpr,
           rangeFrom(ctx));
@@ -263,8 +256,7 @@ public class Visitor {
     public Expression visitBooleanExpression(BooleanExpressionContext ctx) {
       var leftExpr = ctx.left.accept(this);
       var rightExpr = ctx.right.accept(this);
-      return new BooleanExpression(
-          BooleanOperator.fromString(ctx.operator.getText()),
+      return new BooleanExpression(BooleanOperator.fromString(ctx.operator.getText()),
           leftExpr,
           rightExpr,
           rangeFrom(ctx));
@@ -275,7 +267,9 @@ public class Visitor {
       var classAlias = id(foreignNameCtx.ID());
       var memberId = id(memberApplicationCtx.memberName().ID());
       var arguments = args(memberApplicationCtx.application());
-      return new ForeignFunctionCall(classAlias, memberId, arguments,
+      return new ForeignFunctionCall(classAlias,
+          memberId,
+          arguments,
           classAlias.range().join(rangeFrom(memberApplicationCtx)));
     }
 
@@ -375,8 +369,10 @@ public class Visitor {
     @Override
     public Expression visitBlock(BlockContext ctx) {
       var exprVisitor = new ExpressionVisitor();
-      List<Expression> expressions = ctx.blockStatement().stream()
-          .map(blockCtx -> blockCtx.accept(exprVisitor)).toList();
+      List<Expression> expressions = ctx.blockStatement()
+          .stream()
+          .map(blockCtx -> blockCtx.accept(exprVisitor))
+          .toList();
       return new Block(expressions, rangeFrom(ctx));
     }
 
@@ -400,8 +396,10 @@ public class Visitor {
       var loop = ctx.loop();
       var varDeclCtx = requireNonNullElse(loop.variableDeclaration(),
           List.<VariableDeclarationContext>of());
-      var varDecls = varDeclCtx.stream().map(this::visitVariableDeclaration)
-          .map(VariableDeclaration.class::cast).toList();
+      var varDecls = varDeclCtx.stream()
+          .map(this::visitVariableDeclaration)
+          .map(VariableDeclaration.class::cast)
+          .toList();
       return new Loop(varDecls, loop.expression().accept(this), rangeFrom(ctx));
     }
 
@@ -454,8 +452,7 @@ public class Visitor {
     @Override
     public TypeNode visitLocalNamedType(LocalNamedTypeContext ctx) {
       var id = id(ctx.typeIdentifier().ID());
-      return new BasicTypeNode<>(
-          new LocalNamedType(id, typeArguments(ctx.typeArgumentList())),
+      return new BasicTypeNode<>(new LocalNamedType(id, typeArguments(ctx.typeArgumentList())),
           rangeFrom(ctx));
     }
 
@@ -484,8 +481,7 @@ public class Visitor {
 
     @Override
     public TupleTypeNode visitTupleType(TupleTypeContext ctx) {
-      var typeNodes =
-          ctx.type().stream().map(typeCtx -> typeNode(typeCtx, this)).toList();
+      var typeNodes = ctx.type().stream().map(typeCtx -> typeNode(typeCtx, this)).toList();
       return new TupleTypeNode(typeNodes, rangeFrom(ctx));
     }
 
@@ -556,21 +552,17 @@ public class Visitor {
           useList.add(use);
         } else if (structStatementCtx instanceof TypeAliasStatementContext typeAliasCtx) {
           var aliasId = id(typeAliasCtx.typeIdentifier().ID());
+          var typeParameters = typeParams(typeAliasCtx.typeParameterList());
           var typeNode = typeAliasCtx.type() != null ? typeNode(typeAliasCtx.type(), typeVisitor)
-              : sumTypeNode(typeAliasCtx.sumType(), structName, aliasId);
-          var typeAlias = new TypeAlias(
-              aliasId,
-              typeParams(typeAliasCtx.typeParameterList()),
-              typeNode,
-              rangeFrom(typeAliasCtx));
+              : sumTypeNode(typeAliasCtx.sumType(), structName, aliasId, typeParameters);
+          var typeAlias = new TypeAlias(aliasId, typeParameters, typeNode, rangeFrom(typeAliasCtx));
           typeAliases.add(typeAlias);
         }
       }
 
       return switch (structKind) {
         case LITERAL -> Struct.literalStruct(fields, functions, rangeFrom(ctx));
-        case MODULE -> Struct.moduleStruct(
-            structName,
+        case MODULE -> Struct.moduleStruct(structName,
             useList,
             typeAliases,
             fields,
@@ -585,8 +577,12 @@ public class Visitor {
   }
 
   private List<TypeParameter> typeParams(TypeParameterListContext ctx) {
-    return Optional.ofNullable(ctx).map(TypeParameterListContext::typeIdentifier).orElse(List.of())
-        .stream().map(typeParamCtx -> new TypeParameter(id(typeParamCtx.ID()))).toList();
+    return Optional.ofNullable(ctx)
+        .map(TypeParameterListContext::typeIdentifier)
+        .orElse(List.of())
+        .stream()
+        .map(typeParamCtx -> new TypeParameter(id(typeParamCtx.ID())))
+        .toList();
   }
 
   private List<FunctionParameter> parameterList(TypeVisitor typeVisitor,
@@ -601,20 +597,19 @@ public class Visitor {
   }
 
   @SuppressWarnings("unchecked")
-  private TypeNode sumTypeNode(SumTypeContext ctx, String moduleName, Identifier aliasId) {
+  private TypeNode sumTypeNode(SumTypeContext ctx, String moduleName, Identifier aliasId,
+      List<TypeParameter> typeParameters) {
     var numVariants = ctx.typeIdentifier().size();
     var variantNodes = new ArrayList<VariantTypeNode>();
     var unqualifiedIdx = moduleName.lastIndexOf('/') + 1;
-    var qualModuleName = new QualifiedModuleName(packageName.name(), moduleName.substring(unqualifiedIdx));
+    var qualModuleName = new QualifiedModuleName(packageName.name(),
+        moduleName.substring(unqualifiedIdx));
     for (int i = 0; i < numVariants; i++) {
       var id = id(ctx.typeIdentifier(i).ID());
       var variantTypeCtx = ctx.variantType(i);
       variantNodes.add(variantTypeNode(qualModuleName, aliasId, id, variantTypeCtx));
     }
-    return new SumTypeNode(qualModuleName,
-        aliasId,
-        variantNodes,
-        rangeFrom(ctx));
+    return new SumTypeNode(qualModuleName, aliasId, typeParameters, variantNodes, rangeFrom(ctx));
   }
 
   private VariantTypeNode variantTypeNode(QualifiedModuleName moduleName, Identifier aliasId,
@@ -622,8 +617,8 @@ public class Visitor {
     return switch (ctx) {
       case SingletonTypeContext ignored -> new VariantTypeNode.Singleton(moduleName, aliasId, id);
       case SingleTupleTypeContext tupCtx -> {
-        var typeNode = new TupleTypeNode(id.name(), List.of(typeNode(tupCtx.type(),
-            new TypeVisitor())),
+        var typeNode = new TupleTypeNode(id.name(),
+            List.of(typeNode(tupCtx.type(), new TypeVisitor())),
             rangeFrom(ctx));
         yield new VariantTypeNode.Tuple(moduleName, aliasId, id, typeNode);
       }
@@ -635,8 +630,7 @@ public class Visitor {
       }
       case StructSumTypeContext structSumCtx -> {
         var typeNode = new TypeVisitor().visitStructType(structSumCtx.structType());
-        yield new VariantTypeNode.Struct(
-            moduleName,
+        yield new VariantTypeNode.Struct(moduleName,
             aliasId,
             id,
             new StructTypeNode(id.name(), typeNode.fieldTypeNodes(), typeNode.range()));

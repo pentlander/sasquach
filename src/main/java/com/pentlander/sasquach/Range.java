@@ -5,6 +5,7 @@ package com.pentlander.sasquach;
  */
 public sealed interface Range {
   SourcePath sourcePath();
+
   /**
    * Starting source code position.
    */
@@ -33,7 +34,8 @@ public sealed interface Range {
             : other;
     var second = first.equals(this) ? other : this;
     if (start().line() == other.start().line() && other instanceof Single) {
-      return new Single(sourcePath(), first.start(),
+      return new Single(sourcePath(),
+          first.start(),
           second.end().column() - first.start().column());
     }
     return new Multi(sourcePath(), first.start(), second.end());
@@ -54,7 +56,8 @@ public sealed interface Range {
 
     @Override
     public String toString() {
-      return sourcePath.toString() + ":" + start.line() + ":" + start.column() + "-" + start.column() + length;
+      return sourcePath.toString() + ":" + start.line() + ":" + start.column() + "-" + (
+          start.column() + length);
     }
   }
 }
