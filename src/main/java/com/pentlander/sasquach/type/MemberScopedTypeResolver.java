@@ -175,7 +175,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         for (int i = 0; i < func.parameters().size(); i++) {
           var param = func.parameters().get(i);
           var paramType = resolvedType.parameterTypes().get(i);
-          putIdType(param.id(), paramType);
+          putLocalVarType(param, paramType);
         }
 
         check(func.expression(), resolvedType.returnType());
@@ -216,12 +216,12 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     type = switch (expr) {
       case Value value -> value.type();
       case VariableDeclaration varDecl -> {
-        putIdType(varDecl.id(), infer(varDecl.expression()));
+        putLocalVarType(varDecl, getType(varDecl.id()));
         yield BuiltinType.VOID;
       }
       case VarReference varRef -> switch (nameResolutionResult.getVarReference(varRef)) {
         case Local local ->
-            getIdType(local.localVariable().id()).orElseThrow(() -> new IllegalStateException(
+            getLocalVarType(local.localVariable()).orElseThrow(() -> new IllegalStateException(
                 "Unable to find local: " + local));
         case Module module -> moduleTypeProvider.getModuleType(module.moduleDeclaration().id());
         case Singleton(var node) ->
@@ -290,7 +290,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
               recur.range(),
               loop.varDeclarations().stream().map(variableDeclaration -> {
                 infer(variableDeclaration);
-                return getIdType(variableDeclaration.id()).orElseThrow();
+                return getLocalVarType(variableDeclaration).orElseThrow();
               }).toList(),
               new TypeVariable("Loop" + typeVarNum.getAndIncrement()));
         };
@@ -306,7 +306,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
             .stream()
             .collect(toMap(FunctionParameter::name, param -> {
               var paramType = new TypeVariable(param.name() + lvl);
-              putIdType(param.id(), paramType);
+              putLocalVarType(param, paramType);
               return paramType;
             }));
         var returnType = infer(func.expression());
@@ -357,14 +357,14 @@ public class MemberScopedTypeResolver implements TypeFetcher {
             for (int j = 0; j < tuple.bindings().size(); j++) {
               var binding = tuple.bindings().get(j);
               var fieldType = tupleFieldTypes.get(j);
-              putIdType(binding.id(), fieldType);
+              putLocalVarType(binding, fieldType);
             }
           }
           case Pattern.VariantStruct struct -> {
             var structType = (StructType) variantType;
             for (var binding : struct.bindings()) {
               var fieldType = structType.fieldType(binding.id().name());
-              putIdType(binding.id(), fieldType);
+              putLocalVarType(binding, fieldType);
             }
           }
         }
@@ -431,7 +431,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         var callTarget = nameResolutionResult.getLocalFunction(localFuncCall);
         var type = switch (callTarget) {
           case QualifiedFunction qualFunc -> qualFunc.function().functionSignature().type();
-          case LocalVariable localVar -> getIdType(localVar.id()).orElseThrow();
+          case LocalVariable localVar -> getLocalVarType(localVar).orElseThrow();
           // TODO Need to store the ID -> variant type signature and check that they match here.
           // Possibly need to include the qualified name of the owning module
           case VariantStructConstructor struct -> {
@@ -628,8 +628,16 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     return idTypes.put(id, type);
   }
 
-  private Optional<Type> getIdType(Identifier id) {
-    return Optional.ofNullable(idTypes.get(id));
+  private Type putLocalVarType(LocalVariable localVar, Type type) {
+    if (type instanceof NamedType) {
+      throw new IllegalArgumentException("Cannot save named type '%s' for local variable: %s".formatted(type,
+          localVar));
+    }
+    return idTypes.put(localVar.id(), type);
+  }
+
+  private Optional<Type> getLocalVarType(LocalVariable localVar) {
+    return Optional.ofNullable(idTypes.get(localVar.id()));
   }
 
   @Override

@@ -52,8 +52,7 @@ also need to be adapted to handle the fact that the range could be on any file, 
 file (compunit?) needs to be tracked within the error as well. 
 
 ## Java Interop
-Current thinking is to basically a Java class as a module, where there's a constructor for the 
-object and all of the methods are functions on the module. E.g. 
+Current thinking is to basically a Java class as a module, where there's a constructor for the object and all the methods are functions on the module. E.g. 
 ```
 let f = File("foo")
 File.setExecutable(f, true)
@@ -64,19 +63,19 @@ Not sure if this code should be run in a special block. Maybe regular Java types
 in a meaningful way inside sasq code? Possibly need to wrap it in a struct or opaque type. Also
 need to figure out how imports work here. 
 
+### Dealing with Null
+Code has to somehow deal with null values that come from foreign functions. There are a few options on how to handle this:
+1. Do nothing, foreign code is the wild west and you have to be careful when integrating. Definitely not doing this.
+2. Integrate null into the type system somehow. Also don't want to do this as Sasquach code is expected to use the Option type instead.
+3. Add null checks to every return value from a foreign function that is not a primitive. Could also perform analysis so that a check is not generated when the return value isn't used. Users can opt out of the null check by adding a `!` to the end of the method name.
+4. Make every foreign function that returns a non-primitive value return an `Option`. Users can opt out by adding an `!` to return the bare value with a null check and a `!!` for the bare values without a null check. Would still want to do code analysis to not wrap calls where the return value isn't used.
+
+The last option seems like the best right now. It involves the least extra typing when integrating with Java code.
+
 ## Mutability
 Should mutability be allowed in structs? Leaning towards no, but might need it for practicality.
 As least would want some sort of marker on fields and functions that mutate a struct. That could
 possibly tie into the Java interop to make mutable OO code more sane to deal with. 
-
-## Dealing with Null
-Code has to somehow deal with null values that come from foreign functions. There are a few options on how to handle this:
-1. Do nothing, foreign code is the wild west and you have to be careful when integrating. Definitely not doing this.
-2. Integrate null into the type system somehow. Also don't want to do this as Sasquach code is expected to use the Option type instead. 
-3. Add null checks to every return value from a foreign function that is not a primitive. Could also perform analysis so that a check is not generated when the return value isn't used. Users can opt out of the null check by adding a `!` to the end of the method name. 
-4. Make every foreign function that returns a non-primitive value return an `Option`. Users can opt out by adding an `!` to return the bare value with a null check and a `!!` for the bare values without a null check. Would still want to do code analysis to not wrap calls where the return value isn't used. 
-
-The last option seems like the best right now. It involves the least extra typing when integrating with Java code. 
 
 ## Private Fields/Functions in Struct
 How do we handle private in structs? It might only make sense to allow it in modules, since I 

@@ -135,12 +135,11 @@ public class TypeUnifier {
         }
       }
       case SumType destSumType when sourceType instanceof SingletonType sourceSingletonType -> {
-        var matchingVariant = destSumType.types()
+        destSumType.types()
             .stream()
             .filter(t -> t.isAssignableFrom(sourceSingletonType))
             .findFirst()
             .orElseThrow(() -> new UnificationException(destType, sourceType));
-//        unify(destSumType, matchingVariant);
       }
       case StructType destSumType when sourceType instanceof SumType sourceSumType -> {
         var matchingVariant = sourceSumType.types()
