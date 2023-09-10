@@ -216,7 +216,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     type = switch (expr) {
       case Value value -> value.type();
       case VariableDeclaration varDecl -> {
-        putLocalVarType(varDecl, getType(varDecl.id()));
+        putLocalVarType(varDecl, infer(varDecl.expression()));
         yield BuiltinType.VOID;
       }
       case VarReference varRef -> switch (nameResolutionResult.getVarReference(varRef)) {
