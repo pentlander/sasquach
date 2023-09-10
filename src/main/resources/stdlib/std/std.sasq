@@ -6,6 +6,94 @@ Integer {
   parse = (str: String): Int -> Integer#parseInt(str)
 }
 
+Option {
+  use foreign java/util/Objects,
+  use foreign java/util/Optional,
+
+  type T[A] = | Some(A) | None,
+
+  some = [A](value: A): T[A] -> Some(value),
+
+  none = [A](): T[A] -> None,
+
+  isSome = [A](option: T[A]): Boolean -> match option {
+    Some(_) -> true,
+    None -> false,
+  },
+
+  getOrElse = [A](option: T[A], fn: () -> A): A -> match option {
+    Some(value) -> value,
+    None -> fn(),
+  },
+
+  flatMap = [A, B](option: T[A], fn: (value: A) -> T[B]): T[B] -> match option {
+    Some(value) -> fn(value),
+    None -> None,
+  },
+
+  map = [A, B](option: T[A], fn: (value: A) -> B): T[B] -> match option {
+    Some(value) -> Some(fn(value)),
+    None -> None,
+  },
+
+  filter = [A](option: T[A], fn: (value: A) -> Boolean): T[A] -> match option {
+    Some(value) -> if fn(value) { Some(value) } else { None },
+    None -> None,
+  },
+
+  orElse = [A](option: T[A], fn: () -> T[A]): T[A] -> match option {
+    Some(_) -> option,
+    None -> fn(),
+  },
+
+  toResult = [A, B](option: T[A], fn: () -> B): Result.T[A, B] -> match option {
+    Some(value) -> Ok(value),
+    None -> Err(fn()),
+  },
+}
+
+Result {
+  type T[A, B] = | Ok(A) | Err(B),
+
+  ok = [A, B](value: A): T[A, B] -> Ok(value),
+  err = [A, B](value: B): T[A, B] -> Err(value),
+
+  isOk = [A, B](result: T[A, B]): Boolean -> match result {
+    Ok(_) -> true,
+    Err(_) -> false,
+  },
+
+  getOrElse = [A, B](result: T[A, B], fn: () -> A): A -> match result {
+    Ok(value) -> value,
+    Err(_) -> fn(),
+  },
+
+  flatMap = [A, B, C](result: T[A, B], fn: (value: A) -> T[C, B]): T[C, B] -> match result {
+    Ok(value) -> fn(value),
+    Err(err) -> result,
+  },
+
+  map = [A, B, C](result: T[A, B], fn: (value: A) -> C): T[C, B] -> match result {
+    Ok(value) -> Ok(fn(value)),
+    Err(err) -> Err(err),
+  },
+
+  orElse = [A, B, C](result: T[A, B], fn: () -> T[C, B]): T[C, B] -> match result {
+    Ok(_) -> result,
+    Err(_) -> fn(),
+  },
+
+  mapErr = [A, B, C](result: T[A, B], fn: (err: B) -> C): T[A, C] -> match result {
+    Ok(value) -> Ok(value),
+    Err(err) -> Err(fn(err)),
+  },
+
+  toOption = [A, B](result: T[A, B]): Option.T[A] -> match result {
+    Ok(value) -> Some(value),
+    Err(_) -> None,
+  },
+}
+
 List {
   use foreign java/util/ArrayList,
   use foreign java/util/Iterator,
