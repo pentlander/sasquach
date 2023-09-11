@@ -26,11 +26,8 @@ import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
 import com.pentlander.sasquach.type.BuiltinType;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodType;
 import java.util.List;
 import java.util.Optional;
-import org.assertj.core.api.Condition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -68,13 +65,7 @@ class MemberScopedNameResolverTest {
   @Test
   void resolveVariable_module() {
     var module = new ModuleDeclaration(qualId("OtherModule"),
-        Struct.moduleStruct(
-            "OtherModule",
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            range()),
+        Struct.moduleStruct("OtherModule", List.of(), List.of(), List.of(), List.of(), range()),
         range());
     when(modResolver.resolveModule("OtherModule")).thenReturn(Optional.of(module));
 
@@ -102,7 +93,8 @@ class MemberScopedNameResolverTest {
     when(modResolver.resolveFunction("test")).thenReturn(Optional.of(new NamedFunction(funcId,
         func)));
     when(modResolver.moduleDeclaration()).thenReturn(new ModuleDeclaration(qualId("foo/bar"),
-        null, range()));
+        null,
+        range()));
 
     var funcCall = new LocalFunctionCall(id("test"), List.of(), range());
     var function = FunctionBuilder.builder()
@@ -111,7 +103,7 @@ class MemberScopedNameResolverTest {
         .build();
     var memberResolver = new MemberScopedNameResolver(modResolver);
     var result = memberResolver.resolve(new NamedFunction(id("foo"), function));
-    var localFunc = (QualifiedFunction) result.getLocalFunction(funcCall);
+    var localFunc = (QualifiedFunction) result.getLocalFunctionCallTarget(funcCall);
 
     assertThat(localFunc.function()).isEqualTo(func);
   }

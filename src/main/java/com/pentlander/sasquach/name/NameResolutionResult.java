@@ -52,9 +52,8 @@ public class NameResolutionResult {
       Map<ForeignFieldAccess, Field> foreignFieldAccesses,
       Map<Identifier, ForeignFunctions> foreignFunctions,
       Map<Identifier, FunctionCallTarget> localFunctionCalls,
-      Map<VarReference, ReferenceDeclaration> varReferences,
-      Map<LocalVariable, Integer> varIndexes, Map<Recur, RecurPoint> recurPoints,
-      Map<Match, List<TypeNode>> matchTypeNodes,
+      Map<VarReference, ReferenceDeclaration> varReferences, Map<LocalVariable, Integer> varIndexes,
+      Map<Recur, RecurPoint> recurPoints, Map<Match, List<TypeNode>> matchTypeNodes,
       RangedErrorList errors) {
     this.typeAliases = typeAliases;
     this.typeNameAliases = typeNameAliases(typeAliases);
@@ -70,16 +69,21 @@ public class NameResolutionResult {
 
   private static Map<Type, NamedTypeDefinition> typeNameAliases(
       Map<TypeNode, NamedTypeDefinition> typeAliases) {
-    return typeAliases.entrySet().stream()
+    return typeAliases.entrySet()
+        .stream()
         .collect(Collectors.toMap(entry -> entry.getKey().type(), Entry::getValue, (a, b) -> a));
   }
 
   public NameResolutionResult withErrors(RangedErrorList errors) {
-    return new NameResolutionResult(typeAliases, foreignFieldAccesses,
+    return new NameResolutionResult(typeAliases,
+        foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
         varReferences,
-        varIndexes, recurPoints, matchTypeNodes, this.errors.concat(errors));
+        varIndexes,
+        recurPoints,
+        matchTypeNodes,
+        this.errors.concat(errors));
   }
 
   public NameResolutionResult withNamedTypes(Map<TypeNode, NamedTypeDefinition> namedTypes) {
@@ -91,7 +95,8 @@ public class NameResolutionResult {
         localFunctionCalls,
         varReferences,
         varIndexes,
-        recurPoints, matchTypeNodes,
+        recurPoints,
+        matchTypeNodes,
         errors);
   }
 
@@ -115,8 +120,9 @@ public class NameResolutionResult {
     return requireNonNull(foreignFunctions.get(foreignFunctionCall.functionId()));
   }
 
-  public FunctionCallTarget getLocalFunction(LocalFunctionCall localFunctionCall) {
-    return requireNonNull(localFunctionCalls.get(localFunctionCall.functionId()), localFunctionCall.toString());
+  public FunctionCallTarget getLocalFunctionCallTarget(LocalFunctionCall localFunctionCall) {
+    return requireNonNull(localFunctionCalls.get(localFunctionCall.functionId()),
+        localFunctionCall.toString());
   }
 
   public ReferenceDeclaration getVarReference(VarReference varReference) {
@@ -131,7 +137,9 @@ public class NameResolutionResult {
     return requireNonNull(recurPoints.get(recur));
   }
 
-  /** Returns a list of type nodes that correspond to the match branches in order. **/
+  /**
+   * Returns a list of type nodes that correspond to the match branches in order.
+   **/
   public List<TypeNode> getMatchTypeNodes(Match match) {
     return requireNonNull(matchTypeNodes.get(match));
   }

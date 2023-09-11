@@ -72,7 +72,7 @@ public class NamedTypeResolver {
       case TypeAlias(var id, var typeParameters, var aliasTypeNode, var range) -> {
         var newTypeArgs = new HashMap<>(typeArgs);
         newTypeArgs.putAll(MemberScopedTypeResolver.typeParams(typeParameters,
-            param -> new TypeVariable(param.typeName())));
+            param -> new UniversalType(param.typeName(), 0)));
         yield new TypeAlias(id, typeParameters, resolveTypeNode(aliasTypeNode, newTypeArgs), range);
       }
       case TypeParameter typeParameter -> typeParameter;

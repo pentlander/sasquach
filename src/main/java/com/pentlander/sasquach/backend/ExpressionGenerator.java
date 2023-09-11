@@ -228,7 +228,7 @@ class ExpressionGenerator {
         }
       }
       case LocalFunctionCall funcCall -> {
-        var callTarget = nameResolutionResult.getLocalFunction(funcCall);
+        var callTarget = nameResolutionResult.getLocalFunctionCallTarget(funcCall);
         switch (callTarget) {
           case QualifiedFunction qualifiedFunc -> {
             var arguments = funcCall.arguments();

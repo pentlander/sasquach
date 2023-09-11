@@ -43,13 +43,10 @@ import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
-import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
-import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Local;
-import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Module;
-import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Singleton;
-import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStructConstructor;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.type.ModuleScopedTypeResolver.ModuleTypeProvider;
+import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType;
+import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType;
 import com.pentlander.sasquach.type.TypeUnifier.UnificationException;
 import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Executable;
@@ -59,7 +56,6 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.WildcardType;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,15 +74,18 @@ public class MemberScopedTypeResolver implements TypeFetcher {
   private final NameResolutionResult nameResolutionResult;
   private final ModuleTypeProvider moduleTypeProvider;
   private final NamedTypeResolver namedTypeResolver;
+  private final ModuleScopedTypes moduleScopedTypes;
   private Node nodeResolving = null;
   private Node currentNode = null;
 
   public MemberScopedTypeResolver(Map<Identifier, Type> idTypes,
-      NameResolutionResult nameResolutionResult, ModuleTypeProvider moduleTypeProvider) {
+      NameResolutionResult nameResolutionResult, ModuleTypeProvider moduleTypeProvider,
+      ModuleScopedTypes moduleScopedTypes) {
     this.idTypes.putAll(idTypes);
     this.nameResolutionResult = nameResolutionResult;
     this.namedTypeResolver = new NamedTypeResolver(nameResolutionResult);
     this.moduleTypeProvider = moduleTypeProvider;
+    this.moduleScopedTypes = moduleScopedTypes;
   }
 
 //  private sealed interface
@@ -219,17 +218,11 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         putLocalVarType(varDecl, infer(varDecl.expression()));
         yield BuiltinType.VOID;
       }
-      case VarReference varRef -> switch (nameResolutionResult.getVarReference(varRef)) {
-        case Local local ->
-            getLocalVarType(local.localVariable()).orElseThrow(() -> new IllegalStateException(
-                "Unable to find local: " + local));
-        case Module module -> moduleTypeProvider.getModuleType(module.moduleDeclaration().id());
-        case Singleton(var node) ->
-          // Actually if we're seeing a bare (i.e. not qualified by a module) singleton, it
-          // must've been defined in this module. So we don't actually need a qualified ID.
-
-          // Need to initialize the sum type with a type variable in place of any type args
-            convertUniversals((SumType) getType(node.aliasId()), node.range());
+      case VarReference varRef -> switch (moduleScopedTypes.getVarReferenceType(varRef)) {
+        case VarRefType.Module(var fieldType) -> fieldType;
+        case VarRefType.LocalVar(var localVar) ->
+            getLocalVarType(localVar).orElseThrow(() -> new IllegalStateException(
+                "Unable to find local: " + localVar));
       };
       case BinaryExpression binExpr -> {
         var leftType = infer(binExpr.left());
@@ -428,26 +421,11 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     FunctionType funcType = null;
     switch (funcCall) {
       case LocalFunctionCall localFuncCall -> {
-        var callTarget = nameResolutionResult.getLocalFunction(localFuncCall);
-        var type = switch (callTarget) {
-          case QualifiedFunction qualFunc -> qualFunc.function().functionSignature().type();
-          case LocalVariable localVar -> getLocalVarType(localVar).orElseThrow();
-          // TODO Need to store the ID -> variant type signature and check that they match here.
-          // Possibly need to include the qualified name of the owning module
-          case VariantStructConstructor struct -> {
-            var structType = struct.type();
-            // Ensure that the struct expr and fields have their types in the type map
-            var t = infer(struct.struct());
-            // Need to unify the type params of the sum type with the type params of the struct
-            var sumType = getType(struct.sumAliasId());
-            yield new FunctionType(structType.fieldTypes()
-                .values()
-                .stream()
-                .sorted(Comparator.comparing(Type::typeName))
-                .toList(), struct.typeParameters(), sumType);
-          }
+        funcType = switch (moduleScopedTypes.getFunctionCallType(localFuncCall)) {
+          case FuncCallType.Module(var type) -> type;
+          case FuncCallType.LocalVar(var localVar) ->
+              getLocalVarType(localVar).flatMap(TypeUtils::asFunctionType).orElseThrow();
         };
-        funcType = TypeUtils.asFunctionType(type).orElseThrow();
       }
       case MemberFunctionCall structFuncCall -> {
         var exprType = infer(structFuncCall.structExpression());

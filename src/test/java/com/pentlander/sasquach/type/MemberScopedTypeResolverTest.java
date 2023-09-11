@@ -1,27 +1,43 @@
 package com.pentlander.sasquach.type;
 
+import static com.pentlander.sasquach.Fixtures.boolValue;
+import static com.pentlander.sasquach.Fixtures.foreignConstructors;
+import static com.pentlander.sasquach.Fixtures.foreignMethods;
+import static com.pentlander.sasquach.Fixtures.id;
+import static com.pentlander.sasquach.Fixtures.intValue;
+import static com.pentlander.sasquach.Fixtures.literalStruct;
+import static com.pentlander.sasquach.Fixtures.range;
+import static com.pentlander.sasquach.Fixtures.stringValue;
+import static com.pentlander.sasquach.Fixtures.typeNode;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.*;
+import com.pentlander.sasquach.ast.FunctionSignature;
+import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathOperator;
+import com.pentlander.sasquach.ast.expression.Expression;
+import com.pentlander.sasquach.ast.expression.FieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
+import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
+import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
+import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
-import com.pentlander.sasquach.ast.expression.Expression;
-import com.pentlander.sasquach.ast.expression.FieldAccess;
-import com.pentlander.sasquach.ast.expression.Function;
-import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
-import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
-import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
-import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Local;
 import com.pentlander.sasquach.name.NameResolutionResult;
+import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType;
+import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType;
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -33,23 +49,21 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import static com.pentlander.sasquach.Fixtures.*;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 class MemberScopedTypeResolverTest {
   private static final String MOD_NAME = "Test";
   NameResolutionResult nameResolutionResult;
   MemberScopedTypeResolver memberScopedTypeResolver;
+  ModuleScopedTypes moduleScopedTypes;
   boolean shouldAssertErrorsEmpty = true;
 
   @BeforeEach
   void setUp() {
+    moduleScopedTypes = mock(ModuleScopedTypes.class);
     nameResolutionResult = mock(NameResolutionResult.class);
-    memberScopedTypeResolver = new MemberScopedTypeResolver(Map.of(), nameResolutionResult,
-        a -> null);
+    memberScopedTypeResolver = new MemberScopedTypeResolver(Map.of(),
+        nameResolutionResult,
+        a -> null,
+        moduleScopedTypes);
     shouldAssertErrorsEmpty = true;
   }
 
@@ -72,7 +86,7 @@ class MemberScopedTypeResolverTest {
   void varReference() {
     var varId = id("foo");
     var varDecl = new VariableDeclaration(varId, stringValue("hi"), range());
-    when(nameResolutionResult.getVarReference(any())).thenReturn(new Local(varDecl, 0));
+    when(moduleScopedTypes.getVarReferenceType(any())).thenReturn(new VarRefType.LocalVar(varDecl));
 
     var declType = resolveExpr(varDecl);
     var refType = resolveExpr(new VarReference(id("foo")));
@@ -86,16 +100,20 @@ class MemberScopedTypeResolverTest {
 
     @Test
     void compare() {
-      var type = resolveExpr(
-          new CompareExpression(CompareOperator.EQ, intValue("10"), intValue("11"), range()));
+      var type = resolveExpr(new CompareExpression(CompareOperator.EQ,
+          intValue("10"),
+          intValue("11"),
+          range()));
 
       assertThat(type).isEqualTo(BuiltinType.BOOLEAN);
     }
 
     @Test
     void math() {
-      var type = resolveExpr(
-          new MathExpression(MathOperator.PLUS, intValue("1"), intValue("2"), range()));
+      var type = resolveExpr(new MathExpression(MathOperator.PLUS,
+          intValue("1"),
+          intValue("2"),
+          range()));
 
       assertThat(type).isEqualTo(BuiltinType.INT);
     }
@@ -104,8 +122,7 @@ class MemberScopedTypeResolverTest {
     void typeMismatch() {
       var range = range();
       var str = stringValue("11");
-      resolveExpr(
-          new CompareExpression(CompareOperator.EQ, intValue("10"), str, range));
+      resolveExpr(new CompareExpression(CompareOperator.EQ, intValue("10"), str, range));
 
       assertErrorRange(str.range());
     }
@@ -147,7 +164,9 @@ class MemberScopedTypeResolverTest {
     @Test
     void constructor() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignConstructors(File.class));
-      var call = new ForeignFunctionCall(id("File"), id("new"), List.of(stringValue("foo.txt")),
+      var call = new ForeignFunctionCall(id("File"),
+          id("new"),
+          List.of(stringValue("foo.txt")),
           range());
 
       var type = resolveExpr(call);
@@ -158,9 +177,11 @@ class MemberScopedTypeResolverTest {
     @Test
     void staticFunc() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class));
-      var call = new ForeignFunctionCall(id("Paths"), id("get"),
+      var call = new ForeignFunctionCall(id("Paths"),
+          id("get"),
           List.of(stringValue("foo.txt"),
-              ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())), range());
+              ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())),
+          range());
 
       var type = resolveExpr(call);
 
@@ -171,8 +192,10 @@ class MemberScopedTypeResolverTest {
     void virtualFunc() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(String.class,
           m -> m.getName().equals("concat")));
-      var call = new ForeignFunctionCall(id("String"), id("concat"),
-          List.of(stringValue("foo"), stringValue("bar")), range());
+      var call = new ForeignFunctionCall(id("String"),
+          id("concat"),
+          List.of(stringValue("foo"), stringValue("bar")),
+          range());
 
       var type = resolveExpr(call);
 
@@ -182,8 +205,10 @@ class MemberScopedTypeResolverTest {
     @Test
     void constructorNotFound() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignConstructors(File.class));
-      var call = new ForeignFunctionCall(id("File"), id("new"),
-          List.of(intValue("45"), intValue("10")), range());
+      var call = new ForeignFunctionCall(id("File"),
+          id("new"),
+          List.of(intValue("45"), intValue("10")),
+          range());
 
       resolveExpr(call);
 
@@ -194,8 +219,10 @@ class MemberScopedTypeResolverTest {
     void staticFuncNotFound() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class,
           m -> m.getParameterCount() == 2));
-      var call = new ForeignFunctionCall(id("Paths"), id("get"), List.of(intValue("10"),
-          ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())), range());
+      var call = new ForeignFunctionCall(id("Paths"),
+          id("get"),
+          List.of(intValue("10"), ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())),
+          range());
 
       resolveExpr(call);
 
@@ -219,7 +246,7 @@ class MemberScopedTypeResolverTest {
 //          Optional.of(new BasicTypeNode<>(new TypeParameter(id("T")), range())));
 
       var namedType = new LocalNamedType(id("Option"), List.of(typeNode(BuiltinType.INT)));
-      var resolvedType  = memberScopedTypeResolver.resolveNamedType(namedType, range());
+      var resolvedType = memberScopedTypeResolver.resolveNamedType(namedType, range());
 
       assertThat(resolvedType).isEqualTo(new ResolvedLocalNamedType("Option",
           List.of(),
@@ -235,13 +262,10 @@ class MemberScopedTypeResolverTest {
     @BeforeEach
     void setUp() {
       func = new NamedFunction(funcId,
-          new Function(
-              new FunctionSignature(List.of(
-                  param("arg1", BuiltinType.STRING),
-                  param("arg2", BuiltinType.INT)),
-                  typeNode(BuiltinType.BOOLEAN),
-                  range()),
-              boolValue(true)));
+          new Function(new FunctionSignature(List.of(param("arg1", BuiltinType.STRING),
+              param("arg2", BuiltinType.INT)),
+              typeNode(BuiltinType.BOOLEAN),
+              range()), boolValue(true)));
     }
 
     private FunctionParameter param(String name, Type type) {
@@ -252,9 +276,9 @@ class MemberScopedTypeResolverTest {
     class Local {
       @BeforeEach
       void setUp() {
-        when(nameResolutionResult.getLocalFunction(any())).thenReturn(new QualifiedFunction(qualId(
-            "foo"), func));
         memberScopedTypeResolver.checkType(func);
+        when(moduleScopedTypes.getFunctionCallType(any())).thenReturn(new FuncCallType.Module(func.functionSignature()
+            .type()));
       }
 
       @Test
@@ -296,8 +320,12 @@ class MemberScopedTypeResolverTest {
       @Test
       void call() {
         var qualifiedName = "base/MyMod";
-        var struct = Struct
-            .moduleStruct(qualifiedName, List.of(), List.of(), List.of(), List.of(func), range());
+        var struct = Struct.moduleStruct(qualifiedName,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(func),
+            range());
         var call = new MemberFunctionCall(struct, id("foo"), args, range());
 
         var type = resolveExpr(call);
@@ -317,9 +345,9 @@ class MemberScopedTypeResolverTest {
 
       @Test
       void callFieldNotFunction() {
-        var struct = Struct
-            .literalStruct(List.of(new Field(id("foo"), intValue(10))), List.of()
-                , range());
+        var struct = Struct.literalStruct(List.of(new Field(id("foo"), intValue(10))),
+            List.of(),
+            range());
         var callFuncId = id("foo");
         var call = new MemberFunctionCall(struct, callFuncId, args, range());
 
@@ -331,8 +359,12 @@ class MemberScopedTypeResolverTest {
       @Test
       void callNoField() {
         var qualifiedName = "base/MyMod";
-        var struct = Struct
-            .moduleStruct(qualifiedName, List.of(), List.of(), List.of(), List.of(func), range());
+        var struct = Struct.moduleStruct(qualifiedName,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(func),
+            range());
         var call = new MemberFunctionCall(struct, id("bar"), args, range());
 
         resolveExpr(call);
@@ -346,9 +378,9 @@ class MemberScopedTypeResolverTest {
   class StructTypeTest {
     @Test
     void structWithExtraFieldsIsAssignable() {
-      var argFields = List
-          .of(new Field(id("foo"), stringValue("str")), new Field(id("bar"), intValue("10")),
-              new Field(id("baz"), boolValue("true")));
+      var argFields = List.of(new Field(id("foo"), stringValue("str")),
+          new Field(id("bar"), intValue("10")),
+          new Field(id("baz"), boolValue("true")));
       var struct = literalStruct(argFields, List.of());
       var argType = resolveExpr(struct);
 

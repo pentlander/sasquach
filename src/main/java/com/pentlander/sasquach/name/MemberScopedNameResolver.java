@@ -66,7 +66,9 @@ localFunction()
  */
 public class MemberScopedNameResolver {
   private final ModuleScopedNameResolver moduleScopedNameResolver;
-  /** Map of type nodes to their definition sites. */
+  /**
+   * Map of type nodes to their definition sites.
+   */
   private final Map<TypeNode, NamedTypeDefinition> typeAliases = new HashMap<>();
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses = new HashMap<>();
   private final Map<Identifier, ForeignFunctions> foreignFunctions = new HashMap<>();
@@ -81,7 +83,9 @@ public class MemberScopedNameResolver {
   private final Visitor visitor = new Visitor();
   private final List<NameResolutionResult> resolutionResults = new ArrayList<>();
 
-  /** Set if currently resolving a named function. Used to resolve recursion. */
+  /**
+   * Set if currently resolving a named function. Used to resolve recursion.
+   */
   private NamedFunction namedFunction = null;
 
   public MemberScopedNameResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
@@ -162,8 +166,7 @@ public class MemberScopedNameResolver {
 
     @Override
     public Void visit(ForeignFunctionCall foreignFunctionCall) {
-      getForeign(foreignFunctionCall.classAlias()).ifPresentOrElse(
-          clazz -> {
+      getForeign(foreignFunctionCall.classAlias()).ifPresentOrElse(clazz -> {
             var matchingForeignFunctions = new ArrayList<ForeignFunctionHandle>();
             var funcName = foreignFunctionCall.name();
             var isConstructor = funcName.equals("new");
@@ -172,8 +175,9 @@ public class MemberScopedNameResolver {
               for (var constructor : clazz.getConstructors()) {
                 try {
                   var methodHandle = lookup.unreflectConstructor(constructor);
-                    matchingForeignFunctions.add(new ForeignFunctionHandle(methodHandle,
-                        InvocationKind.SPECIAL, constructor));
+                  matchingForeignFunctions.add(new ForeignFunctionHandle(methodHandle,
+                      InvocationKind.SPECIAL,
+                      constructor));
                 } catch (IllegalAccessException e) {
                   // Ignore inaccessible constructors
                 }
@@ -197,13 +201,11 @@ public class MemberScopedNameResolver {
               }
             }
             if (!matchingForeignFunctions.isEmpty()) {
-              foreignFunctions.put(
-                  foreignFunctionCall.functionId(),
+              foreignFunctions.put(foreignFunctionCall.functionId(),
                   new ForeignFunctions(clazz, matchingForeignFunctions));
             }
           },
-          () -> errors.add(new NameNotFoundError(
-              foreignFunctionCall.classAlias(),
+          () -> errors.add(new NameNotFoundError(foreignFunctionCall.classAlias(),
               "foreign class")));
       return null;
     }
@@ -213,10 +215,10 @@ public class MemberScopedNameResolver {
       // Resolve as function defined within the module
       var func = moduleScopedNameResolver.resolveFunction(localFunctionCall.name());
       if (func.isPresent() && !localFunctionCall.name().equals(namedFunction.name())) {
-        localFunctionCalls.put(
-            localFunctionCall.functionId(),
-            new QualifiedFunction(moduleScopedNameResolver.moduleDeclaration().id(),
-                func.get().id(), func.get().function()));
+        localFunctionCalls.put(localFunctionCall.functionId(), new QualifiedFunction(
+            moduleScopedNameResolver.moduleDeclaration().id(),
+            func.get().id(),
+            func.get().function()));
       } else {
         // Resolve as function defined in local variables
         var localVar = resolveLocalVar(localFunctionCall);
@@ -224,24 +226,24 @@ public class MemberScopedNameResolver {
           localFunctionCalls.put(localFunctionCall.functionId(), localVar.get());
         } else {
           // Resolve as a variant constructor
-          moduleScopedNameResolver.resolveVariantTypeNode(localFunctionCall.name()).ifPresentOrElse(
-              typeNode -> {
-                var id = typeNode.id();
-                var alias = moduleScopedNameResolver.resolveTypeAlias(typeNode.aliasId().name())
-                    .orElseThrow();
-                var name = typeNode.moduleName().qualify(id.name());
-                var variantTuple = Struct.variantTupleStruct(name,
-                    localFunctionCall.arguments(),
-                    localFunctionCall.range());
-                localFunctionCalls.put(
-                    localFunctionCall.functionId(),
-                    new VariantStructConstructor(id, alias.id(), (StructType) typeNode.type(),
+          moduleScopedNameResolver.resolveVariantTypeNode(localFunctionCall.name())
+              .ifPresentOrElse(typeNode -> {
+                    var id = typeNode.id();
+                    var alias = moduleScopedNameResolver.resolveTypeAlias(typeNode.aliasId().name())
+                        .orElseThrow();
+                    var name = typeNode.moduleName().qualify(id.name());
+                    var variantTuple = Struct.variantTupleStruct(name,
+                        localFunctionCall.arguments(),
+                        localFunctionCall.range());
+                    localFunctionCalls.put(localFunctionCall.functionId(), new VariantStructConstructor(
+                        id,
+                        alias.id(),
+                        (StructType) typeNode.type(),
                         alias.typeParameters(),
                         variantTuple));
-              },
-              () -> errors.add(new NameNotFoundError(
-                  localFunctionCall.functionId(),
-                  "function")));
+                  },
+                  () -> errors.add(new NameNotFoundError(localFunctionCall.functionId(),
+                      "function")));
         }
       }
       return null;
@@ -318,8 +320,7 @@ public class MemberScopedNameResolver {
         } else {
           var variantNode = moduleScopedNameResolver.resolveVariantTypeNode(varReference.name());
           if (variantNode.isPresent()) {
-            varReferences.put(
-                varReference,
+            varReferences.put(varReference,
                 new ReferenceDeclaration.Singleton((VariantTypeNode.Singleton) variantNode.get()));
           } else {
             errors.add(new NameNotFoundError(varReference.id(), "variable, parameter, or module"));
@@ -364,19 +365,22 @@ public class MemberScopedNameResolver {
         switch (branch.pattern()) {
           case Pattern.Singleton singleton -> {
             var nodeType = moduleScopedNameResolver.resolveVariantTypeNode(singleton.id().name());
-            nodeType.ifPresentOrElse(branchTypeNodes::add, () ->
-                errors.add(new NameNotFoundError(singleton.id(), "singleton variant")));
+            nodeType.ifPresentOrElse(
+                branchTypeNodes::add,
+                () -> errors.add(new NameNotFoundError(singleton.id(), "singleton variant")));
           }
           case Pattern.VariantTuple tuple -> {
             var nodeType = moduleScopedNameResolver.resolveVariantTypeNode(tuple.id().name());
-            nodeType.ifPresentOrElse(branchTypeNodes::add, () ->
-                errors.add(new NameNotFoundError(tuple.id(), "tuple variant")));
+            nodeType.ifPresentOrElse(
+                branchTypeNodes::add,
+                () -> errors.add(new NameNotFoundError(tuple.id(), "tuple variant")));
             tuple.bindings().forEach(MemberScopedNameResolver.this::addLocalVariable);
           }
           case Pattern.VariantStruct struct -> {
             var nodeType = moduleScopedNameResolver.resolveVariantTypeNode(struct.id().name());
-            nodeType.ifPresentOrElse(branchTypeNodes::add, () ->
-                errors.add(new NameNotFoundError(struct.id(), "struct variant")));
+            nodeType.ifPresentOrElse(
+                branchTypeNodes::add,
+                () -> errors.add(new NameNotFoundError(struct.id(), "struct variant")));
             struct.bindings().forEach(MemberScopedNameResolver.this::addLocalVariable);
           }
         }
@@ -425,17 +429,21 @@ public class MemberScopedNameResolver {
     }
   }
 
-  /** Constructs which may be invoked liked functions. **/
+  /**
+   * Constructs which may be invoked liked functions.
+   **/
   public sealed interface FunctionCallTarget permits LocalVariable, QualifiedFunction,
       VariantStructConstructor {}
 
-  /** A named tuple variant may be invoked like a function, e.g. Foo("bar"). **/
+  /**
+   * A named tuple variant may be invoked like a function, e.g. Foo("bar").
+   **/
   public record VariantStructConstructor(Identifier id, Identifier sumAliasId, StructType type,
                                          List<TypeParameter> typeParameters,
                                          Struct struct) implements FunctionCallTarget {}
 
-  public record QualifiedFunction(QualifiedIdentifier ownerId,
-                                  Identifier id, Function function) implements FunctionCallTarget {
+  public record QualifiedFunction(QualifiedIdentifier ownerId, Identifier id,
+                                  Function function) implements FunctionCallTarget {
     public QualifiedFunction(QualifiedIdentifier ownerId, NamedFunction namedFunction) {
       this(ownerId, namedFunction.id(), namedFunction.function());
     }
