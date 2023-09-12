@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.type;
 
+import java.lang.constant.ClassDesc;
 import java.lang.invoke.MethodHandles;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -13,6 +14,7 @@ public record ClassType(Class<?> typeClass, List<Type> typeArguments) implements
   public ClassType(Class<?> typeClass) {
     this(typeClass, List.of());
   }
+
   public ClassType(String typeName) {
     this(lookup(typeName));
   }
@@ -31,8 +33,8 @@ public record ClassType(Class<?> typeClass, List<Type> typeArguments) implements
   }
 
   @Override
-  public String descriptor() {
-    return "L%s;".formatted(internalName());
+  public ClassDesc classDesc() {
+    return typeClass.describeConstable().orElseThrow();
   }
 
   @Override
@@ -74,7 +76,8 @@ public record ClassType(Class<?> typeClass, List<Type> typeArguments) implements
 
   @Override
   public String toPrettyString() {
-    var typeArgs = !typeArguments.isEmpty() ? typeArguments.stream().map(Type::toPrettyString)
+    var typeArgs = !typeArguments.isEmpty() ? typeArguments.stream()
+        .map(Type::toPrettyString)
         .collect(Collectors.joining(", ", "[", "]")) : "";
     return typeName() + typeArgs;
   }

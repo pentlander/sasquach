@@ -1,14 +1,12 @@
 package com.pentlander.sasquach.backend;
 
-import static com.pentlander.sasquach.ast.InvocationKind.SPECIAL;
 import static com.pentlander.sasquach.ast.Pattern.Singleton;
 import static com.pentlander.sasquach.ast.Pattern.VariantStruct;
 import static com.pentlander.sasquach.ast.Pattern.VariantTuple;
 import static com.pentlander.sasquach.backend.ClassGenerator.INSTANCE_FIELD;
-import static com.pentlander.sasquach.backend.ClassGenerator.STRUCT_BASE_INTERNAL_NAME;
-import static com.pentlander.sasquach.backend.ClassGenerator.constructorType;
+import static com.pentlander.sasquach.backend.ClassGenerator.paramDescs;
 import static com.pentlander.sasquach.backend.ClassGenerator.signatureDescriptor;
-import static org.objectweb.asm.Type.VOID_TYPE;
+import static com.pentlander.sasquach.type.TypeUtils.classDesc;
 
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Node;
@@ -55,6 +53,13 @@ import com.pentlander.sasquach.type.TypeFetcher;
 import com.pentlander.sasquach.type.TypeUtils;
 import com.pentlander.sasquach.type.TypeVariable;
 import com.pentlander.sasquach.type.UniversalType;
+import java.io.PrintStream;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.ConstantDescs;
+import java.lang.constant.DirectMethodHandleDesc;
+import java.lang.constant.DirectMethodHandleDesc.Kind;
+import java.lang.constant.MethodHandleDesc;
+import java.lang.constant.MethodTypeDesc;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
@@ -99,6 +104,15 @@ class ExpressionGenerator {
     return typeFetcher.getType(identifier);
   }
 
+
+  private org.objectweb.asm.Type asmType(Class<?> clazz) {
+    return org.objectweb.asm.Type.getType(clazz);
+  }
+
+  private org.objectweb.asm.Type asmType(String internalName) {
+    return org.objectweb.asm.Type.getObjectType(internalName);
+  }
+
   private FunctionType funcType(Expression expression) {
     return TypeUtils.asFunctionType(typeFetcher.getType(expression)).orElseThrow();
   }
@@ -126,7 +140,7 @@ class ExpressionGenerator {
         var varType = type(varDecl.expression());
 
         methodVisitor.visitLocalVariable(varDecl.name(),
-            varType.descriptor(),
+            varType.classDesc().descriptorString(),
             signatureDescriptor(varType),
             localVarLabel.label(),
             endLabel,
@@ -137,23 +151,24 @@ class ExpressionGenerator {
     }
   }
 
+  DirectMethodHandleDesc methodHandleDesc(Kind kind, Class<?> owner, String name,
+      MethodTypeDesc typeDesc) {
+    return MethodHandleDesc.ofMethod(kind, owner.describeConstable().orElseThrow(), name, typeDesc);
+  }
+
   void generate(Expression expression) {
     addContextNode(expression);
     switch (expression) {
       case PrintStatement printStatement -> {
-        methodVisitor.visitFieldInsn(Opcodes.GETSTATIC,
-            "java/lang/System",
+        generate(MethodHandleDesc.ofField(Kind.STATIC_GETTER,
+            classDesc(System.class),
             "out",
-            "Ljava/io/PrintStream;");
+            classDesc(PrintStream.class)));
         var expr = printStatement.expression();
         generate(expr);
-        String descriptor = "(%s)V".formatted(type(expr).descriptor());
-        ClassType owner = new ClassType("java.io.PrintStream");
-        methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
-            owner.internalName(),
-            "println",
-            descriptor,
-            false);
+        var methodType = MethodTypeDesc.of(ConstantDescs.CD_void, type(expr).classDesc());
+        var methodDesc = methodHandleDesc(Kind.VIRTUAL, PrintStream.class, "println", methodType);
+        generate(methodDesc);
       }
       case VariableDeclaration varDecl -> {
         var varDeclExpr = varDecl.expression();
@@ -170,15 +185,16 @@ class ExpressionGenerator {
         switch (refDecl) {
           case ReferenceDeclaration.Local local ->
               generateLoadVar(methodVisitor, type(varReference), local.index());
-          case ReferenceDeclaration.Module module -> methodVisitor.visitFieldInsn(Opcodes.GETSTATIC,
-              module.moduleDeclaration().name(),
-              INSTANCE_FIELD,
-              type(varReference).descriptor());
-          case ReferenceDeclaration.Singleton singleton ->
-              methodVisitor.visitFieldInsn(Opcodes.GETSTATIC,
-                  singleton.node().type().internalName(),
+          case ReferenceDeclaration.Module module ->
+              generate(MethodHandleDesc.ofField(Kind.STATIC_GETTER,
+                  ClassDesc.of(module.moduleDeclaration().id().javaName()),
                   INSTANCE_FIELD,
-                  type(varReference).descriptor());
+                  type(varReference).classDesc()));
+          case ReferenceDeclaration.Singleton singleton ->
+              generate(MethodHandleDesc.ofField(Kind.STATIC_GETTER,
+                  ClassDesc.of(singleton.node().type().internalName().replace('/', '.')),
+                  INSTANCE_FIELD,
+                  type(varReference).classDesc()));
         }
       }
       case Value value -> {
@@ -234,11 +250,11 @@ class ExpressionGenerator {
             var arguments = funcCall.arguments();
             var funcType = funcType(qualifiedFunc.id());
             generateArgs(arguments, funcType.parameterTypes());
-            methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC,
-                qualifiedFunc.ownerId().name(),
+            var methodDesc = MethodHandleDesc.ofMethod(Kind.STATIC,
+                ClassDesc.of(qualifiedFunc.ownerId().javaName()),
                 funcCall.name(),
-                funcType.funcDescriptor(),
-                false);
+                funcType.functionDesc());
+            generate(methodDesc);
           }
           case LocalVariable localVar -> {
             var idx = nameResolutionResult.getVarIndex(localVar);
@@ -351,30 +367,18 @@ class ExpressionGenerator {
         methodVisitor.visitFieldInsn(opCode,
             fieldType.ownerType().internalName(),
             fieldAccess.fieldName(),
-            fieldType.descriptor());
+            fieldType.classDesc().descriptorString());
       }
       case ForeignFunctionCall foreignFuncCall -> {
         var foreignFuncType = typeFetcher.getType(foreignFuncCall.classAlias(),
             foreignFuncCall.functionId());
-        String owner = foreignFuncType.ownerType().internalName();
-        if (foreignFuncType.callType() == SPECIAL) {
-          methodVisitor.visitTypeInsn(Opcodes.NEW, owner);
-          methodVisitor.visitInsn(Opcodes.DUP);
+        String owner = GeneratorUtil.internalName(foreignFuncType.ownerDesc());
+        if (foreignFuncType.methodKind() == Kind.CONSTRUCTOR) {
+          generateNewDup(owner);
         }
         foreignFuncCall.arguments().forEach(this::generate);
 
-        int opCode = switch (foreignFuncType.callType()) {
-          case SPECIAL -> Opcodes.INVOKESPECIAL;
-          case STATIC -> Opcodes.INVOKESTATIC;
-          case VIRTUAL -> Opcodes.INVOKEVIRTUAL;
-          case INTERFACE -> Opcodes.INVOKEINTERFACE;
-        };
-        var funcName = foreignFuncCall.name().equals("new") ? "<init>" : foreignFuncCall.name();
-        methodVisitor.visitMethodInsn(opCode,
-            owner,
-            funcName,
-            foreignFuncType.descriptor(),
-            opCode == Opcodes.INVOKEINTERFACE);
+        generate(foreignFuncType.methodHandleDesc());
         var castType = foreignFuncType.castType();
         if (castType != null) {
           methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, castType.internalName());
@@ -442,7 +446,7 @@ class ExpressionGenerator {
         var branches = match.branches();
         var branchTypes = branches.stream()
             .map(branch -> type((Identifier) branch.pattern().id()))
-            .map(type -> org.objectweb.asm.Type.getObjectType(type.internalName()))
+            .map(type -> asmType(type.internalName()))
             .toArray();
         methodVisitor.visitInvokeDynamicInsn("match",
             SwitchBootstraps.DO_TYPE_SWITCH_TYPE.descriptorString(),
@@ -457,18 +461,15 @@ class ExpressionGenerator {
         methodVisitor.visitTableSwitchInsn(0, branches.size() - 1, defaultLabel, labels);
 
         methodVisitor.visitLabel(defaultLabel);
-        var exType = org.objectweb.asm.Type.getType(MatchException.class);
-        methodVisitor.visitTypeInsn(Opcodes.NEW, exType.getInternalName());
-        methodVisitor.visitInsn(Opcodes.DUP);
+        var exInternalName = GeneratorUtil.internalName(MatchException.class);
+        generateNewDup(exInternalName);
         methodVisitor.visitInsn(Opcodes.ACONST_NULL);
         methodVisitor.visitInsn(Opcodes.ACONST_NULL);
-        methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL,
-            exType.getInternalName(),
-            "<init>",
-            org.objectweb.asm.Type.getMethodDescriptor(VOID_TYPE,
-                org.objectweb.asm.Type.getType(String.class),
-                org.objectweb.asm.Type.getType(Throwable.class)),
-            false);
+
+        var methodDesc = MethodHandleDesc.ofConstructor(classDesc(MatchException.class),
+            ConstantDescs.CD_String,
+            ConstantDescs.CD_Throwable);
+        generate(methodDesc);
         methodVisitor.visitInsn(Opcodes.ATHROW);
 
         var endLabel = new Label();
@@ -514,15 +515,13 @@ class ExpressionGenerator {
   }
 
   private void generateFieldAccess(String fieldName, Type fieldType) {
-    var fieldDescriptor = fieldType.descriptor();
     var handle = new Handle(Opcodes.H_INVOKESTATIC,
-        new ClassType(StructDispatch.class).internalName(),
+        GeneratorUtil.internalName(StructDispatch.class),
         "bootstrapField",
         DISPATCH_BOOTSTRAP_DESCRIPTOR,
         false);
-    methodVisitor.visitInvokeDynamicInsn(fieldName,
-        "(L%s;)%s".formatted(STRUCT_BASE_INTERNAL_NAME, fieldDescriptor),
-        handle);
+    var typeDesc = MethodTypeDesc.of(fieldType.classDesc(), classDesc(StructBase.class));
+    methodVisitor.visitInvokeDynamicInsn(fieldName, typeDesc.descriptorString(), handle);
   }
 
   private void generateArgs(List<Expression> arguments, List<Type> paramTypes) {
@@ -535,51 +534,44 @@ class ExpressionGenerator {
 
   void generateMemberCall(FunctionType funcType, String funcCallName) {
     var handle = new Handle(Opcodes.H_INVOKESTATIC,
-        new ClassType(StructDispatch.class).internalName(),
+        GeneratorUtil.internalName(StructDispatch.class),
         "bootstrapMethod",
         DISPATCH_BOOTSTRAP_DESCRIPTOR,
         false);
-    methodVisitor.visitInvokeDynamicInsn(funcCallName,
-        funcType.funcDescriptorWith(0, new ClassType(StructBase.class)),
-        handle);
+    var methodTypeDesc = funcType.functionDesc()
+        .insertParameterTypes(0, classDesc(StructBase.class));
+    methodVisitor.visitInvokeDynamicInsn(funcCallName, methodTypeDesc.descriptorString(), handle);
   }
 
   void generateFuncInit(String funcStructInternalName, List<VarReference> captures) {
-    methodVisitor.visitTypeInsn(Opcodes.NEW, funcStructInternalName);
-    methodVisitor.visitInsn(Opcodes.DUP);
+    generateNewDup(funcStructInternalName);
     captures.forEach(this::generateExpr);
-    var initDescriptor = ClassGenerator.constructorType(captures, typeFetcher);
-    methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL,
-        funcStructInternalName,
-        "<init>",
-        initDescriptor,
-        false);
+    var paramDescs = paramDescs(captures, typeFetcher);
+    var constructorDesc = MethodHandleDesc.ofConstructor(classDesc(funcStructInternalName),
+        paramDescs);
+    generate(constructorDesc);
   }
 
+  // TODO: Add test to ensure that the arguments are passed in in a consistent order. Field args
+  //  should be evaluated in the order they appear, but that doesn't necessarily correspond with
+  //  the order of the constructor parameters. Since we're iterating over a hashmap, the order is
+  //  not consistent.
   void generateStructInit(StructType structType, Struct struct) {
     var structName = structType.internalName();
-    methodVisitor.visitTypeInsn(Opcodes.NEW, structName);
-    methodVisitor.visitInsn(Opcodes.DUP);
+    var structClassDesc = ClassDesc.of(structType.internalName().replace('/', '.'));
+    generateNewDup(structName);
     struct.fields().forEach(field -> generateExpr(field.value()));
-    var initDescriptor = constructorType(structType.fieldTypes().values());
-    methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL,
-        structName,
-        "<init>",
-        initDescriptor,
-        false);
+    var paramDescs = paramDescs(structType.fieldTypes().values());
+    generate(MethodHandleDesc.ofConstructor(structClassDesc, paramDescs));
   }
 
   void generateStructInit(Struct struct) {
     var structName = type(struct).internalName();
-    methodVisitor.visitTypeInsn(Opcodes.NEW, structName);
-    methodVisitor.visitInsn(Opcodes.DUP);
+    var structClassDesc = ClassDesc.of(type(struct).internalName().replace('/', '.'));
+    generateNewDup(structName);
     struct.fields().forEach(field -> generateExpr(field.value()));
-    var initDescriptor = constructorType(struct.fields(), typeFetcher);
-    methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL,
-        structName,
-        "<init>",
-        initDescriptor,
-        false);
+    var paramDescs = paramDescs(struct.fields(), typeFetcher);
+    generate(MethodHandleDesc.ofConstructor(structClassDesc, paramDescs));
   }
 
   static void generateLoadVar(MethodVisitor methodVisitor, Type type, int idx) {
@@ -674,13 +666,19 @@ class ExpressionGenerator {
     }
   }
 
+  private void generate(DirectMethodHandleDesc methodHandleDesc) {
+    GeneratorUtil.generate(methodVisitor, methodHandleDesc);
+  }
+
   private record LocalVarLabel(VariableDeclaration varDecl, Label label) {
     public LocalVarLabel(VariableDeclaration varDecl) {
       this(varDecl, new Label());
     }
   }
 
-  private static String getInternalName(Class<?> clazz) {
-    return org.objectweb.asm.Type.getInternalName(clazz);
+  private void generateNewDup(String internalName) {
+    methodVisitor.visitTypeInsn(Opcodes.NEW, internalName);
+    methodVisitor.visitInsn(Opcodes.DUP);
   }
+
 }

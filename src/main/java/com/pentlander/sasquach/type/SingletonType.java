@@ -2,6 +2,7 @@ package com.pentlander.sasquach.type;
 
 import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.runtime.StructBase;
+import java.lang.constant.ClassDesc;
 
 public record SingletonType(QualifiedModuleName moduleName, String name) implements VariantType {
   @Override
@@ -10,17 +11,12 @@ public record SingletonType(QualifiedModuleName moduleName, String name) impleme
   }
 
   @Override
-  public Class<?> typeClass() {
-    throw new IllegalStateException();
-  }
-
-  @Override
-  public String descriptor() {
-    return StructBase.class.descriptorString();
+  public ClassDesc classDesc() {
+    return TypeUtils.classDesc(StructBase.class);
   }
 
   @Override
   public String internalName() {
-    return moduleName.qualify(name);
+    return moduleName.qualifyInner(name);
   }
 }

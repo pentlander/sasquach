@@ -15,6 +15,10 @@ public record QualifiedIdentifier(String name, Range.Single range) implements No
     }
   }
 
+  public String javaName() {
+    return name.replace('/', '.');
+  }
+
   public QualifiedModuleName toQualifiedName() {
     return QualifiedModuleName.fromString(name);
   }

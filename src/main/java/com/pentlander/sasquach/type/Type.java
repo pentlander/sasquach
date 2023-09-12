@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.type;
 
 import com.pentlander.sasquach.type.MemberScopedTypeResolver.UnknownType;
+import java.lang.constant.ClassDesc;
 
 /**
  * Represents the type of an expression.
@@ -14,28 +15,14 @@ public sealed interface Type permits ArrayType, BuiltinType, ClassType, Universa
   String typeName();
 
   /**
-   * Class of the type.
-   * <p>
-   * The class cannot always be resolved for a type. For instance, a function doesn't have a
-   * canonical class representation, also a struct's class does not exist until bytecode generation
-   * time.
-   * </p>
-   */
-  Class<?> typeClass();
-
-  /**
-   * Descriptor string for the type.
-   * <p>Example: (Ljava/lang/String;I)Z</p>
-   */
-  String descriptor();
-
-  /**
    * Internal name for a class.
    * <p>
    * Equivalent to a fully qualified name with '.' replaces with '/'. Example: java/lang/String
    * </p>
    */
   String internalName();
+
+  ClassDesc classDesc();
 
   /**
    * Determines if this type is assignable from the other type.

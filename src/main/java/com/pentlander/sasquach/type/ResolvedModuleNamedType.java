@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.type;
 
+import java.lang.constant.ClassDesc;
 import java.util.List;
 
 public record ResolvedModuleNamedType(String moduleName, String name, List<Type> typeArgs,
@@ -16,13 +17,8 @@ public record ResolvedModuleNamedType(String moduleName, String name, List<Type>
   }
 
   @Override
-  public Class<?> typeClass() {
-    return type.typeClass();
-  }
-
-  @Override
-  public String descriptor() {
-    return type.descriptor();
+  public ClassDesc classDesc() {
+    return type.classDesc();
   }
 
   @Override

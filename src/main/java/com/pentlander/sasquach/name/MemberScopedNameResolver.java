@@ -231,7 +231,7 @@ public class MemberScopedNameResolver {
                     var id = typeNode.id();
                     var alias = moduleScopedNameResolver.resolveTypeAlias(typeNode.aliasId().name())
                         .orElseThrow();
-                    var name = typeNode.moduleName().qualify(id.name());
+                    var name = typeNode.moduleName().qualifyInner(id.name());
                     var variantTuple = Struct.variantTupleStruct(name,
                         localFunctionCall.arguments(),
                         localFunctionCall.range());
@@ -365,21 +365,18 @@ public class MemberScopedNameResolver {
         switch (branch.pattern()) {
           case Pattern.Singleton singleton -> {
             var nodeType = moduleScopedNameResolver.resolveVariantTypeNode(singleton.id().name());
-            nodeType.ifPresentOrElse(
-                branchTypeNodes::add,
+            nodeType.ifPresentOrElse(branchTypeNodes::add,
                 () -> errors.add(new NameNotFoundError(singleton.id(), "singleton variant")));
           }
           case Pattern.VariantTuple tuple -> {
             var nodeType = moduleScopedNameResolver.resolveVariantTypeNode(tuple.id().name());
-            nodeType.ifPresentOrElse(
-                branchTypeNodes::add,
+            nodeType.ifPresentOrElse(branchTypeNodes::add,
                 () -> errors.add(new NameNotFoundError(tuple.id(), "tuple variant")));
             tuple.bindings().forEach(MemberScopedNameResolver.this::addLocalVariable);
           }
           case Pattern.VariantStruct struct -> {
             var nodeType = moduleScopedNameResolver.resolveVariantTypeNode(struct.id().name());
-            nodeType.ifPresentOrElse(
-                branchTypeNodes::add,
+            nodeType.ifPresentOrElse(branchTypeNodes::add,
                 () -> errors.add(new NameNotFoundError(struct.id(), "struct variant")));
             struct.bindings().forEach(MemberScopedNameResolver.this::addLocalVariable);
           }

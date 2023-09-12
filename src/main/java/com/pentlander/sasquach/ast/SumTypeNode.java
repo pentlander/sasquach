@@ -61,7 +61,7 @@ public record SumTypeNode(QualifiedModuleName moduleName, Identifier id,
       }
 
       public QualifiedIdentifier qualifiedId() {
-        return new QualifiedIdentifier(moduleName.qualify(id.name()), id.range());
+        return new QualifiedIdentifier(moduleName.qualifyInner(id.name()), id.range());
       }
     }
 
@@ -74,7 +74,7 @@ public record SumTypeNode(QualifiedModuleName moduleName, Identifier id,
 
       @Override
       public StructType type() {
-        return new StructType(moduleName.qualify(id.name()), typeNode.type().fieldTypes());
+        return new StructType(moduleName.qualifyInner(id.name()), typeNode.type().fieldTypes());
       }
     }
 
@@ -87,7 +87,7 @@ public record SumTypeNode(QualifiedModuleName moduleName, Identifier id,
 
       @Override
       public StructType type() {
-        return new StructType(moduleName.qualify(id.name()), typeNode.type().fieldTypes());
+        return new StructType(moduleName.qualifyInner(id.name()), typeNode.type().fieldTypes());
       }
     }
   }

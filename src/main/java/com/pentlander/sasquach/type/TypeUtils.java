@@ -1,12 +1,18 @@
 package com.pentlander.sasquach.type;
 
+import java.lang.constant.ClassDesc;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 public final class TypeUtils {
-  private TypeUtils() {}
+  private TypeUtils() {
+  }
+
+  public static String internalName(Class<?> clazz) {
+    return org.objectweb.asm.Type.getInternalName(clazz);
+  }
 
   /**
    * Cast a type to a struct if possible.
@@ -30,7 +36,8 @@ public final class TypeUtils {
   }
 
   public static String typeWithArgsToString(String typeName, Collection<Type> typeArgs) {
-    var typeArgString = !typeArgs.isEmpty() ? typeArgs.stream().map(Type::toPrettyString)
+    var typeArgString = !typeArgs.isEmpty() ? typeArgs.stream()
+        .map(Type::toPrettyString)
         .collect(Collectors.joining(", ", "[", "]")) : "";
     return typeName + typeArgString;
   }
@@ -42,5 +49,13 @@ public final class TypeUtils {
     var iter = list.iterator();
     var item = iter.next();
     System.out.println(item);
+  }
+
+  public static ClassDesc classDesc(Class<?> clazz) {
+    return clazz.describeConstable().orElseThrow();
+  }
+
+  public static ClassDesc classDesc(String internalName) {
+    return ClassDesc.of(internalName.replace('/', '.'));
   }
 }

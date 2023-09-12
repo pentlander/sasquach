@@ -1,5 +1,7 @@
 package com.pentlander.sasquach.type;
 
+import java.lang.constant.ClassDesc;
+
 /**
  * Type of an array.
  */
@@ -10,17 +12,12 @@ public record ArrayType(Type elementType) implements Type {
   }
 
   @Override
-  public Class<?> typeClass() {
-    return elementType.typeClass().arrayType();
-  }
-
-  @Override
-  public String descriptor() {
-    return "[" + elementType.descriptor();
+  public ClassDesc classDesc() {
+    return elementType.classDesc().arrayType();
   }
 
   @Override
   public String internalName() {
-    return descriptor();
+    return classDesc().descriptorString();
   }
 }

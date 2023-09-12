@@ -1,5 +1,7 @@
 package com.pentlander.sasquach.type;
 
+import java.lang.constant.ClassDesc;
+
 /**
  * Type a foreign field access.
  */
@@ -11,13 +13,8 @@ public record ForeignFieldType(Type type, Type ownerType, FieldAccessKind access
   }
 
   @Override
-  public Class<?> typeClass() {
-    return type.typeClass();
-  }
-
-  @Override
-  public String descriptor() {
-    return type.descriptor();
+  public ClassDesc classDesc() {
+    return type.classDesc();
   }
 
   @Override

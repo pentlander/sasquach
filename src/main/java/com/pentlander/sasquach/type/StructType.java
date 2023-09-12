@@ -3,6 +3,7 @@ package com.pentlander.sasquach.type;
 import static java.util.stream.Collectors.joining;
 
 import com.pentlander.sasquach.runtime.StructBase;
+import java.lang.constant.ClassDesc;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -49,20 +50,12 @@ public record StructType(String typeName, Map<String, Type> fieldTypes) implemen
   }
 
   public List<Entry<String, Type>> sortedFields() {
-    return fieldTypes().entrySet()
-        .stream()
-        .sorted(Entry.comparingByKey())
-        .toList();
+    return fieldTypes().entrySet().stream().sorted(Entry.comparingByKey()).toList();
   }
 
   @Override
-  public Class<?> typeClass() {
-    return StructBase.class;
-  }
-
-  @Override
-  public String descriptor() {
-    return StructBase.class.descriptorString();
+  public ClassDesc classDesc() {
+    return TypeUtils.classDesc(StructBase.class);
   }
 
   @Override

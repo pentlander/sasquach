@@ -2,6 +2,7 @@ package com.pentlander.sasquach.type;
 
 import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.runtime.StructBase;
+import java.lang.constant.ClassDesc;
 import java.util.List;
 
 public record SumType(QualifiedModuleName moduleName, String name,
@@ -13,18 +14,13 @@ public record SumType(QualifiedModuleName moduleName, String name,
   }
 
   @Override
-  public Class<?> typeClass() {
-    return StructBase.class;
-  }
-
-  @Override
-  public String descriptor() {
-    return StructBase.class.descriptorString();
+  public ClassDesc classDesc() {
+    return TypeUtils.classDesc(StructBase.class);
   }
 
   @Override
   public String internalName() {
-    return moduleName.qualify(typeName()).replace(".", "/");
+    return moduleName.qualifyInner(typeName()).replace(".", "/");
   }
 
   @Override

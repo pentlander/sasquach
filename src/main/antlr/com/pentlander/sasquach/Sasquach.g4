@@ -97,7 +97,6 @@ value : NUMBER #intLiteral
 // Lexer Rules (tokens)
 
 // Keywords
-FUNCTION : 'fn' ;
 IF       : 'if' ;
 ELSE     : 'else' ;
 VARIABLE : 'let' ;

@@ -36,6 +36,9 @@ The one subtle thing is figuring out how typecheck a module with a method agains
 ## Sum types
 When defining a sum type, you are actually adding multiple functions to the module that each create a variant of the sum type. Otherwise, you would have to do `Foo.T.Bar(...)` which looks a bit ugly. I'm not sure how this would work exactly if a user wanted to directly refer to one of the variants. It would still have to look like the statement above.
 
+## AST
+I was debating whether to create a separate typed ast or just add a nullable field to the existing AST and call it a day. The typed AST give us a chance to update the AST with resolved names as well as adding type information. The nullable field could just be a generic context object that lives in every expression, but it seems difficult to do that while retaining strong typing.
+
 # To Investigate
 
 ## Indy for lazy anonymous struct creation

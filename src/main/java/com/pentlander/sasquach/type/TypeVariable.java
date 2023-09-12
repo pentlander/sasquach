@@ -1,8 +1,11 @@
 package com.pentlander.sasquach.type;
 
+import java.lang.constant.ClassDesc;
+
 /**
- * Represents a type parameter that hasn't been resolved yet. It is essentially a placeholder
- * that gets replaced by the {@link TypeUnifier}.
+ * Represents a type parameter that hasn't been resolved yet. It is essentially a placeholder that
+ * gets replaced by the {@link TypeUnifier}.
+ *
  * @param name name of the type variable.
  */
 public record TypeVariable(String name) implements Type, ParameterizedType {
@@ -12,13 +15,8 @@ public record TypeVariable(String name) implements Type, ParameterizedType {
   }
 
   @Override
-  public Class<?> typeClass() {
-    return Object.class;
-  }
-
-  @Override
-  public String descriptor() {
-    return Object.class.descriptorString();
+  public ClassDesc classDesc() {
+    return TypeUtils.classDesc(Object.class);
   }
 
   @Override

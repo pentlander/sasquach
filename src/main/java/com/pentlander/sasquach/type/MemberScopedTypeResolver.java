@@ -48,6 +48,8 @@ import com.pentlander.sasquach.type.ModuleScopedTypeResolver.ModuleTypeProvider;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType;
 import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType;
 import com.pentlander.sasquach.type.TypeUnifier.UnificationException;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Executable;
 import java.lang.reflect.GenericDeclaration;
@@ -554,20 +556,12 @@ public class MemberScopedTypeResolver implements TypeFetcher {
             funcCall.range(),
             paramTypes,
             returnType);
-        var methodType = foreignFuncHandle.methodHandle().type();
-        methodType = switch (foreignFuncHandle.invocationKind()) {
-          // Drop the "this" for the call since it's implied by the owner
-          case VIRTUAL, INTERFACE -> methodType.dropParameterTypes(0, 1);
-          case SPECIAL -> methodType.changeReturnType(void.class);
-          case STATIC -> methodType;
-        };
-
+        var methodHandleDesc = foreignFuncHandle.methodHandle()
+            .describeConstable()
+            .map(DirectMethodHandleDesc.class::cast)
+            .orElseThrow();
         var castType = returnType instanceof TypeVariable ? resolvedReturnType : null;
-        putForeignFuncType(funcCall,
-            new ForeignFunctionType(methodType,
-                classType,
-                foreignFuncHandle.invocationKind(),
-                castType));
+        putForeignFuncType(funcCall, new ForeignFunctionType(methodHandleDesc, castType));
         return resolvedReturnType;
       }
     }
@@ -576,7 +570,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         .map(Type::toPrettyString)
         .collect(joining("," + " ", "(", ")"));
     return addError(new TypeLookupError("No method '%s' found on class '%s'".formatted(methodSignature,
-        classType.typeClass().getName()), funcCall.range()));
+        classType.typeName()), funcCall.range()));
   }
 
   private void putForeignFuncType(ForeignFunctionCall foreignFunctionCall,
@@ -667,12 +661,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     }
 
     @Override
-    public Class<?> typeClass() {
-      throw exception;
-    }
-
-    @Override
-    public String descriptor() {
+    public ClassDesc classDesc() {
       throw exception;
     }
 

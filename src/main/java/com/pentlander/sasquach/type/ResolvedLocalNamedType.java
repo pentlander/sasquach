@@ -1,8 +1,10 @@
 package com.pentlander.sasquach.type;
 
+import java.lang.constant.ClassDesc;
 import java.util.List;
 
-public record ResolvedLocalNamedType(String name, List<Type> typeArgs, Type type) implements ResolvedNamedType {
+public record ResolvedLocalNamedType(String name, List<Type> typeArgs, Type type) implements
+    ResolvedNamedType {
   public ResolvedLocalNamedType {
     if (type instanceof NamedType) {
       throw new IllegalStateException("Cannot contain unresolved hamed type: " + type);
@@ -20,13 +22,8 @@ public record ResolvedLocalNamedType(String name, List<Type> typeArgs, Type type
   }
 
   @Override
-  public Class<?> typeClass() {
-    return type.typeClass();
-  }
-
-  @Override
-  public String descriptor() {
-    return type.descriptor();
+  public ClassDesc classDesc() {
+    return type.classDesc();
   }
 
   @Override

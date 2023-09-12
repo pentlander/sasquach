@@ -1,25 +1,29 @@
 package com.pentlander.sasquach.type;
 
-import com.pentlander.sasquach.ast.InvocationKind;
-import java.lang.invoke.MethodType;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.DirectMethodHandleDesc;
+import java.lang.constant.DirectMethodHandleDesc.Kind;
 
-public record ForeignFunctionType(MethodType methodType, Type ownerType,
-                                  InvocationKind callType, Type castType) implements Type {
+public record ForeignFunctionType(DirectMethodHandleDesc methodHandleDesc, Type castType) implements
+    Type {
 
 
   @Override
   public String typeName() {
-    return methodType.toString();
+    return methodHandleDesc.invocationType().toString();
+  }
+
+  public Kind methodKind() {
+    return methodHandleDesc.kind();
+  }
+
+  public ClassDesc ownerDesc() {
+    return methodHandleDesc.owner();
   }
 
   @Override
-  public Class<?> typeClass() {
+  public ClassDesc classDesc() {
     throw new IllegalStateException();
-  }
-
-  @Override
-  public String descriptor() {
-    return methodType.descriptorString();
   }
 
   @Override

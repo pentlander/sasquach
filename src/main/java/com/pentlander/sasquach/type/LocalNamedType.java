@@ -2,6 +2,7 @@ package com.pentlander.sasquach.type;
 
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.TypeNode;
+import java.lang.constant.ClassDesc;
 import java.util.List;
 import java.util.Objects;
 
@@ -28,12 +29,7 @@ public record LocalNamedType(Identifier id, List<TypeNode> typeArgumentNodes) im
   }
 
   @Override
-  public Class<?> typeClass() {
-    throw new IllegalStateException();
-  }
-
-  @Override
-  public String descriptor() {
+  public ClassDesc classDesc() {
     throw new IllegalStateException(toString());
   }
 

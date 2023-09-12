@@ -1,5 +1,7 @@
 package com.pentlander.sasquach.backend;
 
+import static com.pentlander.sasquach.type.TypeUtils.classDesc;
+import static com.pentlander.sasquach.type.TypeUtils.internalName;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
 
@@ -18,7 +20,6 @@ import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.type.BuiltinType;
-import com.pentlander.sasquach.type.ClassType;
 import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.SingletonType;
 import com.pentlander.sasquach.type.StructType;
@@ -28,6 +29,10 @@ import com.pentlander.sasquach.type.TypeFetcher;
 import com.pentlander.sasquach.type.TypeUtils;
 import com.pentlander.sasquach.type.TypeVariable;
 import com.pentlander.sasquach.type.VariantType;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.ConstantDescs;
+import java.lang.constant.MethodHandleDesc;
+import java.lang.constant.MethodTypeDesc;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -41,7 +46,7 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
 class ClassGenerator {
-  static final String STRUCT_BASE_INTERNAL_NAME = new ClassType(StructBase.class).internalName();
+  static final String STRUCT_BASE_INTERNAL_NAME = internalName(StructBase.class);
   static final String INSTANCE_FIELD = "INSTANCE";
   private static final int CLASS_VERSION = Opcodes.V19;
   private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
@@ -77,20 +82,19 @@ class ClassGenerator {
     return typeFetcher.getType(identifier);
   }
 
-  static String constructorType(Collection<Type> fieldTypes) {
-    String paramDescriptor = fieldTypes.stream()
-        .map(Type::descriptor)
-        .collect(joining("", "(", ")"));
-    return paramDescriptor + BuiltinType.VOID.descriptor();
+  static MethodTypeDesc constructorTypeDesc(Collection<Type> fieldTypes) {
+    var paramDescriptors = fieldTypes.stream().map(Type::classDesc).toArray(ClassDesc[]::new);
+    return MethodTypeDesc.of(ConstantDescs.CD_void, paramDescriptors);
   }
 
-  static String constructorType(List<? extends Expression> fields, TypeFetcher typeFetcher) {
-    String paramDescriptor = fields.stream()
-        .map(typeFetcher::getType)
-        .map(Type::descriptor)
-        .collect(joining("", "(", ")"));
-    return paramDescriptor + BuiltinType.VOID.descriptor();
+  static ClassDesc[] paramDescs(Collection<Type> fieldTypes) {
+    return fieldTypes.stream().map(Type::classDesc).toArray(ClassDesc[]::new);
   }
+
+  static ClassDesc[] paramDescs(List<? extends Expression> fields, TypeFetcher typeFetcher) {
+    return fields.stream().map(typeFetcher::getType).map(Type::classDesc).toArray(ClassDesc[]::new);
+  }
+
 
   private MethodVisitor generateStructStart(String internalName, Range range,
       Map<String, Type> fields) {
@@ -115,7 +119,7 @@ class ClassGenerator {
         Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL,
         internalName,
         null,
-        "java/lang/Object",
+        internalName(Object.class),
         allInterfaces);
     var sourcePath = range.sourcePath().filepath();
     classWriter.visitSource(sourcePath, null);
@@ -125,22 +129,22 @@ class ClassGenerator {
       var type = entry.getValue();
       var fv = classWriter.visitField(Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL,
           name,
-          type.descriptor(),
+          type.classDesc().descriptorString(),
           null,
           null);
       fv.visitEnd();
     }
 
     // Generate constructor
-    var initDescriptor = constructorType(entries.stream().map(Entry::getValue).toList());
-    var mv = classWriter.visitMethod(Opcodes.ACC_PUBLIC, "<init>", initDescriptor, null, null);
+    var initDescriptor = constructorTypeDesc(entries.stream().map(Entry::getValue).toList());
+    var mv = classWriter.visitMethod(Opcodes.ACC_PUBLIC,
+        "<init>",
+        initDescriptor.descriptorString(),
+        null,
+        null);
     mv.visitCode();
     mv.visitVarInsn(Opcodes.ALOAD, 0);
-    mv.visitMethodInsn(Opcodes.INVOKESPECIAL,
-        new ClassType(Object.class).internalName(),
-        "<init>",
-        "()V",
-        false);
+    GeneratorUtil.generate(mv, MethodHandleDesc.ofConstructor(classDesc(Object.class)));
 
     // Set fields in constructor
     int i = 0;
@@ -149,7 +153,7 @@ class ClassGenerator {
       var type = entry.getValue();
       mv.visitVarInsn(Opcodes.ALOAD, 0);
       ExpressionGenerator.generateLoadVar(mv, type, i + 1);
-      mv.visitFieldInsn(Opcodes.PUTFIELD, internalName, name, type.descriptor());
+      mv.visitFieldInsn(Opcodes.PUTFIELD, internalName, name, type.classDesc().descriptorString());
       i++;
     }
     mv.visitInsn(Opcodes.RETURN);
@@ -180,16 +184,14 @@ class ClassGenerator {
     var mv = generateStructStart(internalName, range, Map.of(), List.of(sumType.internalName()));
     mv.visitMaxs(-1, -1);
 
-    generateStaticInstance(singleton.descriptor(), internalName, methodVisitor -> {
-      methodVisitor.visitTypeInsn(Opcodes.NEW, internalName);
-      methodVisitor.visitInsn(Opcodes.DUP);
-      var initDescriptor = constructorType(List.of(), typeFetcher);
-      methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL,
-          internalName,
-          "<init>",
-          initDescriptor,
-          false);
-    });
+    generateStaticInstance(singleton.classDesc().descriptorString(),
+        internalName,
+        methodVisitor -> {
+          methodVisitor.visitTypeInsn(Opcodes.NEW, internalName);
+          methodVisitor.visitInsn(Opcodes.DUP);
+          var constructorDesc = MethodHandleDesc.ofConstructor(classDesc(internalName));
+          GeneratorUtil.generate(methodVisitor, constructorDesc);
+        });
     classWriter.visitEnd();
   }
 
@@ -240,7 +242,7 @@ class ClassGenerator {
             });
           });
 
-      generateStaticInstance(type(struct).descriptor(),
+      generateStaticInstance(type(struct).classDesc().descriptorString(),
           structType.internalName(),
           methodVisitor -> new ExpressionGenerator(methodVisitor,
               nameResolutionResult,
@@ -300,7 +302,7 @@ class ClassGenerator {
     return switch (type) {
       case TypeVariable typeVar -> "T" + typeVar.typeName() + ";";
       case BuiltinType builtinType when builtinType == BuiltinType.VOID -> null;
-      case default -> type.descriptor();
+      case default -> type.classDesc().descriptorString();
     };
   }
 
@@ -317,7 +319,7 @@ class ClassGenerator {
     }
     var methodVisitor = classWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC,
         funcName,
-        funcType.funcDescriptor(),
+        funcType.functionDesc().descriptorString(),
         signature,
         null);
     var lineNum = function.range().start().line();

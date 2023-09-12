@@ -4,7 +4,8 @@ import static java.util.Objects.requireNonNullElse;
 import static java.util.stream.Collectors.joining;
 
 import com.pentlander.sasquach.runtime.StructBase;
-import java.util.ArrayList;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.MethodTypeDesc;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,30 +28,14 @@ public record FunctionType(List<Type> parameterTypes, List<TypeParameter> typePa
   }
 
   @Override
-  public Class<?> typeClass() {
-    // TODO: Needed to implement higher order functions
-    throw new IllegalStateException();
+  public ClassDesc classDesc() {
+    return StructBase.class.describeConstable().orElseThrow();
   }
 
-  @Override
-  public String descriptor() {
-    return StructBase.class.descriptorString();
-  }
-
-  public String funcDescriptor() {
-    String paramDescriptor = parameterTypes.stream()
-        .map(Type::descriptor)
-        .collect(joining("", "(", ")"));
-    return paramDescriptor + returnType.descriptor();
-  }
-
-  public String funcDescriptorWith(int index, Type type) {
-    var paramTypes = new ArrayList<>(parameterTypes());
-    paramTypes.add(index, type);
-    String paramDescriptor = paramTypes.stream()
-        .map(Type::descriptor)
-        .collect(joining("", "(", ")"));
-    return paramDescriptor + returnType.descriptor();
+  public MethodTypeDesc functionDesc() {
+    return MethodTypeDesc.of(
+        returnType.classDesc(),
+        parameterTypes.stream().map(Type::classDesc).toArray(ClassDesc[]::new));
   }
 
   @Override
