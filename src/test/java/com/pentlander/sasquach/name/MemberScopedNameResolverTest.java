@@ -55,11 +55,6 @@ class MemberScopedNameResolverTest {
     var localRef = (ReferenceDeclaration.Local) result.getVarReference(varReference);
 
     assertThat(localRef.localVariable()).isEqualTo(varDeclA);
-    assertThat(localRef.index()).isEqualTo(0);
-
-    assertThat(result.getVarIndex(varDeclA)).isEqualTo(0);
-    assertThat(result.getVarIndex(varDeclB)).isEqualTo(1);
-    assertThat(result.getVarIndex(varDeclC)).isEqualTo(2);
   }
 
   @Test
@@ -80,7 +75,6 @@ class MemberScopedNameResolverTest {
     var localRef = (ReferenceDeclaration.Module) result.getVarReference(varReference);
 
     assertThat(localRef.moduleDeclaration()).isEqualTo(module);
-    assertThat(result.getVarIndex(varDeclA)).isEqualTo(0);
   }
 
   @Test

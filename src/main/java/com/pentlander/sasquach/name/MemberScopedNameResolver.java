@@ -1,7 +1,5 @@
 package com.pentlander.sasquach.name;
 
-import static java.util.Objects.requireNonNull;
-
 import com.pentlander.sasquach.InternalCompilerException;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.FunctionSignature;
@@ -22,7 +20,6 @@ import com.pentlander.sasquach.ast.expression.ExpressionVisitor;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
-import com.pentlander.sasquach.ast.expression.HiddenVariable;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Loop;
@@ -74,7 +71,6 @@ public class MemberScopedNameResolver {
   private final Map<Identifier, ForeignFunctions> foreignFunctions = new HashMap<>();
   private final Map<Identifier, FunctionCallTarget> localFunctionCalls = new HashMap<>();
   private final Map<VarReference, ReferenceDeclaration> varReferences = new HashMap<>();
-  private final Map<LocalVariable, Integer> localVariableIndex = new HashMap<>();
   private final Deque<Map<String, LocalVariable>> localVariableStacks = new ArrayDeque<>();
   private final Deque<Loop> loopStack = new ArrayDeque<>();
   private final Map<Recur, RecurPoint> recurPoints = new HashMap<>();
@@ -109,7 +105,6 @@ public class MemberScopedNameResolver {
         foreignFunctions,
         localFunctionCalls,
         varReferences,
-        localVariableIndex,
         recurPoints,
         matchTypeNodes,
         errors.build()).merge(resolutionResults);
@@ -119,7 +114,6 @@ public class MemberScopedNameResolver {
   private void addLocalVariable(LocalVariable localVariable) {
     var map = localVariableStacks.getFirst();
     var existingVar = map.put(localVariable.name(), localVariable);
-    localVariableIndex.put(localVariable, localVariableIndex.size());
     if (existingVar != null) {
       errors.add(new DuplicateNameError(localVariable.id(), existingVar.id()));
       throw new InternalCompilerException(
@@ -311,8 +305,7 @@ public class MemberScopedNameResolver {
       var name = varReference.name();
       var localVariable = resolveLocalVar(varReference);
       if (localVariable.isPresent()) {
-        var idx = requireNonNull(localVariableIndex.get(localVariable.get()));
-        varReferences.put(varReference, new ReferenceDeclaration.Local(localVariable.get(), idx));
+        varReferences.put(varReference, new ReferenceDeclaration.Local(localVariable.get()));
       } else {
         var module = moduleScopedNameResolver.resolveModule(name);
         if (module.isPresent()) {
@@ -357,7 +350,6 @@ public class MemberScopedNameResolver {
 
     @Override
     public Void visit(Match match) {
-      addLocalVariable(new HiddenVariable(match));
       visit(match.expr());
       var branchTypeNodes = new ArrayList<TypeNode>();
       for (var branch : match.branches()) {
@@ -404,7 +396,7 @@ public class MemberScopedNameResolver {
   public sealed interface ReferenceDeclaration {
     String toPrettyString();
 
-    record Local(LocalVariable localVariable, int index) implements ReferenceDeclaration {
+    record Local(LocalVariable localVariable) implements ReferenceDeclaration {
       @Override
       public String toPrettyString() {
         return localVariable.toPrettyString();

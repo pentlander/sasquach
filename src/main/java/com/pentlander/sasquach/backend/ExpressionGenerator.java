@@ -22,7 +22,6 @@ import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
-import com.pentlander.sasquach.ast.expression.HiddenVariable;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
@@ -83,17 +82,19 @@ class ExpressionGenerator {
       .descriptorString();
   private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
   private final Deque<Label> loopLabels = new ArrayDeque<>();
-  private final Deque<LocalVarLabel> localVarLabels = new ArrayDeque<>();
   private final MethodVisitor methodVisitor;
   private final NameResolutionResult nameResolutionResult;
   private final TypeFetcher typeFetcher;
+  private final LocalVarMeta localVarMeta;
   private Node contextNode;
 
   ExpressionGenerator(MethodVisitor methodVisitor, NameResolutionResult nameResolutionResult,
-      TypeFetcher typeFetcher) {
+      List<FunctionParameter> params, TypeFetcher typeFetcher) {
     this.methodVisitor = methodVisitor;
     this.nameResolutionResult = nameResolutionResult;
     this.typeFetcher = typeFetcher;
+
+    this.localVarMeta = LocalVarMeta.of(params);
   }
 
   private Type type(Expression expression) {
@@ -104,10 +105,6 @@ class ExpressionGenerator {
     return typeFetcher.getType(identifier);
   }
 
-
-  private org.objectweb.asm.Type asmType(Class<?> clazz) {
-    return org.objectweb.asm.Type.getType(clazz);
-  }
 
   private org.objectweb.asm.Type asmType(String internalName) {
     return org.objectweb.asm.Type.getObjectType(internalName);
@@ -134,15 +131,20 @@ class ExpressionGenerator {
       generate(expression);
       var endLabel = new Label();
       methodVisitor.visitLabel(endLabel);
-      for (var localVarLabel : localVarLabels) {
-        var varDecl = localVarLabel.varDecl();
-        var idx = nameResolutionResult.getVarIndex(varDecl);
-        var varType = type(varDecl.expression());
+      for (var varMeta : localVarMeta.varMeta()) {
+        var varDecl = varMeta.localVar();
+        var idx = varMeta.idx();
+        var varType = switch (varDecl) {
+          case FunctionParameter funcParam -> type(funcParam.id());
+          case VariableDeclaration varDeclar -> type(varDeclar.expression());
+          case PatternVariable patternVar -> type(patternVar.id());
+        };
+        if (varType == null) {continue;}
 
         methodVisitor.visitLocalVariable(varDecl.name(),
             varType.classDesc().descriptorString(),
             signatureDescriptor(varType),
-            localVarLabel.label(),
+            varMeta.label(),
             endLabel,
             idx);
       }
@@ -172,19 +174,17 @@ class ExpressionGenerator {
       }
       case VariableDeclaration varDecl -> {
         var varDeclExpr = varDecl.expression();
-        int idx = nameResolutionResult.getVarIndex(varDecl);
-        var localVarLabel = new LocalVarLabel(varDecl);
-        localVarLabels.push(localVarLabel);
-        methodVisitor.visitLabel(localVarLabel.label());
+        var varMeta = localVarMeta.push(varDecl);
+        methodVisitor.visitLabel(varMeta.label());
         generate(varDeclExpr);
         var varType = type(varDeclExpr);
-        generateStoreVar(methodVisitor, varType, idx);
+        generateStoreVar(methodVisitor, varType, varMeta.idx());
       }
       case VarReference varReference -> {
         var refDecl = nameResolutionResult.getVarReference(varReference);
         switch (refDecl) {
-          case ReferenceDeclaration.Local local ->
-              generateLoadVar(methodVisitor, type(varReference), local.index());
+          case ReferenceDeclaration.Local(var localVar) ->
+              generateLoadVar(methodVisitor, type(varReference), localVarMeta.get(localVar).idx());
           case ReferenceDeclaration.Module module ->
               generate(MethodHandleDesc.ofField(Kind.STATIC_GETTER,
                   ClassDesc.of(module.moduleDeclaration().id().javaName()),
@@ -257,13 +257,11 @@ class ExpressionGenerator {
             generate(methodDesc);
           }
           case LocalVariable localVar -> {
-            var idx = nameResolutionResult.getVarIndex(localVar);
+            int idx = localVarMeta.get(localVar).idx();
             var type = switch (localVar) {
               case VariableDeclaration varDecl -> funcType(varDecl.expression());
               case FunctionParameter funcParam -> funcType(funcParam.id());
               case PatternVariable patternVariable -> funcType(patternVariable.id());
-              // Hidden variable won't be a function
-              case HiddenVariable hiddenVariable -> throw new IllegalStateException();
             };
             generateLoadVar(methodVisitor, type, idx);
             generateArgs(funcCall.arguments(), type.parameterTypes());
@@ -416,7 +414,7 @@ class ExpressionGenerator {
           var arg = recur.arguments().get(i);
           var varDecl = localVars.get(i);
           generate(arg);
-          generateStoreVar(methodVisitor, type(arg), nameResolutionResult.getVarIndex(varDecl));
+          generateStoreVar(methodVisitor, type(arg), localVarMeta.get(varDecl).idx());
         }
         methodVisitor.visitJumpInsn(Opcodes.GOTO, loopLabels.getLast());
       }
@@ -428,12 +426,10 @@ class ExpressionGenerator {
         generateFuncInit(name, List.of());
       }
       case ApplyOperator applyOperator -> generate(applyOperator.toFunctionCall());
-      // Need to implement this
       case Match match -> {
         generate(match.expr());
         methodVisitor.visitInsn(Opcodes.DUP);
-        // Kind of a hack. Need to move var index resolution into the expression generator
-        int exprVarIdx = nameResolutionResult.getVarIndex(new HiddenVariable(match));
+        int exprVarIdx = localVarMeta.pushHidden();
         generateStoreVar(methodVisitor, type(match.expr()), exprVarIdx);
 
         methodVisitor.visitInsn(Opcodes.ICONST_0);
@@ -496,7 +492,7 @@ class ExpressionGenerator {
                 // Store the value in the pattern variable
                 var binding = bindings.get(j);
                 var bindType = type(binding.id());
-                var idx = nameResolutionResult.getVarIndex(binding);
+                int idx = localVarMeta.push(binding).idx();
                 generateStoreVar(methodVisitor, bindType, idx);
               }
             }
@@ -670,15 +666,8 @@ class ExpressionGenerator {
     GeneratorUtil.generate(methodVisitor, methodHandleDesc);
   }
 
-  private record LocalVarLabel(VariableDeclaration varDecl, Label label) {
-    public LocalVarLabel(VariableDeclaration varDecl) {
-      this(varDecl, new Label());
-    }
-  }
-
   private void generateNewDup(String internalName) {
     methodVisitor.visitTypeInsn(Opcodes.NEW, internalName);
     methodVisitor.visitInsn(Opcodes.DUP);
   }
-
 }

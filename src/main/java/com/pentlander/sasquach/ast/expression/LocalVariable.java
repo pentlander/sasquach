@@ -6,7 +6,7 @@ import com.pentlander.sasquach.ast.PatternVariable;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.FunctionCallTarget;
 
 public sealed interface LocalVariable extends Node, FunctionCallTarget permits FunctionParameter,
-    VariableDeclaration, PatternVariable, HiddenVariable {
+    VariableDeclaration, PatternVariable {
   Identifier id();
 
   default String name() {

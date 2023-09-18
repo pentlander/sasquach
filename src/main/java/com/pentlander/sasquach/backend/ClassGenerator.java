@@ -245,7 +245,7 @@ class ClassGenerator {
       generateStaticInstance(type(struct).classDesc().descriptorString(),
           structType.internalName(),
           methodVisitor -> new ExpressionGenerator(methodVisitor,
-              nameResolutionResult,
+              nameResolutionResult, List.of(),
               typeFetcher).generateStructInit(struct));
     }
 
@@ -325,7 +325,8 @@ class ClassGenerator {
     var lineNum = function.range().start().line();
     methodVisitor.visitLineNumber(lineNum, new Label());
     methodVisitor.visitCode();
-    var exprGenerator = new ExpressionGenerator(methodVisitor, nameResolutionResult, typeFetcher);
+    var exprGenerator = new ExpressionGenerator(methodVisitor, nameResolutionResult,
+        function.parameters(), typeFetcher);
     var returnExpr = function.expression();
     if (returnExpr != null) {
       exprGenerator.generateExpr(returnExpr);

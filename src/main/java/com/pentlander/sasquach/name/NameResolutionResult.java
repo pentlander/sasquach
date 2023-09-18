@@ -10,7 +10,6 @@ import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
-import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Match;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VarReference;
@@ -31,9 +30,7 @@ public class NameResolutionResult {
       Map.of(),
       Map.of(),
       Map.of(),
-      Map.of(),
-      Map.of(),
-      Map.of(),
+      Map.of(), Map.of(),
       Map.of(),
       new RangedErrorList(List.of()));
 
@@ -43,7 +40,6 @@ public class NameResolutionResult {
   private final Map<Identifier, ForeignFunctions> foreignFunctions;
   private final Map<Identifier, FunctionCallTarget> localFunctionCalls;
   private final Map<VarReference, ReferenceDeclaration> varReferences;
-  private final Map<LocalVariable, Integer> varIndexes;
   private final Map<Recur, RecurPoint> recurPoints;
   private final Map<Match, List<TypeNode>> matchTypeNodes;
   private final RangedErrorList errors;
@@ -52,8 +48,7 @@ public class NameResolutionResult {
       Map<ForeignFieldAccess, Field> foreignFieldAccesses,
       Map<Identifier, ForeignFunctions> foreignFunctions,
       Map<Identifier, FunctionCallTarget> localFunctionCalls,
-      Map<VarReference, ReferenceDeclaration> varReferences, Map<LocalVariable, Integer> varIndexes,
-      Map<Recur, RecurPoint> recurPoints, Map<Match, List<TypeNode>> matchTypeNodes,
+      Map<VarReference, ReferenceDeclaration> varReferences, Map<Recur, RecurPoint> recurPoints, Map<Match, List<TypeNode>> matchTypeNodes,
       RangedErrorList errors) {
     this.typeAliases = typeAliases;
     this.typeNameAliases = typeNameAliases(typeAliases);
@@ -61,7 +56,6 @@ public class NameResolutionResult {
     this.foreignFunctions = foreignFunctions;
     this.localFunctionCalls = localFunctionCalls;
     this.varReferences = varReferences;
-    this.varIndexes = varIndexes;
     this.recurPoints = recurPoints;
     this.matchTypeNodes = matchTypeNodes;
     this.errors = errors;
@@ -80,7 +74,6 @@ public class NameResolutionResult {
         foreignFunctions,
         localFunctionCalls,
         varReferences,
-        varIndexes,
         recurPoints,
         matchTypeNodes,
         this.errors.concat(errors));
@@ -94,7 +87,6 @@ public class NameResolutionResult {
         foreignFunctions,
         localFunctionCalls,
         varReferences,
-        varIndexes,
         recurPoints,
         matchTypeNodes,
         errors);
@@ -129,10 +121,6 @@ public class NameResolutionResult {
     return requireNonNull(varReferences.get(varReference), varReference.toString());
   }
 
-  public Integer getVarIndex(LocalVariable localVariable) {
-    return requireNonNull(varIndexes.get(localVariable));
-  }
-
   public RecurPoint getRecurPoint(Recur recur) {
     return requireNonNull(recurPoints.get(recur));
   }
@@ -154,7 +142,6 @@ public class NameResolutionResult {
         merged(foreignFunctions, other.foreignFunctions),
         merged(localFunctionCalls, other.localFunctionCalls),
         merged(varReferences, other.varReferences),
-        merged(varIndexes, other.varIndexes),
         merged(recurPoints, other.recurPoints),
         merged(matchTypeNodes, other.matchTypeNodes),
         errors.concat(other.errors));
