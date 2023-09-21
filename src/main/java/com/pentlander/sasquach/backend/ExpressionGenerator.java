@@ -7,6 +7,7 @@ import static com.pentlander.sasquach.backend.ClassGenerator.INSTANCE_FIELD;
 import static com.pentlander.sasquach.backend.ClassGenerator.paramDescs;
 import static com.pentlander.sasquach.backend.ClassGenerator.signatureDescriptor;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
+import static com.pentlander.sasquach.type.TypeUtils.internalName;
 
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Node;
@@ -43,7 +44,6 @@ import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.runtime.StructDispatch;
 import com.pentlander.sasquach.runtime.SwitchBootstraps;
 import com.pentlander.sasquach.type.BuiltinType;
-import com.pentlander.sasquach.type.ClassType;
 import com.pentlander.sasquach.type.ForeignFieldType;
 import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.StructType;
@@ -68,6 +68,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import jdk.dynalink.StandardNamespace;
+import jdk.dynalink.StandardOperation;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Label;
@@ -434,7 +436,7 @@ class ExpressionGenerator {
 
         methodVisitor.visitInsn(Opcodes.ICONST_0);
         var handle = new Handle(Opcodes.H_INVOKESTATIC,
-            new ClassType(SwitchBootstraps.class).internalName(),
+            internalName(SwitchBootstraps.class),
             "bootstrapSwitch",
             MATCH_BOOTSTRAP_DESCRIPTOR,
             false);
@@ -457,7 +459,7 @@ class ExpressionGenerator {
         methodVisitor.visitTableSwitchInsn(0, branches.size() - 1, defaultLabel, labels);
 
         methodVisitor.visitLabel(defaultLabel);
-        var exInternalName = GeneratorUtil.internalName(MatchException.class);
+        var exInternalName = internalName(MatchException.class);
         generateNewDup(exInternalName);
         methodVisitor.visitInsn(Opcodes.ACONST_NULL);
         methodVisitor.visitInsn(Opcodes.ACONST_NULL);
@@ -512,12 +514,15 @@ class ExpressionGenerator {
 
   private void generateFieldAccess(String fieldName, Type fieldType) {
     var handle = new Handle(Opcodes.H_INVOKESTATIC,
-        GeneratorUtil.internalName(StructDispatch.class),
+        internalName(StructDispatch.class),
         "bootstrapField",
         DISPATCH_BOOTSTRAP_DESCRIPTOR,
         false);
+    var operation = StandardOperation.GET.withNamespaces(StandardNamespace.PROPERTY)
+        .named(fieldName)
+        .toString();
     var typeDesc = MethodTypeDesc.of(fieldType.classDesc(), classDesc(StructBase.class));
-    methodVisitor.visitInvokeDynamicInsn(fieldName, typeDesc.descriptorString(), handle);
+    methodVisitor.visitInvokeDynamicInsn(operation, typeDesc.descriptorString(), handle);
   }
 
   private void generateArgs(List<Expression> arguments, List<Type> paramTypes) {
@@ -529,8 +534,11 @@ class ExpressionGenerator {
   }
 
   void generateMemberCall(FunctionType funcType, String funcCallName) {
+    var operation = StandardOperation.CALL.withNamespace(StandardNamespace.METHOD)
+        .named(funcCallName)
+        .toString();
     var handle = new Handle(Opcodes.H_INVOKESTATIC,
-        GeneratorUtil.internalName(StructDispatch.class),
+        internalName(StructDispatch.class),
         "bootstrapMethod",
         DISPATCH_BOOTSTRAP_DESCRIPTOR,
         false);

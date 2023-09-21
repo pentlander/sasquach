@@ -46,10 +46,6 @@ public final class GeneratorUtil {
     }
   }
 
-  static String internalName(Class<?> clazz) {
-    return org.objectweb.asm.Type.getInternalName(clazz);
-  }
-
   static String internalName(ClassDesc classDesc) {
     if (classDesc.isPrimitive()) {
       throw new IllegalArgumentException(classDesc.descriptorString());

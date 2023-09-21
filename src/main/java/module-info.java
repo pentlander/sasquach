@@ -1,5 +1,6 @@
 module sasquach.main {
   requires java.compiler;
+  requires jdk.dynalink;
   requires org.antlr.antlr4.runtime;
   requires org.objectweb.asm;
   requires com.fasterxml.jackson.annotation;

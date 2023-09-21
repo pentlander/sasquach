@@ -9,54 +9,31 @@ import java.lang.invoke.MethodType;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import jdk.dynalink.CallSiteDescriptor;
+import jdk.dynalink.DynamicLinker;
+import jdk.dynalink.DynamicLinkerFactory;
+import jdk.dynalink.Operation;
+import jdk.dynalink.StandardNamespace;
+import jdk.dynalink.StandardOperation;
+import jdk.dynalink.support.ChainedCallSite;
 
 /**
  * Class that handle dynamic dispatch on structs via invokedynamic.
  */
 public final class StructDispatch {
-  private static final Map<Class<?>, Class<?>> PRIMITIVE_MAP = Map.of(
-      Boolean.TYPE, Boolean.class,
-      Integer.TYPE, Integer.class,
-      Long.TYPE, Long.class,
-      Float.TYPE, Float.class,
-      Double.TYPE, Double.class
-  );
+  private static final Map<Class<?>, Class<?>> PRIMITIVE_MAP = Map.of(Boolean.TYPE,
+      Boolean.class,
+      Integer.TYPE,
+      Integer.class,
+      Long.TYPE,
+      Long.class,
+      Float.TYPE,
+      Float.class,
+      Double.TYPE,
+      Double.class);
 
-  /**
-   * Handles dispatch on struct field access.
-   */
-  private static class FieldDispatcher {
-    private final String fieldName;
-    private final Class<?> returnType;
-    private final Map<Class<?>, MethodHandle> lookupTable = new HashMap<>();
+  private static final DynamicLinker DYNAMIC_LINKER = new DynamicLinkerFactory().createLinker();
 
-    private FieldDispatcher(String fieldName, Class<?> returnType) {
-      this.fieldName = fieldName;
-      this.returnType = returnType;
-    }
-
-    public Object get(StructBase struct) throws Throwable {
-      var handle = lookupTable.get(struct.getClass());
-      if (handle == null) {
-        try {
-          handle = MethodHandles.lookup().findGetter(struct.getClass(), fieldName, returnType);
-        } catch (NoSuchFieldException e) {
-          handle = MethodHandles.lookup().findGetter(struct.getClass(), fieldName, Object.class);
-        }
-        lookupTable.put(struct.getClass(), handle);
-      }
-      return handle.invoke(struct);
-    }
-
-    CallSite buildCallSite() throws NoSuchMethodException, IllegalAccessException {
-      // Ultimately the method type looks like (Struct): FieldType. The field name is embedded in the
-      // CallSite
-      var mh = MethodHandles.lookup()
-          .findVirtual(getClass(), "get", MethodType.methodType(Object.class, StructBase.class))
-          .bindTo(this);
-      return new ConstantCallSite(mh.asType(MethodType.methodType(returnType, StructBase.class)));
-    }
-  }
 
   /**
    * Handles dispatch on struct functions.
@@ -83,7 +60,7 @@ public final class StructDispatch {
     private MethodHandle findMethod(StructBase struct, Object[] args)
         throws IllegalAccessException, NoSuchMethodException {
       for (var method : struct.getClass().getMethods()) {
-        if (!method.getName().equals(methodName)) continue;
+        if (!method.getName().equals(methodName)) {continue;}
 
         var paramTypes = method.getParameterTypes();
         boolean matches = true;
@@ -97,8 +74,7 @@ public final class StructDispatch {
           return MethodHandles.lookup().unreflect(method);
         }
       }
-      throw new NoSuchMethodException("No method '%s' on '%s' with params matching: %s".formatted(
-          methodName,
+      throw new NoSuchMethodException("No method '%s' on '%s' with params matching: %s".formatted(methodName,
           struct.getClass().getName(),
           Arrays.toString(args)));
     }
@@ -112,21 +88,39 @@ public final class StructDispatch {
     }
 
     CallSite buildCallSite() throws NoSuchMethodException, IllegalAccessException {
-      var mh = MethodHandles.lookup().findVirtual(getClass(),
-          "invoke",
-          MethodType.methodType(Object.class, StructBase.class, Object[].class)).bindTo(this)
+      var mh = MethodHandles.lookup()
+          .findVirtual(getClass(),
+              "invoke",
+              MethodType.methodType(Object.class, StructBase.class, Object[].class))
+          .bindTo(this)
           .asVarargsCollector(Object[].class);
       return new ConstantCallSite(mh.asType(methodType));
     }
   }
 
-  public static CallSite bootstrapField(Lookup caller, String invokedName, MethodType invokedType)
-      throws NoSuchMethodException, IllegalAccessException {
-    return new FieldDispatcher(invokedName, invokedType.returnType()).buildCallSite();
+  private static Operation parseOperation(String name) {
+    var parts = name.split(":");
+    if (parts.length != 3) {
+      throw new IllegalArgumentException("Bad operation name");
+    }
+    var op = StandardOperation.valueOf(parts[0]);
+    var namespaces = Arrays.stream(parts[1].split("\\|"))
+        .map(StandardNamespace::valueOf)
+        .toArray(StandardNamespace[]::new);
+    var opName = parts[2];
+    return op.withNamespaces(namespaces).named(opName);
+  }
+
+  public static CallSite bootstrapField(Lookup caller, String invokedName, MethodType invokedType) {
+    return DYNAMIC_LINKER.link(new ChainedCallSite(new CallSiteDescriptor(caller,
+        parseOperation(invokedName),
+        invokedType)));
   }
 
   public static CallSite bootstrapMethod(Lookup caller, String invokedName, MethodType invokedType)
       throws NoSuchMethodException, IllegalAccessException {
     return new MethodDispatcher(invokedName, invokedType).buildCallSite();
   }
+
+
 }
