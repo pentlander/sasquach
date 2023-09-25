@@ -5,20 +5,17 @@ import static java.util.Objects.requireNonNull;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
-import com.pentlander.sasquach.type.Type;
+import com.pentlander.sasquach.type.FunctionType;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 
 @RecordBuilder
-public record TypeCheckedFunction(FunctionSignature functionSignature,
-                                  TypedExpression expression) implements TypedExpression {
-  public TypeCheckedFunction {
+// Need to include both the signature and function type in preparation for not requiring
+// parameters types and return type for lambdas
+public record TFunction(FunctionSignature functionSignature, FunctionType type,
+                        TypedExpression expression) implements TypedExpression {
+  public TFunction {
     requireNonNull(functionSignature);
-  }
-
-  @Override
-  public Type type() {
-    return functionSignature.type();
   }
 
   @Override

@@ -45,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -232,29 +231,6 @@ class MemberScopedTypeResolverTest {
   }
 
   @Nested
-  class NamedTypeTest {
-    // When you have a named type with type arguments, it should resolve a parameterized type
-    // with the type args already filled in e.g. Option[Int] -> { value: Int }
-    // NamedType("Option", StructType("value" -> T), [Int])
-    // type Option[T] = { value: T }
-    // f = (int: Int): Option[Int] -> { value = int }
-    @Test
-    @Disabled
-    void resolveWithTypeParameter() {
-      var typeNode = typeNode(new StructType(Map.of("value", new LocalNamedType(id("T")))));
-//      when(nameResolutionResult.getNamedType(any())).thenReturn(Optional.of(typeNode),
-//          Optional.of(new BasicTypeNode<>(new TypeParameter(id("T")), range())));
-
-      var namedType = new LocalNamedType(id("Option"), List.of(typeNode(BuiltinType.INT)));
-      var resolvedType = memberScopedTypeResolver.resolveNamedType(namedType, range());
-
-      assertThat(resolvedType).isEqualTo(new ResolvedLocalNamedType("Option",
-          List.of(),
-          new StructType(Map.of("value", new TypeVariable("T")))));
-    }
-  }
-
-  @Nested
   class FunctionCallTest {
     private final Identifier funcId = id("foo");
     private NamedFunction func;
@@ -391,7 +367,7 @@ class MemberScopedTypeResolverTest {
   }
 
   private Type resolveExpr(Expression expr) {
-    return memberScopedTypeResolver.infer(expr);
+    return memberScopedTypeResolver.infer(expr).type();
   }
 
   private void assertErrorRange(Node node) {

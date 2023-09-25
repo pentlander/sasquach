@@ -14,10 +14,9 @@ import java.util.List;
 import java.util.Optional;
 
 @RecordBuilder
-public record TypedStruct(Optional<String> name, List<Use> useList, List<TypeAlias> typeAliases,
-                          List<TypedField> fields, List<NamedFunction> functions,
-                          StructKind structKind, Range range) implements
-    TypedExpression {
+public record TStruct(Optional<String> name, List<Use> useList, List<TypeAlias> typeAliases,
+                      List<TField> fields, List<NamedFunction> functions, StructKind structKind,
+                      Range range) implements TypedExpression {
 
   public StructType type() {
     var fieldTypes = new HashMap<String, Type>();
@@ -26,7 +25,7 @@ public record TypedStruct(Optional<String> name, List<Use> useList, List<TypeAli
     return name.map(n -> new StructType(n, fieldTypes)).orElseGet(() -> new StructType(fieldTypes));
   }
 
-  public record TypedField(Identifier id, TypedExpression expr) implements TypedExpression {
+  public record TField(Identifier id, TypedExpression expr) implements TypedExpression {
     public String name() {
       return id.name();
     }

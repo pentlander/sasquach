@@ -44,6 +44,34 @@ import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.name.NameResolutionResult;
+import com.pentlander.sasquach.tast.TBranch;
+import com.pentlander.sasquach.tast.TPattern;
+import com.pentlander.sasquach.tast.TPatternVariable;
+import com.pentlander.sasquach.tast.expression.TApplyOperator;
+import com.pentlander.sasquach.tast.expression.TArrayValue;
+import com.pentlander.sasquach.tast.expression.TBinaryExpression.TBooleanExpression;
+import com.pentlander.sasquach.tast.expression.TBinaryExpression.TCompareExpression;
+import com.pentlander.sasquach.tast.expression.TBinaryExpression.TMathExpression;
+import com.pentlander.sasquach.tast.expression.TBlock;
+import com.pentlander.sasquach.tast.expression.TFieldAccess;
+import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
+import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
+import com.pentlander.sasquach.tast.expression.TFunction;
+import com.pentlander.sasquach.tast.expression.TFunctionCall;
+import com.pentlander.sasquach.tast.expression.TIfExpression;
+import com.pentlander.sasquach.tast.expression.TLocalFunctionCall;
+import com.pentlander.sasquach.tast.expression.TLoop;
+import com.pentlander.sasquach.tast.expression.TMatch;
+import com.pentlander.sasquach.tast.expression.TMemberFunctionCall;
+import com.pentlander.sasquach.tast.expression.TPrintStatement;
+import com.pentlander.sasquach.tast.expression.TRecur;
+import com.pentlander.sasquach.tast.expression.TStruct;
+import com.pentlander.sasquach.tast.expression.TStruct.TField;
+import com.pentlander.sasquach.tast.expression.TStructBuilder;
+import com.pentlander.sasquach.tast.expression.TVarReference;
+import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
+import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
+import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.ModuleScopedTypeResolver.ModuleTypeProvider;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType;
 import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType;
@@ -56,6 +84,7 @@ import java.lang.reflect.GenericDeclaration;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.WildcardType;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -129,26 +158,10 @@ public class MemberScopedTypeResolver implements TypeFetcher {
 
   public record QualifiedFunctionId(Identifier classAlias, Identifier functionName) {}
 
-
-  // Resolve a named type into the underlying type that is represented.
-  Type resolveNamedType(Type type, Range range) {
-    return namedTypeResolver.resolveNames(type, range);
-  }
-
-  Type resolveNamedType(Type type, Map<String, Type> typeMap, Range range) {
-    return namedTypeResolver.resolveNames(type, typeMap, range);
-  }
-
   FunctionType convertUniversals(FunctionType type, Range range) {
     var typeParams = typeParams(type.typeParameters(),
         param -> new TypeVariable(param.typeName() + typeVarNum.getAndIncrement()));
     return (FunctionType) namedTypeResolver.resolveNames(type, typeParams, range);
-  }
-
-  SumType convertUniversals(SumType type, Range range) {
-    var typeParams = typeParams(type.typeParameters(),
-        param -> new TypeVariable(param.typeName() + typeVarNum.getAndIncrement()));
-    return (SumType) namedTypeResolver.resolveNames(type, typeParams, range);
   }
 
   private static Type builtinOrClassType(Class<?> clazz, List<Type> typeArgs) {
@@ -186,7 +199,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         switch (type) {
           case ResolvedNamedType resolvedType -> check(expr, resolvedType.type());
           default -> {
-            var inferredType = infer(expr);
+            var inferredType = infer(expr).type();
             try {
               typeUnifier.unify(inferredType, type);
               idTypes.replaceAll((_id, idType) -> typeUnifier.resolve(idType));
@@ -207,92 +220,98 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     }
   }
 
-  public Type infer(Expression expr) {
+  public TypedExpression infer(Expression expr) {
     currentNode = expr;
-    Type type = exprTypes.get(expr);
-    if (type != null) {
-      return type;
+    Type mtype = exprTypes.get(expr);
+    if (mtype != null) {
+      return new TypedExprWrapper(expr, mtype);
     }
 
-    type = switch (expr) {
-      case Value value -> value.type();
+    TypedExpression type = switch (expr) {
+      case Value value -> value;
       case VariableDeclaration varDecl -> {
-        putLocalVarType(varDecl, infer(varDecl.expression()));
-        yield BuiltinType.VOID;
+        var exprType = infer(varDecl.expression());
+        putLocalVarType(varDecl, exprType.type());
+        yield new TVariableDeclaration(varDecl.id(), exprType, varDecl.range());
       }
-      case VarReference varRef -> switch (moduleScopedTypes.getVarReferenceType(varRef)) {
-        case VarRefType.Module(var fieldType) -> fieldType;
-        case VarRefType.LocalVar(var localVar) ->
-            getLocalVarType(localVar).orElseThrow(() -> new IllegalStateException(
-                "Unable to find local: " + localVar));
-      };
+      case VarReference varRef -> {
+        var varRefType = switch (moduleScopedTypes.getVarReferenceType(varRef)) {
+          case VarRefType.Module(var fieldType) -> fieldType;
+          case VarRefType.LocalVar(var localVar) ->
+              getLocalVarType(localVar).orElseThrow(() -> new IllegalStateException(
+                  "Unable to find local: " + localVar));
+        };
+        yield new TVarReference(varRef.id(), varRefType);
+      }
       case BinaryExpression binExpr -> {
-        var leftType = infer(binExpr.left());
-        check(binExpr.right(), leftType);
+        var left = binExpr.left();
+        var right = binExpr.right();
+        var leftTypedExpr = infer(left);
+        check(right, leftTypedExpr.type());
+
+        var rightTypedExpr = new TypedExprWrapper(right, leftTypedExpr.type());
         yield switch (binExpr) {
-          case CompareExpression b -> BuiltinType.BOOLEAN;
-          case MathExpression b -> leftType;
-          case BooleanExpression b -> BuiltinType.BOOLEAN;
+          case CompareExpression b ->
+              new TCompareExpression(b.operator(), leftTypedExpr, rightTypedExpr, b.range());
+          case MathExpression b ->
+              new TMathExpression(b.operator(), leftTypedExpr, rightTypedExpr, b.range());
+          case BooleanExpression b ->
+              new TBooleanExpression(b.operator(), leftTypedExpr, rightTypedExpr, b.range());
         };
       }
       case ArrayValue arrayVal -> {
         var elemType = arrayVal.elementType();
-        arrayVal.expressions().forEach(arrayExpr -> check(expr, elemType));
-        yield new ArrayType(elemType);
+        var typedExprs = arrayVal.expressions().stream().map(arrayExpr -> {
+          check(arrayExpr, elemType);
+          return new TypedExprWrapper(arrayExpr, elemType);
+        }).toList();
+        yield new TArrayValue(arrayVal.type(), typedExprs, arrayVal.range());
       }
-      case Block block -> {
-        var exprs = block.expressions();
-        for (int i = 0; i < exprs.size() - 1; i++) {
-          infer(exprs.get(i));
-        }
-        yield infer(block.returnExpression());
-      }
+      case Block block ->
+          new TBlock(block.expressions().stream().map(this::infer).toList(), block.range());
       case FieldAccess fieldAccess -> resolveFieldAccess(fieldAccess);
       case ForeignFieldAccess foreignFieldAccess -> resolveForeignFieldAccess(foreignFieldAccess);
       case ForeignFunctionCall foreignFuncCall -> resolveForeignFunctionCall(foreignFuncCall);
       case FunctionCall funcCall -> resolveFunctionCall(funcCall);
       case IfExpression ifExpr -> resolveIfExpression(ifExpr);
-      case PrintStatement printStatement -> {
-        infer(printStatement.expression());
-        yield BuiltinType.VOID;
+      case PrintStatement(var pExpr, var pRange) -> new TPrintStatement(infer(pExpr), pRange);
+      case Struct struct -> resolveStruct(struct);
+      case Field field -> {
+        var fieldType = infer(field.value());
+        yield new TField(field.id(), fieldType);
       }
-      case Struct struct -> {
-        var fieldTypes = new HashMap<String, Type>();
-        struct.functions().forEach(func -> {
-          var funcType = infer(func.function());
-          fieldTypes.put(func.name(), funcType);
-          putIdType(func.id(), funcType);
-        });
-        struct.fields().forEach(field -> fieldTypes.put(field.name(), infer(field)));
-        yield struct.name()
-            .map(name -> new StructType(name, fieldTypes))
-            .orElseGet(() -> new StructType(fieldTypes));
-      }
-      case Field field -> infer(field.value());
       case Recur recur -> {
         var recurPoint = nameResolutionResult.getRecurPoint(recur);
         yield switch (recurPoint) {
           case Function func -> {
-            var funcType = convertUniversals((FunctionType) infer(func), func.range());
-            yield resolveParams("recur",
+            var funcType = convertUniversals((FunctionType) infer(func).type(), func.range());
+            var typedExprs = checkFuncArgs("recur",
                 recur.arguments(),
-                recur.range(),
                 funcType.parameterTypes(),
-                funcType.returnType());
+                recur.range());
+            yield new TRecur(typedExprs, typeUnifier.resolve(funcType.returnType()), recur.range());
           }
-          case Loop loop -> resolveParams("recur",
-              recur.arguments(),
-              recur.range(),
-              loop.varDeclarations().stream().map(variableDeclaration -> {
-                infer(variableDeclaration);
-                return getLocalVarType(variableDeclaration).orElseThrow();
-              }).toList(),
-              new TypeVariable("Loop" + typeVarNum.getAndIncrement()));
+          case Loop loop -> {
+            var typedExprs = checkFuncArgs("recur",
+                recur.arguments(),
+                loop.varDeclarations().stream().map(variableDeclaration -> {
+                  infer(variableDeclaration);
+                  return getLocalVarType(variableDeclaration).orElseThrow();
+                }).toList(),
+                recur.range());
+            yield new TRecur(typedExprs,
+                typeUnifier.resolve(new TypeVariable("Loop" + typeVarNum.getAndIncrement())),
+                recur.range());
+          }
         };
       }
       case Loop loop -> {
-        loop.varDeclarations().forEach(this::infer);
-        yield infer(loop.expression());
+        var typedExprs = loop.varDeclarations()
+            .stream()
+            .map(this::infer)
+            .map(TVariableDeclaration.class::cast)
+            .toList();
+        yield new TLoop(typedExprs, infer(loop.expression()), loop.range());
       }
       // Should only infer anonymous function, not ones defined at the module level
       case Function func -> {
@@ -304,44 +323,79 @@ public class MemberScopedTypeResolver implements TypeFetcher {
               putLocalVarType(param, paramType);
               return paramType;
             }));
-        var returnType = infer(func.expression());
-        yield new FunctionType(List.copyOf(paramTypes.values()), List.of(), returnType);
+        var typedExpr = infer(func.expression());
+        var funcType = new FunctionType(List.copyOf(paramTypes.values()),
+            List.of(),
+            typedExpr.type());
+        yield new TFunction(func.functionSignature(), funcType, typedExpr);
       }
-      case ApplyOperator applyOperator -> infer(applyOperator.toFunctionCall());
+      case ApplyOperator applyOperator -> {
+        var funcCall = applyOperator.toFunctionCall();
+        yield new TApplyOperator(infer(funcCall), funcCall.range());
+      }
       case Match match -> resolveMatch(match);
     };
 
-    putExprType(expr, requireNonNull(type, () -> "Null expression type for: %s".formatted(expr)));
+    putExprType(expr,
+        requireNonNull(type.type(), () -> "Null expression type for: %s".formatted(expr)));
     return type;
   }
 
-  private Type resolveIfExpression(IfExpression ifExpr) {
-    check(ifExpr.condition(), BuiltinType.BOOLEAN);
-
-    var trueType = infer(ifExpr.trueExpression());
-    var falseExpr = ifExpr.falseExpression();
-    if (falseExpr != null) {
-      check(falseExpr, trueType);
-      return trueType;
-    }
-    return BuiltinType.VOID;
+  private TStruct resolveStruct(Struct struct) {
+    struct.functions().forEach(func -> {
+      var typedFunc = infer(func.function());
+      putIdType(func.id(), typedFunc.type());
+    });
+    var typedFields = struct.fields()
+        .stream()
+        .map(field -> new TField(field.id(), infer(field)))
+        .toList();
+    return TStructBuilder.builder()
+        .name(struct.name())
+        .fields(typedFields)
+        .functions(struct.functions())
+        .build();
   }
 
-  private Type resolveMatch(Match match) {
-    var exprType = infer(match.expr());
-    if (exprType instanceof SumType sumType) {
+  private TypedExpression resolveIfExpression(IfExpression ifExpr) {
+    check(ifExpr.condition(), BuiltinType.BOOLEAN);
+
+    var typedTrueExpr = infer(ifExpr.trueExpression());
+    var falseExpr = ifExpr.falseExpression();
+    Type type;
+    if (falseExpr != null) {
+      check(falseExpr, typedTrueExpr.type());
+      type = typedTrueExpr.type();
+    } else {
+      type = BuiltinType.VOID;
+    }
+
+    return new TIfExpression(new TypedExprWrapper(ifExpr.condition(), BuiltinType.BOOLEAN),
+        typedTrueExpr,
+        typedTrueExpr,
+        type,
+        ifExpr.range());
+  }
+
+  private TypedExpression resolveMatch(Match match) {
+    var typedExpr = infer(match.expr());
+    if (typedExpr.type() instanceof SumType sumType) {
       // All the variants of the sum type with any type parameters already filled in
       var exprVariantTypes = sumType.types().stream().collect(toMap(Type::typeName, identity()));
       var matchTypeNodes = nameResolutionResult.getMatchTypeNodes(match);
       List<Branch> branches = match.branches();
+      var typedBranches = new ArrayList<TBranch>();
       Type returnType = null;
       for (int i = 0; i < branches.size(); i++) {
         var branch = branches.get(i);
         var typeNode = matchTypeNodes.get(i);
         var branchVariantTypeName = typeNode.typeName();
         var variantType = requireNonNull(exprVariantTypes.remove(branchVariantTypeName));
-        switch (branch.pattern()) {
-          case Pattern.Singleton singleton -> putIdType((Identifier) singleton.id(), variantType);
+        var typedPattern = switch (branch.pattern()) {
+          case Pattern.Singleton singleton -> {
+            putIdType((Identifier) singleton.id(), variantType);
+            yield new TPattern.TSingleton(singleton.id(), variantType);
+          }
           case VariantTuple tuple -> {
             putIdType((Identifier) tuple.id(), variantType);
             var tupleType = (StructType) variantType;
@@ -349,129 +403,161 @@ public class MemberScopedTypeResolver implements TypeFetcher {
             // in a // consistent order. This works because the fields are named by number,
             // e.g _0, _1, etc.
             var tupleFieldTypes = tupleType.sortedFieldTypes();
+            var typedPatternVars = new ArrayList<TPatternVariable>();
             for (int j = 0; j < tuple.bindings().size(); j++) {
               var binding = tuple.bindings().get(j);
               var fieldType = tupleFieldTypes.get(j);
               putLocalVarType(binding, fieldType);
+              typedPatternVars.add(new TPatternVariable(binding.id(), fieldType));
             }
+            yield new TPattern.TVariantTuple(tuple.id(), typedPatternVars, tuple.range());
           }
           case Pattern.VariantStruct struct -> {
             var structType = (StructType) variantType;
+            var typedPatternVars = new ArrayList<TPatternVariable>();
             for (var binding : struct.bindings()) {
               var fieldType = structType.fieldType(binding.id().name());
               putLocalVarType(binding, fieldType);
+              typedPatternVars.add(new TPatternVariable(binding.id(), fieldType));
             }
+            yield new TPattern.TVariantStruct(struct.id(), typedPatternVars, struct.range());
           }
-        }
+        };
 
+        // Infer the type of the first branch, check that the rest of the branches match the first
+        TypedExpression branchTypedExpr;
         if (i == 0) {
-          returnType = infer(branch.expr());
+          branchTypedExpr = infer(branch.expr());
+          returnType = branchTypedExpr.type();
         } else {
           check(branch.expr(), returnType);
+          branchTypedExpr = new TypedExprWrapper(branch.expr(), returnType);
         }
-      }
-      if (!exprVariantTypes.isEmpty()) {
-        return addError(new MatchNotExhaustive("Match is not exhaustive", match.range()));
+        typedBranches.add(new TBranch(typedPattern, branchTypedExpr, branch.range()));
       }
 
-      return returnType;
+      if (!exprVariantTypes.isEmpty()) {
+        return addError(match, new MatchNotExhaustive("Match is not exhaustive", match.range()));
+      }
+
+      return new TMatch(typedExpr, typedBranches, returnType, match.range());
     } else {
-      return addError(new TypeMismatchError("Type '%s' in match is not a sum type".formatted(
-          exprType.toPrettyString()), match.expr().range()));
+      return addError(match,
+          new TypeMismatchError("Type '%s' in match is not a sum type".formatted(typedExpr.toPrettyString()),
+              match.expr().range()));
     }
   }
 
-  private Type resolveFieldAccess(FieldAccess fieldAccess) {
-    var exprType = infer(fieldAccess.expr());
-    var structType = TypeUtils.asStructType(exprType);
+  private TypedExpression resolveFieldAccess(FieldAccess fieldAccess) {
+    var typedStructExpr = infer(fieldAccess.expr());
+    var structType = TypeUtils.asStructType(typedStructExpr.type());
 
     if (structType.isPresent()) {
       var fieldType = structType.get().fieldType(fieldAccess.fieldName());
       if (fieldType != null) {
-        return fieldType;
+        return new TFieldAccess(typedStructExpr, fieldAccess.id(), fieldType);
       } else {
-        return addError(new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(structType.get().typeName(),
-            fieldAccess.fieldName()), fieldAccess.range()));
+        return addError(fieldAccess,
+            new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(structType.get()
+                .typeName(), fieldAccess.fieldName()), fieldAccess.range()));
       }
     }
 
-    return addError(new TypeMismatchError(
-        "Can only access fields on struct types, found type '%s'".formatted(exprType.toPrettyString()),
+    return addError(fieldAccess, new TypeMismatchError(
+        "Can only access fields on struct types, found type '%s'".formatted(typedStructExpr.toPrettyString()),
         fieldAccess.range()));
   }
 
-  private Type resolveParams(String name, List<Expression> args, Range range, List<Type> paramTypes,
-      Type returnType) {
+  private List<TypedExpression> checkFuncArgs(String name, List<Expression> args,
+      List<Type> paramTypes, Range range) {
     // Handle mismatch between arg count and parameter count
     if (args.size() != paramTypes.size()) {
-      return addError(new TypeMismatchError("Function '%s' expects %s arguments but found %s".formatted(name,
+      addError(new TypeMismatchError("Function '%s' expects %s arguments but found %s".formatted(name,
           paramTypes.size(),
           args.size()), range));
     }
 
     // Handle mismatch between arg types and parameter types
+    var typedExprs = new ArrayList<TypedExpression>(args.size());
     for (int i = 0; i < args.size(); i++) {
       var arg = args.get(i);
       var paramType = paramTypes.get(i);
       check(arg, paramType);
+      typedExprs.add(new TypedExprWrapper(arg, paramType));
     }
 
-    return typeUnifier.resolve(resolveNamedType(returnType, range));
+    return typedExprs;
   }
 
-  private Type resolveFunctionCall(FunctionCall funcCall) {
-    FunctionType funcType = null;
+  private TypedExpression resolveFunctionCall(FunctionCall funcCall) {
+    TFunctionCall typedFuncCall = null;
+    var name = funcCall.name();
+    var args = funcCall.arguments();
+    var range = funcCall.range();
+
     switch (funcCall) {
       case LocalFunctionCall localFuncCall -> {
-        funcType = switch (moduleScopedTypes.getFunctionCallType(localFuncCall)) {
+        var funcType = switch (moduleScopedTypes.getFunctionCallType(localFuncCall)) {
           case FuncCallType.Module(var type) -> type;
           case FuncCallType.LocalVar(var localVar) ->
               getLocalVarType(localVar).flatMap(TypeUtils::asFunctionType).orElseThrow();
         };
+        funcType = convertUniversals(funcType, range);
+        var typedExprs = checkFuncArgs(name, args, funcType.parameterTypes(), range);
+        typedFuncCall = new TLocalFunctionCall(localFuncCall.functionId(),
+            typedExprs,
+            typeUnifier.resolve(funcType.returnType()),
+            range);
       }
       case MemberFunctionCall structFuncCall -> {
-        var exprType = infer(structFuncCall.structExpression());
-        var structType = TypeUtils.asStructType(exprType);
+        var structExpr = structFuncCall.structExpression();
+        var typedExpr = infer(structExpr);
+        var structType = TypeUtils.asStructType(typedExpr.type());
 
         if (structType.isPresent()) {
-          var funcName = structFuncCall.functionId().name();
           // need to replace existential types with actual types here
-          var fieldType = structType.get().fieldType(funcName);
+          var fieldType = structType.get().fieldType(name);
           if (fieldType instanceof FunctionType fieldFuncType) {
-            funcType = fieldFuncType;
+            var funcType = convertUniversals(fieldFuncType, range);
+            var typedFuncArgs = checkFuncArgs(name, args, funcType.parameterTypes(), range);
+            typedFuncCall = new TMemberFunctionCall(typedExpr,
+                structFuncCall.functionId(),
+                typedFuncArgs,
+                typeUnifier.resolve(funcType.returnType()),
+                range);
           } else if (fieldType == null) {
-            return addError(new TypeMismatchError("Struct of type '%s' has no field named '%s'".formatted(structType.get().toPrettyString(),
-                funcName), structFuncCall.range()));
+            return addError(funcCall,
+                new TypeMismatchError(("Struct of type '%s' has no field " + "named%s'").formatted(
+                    structType.get().toPrettyString(),
+                    name), range));
           } else {
-            return addError(new TypeMismatchError("Field '%s' of type '%s' is not a function".formatted(funcName,
-                fieldType.toPrettyString()), structFuncCall.functionId().range()));
+            return addError(funcCall,
+                new TypeMismatchError(("Field '%s' of type '%s' is not a " + "function").formatted(
+                    name,
+                    fieldType.toPrettyString()), structFuncCall.functionId().range()));
           }
         } else {
-          return addError(new TypeMismatchError(
-              "Expected field access on type struct, found type '%s'".formatted(exprType.toPrettyString()),
+          return addError(funcCall, new TypeMismatchError(
+              "Expected field access on type struct, found type '%s'".formatted(typedExpr.toPrettyString()),
               structFuncCall.structExpression().range()));
         }
       }
       case ForeignFunctionCall f -> throw new IllegalStateException(f.toString());
     }
 
-    funcType = convertUniversals(funcType, funcCall.range());
-    var p = resolveParams(funcCall.name(),
-        funcCall.arguments(),
-        funcCall.range(),
-        funcType.parameterTypes(),
-        funcType.returnType());
-    return p;
+    return typedFuncCall;
   }
 
-  private Type resolveForeignFieldAccess(ForeignFieldAccess fieldAccess) {
+
+  private TypedExpression resolveForeignFieldAccess(ForeignFieldAccess fieldAccess) {
     var field = nameResolutionResult.getForeignField(fieldAccess);
     var classType = new ClassType(field.getDeclaringClass());
     var accessKind =
         Modifier.isStatic(field.getModifiers()) ? FieldAccessKind.STATIC : FieldAccessKind.INSTANCE;
-    return new ForeignFieldType(builtinOrClassType(field.getType(), List.of()),
+    var foreignFieldType = new ForeignFieldType(builtinOrClassType(field.getType(), List.of()),
         classType,
         accessKind);
+    return new TForeignFieldAccess(fieldAccess.classAlias(), fieldAccess.id(), foreignFieldType);
   }
 
   private boolean argsMatchParamTypes(List<Type> params, List<Type> args) {
@@ -540,9 +626,13 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         .toList();
   }
 
-  private Type resolveForeignFunctionCall(ForeignFunctionCall funcCall) {
+  private TypedExpression resolveForeignFunctionCall(ForeignFunctionCall funcCall) {
     var funcCandidates = nameResolutionResult.getForeignFunction(funcCall);
-    var argTypes = funcCall.arguments().stream().map(this::infer).collect(toList());
+    var argTypes = funcCall.arguments()
+        .stream()
+        .map(this::infer)
+        .map(TypedExpression::type)
+        .collect(toList());
     var classType = new ClassType(funcCandidates.ownerClass());
 
     for (var foreignFuncHandle : funcCandidates.functions()) {
@@ -551,26 +641,35 @@ public class MemberScopedTypeResolver implements TypeFetcher {
       var paramTypes = executableParamTypes(executable, typeParams);
       if (argsMatchParamTypes(paramTypes, argTypes)) {
         var returnType = javaTypeToType(executable.getAnnotatedReturnType().getType(), typeParams);
-        var resolvedReturnType = resolveParams(executable.getName(),
+        var typedExprs = checkFuncArgs(funcCall.name(),
             funcCall.arguments(),
-            funcCall.range(),
             paramTypes,
-            returnType);
+            funcCall.range());
+        var resolvedReturnType = typeUnifier.resolve(returnType);
         var methodHandleDesc = foreignFuncHandle.methodHandle()
             .describeConstable()
             .map(DirectMethodHandleDesc.class::cast)
             .orElseThrow();
         var castType = returnType instanceof TypeVariable ? resolvedReturnType : null;
-        putForeignFuncType(funcCall, new ForeignFunctionType(methodHandleDesc, castType));
-        return resolvedReturnType;
+
+        var foreignFuncType = new ForeignFunctionType(methodHandleDesc, castType);
+        var foreignFuncCall = new TForeignFunctionCall(funcCall.classAlias(),
+            funcCall.functionId(),
+            foreignFuncType,
+            typedExprs,
+            resolvedReturnType,
+            funcCall.range());
+        putForeignFuncType(funcCall, foreignFuncType);
+        return foreignFuncCall;
       }
     }
 
     var methodSignature = funcCall.name() + argTypes.stream()
         .map(Type::toPrettyString)
         .collect(joining("," + " ", "(", ")"));
-    return addError(new TypeLookupError("No method '%s' found on class '%s'".formatted(methodSignature,
-        classType.typeName()), funcCall.range()));
+    return addError(funcCall,
+        new TypeLookupError("No method '%s' found on class '%s'".formatted(methodSignature,
+            classType.typeName()), funcCall.range()));
   }
 
   private void putForeignFuncType(ForeignFunctionCall foreignFunctionCall,
@@ -582,6 +681,11 @@ public class MemberScopedTypeResolver implements TypeFetcher {
   private Type addError(RangedError error) {
     errors.add(error);
     return new UnknownType();
+  }
+
+  private TypedExpression addError(Expression expr, RangedError error) {
+    errors.add(error);
+    return new TypedExprWrapper(expr, new UnknownType());
   }
 
   private void putExprType(Expression expr, Type type) {

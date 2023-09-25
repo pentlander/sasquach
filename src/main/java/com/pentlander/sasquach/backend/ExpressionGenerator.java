@@ -421,6 +421,9 @@ class ExpressionGenerator {
         methodVisitor.visitJumpInsn(Opcodes.GOTO, loopLabels.getLast());
       }
       case Function func -> {
+        // TODO: Change generation of lambdas to be a static method and its method handle instead
+        //  of a struct. Java only needs to generate a class because lambdas need to conform to
+        //  an interface
         var classGen = new ClassGenerator(nameResolutionResult, typeFetcher);
         var name = classGen.generateFunctionStruct(func, List.of());
 

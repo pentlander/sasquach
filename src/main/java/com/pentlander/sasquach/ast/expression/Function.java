@@ -6,12 +6,13 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.RecurPoint;
 
+import com.pentlander.sasquach.tast.TRecurPoint;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 
 @RecordBuilder
 public record Function(FunctionSignature functionSignature,
-                       Expression expression) implements Expression, RecurPoint {
+                       Expression expression) implements Expression, RecurPoint, TRecurPoint {
   public Function {
     requireNonNull(functionSignature);
   }

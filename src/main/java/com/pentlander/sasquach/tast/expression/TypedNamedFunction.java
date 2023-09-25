@@ -8,7 +8,7 @@ import com.pentlander.sasquach.tast.TypedNode;
 import com.pentlander.sasquach.type.Type;
 import java.util.List;
 
-public record TypedNamedFunction(Identifier id, TypeCheckedFunction function) implements TypedNode {
+public record TypedNamedFunction(Identifier id, TFunction function) implements TypedNode {
   public String name() {
     return id().name();
   }

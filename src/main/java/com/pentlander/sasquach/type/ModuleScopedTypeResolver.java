@@ -20,9 +20,9 @@ import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaratio
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Singleton;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStructConstructor;
 import com.pentlander.sasquach.name.NameResolutionResult;
+import com.pentlander.sasquach.tast.expression.TStruct.TField;
+import com.pentlander.sasquach.tast.expression.TStructBuilder;
 import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
-import com.pentlander.sasquach.tast.expression.TypedStruct.TypedField;
-import com.pentlander.sasquach.tast.expression.TypedStructBuilder;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType.LocalVar;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -89,19 +89,19 @@ public class ModuleScopedTypeResolver {
     });
 
     var modScopedTypes = new ResolverModuleScopedTypes();
-    var typedFields = new ArrayList<TypedField>();
+    var typedFields = new ArrayList<TField>();
     struct.fields().forEach(field -> {
       var resolver = new MemberScopedTypeResolver(idTypes,
           nameResolutionResult,
           moduleTypeProvider,
           modScopedTypes);
       var result = resolver.inferType(field);
-      var typedField = new TypedField(field.id(),
+      var typedField = new TField(field.id(),
           new TypedExprWrapper(field.value(), result.getType(field)));
       typedFields.add(typedField);
       errors.addAll(result.errors());
     });
-    var typedStruct = TypedStructBuilder.builder()
+    var typedStruct = TStructBuilder.builder()
         .name(struct.name())
         .useList(struct.useList())
         .typeAliases(namedTypeResolver.mapResolveTypeNode(struct.typeAliases()))
