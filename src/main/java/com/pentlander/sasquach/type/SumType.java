@@ -25,6 +25,16 @@ public record SumType(QualifiedModuleName moduleName, String name,
 
   @Override
   public boolean isAssignableFrom(Type other) {
-    return this.equals(other) || types.stream().anyMatch(type -> type.isAssignableFrom(other));
+    if (other instanceof SumType sumType) {
+      for (int i = 0; i < types.size(); i++) {
+        var type = types.get(i);
+        var otherType = sumType.types.get(i);
+        if (!type.isAssignableFrom(otherType)) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return types.stream().anyMatch(type -> type.isAssignableFrom(other));
   }
 }

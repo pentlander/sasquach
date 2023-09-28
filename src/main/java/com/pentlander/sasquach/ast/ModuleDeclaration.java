@@ -6,7 +6,7 @@ import com.pentlander.sasquach.ast.expression.Struct;
 /**
  * Declaration of a module struct.
  */
-public record ModuleDeclaration(QualifiedIdentifier id, Struct struct, Range range) implements Node {
+public record ModuleDeclaration(QualifiedModuleId id, Struct struct, Range range) implements Node {
   /**
    * Module name.
    */

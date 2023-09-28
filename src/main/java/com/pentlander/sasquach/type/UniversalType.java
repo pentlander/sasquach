@@ -21,4 +21,5 @@ public record UniversalType(String name, int level) implements Type, Parameteriz
   public String internalName() {
     return Object.class.getCanonicalName().replace('.', '/');
   }
+
 }

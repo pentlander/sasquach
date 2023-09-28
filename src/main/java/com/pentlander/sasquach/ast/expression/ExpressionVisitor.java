@@ -12,7 +12,6 @@ public interface ExpressionVisitor<T> {
       case BinaryExpression binExpr -> visit(binExpr);
       case Block block -> visit(block);
       case FieldAccess fieldAccess -> visit(fieldAccess);
-      case Field field -> visit(field);
       case ForeignFieldAccess fieldAccess -> visit(fieldAccess);
       case FunctionCall funcCall -> visit(funcCall);
       case Function func -> visit(func);

@@ -2,7 +2,6 @@ package com.pentlander.sasquach.type;
 
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -10,18 +9,13 @@ import java.util.Optional;
  */
 public class TypeUnifier {
   /**
-   * Map of type variables to their resolved types.
-   */
-  private final Map<TypeVariable, Type> unifiedTypes = new HashMap<>();
-
-  /**
    * Resolves the type by replacing any type variables in a parameterized type with a concrete one.
    */
   public Type resolve(Type type) {
     if (type instanceof ParameterizedType paramType) {
       return switch (paramType) {
         case UniversalType universalType -> universalType;
-        case TypeVariable typeVariable -> unifiedTypes.getOrDefault(typeVariable, typeVariable);
+        case TypeVariable typeVariable -> typeVariable.resolvedType().orElse(typeVariable);
         case FunctionType funcType -> {
           var paramTypes = resolve(funcType.parameterTypes());
           var returnType = resolve(funcType.returnType());
@@ -78,30 +72,25 @@ public class TypeUnifier {
       unify(sourceParamType, resolve(destType));
     }
 
-    if (!sourceType.isAssignableFrom(resolve(destType))) {
+    var resolvedDestType = resolve(destType);
+    if (!sourceType.isAssignableFrom(resolvedDestType)) {
       throw new UnificationException(destType, sourceType);
     }
   }
 
-  private void putType(TypeVariable typeVar, Type type) {
-    // Do not store a type var being equal to itself
-    if (type.equals(typeVar)) {return;}
-
-    unifiedTypes.put(typeVar, type);
-    unifiedTypes.replaceAll((v, varType) -> resolve(varType));
-  }
-
   private void unifyTypeVariable(TypeVariable typeVar, Type sourceType) {
-    var unifiedType = unifiedTypes.get(typeVar);
-    if (unifiedType != null && !(unifiedType instanceof TypeVariable) && !unifiedType.equals(
-        sourceType)) {
-      throw new UnificationException(typeVar, sourceType, unifiedType);
+    if (!typeVar.resolveType(sourceType)) {
+      throw new UnificationException(typeVar, sourceType, typeVar.resolvedType().orElseThrow());
     }
-    putType(typeVar, sourceType);
   }
 
   private void unify(ParameterizedType destType, Type sourceType) {
     switch (destType) {
+      case UniversalType universalType when sourceType instanceof UniversalType -> {
+        if (!universalType.isAssignableFrom(sourceType)) {
+          throw new UnificationException(destType, sourceType);
+        }
+      }
       case TypeVariable typeVar -> unifyTypeVariable(typeVar, sourceType);
       case FunctionType destFuncType when sourceType instanceof FunctionType sourceFuncType -> {
         var paramCount = destFuncType.parameterTypes().size();
@@ -134,13 +123,12 @@ public class TypeUnifier {
           unify(destVariantType, sourceVariantType);
         }
       }
-      case SumType destSumType when sourceType instanceof SingletonType sourceSingletonType -> {
-        destSumType.types()
-            .stream()
-            .filter(t -> t.isAssignableFrom(sourceSingletonType))
-            .findFirst()
-            .orElseThrow(() -> new UnificationException(destType, sourceType));
-      }
+      case SumType destSumType when sourceType instanceof SingletonType sourceSingletonType ->
+          destSumType.types()
+              .stream()
+              .filter(t -> t.isAssignableFrom(sourceSingletonType))
+              .findFirst()
+              .orElseThrow(() -> new UnificationException(destType, sourceType));
       case StructType destSumType when sourceType instanceof SumType sourceSumType -> {
         var matchingVariant = sourceSumType.types()
             .stream()

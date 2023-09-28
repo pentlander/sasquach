@@ -1,34 +1,29 @@
 package com.pentlander.sasquach.backend;
 
+import static com.pentlander.sasquach.type.TypeUtils.asFunctionType;
+import static com.pentlander.sasquach.type.TypeUtils.asType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
 import static com.pentlander.sasquach.type.TypeUtils.internalName;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.Identifier;
-import com.pentlander.sasquach.ast.ModuleDeclaration;
-import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
-import com.pentlander.sasquach.ast.expression.Expression;
-import com.pentlander.sasquach.ast.expression.Function;
-import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.StructKind;
-import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
-import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.runtime.StructBase;
+import com.pentlander.sasquach.tast.TModuleDeclaration;
+import com.pentlander.sasquach.tast.TypedNode;
+import com.pentlander.sasquach.tast.expression.TFunction;
+import com.pentlander.sasquach.tast.expression.TStruct;
+import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.type.BuiltinType;
-import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.SingletonType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.SumType;
 import com.pentlander.sasquach.type.Type;
-import com.pentlander.sasquach.type.TypeFetcher;
-import com.pentlander.sasquach.type.TypeUtils;
 import com.pentlander.sasquach.type.TypeVariable;
-import com.pentlander.sasquach.type.VariantType;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.ConstantDescs;
 import java.lang.constant.MethodHandleDesc;
@@ -52,16 +47,9 @@ class ClassGenerator {
   private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
   private final ClassWriter classWriter = new SasqClassWriter(generatedClasses,
       ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
-  private final NameResolutionResult nameResolutionResult;
-  private final TypeFetcher typeFetcher;
-  private Node contextNode;
+  private TypedNode contextNode;
 
-  ClassGenerator(NameResolutionResult nameResolutionResult, TypeFetcher typeFetcher) {
-    this.nameResolutionResult = nameResolutionResult;
-    this.typeFetcher = typeFetcher;
-  }
-
-  public Map<String, ClassWriter> generate(ModuleDeclaration moduleDeclaration) {
+  public Map<String, ClassWriter> generate(TModuleDeclaration moduleDeclaration) {
     try {
       generateStruct(moduleDeclaration.struct());
     } catch (RuntimeException e) {
@@ -70,16 +58,8 @@ class ClassGenerator {
     return generatedClasses;
   }
 
-  private void setContext(Node node) {
+  private void setContext(TypedNode node) {
     contextNode = node;
-  }
-
-  private Type type(Expression expression) {
-    return typeFetcher.getType(expression);
-  }
-
-  private Type type(Identifier identifier) {
-    return typeFetcher.getType(identifier);
   }
 
   static MethodTypeDesc constructorTypeDesc(Collection<Type> fieldTypes) {
@@ -87,12 +67,8 @@ class ClassGenerator {
     return MethodTypeDesc.of(ConstantDescs.CD_void, paramDescriptors);
   }
 
-  static ClassDesc[] paramDescs(Collection<Type> fieldTypes) {
-    return fieldTypes.stream().map(Type::classDesc).toArray(ClassDesc[]::new);
-  }
-
-  static ClassDesc[] paramDescs(List<? extends Expression> fields, TypeFetcher typeFetcher) {
-    return fields.stream().map(typeFetcher::getType).map(Type::classDesc).toArray(ClassDesc[]::new);
+  static ClassDesc[] fieldParamDescs(List<? extends TypedNode> fields) {
+    return fields.stream().map(TypedNode::type).map(Type::classDesc).toArray(ClassDesc[]::new);
   }
 
 
@@ -105,7 +81,7 @@ class ClassGenerator {
       Map<String, Type> fields, List<String> interfaces) {
     var entries = fields.entrySet()
         .stream()
-        .filter(entry -> !(entry.getValue() instanceof FunctionType))
+        .filter(entry -> asFunctionType(entry.getValue()).isEmpty())
         .toList();
     generatedClasses.put(internalName.replace('/', '.'), classWriter);
 
@@ -205,10 +181,10 @@ class ClassGenerator {
     classWriter.visitEnd();
   }
 
-  void generateStruct(Struct struct) {
+  void generateStruct(TStruct struct) {
     setContext(struct);
     // Generate class header
-    var structType = TypeUtils.asStructType(type(struct)).orElseThrow();
+    var structType = struct.type();
     var mv = generateStructStart(structType.internalName(),
         struct.range(),
         structType.fieldTypes());
@@ -221,14 +197,13 @@ class ClassGenerator {
           .flatMap(type -> type instanceof SumTypeNode sumTypeNode ? Stream.of(sumTypeNode)
               : Stream.empty())
           .forEach(sumTypeNode -> {
-            var sumType = (SumType) type(sumTypeNode.id());
-            var sumTypeGenerator = new ClassGenerator(nameResolutionResult, typeFetcher);
+            var sumType = sumTypeNode.type();
+            var sumTypeGenerator = new ClassGenerator();
             sumTypeGenerator.generateSumType(sumType);
             generatedClasses.putAll(sumTypeGenerator.getGeneratedClasses());
             sumTypeNode.variantTypeNodes().forEach(variantTypeNode -> {
-              var variantType = (VariantType) type(variantTypeNode.id());
-              var variantGenerator = new ClassGenerator(nameResolutionResult, typeFetcher);
-              switch (variantType) {
+              var variantGenerator = new ClassGenerator();
+              switch (variantTypeNode.type()) {
                 case StructType variantStructType -> variantGenerator.generateVariantStruct(
                     variantStructType,
                     sumType,
@@ -242,19 +217,16 @@ class ClassGenerator {
             });
           });
 
-      generateStaticInstance(type(struct).classDesc().descriptorString(),
+      generateStaticInstance(structType.classDesc().descriptorString(),
           structType.internalName(),
-          methodVisitor -> new ExpressionGenerator(methodVisitor,
-              nameResolutionResult,
-              List.of(),
-              typeFetcher).generateStructInit(struct));
+          methodVisitor -> new ExpressionGenerator(methodVisitor, List.of()).generateStructInit(
+              struct));
     }
 
     // Generate methods
     for (var function : struct.functions()) {
       setContext(function);
-      var funcType = TypeUtils.asFunctionType(type(function.id())).orElseThrow();
-      generateFunction(function.name(), funcType, function.function());
+      generateFunction(function.name(), function.function());
     }
 
     // Class footer
@@ -284,14 +256,14 @@ class ClassGenerator {
     smv.visitEnd();
   }
 
-  String generateFunctionStruct(Function function, List<VarReference> captures) {
+  String generateFunctionStruct(TFunction function, List<TVarReference> captures) {
     // Generate class header
     var name = "Lambda$" + Integer.toHexString(function.hashCode());
-    var captureTypes = captures.stream().collect(toMap(VarReference::name, this::type));
+    var captureTypes = captures.stream().collect(toMap(TVarReference::name, TypedNode::type));
     var mv = generateStructStart(name, function.range(), captureTypes);
 
     // Generate methods
-    generateFunction("_invoke", TypeUtils.asFunctionType(type(function)).get(), function);
+    generateFunction("_invoke", function);
 
     // Class footer
     mv.visitMaxs(-1, -1);
@@ -303,11 +275,12 @@ class ClassGenerator {
     return switch (type) {
       case TypeVariable typeVar -> "T" + typeVar.typeName() + ";";
       case BuiltinType builtinType when builtinType == BuiltinType.VOID -> null;
-      case default -> type.classDesc().descriptorString();
+      default -> type.classDesc().descriptorString();
     };
   }
 
-  private void generateFunction(String funcName, FunctionType funcType, Function function) {
+  private void generateFunction(String funcName, TFunction function) {
+    var funcType = function.type();
     String signature = null;
     if (!funcType.typeParameters().isEmpty()) {
       signature = funcType.typeParameters()
@@ -326,16 +299,13 @@ class ClassGenerator {
     var lineNum = function.range().start().line();
     methodVisitor.visitLineNumber(lineNum, new Label());
     methodVisitor.visitCode();
-    var exprGenerator = new ExpressionGenerator(methodVisitor,
-        nameResolutionResult,
-        function.parameters(),
-        typeFetcher);
+    var exprGenerator = new ExpressionGenerator(methodVisitor, function.parameters());
     var returnExpr = function.expression();
     if (returnExpr != null) {
       exprGenerator.generateExpr(returnExpr);
-      Type type = type(returnExpr);
-      if (type instanceof BuiltinType builtinType) {
-        int opcode = switch (builtinType) {
+      var type = asType(BuiltinType.class, returnExpr.type());
+      if (type.isPresent()) {
+        int opcode = switch (type.get()) {
           case BOOLEAN, INT, CHAR, BYTE, SHORT -> Opcodes.IRETURN;
           case LONG -> Opcodes.LRETURN;
           case FLOAT -> Opcodes.FRETURN;

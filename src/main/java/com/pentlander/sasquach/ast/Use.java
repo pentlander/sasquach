@@ -10,7 +10,7 @@ public sealed interface Use extends Node {
   /**
    * Fully qualified id of the module or class. Qualified imports use '/' as a separator .
    */
-  QualifiedIdentifier id();
+  QualifiedModuleId id();
 
   /**
    * Fully qualified name of the import.
@@ -27,10 +27,10 @@ public sealed interface Use extends Node {
   /**
    * Import for a module.
    */
-  record Module(QualifiedIdentifier id, Identifier alias, Range range) implements Use {}
+  record Module(QualifiedModuleId id, Identifier alias, Range range) implements Use {}
 
   /**
    * Import for a foreign class.
    */
-  record Foreign(QualifiedIdentifier id, Identifier alias, Range range) implements Use {}
+  record Foreign(QualifiedModuleId id, Identifier alias, Range range) implements Use {}
 }

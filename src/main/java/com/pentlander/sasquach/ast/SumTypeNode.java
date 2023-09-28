@@ -59,10 +59,6 @@ public record SumTypeNode(QualifiedModuleName moduleName, Identifier id,
       public SingletonType type() {
         return new SingletonType(moduleName(), id().name());
       }
-
-      public QualifiedIdentifier qualifiedId() {
-        return new QualifiedIdentifier(moduleName.qualifyInner(id.name()), id.range());
-      }
     }
 
     record Tuple(QualifiedModuleName moduleName, Identifier aliasId, Identifier id,

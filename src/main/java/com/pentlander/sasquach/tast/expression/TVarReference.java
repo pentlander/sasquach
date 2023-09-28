@@ -2,10 +2,12 @@ package com.pentlander.sasquach.tast.expression;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Identifier;
-import com.pentlander.sasquach.ast.expression.Expression;
+import com.pentlander.sasquach.ast.QualifiedModuleId;
+import com.pentlander.sasquach.type.SingletonType;
 import com.pentlander.sasquach.type.Type;
 
-public record TVarReference(Identifier id, Type type) implements TypedExpression {
+public record TVarReference(Identifier id, RefDeclaration refDeclaration, Type type) implements
+    TypedExpression {
 
   public String name() {
     return id.name();
@@ -19,5 +21,13 @@ public record TVarReference(Identifier id, Type type) implements TypedExpression
   @Override
   public String toPrettyString() {
     return id().name();
+  }
+
+  public sealed interface RefDeclaration {
+    record Local(TLocalVariable localVariable) implements RefDeclaration {}
+
+    record Module(QualifiedModuleId moduleId) implements RefDeclaration {}
+
+    record Singleton(SingletonType singletonType) implements RefDeclaration {}
   }
 }

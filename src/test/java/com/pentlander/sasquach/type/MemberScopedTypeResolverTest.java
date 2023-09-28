@@ -6,6 +6,7 @@ import static com.pentlander.sasquach.Fixtures.foreignMethods;
 import static com.pentlander.sasquach.Fixtures.id;
 import static com.pentlander.sasquach.Fixtures.intValue;
 import static com.pentlander.sasquach.Fixtures.literalStruct;
+import static com.pentlander.sasquach.Fixtures.qualId;
 import static com.pentlander.sasquach.Fixtures.range;
 import static com.pentlander.sasquach.Fixtures.stringValue;
 import static com.pentlander.sasquach.Fixtures.typeNode;
@@ -35,6 +36,7 @@ import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
+import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType;
 import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType;
@@ -250,11 +252,18 @@ class MemberScopedTypeResolverTest {
 
     @Nested
     class Local {
+      final Identifier funcId = id("foo");
+
       @BeforeEach
       void setUp() {
         memberScopedTypeResolver.checkType(func);
         when(moduleScopedTypes.getFunctionCallType(any())).thenReturn(new FuncCallType.Module(func.functionSignature()
             .type()));
+
+        when(nameResolutionResult.getLocalFunctionCallTarget(any())).thenReturn(new QualifiedFunction(
+            qualId("foo"),
+            funcId,
+            null));
       }
 
       @Test

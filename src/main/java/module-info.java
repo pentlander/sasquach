@@ -3,8 +3,6 @@ module sasquach.main {
   requires jdk.dynalink;
   requires org.antlr.antlr4.runtime;
   requires org.objectweb.asm;
-  requires com.fasterxml.jackson.annotation;
-  requires com.fasterxml.jackson.databind;
   requires static io.soabase.recordbuilder.core;
   requires static classindex;
 

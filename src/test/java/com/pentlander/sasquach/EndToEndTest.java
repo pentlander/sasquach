@@ -3,7 +3,6 @@ package com.pentlander.sasquach;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.util.Optional;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
@@ -45,6 +44,7 @@ public class EndToEndTest {
           },
         }
         """);
+    // Figure out why the local named type isn't being replaced
     var clazz = compileClass(source, "main/Main");
     int sum = invokeName(clazz, "foo", null);
 
@@ -99,7 +99,7 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClassDebug(source, "main/Main");
     int sum = invokeName(clazz, "foo", null);
 
     assertThat(sum).isEqualTo(27);

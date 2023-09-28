@@ -9,7 +9,7 @@ import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
-import com.pentlander.sasquach.ast.QualifiedIdentifier;
+import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -90,6 +90,11 @@ public class MemberScopedNameResolver {
 
   public NameResolutionResult resolve(Expression expression) {
     visitor.visit(expression);
+    return resolutionResult();
+  }
+
+  public NameResolutionResult resolve(Struct.Field field) {
+    visitor.visit(field);
     return resolutionResult();
   }
 
@@ -431,10 +436,6 @@ public class MemberScopedNameResolver {
                                          List<TypeParameter> typeParameters,
                                          Struct struct) implements FunctionCallTarget {}
 
-  public record QualifiedFunction(QualifiedIdentifier ownerId, Identifier id,
-                                  Function function) implements FunctionCallTarget {
-    public QualifiedFunction(QualifiedIdentifier ownerId, NamedFunction namedFunction) {
-      this(ownerId, namedFunction.id(), namedFunction.function());
-    }
-  }
+  public record QualifiedFunction(QualifiedModuleId ownerId, Identifier id,
+                                  Function function) implements FunctionCallTarget {}
 }

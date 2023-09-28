@@ -1,24 +1,23 @@
-package com.pentlander.sasquach.tast.expression;
+package com.pentlander.sasquach.tast;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.tast.TypedNode;
+import com.pentlander.sasquach.tast.expression.TFunction;
+import com.pentlander.sasquach.tast.expression.TypedExpression;
+import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.Type;
 import java.util.List;
 
-public record TypedNamedFunction(Identifier id, TFunction function) implements TypedNode {
+public record TNamedFunction(Identifier id, TFunction function) implements TypedNode, TypedMember {
   public String name() {
     return id().name();
   }
 
   public Range.Single nameRange() {
     return id.range();
-  }
-
-  public FunctionSignature functionSignature() {
-    return function.functionSignature();
   }
 
   public List<FunctionParameter> parameters() {
@@ -30,7 +29,7 @@ public record TypedNamedFunction(Identifier id, TFunction function) implements T
   }
 
   @Override
-  public Type type() {
+  public FunctionType type() {
     return function.type();
   }
 

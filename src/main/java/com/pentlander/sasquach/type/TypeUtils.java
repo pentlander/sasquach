@@ -23,7 +23,22 @@ public final class TypeUtils {
     return switch (type) {
       case StructType structType -> Optional.of(structType);
       case ResolvedNamedType resolvedNamedType -> asStructType(resolvedNamedType.type());
-      case default -> Optional.empty();
+      case TypeVariable typeVariable -> asStructType(typeVariable.resolvedType().orElseThrow());
+      default -> Optional.empty();
+    };
+  }
+
+  public static <T extends Type> Optional<T> asType(Class<T> clazz, Type type) {
+    return switch (type) {
+      case ResolvedNamedType resolvedNamedType -> asType(clazz, resolvedNamedType.type());
+      case TypeVariable typeVariable -> asType(clazz, typeVariable.resolvedType().orElseThrow());
+      default -> {
+        if (clazz.isInstance(type)) {
+          yield Optional.of(clazz.cast(type));
+        } else {
+          yield Optional.empty();
+        }
+      }
     };
   }
 
@@ -31,7 +46,8 @@ public final class TypeUtils {
     return switch (type) {
       case FunctionType structType -> Optional.of(structType);
       case ResolvedNamedType resolvedNamedType -> asFunctionType(resolvedNamedType.type());
-      case default -> Optional.empty();
+      case TypeVariable typeVariable -> asFunctionType(typeVariable.resolvedType().orElseThrow());
+      default -> Optional.empty();
     };
   }
 

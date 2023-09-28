@@ -4,7 +4,6 @@ import static java.util.Objects.requireNonNull;
 import static java.util.Objects.requireNonNullElse;
 
 import com.pentlander.sasquach.Range;
-
 import com.pentlander.sasquach.Range.Single;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Node;
@@ -17,10 +16,9 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RecordBuilder
-public record Struct(Optional<String> name, List<Use> useList,
-                     List<TypeAlias> typeAliases, List<Field> fields,
-                     List<NamedFunction> functions, StructKind structKind, Range range) implements
-    Expression {
+public record Struct(Optional<String> name, List<Use> useList, List<TypeAlias> typeAliases,
+                     List<Field> fields, List<NamedFunction> functions, StructKind structKind,
+                     Range range) implements Expression {
 
   public Struct {
     useList = requireNonNullElse(useList, List.of());
@@ -33,8 +31,7 @@ public record Struct(Optional<String> name, List<Use> useList,
 
   public static Struct literalStruct(List<Field> fields, List<NamedFunction> functions,
       Range range) {
-    return new Struct(
-        Optional.empty(),
+    return new Struct(Optional.empty(),
         List.of(),
         List.of(),
         fields,
@@ -44,29 +41,23 @@ public record Struct(Optional<String> name, List<Use> useList,
   }
 
   public static Struct variantLiteralStruct(String name, List<Field> fields,
-      List<NamedFunction> functions,
-      Range range) {
-    return new Struct(
-        Optional.of(name),
+      List<NamedFunction> functions, Range range) {
+    return new Struct(Optional.of(name),
         List.of(),
         List.of(),
         fields,
         functions,
-        StructKind.LITERAL,
+        StructKind.VARIANT,
         range);
   }
 
   public static StructBuilder moduleStructBuilder(String name) {
-    return StructBuilder.builder()
-        .name(Optional.of(name))
-        .structKind(StructKind.MODULE);
+    return StructBuilder.builder().name(Optional.of(name)).structKind(StructKind.MODULE);
   }
 
-  public static Struct moduleStruct(String name, List<Use> useList,
-      List<TypeAlias> typeAliases, List<Field> fields,
-      List<NamedFunction> functions, Range range) {
-    return new Struct(
-        Optional.of(name),
+  public static Struct moduleStruct(String name, List<Use> useList, List<TypeAlias> typeAliases,
+      List<Field> fields, List<NamedFunction> functions, Range range) {
+    return new Struct(Optional.of(name),
         useList,
         typeAliases,
         fields,
@@ -76,40 +67,35 @@ public record Struct(Optional<String> name, List<Use> useList,
   }
 
   private static Struct internalTupleStruct(Optional<String> name, List<Expression> expressions,
-      Range range) {
+      StructKind structKind, Range range) {
     var fields = new ArrayList<Field>();
     for (int i = 0; i < expressions.size(); i++) {
       var expr = expressions.get(i);
       fields.add(new Field(new Identifier("_" + i, (Single) expr.range()), expr));
     }
-    return new Struct(
-        name,
-        List.of(),
-        List.of(),
-        fields,
-        List.of(),
-        StructKind.LITERAL,
-        range);
+    return new Struct(name, List.of(), List.of(), fields, List.of(), structKind, range);
   }
 
   public static Struct tupleStruct(List<Expression> expressions, Range range) {
-    return internalTupleStruct(Optional.empty(), expressions, range);
+    return internalTupleStruct(Optional.empty(), expressions, StructKind.LITERAL, range);
   }
 
   public static Struct variantTupleStruct(String name, List<Expression> expressions, Range range) {
-    return internalTupleStruct(Optional.of(name), expressions, range);
+    return internalTupleStruct(Optional.of(name), expressions, StructKind.VARIANT, range);
   }
 
   @Override
   public String toPrettyString() {
-    return "{" + useList().stream().map(Node::toPrettyString)
+    return "{" + useList().stream()
+        .map(Node::toPrettyString)
         .collect(Collectors.joining(", ", "", " ")) + fields().stream()
-        .map(Field::toPrettyString).collect(Collectors.joining(", ", "", " "))
-        + functions().stream().map(NamedFunction::toPrettyString)
+        .map(Field::toPrettyString)
+        .collect(Collectors.joining(", ", "", " ")) + functions().stream()
+        .map(NamedFunction::toPrettyString)
         .collect(Collectors.joining(", ", "", " ")) + "}";
   }
 
-  public record Field(Identifier id, Expression value) implements Expression {
+  public record Field(Identifier id, Expression value) implements Node {
     public String name() {
       return id.name();
     }
@@ -126,6 +112,6 @@ public record Struct(Optional<String> name, List<Use> useList,
   }
 
   public enum StructKind {
-    LITERAL, MODULE
+    LITERAL, MODULE, VARIANT,
   }
 }

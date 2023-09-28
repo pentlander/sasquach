@@ -67,7 +67,7 @@ import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.ModuleScopedIdentifier;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.PatternVariable;
-import com.pentlander.sasquach.ast.QualifiedIdentifier;
+import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode;
@@ -180,7 +180,9 @@ public class Visitor {
     public ModuleDeclaration visitModuleDeclaration(ModuleDeclarationContext ctx) {
       String name = packageName + "/" + ctx.moduleName().getText();
       var struct = ctx.struct().accept(structVisitorForModule(name));
-      return new ModuleDeclaration(new QualifiedIdentifier(name, rangeFrom(ctx.moduleName().ID())),
+      return new ModuleDeclaration(QualifiedModuleId.fromString(
+          name,
+          rangeFrom(ctx.moduleName().ID())),
           struct,
           rangeFrom(ctx));
     }
@@ -541,7 +543,7 @@ public class Visitor {
           var qualifiedNameIds = useCtx.qualifiedName().ID();
           var aliasNode = qualifiedNameIds.get(qualifiedNameIds.size() - 1);
           var aliasId = id(aliasNode);
-          var qualifiedId = new QualifiedIdentifier(qualifiedName,
+          var qualifiedId = QualifiedModuleId.fromString(qualifiedName,
               (Range.Single) rangeFrom(useCtx.qualifiedName()));
           Use use;
           if (useCtx.FOREIGN() != null) {
@@ -568,6 +570,7 @@ public class Visitor {
             fields,
             functions,
             rangeFrom(ctx));
+        case VARIANT -> Struct.variantLiteralStruct(structName, fields, functions, rangeFrom(ctx));
       };
     }
   }

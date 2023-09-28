@@ -20,9 +20,47 @@ functions being called.
 ## Type aliases
 Type aliases provide another name to a struct or union. Creating an alias should not create a new 
 classfile, all structs with equivalent structure (same field names/types) should be bound to a 
-single classfile to reduce the number of classfiles. This means that an alias only exists at compile
-time. May revisit this choice if it makes debugging stacktraces more difficult. Foreign classes 
-cannot be aliased, doing so should generate an error.
+single classfile to reduce the number of classfiles. This means that an alias only exists at compile time. May revisit this choice if it makes debugging stacktraces more difficult. Foreign classes cannot be aliased, doing so should generate an error.
+
+Regarding the above, you will be able to create a single classfile since other libraries have the ability to create their own literal structs. This means that you can't guarantee that the struct is using the same classfile as the one you're aliasing. In order to do this, you would need to dedupe the struct literals in the final jar during compilation. I'm not sure that this could work though, as the struct internal names need to reference the package they're in. Can you have no package name? Or rather you can have a reserved package name for structs.
+
+## Visibility
+We want some form of information hiding in structs. For example, the `List` type should not expose the inner Java `List` that it wraps. One way to handle that is to say that a type goes from an alias to a named type if it has any private fields:
+
+```
+// Implicitly a named type since other modules wouldn't be able to create an implementation since they don't know about the private field
+type List[T] = { priv inner: java.List[T] }
+```
+
+I'm not a fan of this implicit behavior though. What might be better is to add some sort of modifier to the `type` keyword or to the struct itself to make it more explicit that it's creating a type that no other module can create. I think the modifier would have to be on the `type` keyword, since making a literal struct with private values doesn't seem terribly useful. On the other hand, Java allows local anonymous structs, though that's to implement some interface or class in the local scope. I don't think we need that since "interfaces" are implemented either structurally or by supplying a module with the necessary functions.
+
+### Interaction with Row Polymorphism
+Should structs with private fields/methods work with row polymorphism? I think so, the question is how to do this. A new class needs to be created when adding another field to the struct. We can't copy over the private members. The sanest thing to do is to create a new struct that contains an instance of the base struct and the fields being added. Then when member dispatch happens on the outer struct, do a recursive search on the inner delegates to find the member in question. It could also make sense to create a separate MethodHandle lookup table in the constant pool of the outer class to speed up dispatch.
+
+In the future we could avoid this overhead in two ways:
+1. Compile time evaluation when applied to modules. This means only one classfile is created with all the final fields instead of creating all the intermediate ones.
+2. Create a single output class when we detect that several rows are added in a row. E.g. when you have a number of http middleware functions adding fields in a row, don't create the intermediate classes.
+
+```
+RequestState {
+    type T[A] = { 
+      priv connection: Connection,
+      url: Url, 
+      method: Method,
+      headers: Headers,
+      context: { ..A },
+    },
+}
+
+...
+
+addAuth = [A](reqState: RequestState.T[A]): RequestState.T[{ authToken: Option.T[String], ..A }] -> {
+  match Headers.get(reqState.headers, "authtoken") {
+    Some(token) -> RequestState.withCtx(reqState, ctx -> { authToken: token, ..ctx },
+    None -> reqState,
+  }
+}
+```
 
 ## Higher Order Functions
 Should there be a separate function class for member vs lambda functions? The main difference is that the types on the lambda functions are optional, while they are not on member funcs. Code generation for a module member function will always generate a method in the classfile, while the code generation for a struct varies. If there are no captures and the function is defined within the struct literal, then it can be generated as a method. If it is defined within the struct literal and has captures, the captures can be placed as fields within the struct. Would need to ensure that those captured fields do not interfere with typechecking and are inaccesible outside that function. If the function is defined outside of the struct without captures, it could possibly be generated as a method on the struct. Otherwise if it's defined outside the struct and has captures, it has to be generated as a separate class. This class could be a struct with a single method named `_invoke`. When looking up a function call, local variables also need to be included. The variable's type must match the aformentioned struct. 

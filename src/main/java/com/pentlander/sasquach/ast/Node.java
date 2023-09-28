@@ -4,12 +4,13 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
+import com.pentlander.sasquach.ast.expression.Struct.Field;
 
 /**
  * A node in the abstract syntax tree.
  */
 public sealed interface Node permits Branch, FunctionSignature, Identifier, ModuleDeclaration,
-    Pattern, QualifiedIdentifier, TypeNode, Use, Expression, LocalVariable, NamedFunction {
+    Pattern, QualifiedModuleId, TypeNode, Use, Expression, LocalVariable, NamedFunction, Field {
   /**
    * Range in the source code that this node can be found.
    */

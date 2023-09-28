@@ -6,9 +6,14 @@ import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.Type;
 
 public record TVariableDeclaration(Identifier id, TypedExpression expression,
-                                   Range range) implements TLocalVariable {
+                                   Range range) implements TypedExpression, TLocalVariable {
   public String name() {
     return id.name();
+  }
+
+  @Override
+  public Type variableType() {
+    return expression.type();
   }
 
   public Range.Single nameRange() {

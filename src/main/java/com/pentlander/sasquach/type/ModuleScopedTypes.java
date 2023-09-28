@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.type;
 
+import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.VarReference;
@@ -17,8 +18,9 @@ public interface ModuleScopedTypes {
   }
 
   sealed interface VarRefType {
-    record Module(Type type) implements VarRefType {
-    }
+    record Module(QualifiedModuleId moduleId, StructType type) implements VarRefType {}
+
+    record Singleton(SumType sumType, SingletonType type) implements VarRefType {}
 
     record LocalVar(LocalVariable localVariable) implements VarRefType {}
   }

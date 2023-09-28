@@ -6,7 +6,7 @@ import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
-import com.pentlander.sasquach.ast.QualifiedIdentifier;
+import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.expression.Function;
@@ -20,9 +20,10 @@ import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaratio
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Singleton;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStructConstructor;
 import com.pentlander.sasquach.name.NameResolutionResult;
+import com.pentlander.sasquach.tast.TModuleDeclaration;
+import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
 import com.pentlander.sasquach.tast.expression.TStructBuilder;
-import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType.LocalVar;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -37,6 +38,7 @@ public class ModuleScopedTypeResolver {
   private final ModuleTypeProvider moduleTypeProvider;
 
   private final List<NamedFunction> nameResolvedFunctions = new ArrayList<>();
+  private final TStructBuilder typedStructBuilder = TStructBuilder.builder();
   private final Map<Identifier, FunctionType> variantConstructorTypes = new HashMap<>();
 
   private final Map<Identifier, Type> idTypes = new HashMap<>();
@@ -95,44 +97,47 @@ public class ModuleScopedTypeResolver {
           nameResolutionResult,
           moduleTypeProvider,
           modScopedTypes);
-      var result = resolver.inferType(field);
-      var typedField = new TField(field.id(),
-          new TypedExprWrapper(field.value(), result.getType(field)));
-      typedFields.add(typedField);
+      var result = resolver.checkField(field);
+      typedFields.add((TField) result.getTypedMember());
       errors.addAll(result.errors());
     });
-    var typedStruct = TStructBuilder.builder()
-        .name(struct.name())
+
+    typedStructBuilder.name(struct.name())
         .useList(struct.useList())
         .typeAliases(namedTypeResolver.mapResolveTypeNode(struct.typeAliases()))
         .fields(typedFields)
-        .functions(nameResolvedFunctions)
-        .build();
-    var structType = struct.name()
+        .structKind(struct.structKind())
+        .range(struct.range());
+    return struct.name()
         .map(name -> new StructType(name, fieldTypes))
         .orElseGet(() -> new StructType(fieldTypes));
-    if (!typedStruct.type().equals(structType)) {
-      throw new IllegalStateException("Type %s not assignable from %s".formatted(typedStruct.type(),
-          structType));
-    }
-    return structType;
   }
 
   interface ModuleTypeProvider {
-    StructType getModuleType(QualifiedIdentifier qualifiedIdentifier);
+    StructType getModuleType(QualifiedModuleId qualifiedModuleId);
   }
 
   public TypeResolutionResult resolveFunctions() {
     var modScopedTypes = new ResolverModuleScopedTypes();
-    var mergedResult = nameResolvedFunctions.stream()
-        .map(func -> new MemberScopedTypeResolver(idTypes,
-            nameResolutionResult,
-            moduleTypeProvider,
-            modScopedTypes).checkType(func))
-        .reduce(TypeResolutionResult.EMPTY, TypeResolutionResult::merge);
-    return new TypeResolutionResult(idTypes,
+    var typedFunctions = new ArrayList<TNamedFunction>();
+    var mergedResult = nameResolvedFunctions.stream().map(func -> {
+      var result = new MemberScopedTypeResolver(idTypes,
+          nameResolutionResult,
+          moduleTypeProvider,
+          modScopedTypes).checkType(func);
+      typedFunctions.add((TNamedFunction) result.getTypedMember());
+      return result;
+    }).reduce(TypeResolutionResult.EMPTY, TypeResolutionResult::merge);
+
+    var typedModuleDecl = new TModuleDeclaration(moduleDecl.id(),
+        typedStructBuilder.functions(typedFunctions).build(),
+        moduleDecl.range());
+    var typedModules = Map.of(moduleDecl.id(), typedModuleDecl);
+    // Need to include te map of typevars in this result
+    return TypeResolutionResult.ofTypedModules(idTypes,
         Map.of(),
         Map.of(),
+        typedModules,
         errors.build()).merge(mergedResult);
   }
 
@@ -148,7 +153,7 @@ public class ModuleScopedTypeResolver {
       var callTarget = nameResolutionResult.getLocalFunctionCallTarget(funcCall);
       return switch (callTarget) {
         case QualifiedFunction func ->
-            new FuncCallType.Module(func.function().functionSignature().type());
+            new FuncCallType.Module((FunctionType) idTypes.get(func.id()));
         case VariantStructConstructor constructor ->
             new FuncCallType.Module(variantConstructorTypes.get(constructor.id()));
         case LocalVariable localVar -> new LocalVar(localVar);
@@ -159,13 +164,13 @@ public class ModuleScopedTypeResolver {
       return switch (nameResolutionResult.getVarReference(varRef)) {
         case Local local -> new VarRefType.LocalVar(local.localVariable());
         case Module(var modDecl) ->
-            new VarRefType.Module(moduleTypeProvider.getModuleType(modDecl.id()));
+            new VarRefType.Module(modDecl.id(), moduleTypeProvider.getModuleType(modDecl.id()));
         case Singleton(var singletonNode) -> {
           var type = (SumType) idTypes.get(singletonNode.aliasId());
           var params = typeParams(type.typeParameters(),
               param -> new TypeVariable(param.typeName() + "_" + varRef.id().hashCode()));
           var resolvedType = namedTypeResolver.resolveNames(type, params, singletonNode.range());
-          yield new VarRefType.Module(resolvedType);
+          yield new VarRefType.Singleton((SumType) resolvedType, singletonNode.type());
         }
       };
     }

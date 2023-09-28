@@ -1,54 +1,49 @@
 package com.pentlander.sasquach.backend;
 
-import static com.pentlander.sasquach.ast.Pattern.Singleton;
-import static com.pentlander.sasquach.ast.Pattern.VariantStruct;
-import static com.pentlander.sasquach.ast.Pattern.VariantTuple;
 import static com.pentlander.sasquach.backend.ClassGenerator.INSTANCE_FIELD;
-import static com.pentlander.sasquach.backend.ClassGenerator.paramDescs;
+import static com.pentlander.sasquach.backend.ClassGenerator.fieldParamDescs;
 import static com.pentlander.sasquach.backend.ClassGenerator.signatureDescriptor;
+import static com.pentlander.sasquach.type.TypeUtils.asStructType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
 import static com.pentlander.sasquach.type.TypeUtils.internalName;
 
-import com.pentlander.sasquach.ast.Identifier;
-import com.pentlander.sasquach.ast.Node;
-import com.pentlander.sasquach.ast.PatternVariable;
-import com.pentlander.sasquach.ast.expression.ApplyOperator;
-import com.pentlander.sasquach.ast.expression.ArrayValue;
-import com.pentlander.sasquach.ast.expression.BinaryExpression;
-import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
-import com.pentlander.sasquach.ast.expression.Block;
-import com.pentlander.sasquach.ast.expression.Expression;
-import com.pentlander.sasquach.ast.expression.FieldAccess;
-import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
-import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
-import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
-import com.pentlander.sasquach.ast.expression.IfExpression;
-import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
-import com.pentlander.sasquach.ast.expression.LocalVariable;
-import com.pentlander.sasquach.ast.expression.Loop;
-import com.pentlander.sasquach.ast.expression.Match;
-import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
-import com.pentlander.sasquach.ast.expression.PrintStatement;
-import com.pentlander.sasquach.ast.expression.Recur;
-import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Value;
-import com.pentlander.sasquach.ast.expression.VarReference;
-import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
-import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
-import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
-import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStructConstructor;
-import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.runtime.StructDispatch;
 import com.pentlander.sasquach.runtime.SwitchBootstraps;
+import com.pentlander.sasquach.tast.TPattern.TSingleton;
+import com.pentlander.sasquach.tast.TPattern.TVariantStruct;
+import com.pentlander.sasquach.tast.TPattern.TVariantTuple;
+import com.pentlander.sasquach.tast.TypedNode;
+import com.pentlander.sasquach.tast.expression.TApplyOperator;
+import com.pentlander.sasquach.tast.expression.TArrayValue;
+import com.pentlander.sasquach.tast.expression.TBinaryExpression;
+import com.pentlander.sasquach.tast.expression.TBinaryExpression.TBooleanExpression;
+import com.pentlander.sasquach.tast.expression.TBlock;
+import com.pentlander.sasquach.tast.expression.TFieldAccess;
+import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
+import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
+import com.pentlander.sasquach.tast.expression.TFunction;
+import com.pentlander.sasquach.tast.expression.TIfExpression;
+import com.pentlander.sasquach.tast.expression.TLocalFunctionCall;
+import com.pentlander.sasquach.tast.expression.TLocalFunctionCall.TargetKind;
+import com.pentlander.sasquach.tast.expression.TLoop;
+import com.pentlander.sasquach.tast.expression.TMatch;
+import com.pentlander.sasquach.tast.expression.TMemberFunctionCall;
+import com.pentlander.sasquach.tast.expression.TPrintStatement;
+import com.pentlander.sasquach.tast.expression.TRecur;
+import com.pentlander.sasquach.tast.expression.TStruct;
+import com.pentlander.sasquach.tast.expression.TVarReference;
+import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Local;
+import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Module;
+import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Singleton;
+import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
+import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
-import com.pentlander.sasquach.type.ForeignFieldType;
 import com.pentlander.sasquach.type.FunctionType;
-import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
-import com.pentlander.sasquach.type.TypeFetcher;
 import com.pentlander.sasquach.type.TypeUtils;
 import com.pentlander.sasquach.type.TypeVariable;
 import com.pentlander.sasquach.type.UniversalType;
@@ -67,7 +62,6 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import jdk.dynalink.StandardNamespace;
 import jdk.dynalink.StandardOperation;
 import org.objectweb.asm.ClassWriter;
@@ -85,42 +79,20 @@ class ExpressionGenerator {
   private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
   private final Deque<Label> loopLabels = new ArrayDeque<>();
   private final MethodVisitor methodVisitor;
-  private final NameResolutionResult nameResolutionResult;
-  private final TypeFetcher typeFetcher;
-  private final LocalVarMeta localVarMeta;
-  private Node contextNode;
+  private final TLocalVarMeta localVarMeta;
+  private TypedNode contextNode;
 
-  ExpressionGenerator(MethodVisitor methodVisitor, NameResolutionResult nameResolutionResult,
-      List<FunctionParameter> params, TypeFetcher typeFetcher) {
+  ExpressionGenerator(MethodVisitor methodVisitor, List<FunctionParameter> params) {
     this.methodVisitor = methodVisitor;
-    this.nameResolutionResult = nameResolutionResult;
-    this.typeFetcher = typeFetcher;
 
-    this.localVarMeta = LocalVarMeta.of(params);
+    this.localVarMeta = TLocalVarMeta.of(params);
   }
-
-  private Type type(Expression expression) {
-    return typeFetcher.getType(expression);
-  }
-
-  private Type type(Identifier identifier) {
-    return typeFetcher.getType(identifier);
-  }
-
 
   private org.objectweb.asm.Type asmType(String internalName) {
     return org.objectweb.asm.Type.getObjectType(internalName);
   }
 
-  private FunctionType funcType(Expression expression) {
-    return TypeUtils.asFunctionType(typeFetcher.getType(expression)).orElseThrow();
-  }
-
-  private FunctionType funcType(Identifier identifier) {
-    return TypeUtils.asFunctionType(typeFetcher.getType(identifier)).orElseThrow();
-  }
-
-  private void addContextNode(Node node) {
+  private void addContextNode(TypedNode node) {
     contextNode = node;
   }
 
@@ -128,27 +100,20 @@ class ExpressionGenerator {
     return Map.copyOf(generatedClasses);
   }
 
-  public void generateExpr(Expression expression) {
+  public void generateExpr(TypedExpression expression) {
     try {
       generate(expression);
       var endLabel = new Label();
       methodVisitor.visitLabel(endLabel);
       for (var varMeta : localVarMeta.varMeta()) {
-        var varDecl = varMeta.localVar();
-        var idx = varMeta.idx();
-        var varType = switch (varDecl) {
-          case FunctionParameter funcParam -> type(funcParam.id());
-          case VariableDeclaration varDeclar -> type(varDeclar.expression());
-          case PatternVariable patternVar -> type(patternVar.id());
-        };
-        if (varType == null) {continue;}
+        var varType = type(varMeta.localVar().variableType());
 
-        methodVisitor.visitLocalVariable(varDecl.name(),
+        methodVisitor.visitLocalVariable(varMeta.localVar().name(),
             varType.classDesc().descriptorString(),
             signatureDescriptor(varType),
             varMeta.label(),
             endLabel,
-            idx);
+            varMeta.idx());
       }
     } catch (RuntimeException e) {
       throw new CodeGenerationException(contextNode, e);
@@ -160,10 +125,21 @@ class ExpressionGenerator {
     return MethodHandleDesc.ofMethod(kind, owner.describeConstable().orElseThrow(), name, typeDesc);
   }
 
-  void generate(Expression expression) {
+  Type type(TypedNode expression) {
+    return type(expression.type());
+  }
+
+  Type type(Type type) {
+    if (type instanceof TypeVariable typeVar) {
+      return typeVar.resolvedType().orElseThrow();
+    }
+    return type;
+  }
+
+  void generate(TypedExpression expression) {
     addContextNode(expression);
     switch (expression) {
-      case PrintStatement printStatement -> {
+      case TPrintStatement printStatement -> {
         generate(MethodHandleDesc.ofField(Kind.STATIC_GETTER,
             classDesc(System.class),
             "out",
@@ -174,29 +150,25 @@ class ExpressionGenerator {
         var methodDesc = methodHandleDesc(Kind.VIRTUAL, PrintStream.class, "println", methodType);
         generate(methodDesc);
       }
-      case VariableDeclaration varDecl -> {
+      case TVariableDeclaration varDecl -> {
         var varDeclExpr = varDecl.expression();
         var varMeta = localVarMeta.push(varDecl);
         methodVisitor.visitLabel(varMeta.label());
         generate(varDeclExpr);
-        var varType = type(varDeclExpr);
-        generateStoreVar(methodVisitor, varType, varMeta.idx());
+        generateStoreVar(methodVisitor, type(varDeclExpr), varMeta.idx());
       }
-      case VarReference varReference -> {
-        var refDecl = nameResolutionResult.getVarReference(varReference);
-        switch (refDecl) {
-          case ReferenceDeclaration.Local(var localVar) ->
+      case TVarReference varReference -> {
+        switch (varReference.refDeclaration()) {
+          case Local(var localVar) ->
               generateLoadVar(methodVisitor, type(varReference), localVarMeta.get(localVar).idx());
-          case ReferenceDeclaration.Module module ->
-              generate(MethodHandleDesc.ofField(Kind.STATIC_GETTER,
-                  ClassDesc.of(module.moduleDeclaration().id().javaName()),
-                  INSTANCE_FIELD,
-                  type(varReference).classDesc()));
-          case ReferenceDeclaration.Singleton singleton ->
-              generate(MethodHandleDesc.ofField(Kind.STATIC_GETTER,
-                  ClassDesc.of(singleton.node().type().internalName().replace('/', '.')),
-                  INSTANCE_FIELD,
-                  type(varReference).classDesc()));
+          case Module(var moduleId) -> generate(MethodHandleDesc.ofField(Kind.STATIC_GETTER,
+              ClassDesc.of(moduleId.javaName()),
+              INSTANCE_FIELD,
+              type(varReference).classDesc()));
+          case Singleton(var singletonType) -> generate(MethodHandleDesc.ofField(Kind.STATIC_GETTER,
+              ClassDesc.of(singletonType.internalName().replace('/', '.')),
+              INSTANCE_FIELD,
+              type(varReference).classDesc()));
         }
       }
       case Value value -> {
@@ -231,10 +203,11 @@ class ExpressionGenerator {
           }
         }
       }
-      case ArrayValue arrayValue -> {
+      case TArrayValue arrayValue -> {
         // TODO: Support primitive arrays.
         methodVisitor.visitIntInsn(Opcodes.BIPUSH, arrayValue.expressions().size());
-        methodVisitor.visitTypeInsn(Opcodes.ANEWARRAY, arrayValue.elementType().internalName());
+        methodVisitor.visitTypeInsn(Opcodes.ANEWARRAY,
+            arrayValue.type().elementType().internalName());
 
         var expressions = arrayValue.expressions();
         for (int i = 0; i < expressions.size(); i++) {
@@ -245,38 +218,39 @@ class ExpressionGenerator {
           methodVisitor.visitInsn(Opcodes.AASTORE);
         }
       }
-      case LocalFunctionCall funcCall -> {
-        var callTarget = nameResolutionResult.getLocalFunctionCallTarget(funcCall);
-        switch (callTarget) {
-          case QualifiedFunction qualifiedFunc -> {
-            var arguments = funcCall.arguments();
-            var funcType = funcType(qualifiedFunc.id());
-            generateArgs(arguments, funcType.parameterTypes());
+      case TLocalFunctionCall funcCall -> {
+        var funcType = funcCall.functionType();
+        switch (funcCall.targetKind()) {
+          case TargetKind.QualifiedFunction qualifiedFunc -> {
+            generateArgs(funcCall.arguments(), funcType.parameterTypes());
             var methodDesc = MethodHandleDesc.ofMethod(Kind.STATIC,
                 ClassDesc.of(qualifiedFunc.ownerId().javaName()),
                 funcCall.name(),
                 funcType.functionDesc());
             generate(methodDesc);
           }
-          case LocalVariable localVar -> {
+          case TargetKind.LocalVariable(var localVar) -> {
             int idx = localVarMeta.get(localVar).idx();
-            var type = switch (localVar) {
-              case VariableDeclaration varDecl -> funcType(varDecl.expression());
-              case FunctionParameter funcParam -> funcType(funcParam.id());
-              case PatternVariable patternVariable -> funcType(patternVariable.id());
-            };
+            var type = TypeUtils.asFunctionType(type(localVar.variableType())).orElseThrow();
             generateLoadVar(methodVisitor, type, idx);
             generateArgs(funcCall.arguments(), type.parameterTypes());
             generateMemberCall(type, "_invoke");
           }
-          case VariantStructConstructor variantStructConstructor ->
-              generateStructInit((StructType) type(variantStructConstructor.id()),
-                  variantStructConstructor.struct());
+          case TargetKind.VariantStructConstructor(var struct) -> {
+            var internalName = struct.name().orElseThrow();
+            generateNewDup(internalName);
+            generateArgs(funcCall.arguments(), funcType.parameterTypes());
+            var methodDesc = MethodHandleDesc.ofMethod(Kind.CONSTRUCTOR,
+                ClassDesc.of(internalName.replace('/', '.')),
+                funcCall.name(),
+                funcType.functionDesc().changeReturnType(ConstantDescs.CD_void));
+            generate(methodDesc);
+          }
         }
       }
-      case BinaryExpression binExpr -> {
+      case TBinaryExpression binExpr -> {
         switch (binExpr) {
-          case BinaryExpression.MathExpression mathExpr -> {
+          case TBinaryExpression.TMathExpression mathExpr -> {
             generate(binExpr.left());
             generate(binExpr.right());
             int opcode = switch (mathExpr.operator()) {
@@ -287,7 +261,7 @@ class ExpressionGenerator {
             };
             methodVisitor.visitInsn(opcode);
           }
-          case BinaryExpression.CompareExpression cmpExpr -> {
+          case TBinaryExpression.TCompareExpression cmpExpr -> {
             generate(binExpr.left());
             generate(binExpr.right());
             int opCode = switch (cmpExpr.operator()) {
@@ -307,7 +281,7 @@ class ExpressionGenerator {
             methodVisitor.visitInsn(Opcodes.ICONST_1);
             methodVisitor.visitLabel(endLabel);
           }
-          case BooleanExpression boolExpr -> {
+          case TBooleanExpression boolExpr -> {
             int opCode = switch (boolExpr.operator()) {
               case AND -> Opcodes.IFEQ;
               case OR -> Opcodes.IFNE;
@@ -322,7 +296,7 @@ class ExpressionGenerator {
           }
         }
       }
-      case IfExpression ifExpr -> {
+      case TIfExpression ifExpr -> {
         generate(ifExpr.condition());
         var hasFalseExpr = ifExpr.falseExpression() != null;
         var falseLabel = new Label();
@@ -339,27 +313,21 @@ class ExpressionGenerator {
         }
         methodVisitor.visitLabel(endLabel);
       }
-      case Struct struct -> {
-        var classGen = new ClassGenerator(nameResolutionResult, typeFetcher);
+      case TStruct struct -> {
+        var classGen = new ClassGenerator();
         classGen.generateStruct(struct);
         generatedClasses.putAll(classGen.getGeneratedClasses());
 
         generateStructInit(struct);
       }
-      case FieldAccess fieldAccess -> {
-        var fieldAccessType = TypeUtils.asStructType(type(fieldAccess.expr()));
-        if (fieldAccessType.isPresent()) {
-          generate(fieldAccess.expr());
-          generateFieldAccess(fieldAccess.fieldName(),
-              fieldAccessType.get().fieldType(fieldAccess.fieldName()));
-        } else {
-          throw new IllegalStateException("Failed to generate field access of type %s".formatted(
-              fieldAccessType));
-        }
+      case TFieldAccess fieldAccess -> {
+        generate(fieldAccess.expr());
+        var structType = asStructType(fieldAccess.expr().type()).orElseThrow();
+        generateFieldAccess(fieldAccess.fieldName(), structType.fieldType(fieldAccess.fieldName()));
       }
-      case Block block -> generateBlock(block);
-      case ForeignFieldAccess fieldAccess -> {
-        var fieldType = (ForeignFieldType) typeFetcher.getType(fieldAccess);
+      case TBlock block -> generateBlock(block);
+      case TForeignFieldAccess fieldAccess -> {
+        var fieldType = fieldAccess.type();
         var opCode = switch (fieldType.accessKind()) {
           case INSTANCE -> Opcodes.GETFIELD;
           case STATIC -> Opcodes.GETSTATIC;
@@ -369,9 +337,8 @@ class ExpressionGenerator {
             fieldAccess.fieldName(),
             fieldType.classDesc().descriptorString());
       }
-      case ForeignFunctionCall foreignFuncCall -> {
-        var foreignFuncType = typeFetcher.getType(foreignFuncCall.classAlias(),
-            foreignFuncCall.functionId());
+      case TForeignFunctionCall foreignFuncCall -> {
+        var foreignFuncType = foreignFuncCall.foreignFunctionType();
         String owner = GeneratorUtil.internalName(foreignFuncType.ownerDesc());
         if (foreignFuncType.methodKind() == Kind.CONSTRUCTOR) {
           generateNewDup(owner);
@@ -384,20 +351,16 @@ class ExpressionGenerator {
           methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, castType.internalName());
         }
       }
-      case MemberFunctionCall structFuncCall -> {
+      case TMemberFunctionCall structFuncCall -> {
         generate(structFuncCall.structExpression());
+        var funcType = structFuncCall.functionType();
 
-        var structType = TypeUtils.asStructType(type(structFuncCall.structExpression())).get();
-        var funcType = TypeUtils.asFunctionType(Objects.requireNonNull(structType.fieldType(
-            structFuncCall.name()))).get();
-        var arguments = structFuncCall.arguments();
-
-        generateArgs(arguments, funcType.parameterTypes());
+        generateArgs(structFuncCall.arguments(), funcType.parameterTypes());
         generateMemberCall(funcType, structFuncCall.name());
         var funcCallType = type(structFuncCall);
         tryUnbox(funcCallType, funcType.returnType());
       }
-      case Loop loop -> {
+      case TLoop loop -> {
         loop.varDeclarations().forEach(this::generate);
         var recurPoint = new Label();
         loopLabels.addLast(recurPoint);
@@ -405,33 +368,27 @@ class ExpressionGenerator {
         generate(loop.expression());
         loopLabels.removeLast();
       }
-      case Recur recur -> {
-        var recurPoint = nameResolutionResult.getRecurPoint(recur);
-        var localVars = switch (recurPoint) {
-          case Loop loop -> loop.varDeclarations();
-          case Function func -> func.parameters();
-        };
-
+      case TRecur recur -> {
         for (int i = 0; i < recur.arguments().size(); i++) {
           var arg = recur.arguments().get(i);
-          var varDecl = localVars.get(i);
+          var varDecl = recur.localVars().get(i);
           generate(arg);
           generateStoreVar(methodVisitor, type(arg), localVarMeta.get(varDecl).idx());
         }
         methodVisitor.visitJumpInsn(Opcodes.GOTO, loopLabels.getLast());
       }
-      case Function func -> {
+      case TFunction func -> {
         // TODO: Change generation of lambdas to be a static method and its method handle instead
         //  of a struct. Java only needs to generate a class because lambdas need to conform to
         //  an interface
-        var classGen = new ClassGenerator(nameResolutionResult, typeFetcher);
+        var classGen = new ClassGenerator();
         var name = classGen.generateFunctionStruct(func, List.of());
 
         generatedClasses.putAll(classGen.getGeneratedClasses());
         generateFuncInit(name, List.of());
       }
-      case ApplyOperator applyOperator -> generate(applyOperator.toFunctionCall());
-      case Match match -> {
+      case TApplyOperator applyOperator -> generate(applyOperator.functionCall());
+      case TMatch match -> {
         generate(match.expr());
         methodVisitor.visitInsn(Opcodes.DUP);
         int exprVarIdx = localVarMeta.pushHidden();
@@ -446,7 +403,7 @@ class ExpressionGenerator {
 
         var branches = match.branches();
         var branchTypes = branches.stream()
-            .map(branch -> type((Identifier) branch.pattern().id()))
+            .map(branch -> branch.pattern().type())
             .map(type -> asmType(type.internalName()))
             .toArray();
         methodVisitor.visitInvokeDynamicInsn("match",
@@ -479,9 +436,9 @@ class ExpressionGenerator {
           var branch = branches.get(i);
           switch (branch.pattern()) {
             // No-op, don't need to load any vars
-            case Singleton singleton -> {}
-            case VariantTuple variantTuple -> {
-              var variantType = (StructType) type((Identifier) variantTuple.id());
+            case TSingleton singleton -> {}
+            case TVariantTuple variantTuple -> {
+              var variantType = variantTuple.type();
               var tupleFieldTypes = variantType.sortedFields();
               var bindings = variantTuple.bindings();
               // Need to look up the types of the bindings, allocate a variable for each field,
@@ -496,22 +453,19 @@ class ExpressionGenerator {
 
                 // Store the value in the pattern variable
                 var binding = bindings.get(j);
-                var bindType = type(binding.id());
+                var bindType = type(binding);
                 int idx = localVarMeta.push(binding).idx();
                 generateStoreVar(methodVisitor, bindType, idx);
               }
             }
-            case VariantStruct variantStruct -> {
-              throw new IllegalStateException("Not implemented");
-            }
+            case TVariantStruct variantStruct -> throw new IllegalStateException("Not implemented");
           }
-          ;
           generate(branches.get(i).expr());
           methodVisitor.visitJumpInsn(Opcodes.GOTO, endLabel);
         }
         methodVisitor.visitLabel(endLabel);
       }
-      case default -> throw new IllegalStateException("Unrecognized expression: " + expression);
+      default -> throw new IllegalStateException("Unrecognized expression: " + expression);
     }
   }
 
@@ -528,7 +482,7 @@ class ExpressionGenerator {
     methodVisitor.visitInvokeDynamicInsn(operation, typeDesc.descriptorString(), handle);
   }
 
-  private void generateArgs(List<Expression> arguments, List<Type> paramTypes) {
+  private void generateArgs(List<TypedExpression> arguments, List<Type> paramTypes) {
     for (int i = 0; i < arguments.size(); i++) {
       var expr = arguments.get(i);
       generate(expr);
@@ -537,9 +491,6 @@ class ExpressionGenerator {
   }
 
   void generateMemberCall(FunctionType funcType, String funcCallName) {
-    var operation = StandardOperation.CALL.withNamespace(StandardNamespace.METHOD)
-        .named(funcCallName)
-        .toString();
     var handle = new Handle(Opcodes.H_INVOKESTATIC,
         internalName(StructDispatch.class),
         "bootstrapMethod",
@@ -550,10 +501,10 @@ class ExpressionGenerator {
     methodVisitor.visitInvokeDynamicInsn(funcCallName, methodTypeDesc.descriptorString(), handle);
   }
 
-  void generateFuncInit(String funcStructInternalName, List<VarReference> captures) {
+  void generateFuncInit(String funcStructInternalName, List<TVarReference> captures) {
     generateNewDup(funcStructInternalName);
     captures.forEach(this::generateExpr);
-    var paramDescs = paramDescs(captures, typeFetcher);
+    var paramDescs = fieldParamDescs(captures);
     var constructorDesc = MethodHandleDesc.ofConstructor(classDesc(funcStructInternalName),
         paramDescs);
     generate(constructorDesc);
@@ -563,21 +514,14 @@ class ExpressionGenerator {
   //  should be evaluated in the order they appear, but that doesn't necessarily correspond with
   //  the order of the constructor parameters. Since we're iterating over a hashmap, the order is
   //  not consistent.
-  void generateStructInit(StructType structType, Struct struct) {
+  // I need the struct name, the field types, and the expressions
+  void generateStructInit(TStruct struct) {
+    var structType = type(struct);
     var structName = structType.internalName();
-    var structClassDesc = ClassDesc.of(structType.internalName().replace('/', '.'));
+    var structClassDesc = ClassDesc.of(structName.replace('/', '.'));
     generateNewDup(structName);
-    struct.fields().forEach(field -> generateExpr(field.value()));
-    var paramDescs = paramDescs(structType.fieldTypes().values());
-    generate(MethodHandleDesc.ofConstructor(structClassDesc, paramDescs));
-  }
-
-  void generateStructInit(Struct struct) {
-    var structName = type(struct).internalName();
-    var structClassDesc = ClassDesc.of(type(struct).internalName().replace('/', '.'));
-    generateNewDup(structName);
-    struct.fields().forEach(field -> generateExpr(field.value()));
-    var paramDescs = paramDescs(struct.fields(), typeFetcher);
+    struct.fields().forEach(field -> generateExpr(field.expr()));
+    var paramDescs = ClassGenerator.fieldParamDescs(struct.fields());
     generate(MethodHandleDesc.ofConstructor(structClassDesc, paramDescs));
   }
 
@@ -625,10 +569,10 @@ class ExpressionGenerator {
     }
   }
 
-  private void generateBlock(Block block) {
+  private void generateBlock(TBlock block) {
     var expressions = block.expressions();
     for (int i = 0; i < expressions.size(); i++) {
-      Expression expr = expressions.get(i);
+      var expr = expressions.get(i);
       generate(expr);
       if (i != expressions.size() - 1) {
         generatePop(expr);
@@ -636,8 +580,8 @@ class ExpressionGenerator {
     }
   }
 
-  private void generatePop(Expression expr) {
-    if (!(expr instanceof VariableDeclaration) && !type(expr).equals(BuiltinType.VOID)) {
+  private void generatePop(TypedExpression expr) {
+    if (!(expr instanceof TVariableDeclaration) && !type(expr).equals(BuiltinType.VOID)) {
       methodVisitor.visitInsn(Opcodes.POP);
     }
   }
@@ -648,8 +592,8 @@ class ExpressionGenerator {
    * parameters, as the parameter type is {@link Object}.</p>
    */
   private void tryBox(Type actualType, Type expectedType) {
-    if (actualType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT && (
-        expectedType instanceof UniversalType || expectedType instanceof TypeVariable)) {
+    if (actualType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT
+        && (expectedType instanceof UniversalType)) {
       methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC,
           "java/lang/Integer",
           "valueOf",
@@ -662,8 +606,8 @@ class ExpressionGenerator {
    * Convert a boxed type into its primitive type.
    */
   private void tryUnbox(Type expectedType, Type actualType) {
-    if (expectedType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT && (
-        actualType instanceof UniversalType || actualType instanceof TypeVariable)) {
+    if (expectedType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT
+        && (actualType instanceof UniversalType)) {
       methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Integer");
       methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
           "java/lang/Integer",

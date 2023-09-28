@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.pentlander.sasquach.ast.ModuleDeclaration;
-import com.pentlander.sasquach.ast.QualifiedIdentifier;
+import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.Struct;
 import java.util.List;
@@ -27,13 +27,15 @@ class ModuleScopedNameResolverTest {
 
   @Test
   void resolveForeignClass() {
-    var modDecl = new ModuleDeclaration(qualId("Main"),
+    var modDecl = new ModuleDeclaration(
+        qualId("Main"),
         Struct.moduleStructBuilder("Main")
-            .useList(
-                List.of(new Use.Foreign(new QualifiedIdentifier("java/lang/System", range()),
-                    id("System"),
-                    range()))
-            ).range(range()).build(), range());
+            .useList(List.of(new Use.Foreign(QualifiedModuleId.fromString(
+                "java/lang/System",
+                range()), id("System"), range())))
+            .range(range())
+            .build(),
+        range());
     resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
     resolver.resolve();
 
@@ -44,10 +46,8 @@ class ModuleScopedNameResolverTest {
   void resolveFields() {
     var field = new Struct.Field(id("foo"), stringValue("bar"));
     var modDecl = new ModuleDeclaration(qualId("Main"),
-        Struct.moduleStructBuilder("Main")
-            .fields(List.of(field))
-            .range(range())
-            .build(), range());
+        Struct.moduleStructBuilder("Main").fields(List.of(field)).range(range()).build(),
+        range());
     resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
     resolver.resolve();
 
@@ -60,10 +60,8 @@ class ModuleScopedNameResolverTest {
   void resolveFunctions() {
     var function = voidFunc("foo", stringValue("bar"));
     var modDecl = new ModuleDeclaration(qualId("Main"),
-        Struct.moduleStructBuilder("Main")
-            .functions(List.of(function))
-            .range(range())
-            .build(), range());
+        Struct.moduleStructBuilder("Main").functions(List.of(function)).range(range()).build(),
+        range());
     resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
     resolver.resolve();
 

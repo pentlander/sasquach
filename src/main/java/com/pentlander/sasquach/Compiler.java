@@ -6,7 +6,6 @@ import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.backend.BytecodeGenerator;
 import com.pentlander.sasquach.backend.BytecodeResult;
 import com.pentlander.sasquach.name.ModuleResolver;
-import com.pentlander.sasquach.type.MemberScopedTypeResolver;
 import com.pentlander.sasquach.type.TypeResolver;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -44,17 +43,18 @@ public class Compiler {
       var sources = new HashMap<SourcePath, Source>();
       Files.walkFileTree(sourcePath, new SimpleFileVisitor<>() {
         @Override
-        public FileVisitResult visitFile(Path filePath, BasicFileAttributes attrs) throws IOException {
+        public FileVisitResult visitFile(Path filePath, BasicFileAttributes attrs)
+            throws IOException {
           if (Files.isDirectory(filePath)) {
             return FileVisitResult.CONTINUE;
           }
 
           var relPath = sourcePath.relativize(filePath);
           var packageName = Stream.of(
-                  relPath.getParent() != null ? relPath.getParent().toString() : "",
-                  strippedFileName(relPath)).filter(s -> !s.isBlank())
-              .collect(Collectors.joining("/"));
-          var source = new Source(SourcePath.fromPath(filePath), packageName,
+              relPath.getParent() != null ? relPath.getParent().toString() : "",
+              strippedFileName(relPath)).filter(s -> !s.isBlank()).collect(Collectors.joining("/"));
+          var source = new Source(SourcePath.fromPath(filePath),
+              packageName,
               Files.readAllLines(filePath));
           sources.put(source.path(), source);
           return FileVisitResult.CONTINUE;
@@ -85,7 +85,7 @@ public class Compiler {
 
       var validator = new AstValidator(compilationUnit);
       var compileErrors = validator.validate();
-      if (!compileErrors.isEmpty()) throw new CompilationException(source, compileErrors);
+      if (!compileErrors.isEmpty()) {throw new CompilationException(source, compileErrors);}
     }
 
     var nameResolver = new ModuleResolver();
@@ -96,12 +96,9 @@ public class Compiler {
     var typeResolutionResult = typeResolver.resolve(compUnits);
     typeResolutionResult.errors().throwIfNotEmpty(sources);
 
-    var bytecodeResults = new HashMap<String, byte[]>();
-    var bytecodeGenerator = new BytecodeGenerator(nameResolver, typeResolutionResult);
-    for (var compUnit : compUnits) {
-      bytecodeResults.putAll(bytecodeGenerator.generateBytecode(compUnit).generatedBytecode());
-    }
-    return bytecodeResults;
+    var bytecodeGenerator = new BytecodeGenerator();
+    return bytecodeGenerator.generateBytecode(typeResolutionResult.getModuleDeclarations())
+        .generatedBytecode();
   }
 
   public void compile(List<Path> sourcePaths, Path outputPath) {
@@ -132,18 +129,20 @@ public class Compiler {
       for (Error compileError : errors) {
         var message = switch (compileError) {
           case BasicError basicError -> "error: %s\n".formatted(basicError.toPrettyString(sources));
-          case RangedError rangedError -> "%s:\nerror: %s\n".formatted(rangedError.range()
-              .sourcePath().filepath(), rangedError.toPrettyString(sources));
+          case RangedError rangedError ->
+              "%s:\nerror: %s\n".formatted(rangedError.range().sourcePath().filepath(),
+                  rangedError.toPrettyString(sources));
         };
         System.out.print(message);
       }
     }
   }
 
-  public static void saveBytecodeToFile(Path outputDir, String className, byte[] byteCode) throws IOException {
-      var filepath = outputDir.resolve(className.replace('.', '/') + ".class");
-      Files.createDirectories(filepath.getParent());
-      Files.write(filepath, byteCode);
+  public static void saveBytecodeToFile(Path outputDir, String className, byte[] byteCode)
+      throws IOException {
+    var filepath = outputDir.resolve(className.replace('.', '/') + ".class");
+    Files.createDirectories(filepath.getParent());
+    Files.write(filepath, byteCode);
   }
 
   void clearDestDir(Path outputPath) throws IOException {

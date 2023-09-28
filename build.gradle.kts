@@ -28,9 +28,6 @@ dependencies {
 
     implementation("org.atteo.classindex:classindex:3.13")
     implementation("org.ow2.asm:asm:9.5")
-    implementation("com.fasterxml.jackson.core:jackson-core:2.12.4")
-    implementation("com.fasterxml.jackson.core:jackson-annotations:2.12.4")
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.12.4")
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.0")
     testImplementation("org.junit.jupiter:junit-jupiter-params")
