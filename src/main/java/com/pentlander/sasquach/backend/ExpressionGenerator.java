@@ -7,12 +7,12 @@ import static com.pentlander.sasquach.type.TypeUtils.asStructType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
 import static com.pentlander.sasquach.type.TypeUtils.internalName;
 
-import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.runtime.StructDispatch;
 import com.pentlander.sasquach.runtime.SwitchBootstraps;
+import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TPattern.TSingleton;
 import com.pentlander.sasquach.tast.TPattern.TVariantStruct;
 import com.pentlander.sasquach.tast.TPattern.TVariantTuple;
@@ -82,7 +82,7 @@ class ExpressionGenerator {
   private final TLocalVarMeta localVarMeta;
   private TypedNode contextNode;
 
-  ExpressionGenerator(MethodVisitor methodVisitor, List<FunctionParameter> params) {
+  ExpressionGenerator(MethodVisitor methodVisitor, List<TFunctionParameter> params) {
     this.methodVisitor = methodVisitor;
 
     this.localVarMeta = TLocalVarMeta.of(params);

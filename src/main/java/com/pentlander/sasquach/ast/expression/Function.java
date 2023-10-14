@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.RecurPoint;
+import com.pentlander.sasquach.type.TypeParameter;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 
@@ -22,6 +23,10 @@ public record Function(FunctionSignature functionSignature, Expression expressio
 
   public List<FunctionParameter> parameters() {
     return functionSignature.parameters();
+  }
+
+  public List<TypeParameter> typeParameters() {
+    return functionSignature.typeParameters();
   }
 
   public String toPrettyString() {

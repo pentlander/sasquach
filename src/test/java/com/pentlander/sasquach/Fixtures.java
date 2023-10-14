@@ -19,6 +19,8 @@ import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.name.ForeignFunctionHandle;
 import com.pentlander.sasquach.name.ForeignFunctions;
+import com.pentlander.sasquach.tast.TFunctionParameter;
+import com.pentlander.sasquach.tast.TFunctionSignature;
 import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.tast.expression.TFunction;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
@@ -63,10 +65,10 @@ public class Fixtures {
     return func(name, functionParameters, List.of(), returnType, expression);
   }
 
-  public static TNamedFunction tfunc(String name, List<FunctionParameter> functionParameters,
+  public static TNamedFunction tfunc(String name, List<TFunctionParameter> functionParameters,
       Type returnType, TypedExpression expression) {
     var funcType = new FunctionType(functionParameters.stream()
-        .map(FunctionParameter::type)
+        .map(TFunctionParameter::type)
         .toList(), List.of(), returnType);
     return tfunc(name, functionParameters, List.of(), funcType, expression);
   }
@@ -90,16 +92,14 @@ public class Fixtures {
         expression));
   }
 
-  public static TNamedFunction tfunc(String name, List<FunctionParameter> functionParameters,
+  public static TNamedFunction tfunc(String name, List<TFunctionParameter> functionParameters,
       List<TypeParameter> typeParameters, FunctionType funcType, TypedExpression expression) {
     var funcId = id(name);
     return new TNamedFunction(funcId,
-        new TFunction(new FunctionSignature(functionParameters,
+        new TFunction(new TFunctionSignature(functionParameters,
             typeParameters,
-            typeNode(funcType.returnType()),
-            range()),
-            funcType,
-            expression));
+            funcType.returnType(),
+            range()), expression));
   }
 
   public static NamedFunction voidFunc(String name, Expression expression) {

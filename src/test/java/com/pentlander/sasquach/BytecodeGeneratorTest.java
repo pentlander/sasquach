@@ -19,17 +19,14 @@ import static com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOpe
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.MathOperator;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.pentlander.sasquach.ast.BasicTypeNode;
-import com.pentlander.sasquach.ast.StructTypeNode;
-import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
-import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.Struct.StructKind;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.backend.BytecodeGenerator;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.tast.TCompilationUnit;
+import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.tast.expression.TArrayValue;
@@ -310,11 +307,9 @@ class BytecodeGeneratorTest {
     @Test
     void singleGenericClass() throws Exception {
       // Struct called "box" with a single field called "value" of type T
-      var boxParam = param("box",
-          new StructTypeNode(Map.of("value",
-              new BasicTypeNode<>(new UniversalType("T", 0), range())), range()));
+      var boxParam = tparam("box", new StructType(Map.of("value", new UniversalType("T", 0))));
       //  A value of type "U"
-      var boxValueParam = param("boxValue", new UniversalType("U", 0));
+      var boxValueParam = tparam("boxValue", new UniversalType("U", 0));
       // Create a box struct with the field "value" set to the value of the "boxValue" param
       var parameterizedFuncExpr = literalStructBuilder().fields(List.of(new TField(id("value"),
           new TVarReference(id("boxValue"),
@@ -423,8 +418,8 @@ class BytecodeGeneratorTest {
   @CsvSource({"EQ, false", "NE, true", "GE, true", "LE, false", "LT, false", "GT, true"})
   void intCompareOperatorNotEquals(CompareOperator compareOp, boolean actualResult)
       throws Exception {
-    var paramA = param("a", BuiltinType.INT);
-    var paramB = param("b", BuiltinType.INT);
+    var paramA = tparam("a", BuiltinType.INT);
+    var paramB = tparam("b", BuiltinType.INT);
     var compare = new TCompareExpression(compareOp, paramToRef(paramA), paramToRef(paramB), NR);
     var func = tfunc("foo", List.of(paramA, paramB), BuiltinType.BOOLEAN, compare);
 
@@ -437,8 +432,8 @@ class BytecodeGeneratorTest {
   @ParameterizedTest
   @CsvSource({"EQ, true", "NE, false", "GE, true", "LE, true", "LT, false", "GT, false"})
   void intCompareOperatorEquals(CompareOperator compareOp, boolean actualResult) throws Exception {
-    var paramA = param("a", BuiltinType.INT);
-    var paramB = param("b", BuiltinType.INT);
+    var paramA = tparam("a", BuiltinType.INT);
+    var paramB = tparam("b", BuiltinType.INT);
     var compare = new TCompareExpression(compareOp, paramToRef(paramA), paramToRef(paramB), NR);
     var func = tfunc("foo", List.of(paramA, paramB), BuiltinType.BOOLEAN, compare);
 
@@ -451,8 +446,8 @@ class BytecodeGeneratorTest {
   @ParameterizedTest
   @CsvSource({"PLUS, 9", "MINUS, 3", "TIMES, 18", "DIVIDE, 2"})
   void intMathOperator(MathOperator mathOp, int actualResult) throws Exception {
-    var paramA = param("a", BuiltinType.INT);
-    var paramB = param("b", BuiltinType.INT);
+    var paramA = tparam("a", BuiltinType.INT);
+    var paramB = tparam("b", BuiltinType.INT);
     var plus = new TMathExpression(mathOp, paramToRef(paramA), paramToRef(paramB), NR);
     var func = tfunc("foo", List.of(paramA, paramB), BuiltinType.INT, plus);
 
@@ -462,13 +457,8 @@ class BytecodeGeneratorTest {
     assertThat(result).isEqualTo(actualResult);
   }
 
-  private FunctionParameter param(String name, Type type) {
-    return param(name, new BasicTypeNode<>(type, range()));
-  }
-
-  private <T extends TypeNode> FunctionParameter param(String name, T typeNode) {
-    var id = id(name);
-    return new FunctionParameter(id, typeNode);
+  private TFunctionParameter tparam(String name, Type type) {
+    return new TFunctionParameter(id(name), type, range());
   }
 
   @SuppressWarnings("unchecked")
@@ -546,7 +536,7 @@ class BytecodeGeneratorTest {
         .range(NR);
   }
 
-  private TVarReference paramToRef(FunctionParameter param) {
+  private TVarReference paramToRef(TFunctionParameter param) {
     return new TVarReference(id(param.name()), new Local(param), param.type());
   }
 }

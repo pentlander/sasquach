@@ -28,7 +28,6 @@ import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.FunctionCall;
-import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
@@ -48,6 +47,7 @@ import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStructConstr
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.tast.TBranch;
 import com.pentlander.sasquach.tast.TFunctionParameter;
+import com.pentlander.sasquach.tast.TFunctionSignature;
 import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.tast.TPattern;
 import com.pentlander.sasquach.tast.TPatternVariable;
@@ -176,16 +176,22 @@ public class MemberScopedTypeResolver {
     return switch (expr) {
       // Check that the function matches the given type
       case Function func when type instanceof FunctionType funcType -> {
+        List<TFunctionParameter> funcParams = new ArrayList<>();
         for (int i = 0; i < func.parameters().size(); i++) {
           var param = func.parameters().get(i);
           var paramType = funcType.parameterTypes().get(i);
           var typedVar = new TFunctionParameter(param.id(), paramType, param.range());
+          funcParams.add(typedVar);
           putLocalVarType(param, typedVar);
         }
 
         var typedExpr = check(func.expression(), funcType.returnType());
         memoizeExpr(func, typedExpr);
-        yield new TFunction(func.functionSignature(), funcType, typedExpr);
+        var typedFuncSig = new TFunctionSignature(funcParams,
+            func.typeParameters(),
+            funcType.returnType(),
+            func.range());
+        yield new TFunction(typedFuncSig, typedExpr);
       }
       default -> switch (type) {
         case ResolvedNamedType resolvedType -> check(expr, resolvedType.type());
@@ -312,19 +318,18 @@ public class MemberScopedTypeResolver {
       // Should only infer anonymous function, not ones defined at the module level
       case Function func -> {
         var lvl = typeVarNum.getAndIncrement();
-        var paramTypes = func.parameters()
-            .stream()
-            .collect(toMap(FunctionParameter::name, param -> {
-              var paramType = new TypeVariable(param.name() + lvl);
-              var typedParam = new TFunctionParameter(param.id(), paramType, param.range());
-              putLocalVarType(param, typedParam);
-              return paramType;
-            }));
+        var paramTypes = func.parameters().stream().map(param -> {
+          var paramType = new TypeVariable(param.name() + lvl);
+          var typedParam = new TFunctionParameter(param.id(), paramType, param.range());
+          putLocalVarType(param, typedParam);
+          return typedParam;
+        }).toList();
         var typedBodyExpr = infer(func.expression());
-        var funcType = new FunctionType(List.copyOf(paramTypes.values()),
-            List.of(),
-            typedBodyExpr.type());
-        yield new TFunction(func.functionSignature(), funcType, typedBodyExpr);
+        var typedFuncSig = new TFunctionSignature(paramTypes,
+            func.typeParameters(),
+            typedBodyExpr.type(),
+            func.range());
+        yield new TFunction(typedFuncSig, typedBodyExpr);
       }
       case ApplyOperator applyOperator -> {
         var funcCall = applyOperator.toFunctionCall();
