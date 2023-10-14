@@ -15,7 +15,6 @@ import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.Pattern.VariantTuple;
-import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
@@ -52,7 +51,6 @@ import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.tast.TPattern;
 import com.pentlander.sasquach.tast.TPatternVariable;
-import com.pentlander.sasquach.tast.TRecurPoint;
 import com.pentlander.sasquach.tast.expression.TApplyOperator;
 import com.pentlander.sasquach.tast.expression.TArrayValue;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TBooleanExpression;
@@ -106,13 +104,9 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
-public class MemberScopedTypeResolver implements TypeFetcher {
-  private final Map<Identifier, Type> idTypes = new HashMap<>();
+public class MemberScopedTypeResolver {
   private final Map<Identifier, TLocalVariable> localVariables = new HashMap<>();
-  private final Map<RecurPoint, TRecurPoint> recurPoints = new HashMap<>();
-  private final Map<Expression, Type> exprTypes = new HashMap<>();
   private final Map<Expression, TypedExpression> typedExprs = new HashMap<>();
-  private final Map<QualifiedFunctionId, ForeignFunctionType> foreignFuncTypes = new HashMap<>();
   private final TypeUnifier typeUnifier = new TypeUnifier();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
   private final AtomicInteger typeVarNum = new AtomicInteger();
@@ -124,31 +118,12 @@ public class MemberScopedTypeResolver implements TypeFetcher {
   private Node nodeResolving = null;
   private Node currentNode = null;
 
-  public MemberScopedTypeResolver(Map<Identifier, Type> idTypes,
-      NameResolutionResult nameResolutionResult, ModuleTypeProvider moduleTypeProvider,
-      ModuleScopedTypes moduleScopedTypes) {
-    this.idTypes.putAll(idTypes);
+  public MemberScopedTypeResolver(NameResolutionResult nameResolutionResult,
+      ModuleTypeProvider moduleTypeProvider, ModuleScopedTypes moduleScopedTypes) {
     this.nameResolutionResult = nameResolutionResult;
     this.namedTypeResolver = new NamedTypeResolver(nameResolutionResult);
     this.moduleTypeProvider = moduleTypeProvider;
     this.moduleScopedTypes = moduleScopedTypes;
-  }
-
-//  private sealed interface
-
-  @Override
-  public Type getType(Expression expression) {
-    return requireNonNull(exprTypes.get(expression), expression::toPrettyString);
-  }
-
-  @Override
-  public Type getType(Identifier identifier) {
-    return requireNonNull(idTypes.get(identifier), "Not found: " + identifier);
-  }
-
-  @Override
-  public ForeignFunctionType getType(Identifier classAlias, Identifier functionName) {
-    return requireNonNull(foreignFuncTypes.get(new QualifiedFunctionId(classAlias, functionName)));
   }
 
   public TypeResolutionResult checkType(NamedFunction namedFunction) {
@@ -156,11 +131,8 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     try {
       var typedFunction = (TFunction) check(namedFunction.function(),
           namedFunction.functionSignature().type());
-      return TypeResolutionResult.ofTypedMember(idTypes,
-          exprTypes,
-          foreignFuncTypes,
-          new TNamedFunction(namedFunction.id(), typedFunction),
-          errors());
+      return TypeResolutionResult.ofTypedMember(new TNamedFunction(namedFunction.id(),
+          typedFunction), errors());
     } catch (RuntimeException e) {
       throw new TypeResolutionException("Failed at node: " + currentNode, e);
     }
@@ -170,18 +142,12 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     nodeResolving = field;
     var type = infer(field.value());
     var typedField = new TField(field.id(), type);
-    return TypeResolutionResult.ofTypedMember(idTypes,
-        exprTypes,
-        foreignFuncTypes,
-        typedField,
-        errors());
+    return TypeResolutionResult.ofTypedMember(typedField, errors());
   }
 
   public RangedErrorList errors() {
     return errors.build().concat(namedTypeResolver.errors());
   }
-
-  public record QualifiedFunctionId(Identifier classAlias, Identifier functionName) {}
 
   FunctionType convertUniversals(FunctionType type, Range range) {
     var typeParams = typeParams(type.typeParameters(),
@@ -218,7 +184,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         }
 
         var typedExpr = check(func.expression(), funcType.returnType());
-        putExprType(func, typedExpr);
+        memoizeExpr(func, typedExpr);
         yield new TFunction(func.functionSignature(), funcType, typedExpr);
       }
       default -> switch (type) {
@@ -227,8 +193,6 @@ public class MemberScopedTypeResolver implements TypeFetcher {
           var typedExpr = infer(expr);
           try {
             typeUnifier.unify(typedExpr.type(), type);
-            idTypes.replaceAll((_id, idType) -> typeUnifier.resolve(idType));
-            exprTypes.replaceAll((_expr, exprType) -> typeUnifier.resolve(exprType));
             yield typedExpr;
           } catch (UnificationException e) {
             var msg = e.resolvedDestType()
@@ -343,9 +307,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
             .map(TVariableDeclaration.class::cast)
             .toList();
 
-        var typedLoop = new TLoop(typedExprs, infer(loop.expression()), loop.range());
-        recurPoints.put(loop, typedLoop);
-        yield typedLoop;
+        yield new TLoop(typedExprs, infer(loop.expression()), loop.range());
       }
       // Should only infer anonymous function, not ones defined at the module level
       case Function func -> {
@@ -362,9 +324,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         var funcType = new FunctionType(List.copyOf(paramTypes.values()),
             List.of(),
             typedBodyExpr.type());
-        var typedFunc = new TFunction(func.functionSignature(), funcType, typedBodyExpr);
-        recurPoints.put(func, typedFunc);
-        yield typedFunc;
+        yield new TFunction(func.functionSignature(), funcType, typedBodyExpr);
       }
       case ApplyOperator applyOperator -> {
         var funcCall = applyOperator.toFunctionCall();
@@ -373,7 +333,7 @@ public class MemberScopedTypeResolver implements TypeFetcher {
       case Match match -> resolveMatch(match);
     };
 
-    putExprType(expr,
+    memoizeExpr(expr,
         requireNonNull(typedExpr, () -> "Null expression type for: %s".formatted(expr)));
     return typedExpr;
   }
@@ -381,7 +341,6 @@ public class MemberScopedTypeResolver implements TypeFetcher {
   private TStruct resolveStruct(Struct struct) {
     var typedFunctions = struct.functions().stream().map(func -> {
       var typedFunc = infer(func.function());
-      putIdType(func.id(), typedFunc.type());
       return new TNamedFunction(func.id(), (TFunction) typedFunc);
     }).toList();
     var typedFields = struct.fields()
@@ -429,12 +388,9 @@ public class MemberScopedTypeResolver implements TypeFetcher {
         var branchVariantTypeName = typeNode.typeName();
         var variantType = requireNonNull(exprVariantTypes.remove(branchVariantTypeName));
         var typedPattern = switch (branch.pattern()) {
-          case Pattern.Singleton singleton -> {
-            putIdType((Identifier) singleton.id(), variantType);
-            yield new TPattern.TSingleton(singleton.id(), (SingletonType) variantType);
-          }
+          case Pattern.Singleton singleton ->
+              new TPattern.TSingleton(singleton.id(), (SingletonType) variantType);
           case VariantTuple tuple -> {
-            putIdType((Identifier) tuple.id(), variantType);
             var tupleType = TypeUtils.asStructType(variantType).orElseThrow();
             // The fields types are stored in a hashmap, but we sort them to bind the variables
             // in a // consistent order. This works because the fields are named by number,
@@ -718,7 +674,6 @@ public class MemberScopedTypeResolver implements TypeFetcher {
             typedExprs,
             resolvedReturnType,
             funcCall.range());
-        putForeignFuncType(funcCall, foreignFuncType);
         return foreignFuncCall;
       }
     }
@@ -731,12 +686,6 @@ public class MemberScopedTypeResolver implements TypeFetcher {
             classType.typeName()), funcCall.range()));
   }
 
-  private void putForeignFuncType(ForeignFunctionCall foreignFunctionCall,
-      ForeignFunctionType foreignFunctionType) {
-    foreignFuncTypes.put(new QualifiedFunctionId(foreignFunctionCall.classAlias(),
-        foreignFunctionCall.functionId()), foreignFunctionType);
-  }
-
   private Type addError(RangedError error) {
     errors.add(error);
     return new UnknownType();
@@ -747,46 +696,30 @@ public class MemberScopedTypeResolver implements TypeFetcher {
     return new TypedExprWrapper(expr, new UnknownType());
   }
 
-  private void putExprType(Expression expr, TypedExpression typedExpr) {
+  private void memoizeExpr(Expression expr, TypedExpression typedExpr) {
     var type = typedExpr.type();
     if (type instanceof NamedType) {
       throw new IllegalArgumentException("Cannot save named type '%s' for expr: %s".formatted(type,
           expr));
     }
-    exprTypes.put(expr, type);
     typedExprs.put(expr, typedExpr);
   }
 
-  private Type putIdType(Identifier id, Type type) {
-    if (type instanceof NamedType) {
-      throw new IllegalArgumentException("Cannot save named type '%s' for ID: %s".formatted(type,
-          id));
-    }
-    return idTypes.put(id, type);
-  }
-
-  private Type putLocalVarType(LocalVariable localVar, TLocalVariable typedLocalVar) {
+  private void putLocalVarType(LocalVariable localVar, TLocalVariable typedLocalVar) {
     var type = typedLocalVar.variableType();
     if (type instanceof NamedType) {
       throw new IllegalArgumentException("Cannot save named type '%s' for local variable: %s".formatted(type,
           localVar));
     }
     localVariables.put(localVar.id(), typedLocalVar);
-    return idTypes.put(localVar.id(), type);
   }
 
   private Optional<Type> getLocalVarType(LocalVariable localVar) {
-    return Optional.ofNullable(idTypes.get(localVar.id()));
+    return Optional.ofNullable(localVariables.get(localVar.id()).variableType());
   }
 
   private Optional<TLocalVariable> getLocalVar(LocalVariable localVar) {
     return Optional.ofNullable(localVariables.get(localVar.id()));
-  }
-
-  @Override
-  public String toString() {
-    return "TypeResolver{" + "idTypes=" + idTypes + ", exprTypes=" + exprTypes
-        + ", foreignFuncTypes=" + foreignFuncTypes + '}';
   }
 
   record TypeMismatchError(String message, Range range) implements RangedError {

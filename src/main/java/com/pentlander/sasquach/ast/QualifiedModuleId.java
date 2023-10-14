@@ -24,7 +24,4 @@ public record QualifiedModuleId(QualifiedModuleName moduleName, Range.Single ran
     return name().replace('/', '.');
   }
 
-  public QualifiedModuleName toQualifiedName() {
-    return moduleName;
-  }
 }

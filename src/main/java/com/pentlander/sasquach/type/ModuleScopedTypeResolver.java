@@ -93,8 +93,7 @@ public class ModuleScopedTypeResolver {
     var modScopedTypes = new ResolverModuleScopedTypes();
     var typedFields = new ArrayList<TField>();
     struct.fields().forEach(field -> {
-      var resolver = new MemberScopedTypeResolver(idTypes,
-          nameResolutionResult,
+      var resolver = new MemberScopedTypeResolver(nameResolutionResult,
           moduleTypeProvider,
           modScopedTypes);
       var result = resolver.checkField(field);
@@ -121,8 +120,7 @@ public class ModuleScopedTypeResolver {
     var modScopedTypes = new ResolverModuleScopedTypes();
     var typedFunctions = new ArrayList<TNamedFunction>();
     var mergedResult = nameResolvedFunctions.stream().map(func -> {
-      var result = new MemberScopedTypeResolver(idTypes,
-          nameResolutionResult,
+      var result = new MemberScopedTypeResolver(nameResolutionResult,
           moduleTypeProvider,
           modScopedTypes).checkType(func);
       typedFunctions.add((TNamedFunction) result.getTypedMember());
@@ -134,11 +132,7 @@ public class ModuleScopedTypeResolver {
         moduleDecl.range());
     var typedModules = Map.of(moduleDecl.id(), typedModuleDecl);
     // Need to include te map of typevars in this result
-    return TypeResolutionResult.ofTypedModules(idTypes,
-        Map.of(),
-        Map.of(),
-        typedModules,
-        errors.build()).merge(mergedResult);
+    return TypeResolutionResult.ofTypedModules(typedModules, errors.build()).merge(mergedResult);
   }
 
   FunctionSignature resolveFuncSignatureType(FunctionSignature funcSignature) {

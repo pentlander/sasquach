@@ -50,11 +50,7 @@ public class TypeResolver {
     Map<Expression, Type> moduleTypes = moduleTasks.values()
         .stream()
         .collect(toMap(task -> task.moduleDeclaration.struct(), RecursiveTask::join));
-    var moduleResult = TypeResolutionResult.ofTypedModules(Map.of(),
-        moduleTypes,
-        Map.of(),
-        Map.of(),
-        RangedErrorList.empty());
+    var moduleResult = TypeResolutionResult.ofTypedModules(Map.of(), RangedErrorList.empty());
 
     functionsTasks.values().forEach(RecursiveTask::fork);
     return functionsTasks.values()

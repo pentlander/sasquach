@@ -61,8 +61,7 @@ class MemberScopedTypeResolverTest {
   void setUp() {
     moduleScopedTypes = mock(ModuleScopedTypes.class);
     nameResolutionResult = mock(NameResolutionResult.class);
-    memberScopedTypeResolver = new MemberScopedTypeResolver(Map.of(),
-        nameResolutionResult,
+    memberScopedTypeResolver = new MemberScopedTypeResolver(nameResolutionResult,
         a -> null,
         moduleScopedTypes);
     shouldAssertErrorsEmpty = true;
@@ -260,8 +259,7 @@ class MemberScopedTypeResolverTest {
         when(moduleScopedTypes.getFunctionCallType(any())).thenReturn(new FuncCallType.Module(func.functionSignature()
             .type()));
 
-        when(nameResolutionResult.getLocalFunctionCallTarget(any())).thenReturn(new QualifiedFunction(
-            qualId("foo"),
+        when(nameResolutionResult.getLocalFunctionCallTarget(any())).thenReturn(new QualifiedFunction(qualId("foo"),
             funcId,
             null));
       }

@@ -30,13 +30,6 @@ public record FunctionParameter(Identifier id, TypeNode typeNode) implements Loc
     return id.range().join(typeNode.range());
   }
 
-  /**
-   * Convenience method to convert a parameter to a reference.
-   */
-  public VarReference toReference() {
-    return new VarReference(id);
-  }
-
   @Override
   public String toPrettyString() {
     return name() + ": " + type().toPrettyString();
