@@ -15,6 +15,10 @@ public record QualifiedModuleName(String packageName, String moduleName) {
     return this + "$" + name;
   }
 
+  public String javaName() {
+    return packageName.replace("/", ".") + "." + moduleName;
+  }
+
   @Override
   public String toString() {
     return packageName + "/" + moduleName;

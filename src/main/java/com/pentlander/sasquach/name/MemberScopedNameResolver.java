@@ -17,6 +17,7 @@ import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.ExpressionVisitor;
+import com.pentlander.sasquach.ast.expression.FieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
@@ -148,6 +149,11 @@ public class MemberScopedNameResolver {
     public Void visit(VariableDeclaration variableDeclaration) {
       addLocalVariable(variableDeclaration);
       return visit(variableDeclaration.expression());
+    }
+
+    @Override
+    public Void visit(FieldAccess fieldAccess) {
+      return ExpressionVisitor.super.visit(fieldAccess);
     }
 
     @Override

@@ -7,6 +7,7 @@ Integer {
 }
 
 Option {
+  use std/std/Result,
   use foreign java/util/Objects,
   use foreign java/util/Optional,
 
@@ -47,12 +48,13 @@ Option {
   },
 
   toResult = [A, B](option: T[A], fn: () -> B): Result.T[A, B] -> match option {
-    Some(value) -> Ok(value),
-    None -> Err(fn()),
+    Some(value) -> Result.Ok(value),
+    None -> Result.Err(fn()),
   },
 }
 
 Result {
+  use std/std/Option,
   type T[A, B] = | Ok(A) | Err(B),
 
   ok = [A, B](value: A): T[A, B] -> Ok(value),
@@ -70,7 +72,7 @@ Result {
 
   flatMap = [A, B, C](result: T[A, B], fn: (value: A) -> T[C, B]): T[C, B] -> match result {
     Ok(value) -> fn(value),
-    Err(err) -> result,
+    Err(err) -> Err(err),
   },
 
   map = [A, B, C](result: T[A, B], fn: (value: A) -> C): T[C, B] -> match result {
@@ -78,8 +80,8 @@ Result {
     Err(err) -> Err(err),
   },
 
-  orElse = [A, B, C](result: T[A, B], fn: () -> T[C, B]): T[C, B] -> match result {
-    Ok(_) -> result,
+  orElse = [A, B](result: T[A, B], fn: () -> T[A, B]): T[A, B] -> match result {
+    Ok(value) -> Ok(value),
     Err(_) -> fn(),
   },
 
@@ -89,8 +91,8 @@ Result {
   },
 
   toOption = [A, B](result: T[A, B]): Option.T[A] -> match result {
-    Ok(value) -> Some(value),
-    Err(_) -> None,
+    Err(_) -> Option.None,
+    Ok(value) -> Option.Some(value),
   },
 }
 

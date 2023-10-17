@@ -29,7 +29,7 @@ import java.lang.constant.ConstantDescs;
 import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -44,7 +44,7 @@ class ClassGenerator {
   static final String STRUCT_BASE_INTERNAL_NAME = internalName(StructBase.class);
   static final String INSTANCE_FIELD = "INSTANCE";
   private static final int CLASS_VERSION = Opcodes.V19;
-  private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
+  private final Map<String, ClassWriter> generatedClasses = new LinkedHashMap<>();
   private final ClassWriter classWriter = new SasqClassWriter(generatedClasses,
       ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
   private TypedNode contextNode;

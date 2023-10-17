@@ -15,6 +15,7 @@ import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,7 +34,7 @@ public record TStruct(Optional<String> name, List<Use> useList, List<TypeAlias> 
   }
 
   public StructType type() {
-    var fieldTypes = new HashMap<String, Type>();
+    var fieldTypes = new LinkedHashMap<String, Type>();
     functions.forEach(func -> fieldTypes.put(func.name(), func.type()));
     fields.forEach(field -> fieldTypes.put(field.name(), field.type()));
     return name.map(n -> new StructType(n, fieldTypes)).orElseGet(() -> new StructType(fieldTypes));

@@ -43,6 +43,7 @@ First {
         print sum
 
         let mapper = (entry: (String, Int)): (Int, String) -> (4, "hi")
+        mapper(("foo", 3))
         let map = Map.of("first", 1)
           |> Map.assoc("second", 2)
         print Map.get(map, "first")

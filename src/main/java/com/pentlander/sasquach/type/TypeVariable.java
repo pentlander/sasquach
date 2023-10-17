@@ -30,7 +30,7 @@ public final class TypeVariable implements Type, ParameterizedType {
     if (type instanceof TypeVariable typeVar) {
       // If both are resolved, check that they're the same type
       if (inner.type != null && typeVar.inner.type != null) {
-        return inner.type == typeVar.inner.type;
+        return inner.type.equals(typeVar.inner.type);
       }
 
       // If only one or neither is resolved, they need to have the same inner
@@ -40,7 +40,7 @@ public final class TypeVariable implements Type, ParameterizedType {
         inner = typeVar.inner;
       }
       return true;
-    } else if (inner.type != null && inner.type != type) {
+    } else if (inner.type != null && !inner.type.isAssignableFrom(type)) {
       return false;
       // If the other type is also a type variable, the inner of the other needs to be used so that
       // when the other type variable is resolved to a concrete type, this type variable is also

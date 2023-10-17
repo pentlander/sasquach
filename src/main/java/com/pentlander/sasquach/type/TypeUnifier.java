@@ -1,6 +1,6 @@
 package com.pentlander.sasquach.type;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,7 +22,7 @@ public class TypeUnifier {
           yield new FunctionType(paramTypes, List.of(), returnType);
         }
         case StructType structType -> {
-          var fieldTypes = new HashMap<String, Type>();
+          var fieldTypes = new LinkedHashMap<String, Type>();
           structType.fieldTypes()
               .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType)));
           yield new StructType(structType.typeName(), fieldTypes);
@@ -88,6 +88,11 @@ public class TypeUnifier {
     switch (destType) {
       case UniversalType universalType when sourceType instanceof UniversalType -> {
         if (!universalType.isAssignableFrom(sourceType)) {
+          throw new UnificationException(destType, sourceType);
+        }
+      }
+      case UniversalType universalType when sourceType instanceof ClassType classType -> {
+        if (!classType.typeClass().equals(Object.class)) {
           throw new UnificationException(destType, sourceType);
         }
       }

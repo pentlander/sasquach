@@ -1,7 +1,6 @@
 package com.pentlander.sasquach.type;
 
 import java.lang.constant.ClassDesc;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -58,13 +57,13 @@ public final class TypeUtils {
     return typeName + typeArgString;
   }
 
-  public static void t() {
-    var list = new ArrayList<String>();
-    list.add("test");
-
-    var iter = list.iterator();
-    var item = iter.next();
-    System.out.println(item);
+  public static Type reify(Type type) {
+    return switch (type) {
+      case ResolvedNamedType resolvedNamedType -> reify(resolvedNamedType.type());
+      case TypeVariable typeVariable -> reify(typeVariable.resolvedType().orElseThrow());
+      case null -> null;
+      default -> type;
+    };
   }
 
   public static ClassDesc classDesc(Class<?> clazz) {

@@ -5,6 +5,7 @@ import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TypedNode;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import org.objectweb.asm.Opcodes;
 
 public class BytecodeGenerator implements Opcodes {
@@ -13,7 +14,7 @@ public class BytecodeGenerator implements Opcodes {
   }
 
   public BytecodeResult generateBytecode(Collection<TModuleDeclaration> moduleDeclarations) {
-    var generatedBytecode = new HashMap<String, byte[]>();
+    var generatedBytecode = new LinkedHashMap<String, byte[]>();
     for (var moduleDeclaration : moduleDeclarations) {
       var classGen = new ClassGenerator();
       classGen.generate(moduleDeclaration)

@@ -12,6 +12,8 @@ import static com.pentlander.sasquach.Fixtures.qualId;
 import static com.pentlander.sasquach.Fixtures.range;
 import static com.pentlander.sasquach.Fixtures.stringValue;
 import static com.pentlander.sasquach.Fixtures.tfunc;
+import static com.pentlander.sasquach.TestUtils.invokeFirst;
+import static com.pentlander.sasquach.TestUtils.invokeName;
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator.AND;
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator.OR;
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator.fromString;
@@ -58,12 +60,9 @@ import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
 import com.pentlander.sasquach.type.UniversalType;
-import java.io.IOException;
 import java.io.PrintStream;
-import java.io.UncheckedIOException;
 import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.invoke.MethodHandles;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -92,7 +91,7 @@ class BytecodeGeneratorTest {
     var func = tfunc("bool", List.of(), BuiltinType.BOOLEAN, boolValue(boolStr));
 
     var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
-    boolean result = invokeFirst(clazz, null);
+    boolean result = invokeFirst(clazz);
 
     assertThat(result).isEqualTo(actualResult);
   }
@@ -146,7 +145,7 @@ class BytecodeGeneratorTest {
       var func = tfunc("foo", List.of(), type, block);
 
       var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)), true);
-      return invokeFirst(clazz, null);
+      return invokeFirst(clazz);
     }
   }
 
@@ -186,7 +185,7 @@ class BytecodeGeneratorTest {
       var func = tfunc("baz", List.of(), type, call);
 
       var clazz = genClass(compUnit(new Use.Foreign(qualId(className), id(alias), range()), func));
-      StringBuilder result = invokeFirst(clazz, null);
+      StringBuilder result = invokeFirst(clazz);
 
       assertThat(result.toString()).isEqualTo("hi");
     }
@@ -206,7 +205,7 @@ class BytecodeGeneratorTest {
 
       var use = new Use.Foreign(qualId("java/nio/file/Paths"), id("Paths"), range());
       var clazz = genClass(compUnit(use, func), true);
-      Path result = invokeFirst(clazz, null);
+      Path result = invokeFirst(clazz);
 
       assertThat(result).isEqualTo(Paths.get("hi.txt"));
     }
@@ -227,7 +226,7 @@ class BytecodeGeneratorTest {
       var clazz = genClass(compUnit(new Use.Foreign(qualId("java/lang/String"),
           id("String"),
           range()), func));
-      String result = invokeFirst(clazz, null);
+      String result = invokeFirst(clazz);
 
       assertThat(result).isEqualTo("hello");
     }
@@ -245,7 +244,7 @@ class BytecodeGeneratorTest {
       var func = tfunc("foo", List.of(), new ClassType(PrintStream.class), fieldAccess);
 
       var clazz = genClass(compUnit(use, func));
-      PrintStream ps = invokeFirst(clazz, null);
+      PrintStream ps = invokeFirst(clazz);
 
       assertThat(ps).isEqualTo(System.out);
     }
@@ -263,7 +262,7 @@ class BytecodeGeneratorTest {
         NR));
 
     var clazz = genClass(compUnit(List.of(), List.of(), List.of(callerFunc, calleeFunc)));
-    int result = invokeFirst(clazz, null);
+    int result = invokeFirst(clazz);
 
     assertThat(result).isEqualTo(5);
   }
@@ -276,7 +275,7 @@ class BytecodeGeneratorTest {
     var func = tfunc("foo", List.of(), struct.type(), struct);
 
     var clazz = genClass(compUnit(func));
-    Object result = invokeFirst(clazz, null);
+    Object result = invokeFirst(clazz);
     var boolValue = (boolean) result.getClass().getField("f1").get(result);
 
     assertThat(boolValue).isTrue();
@@ -297,7 +296,7 @@ class BytecodeGeneratorTest {
     var func = tfunc("foo", List.of(), BuiltinType.STRING, memberFuncCall);
 
     var clazz = genClass(compUnit(func), true);
-    String result = invokeFirst(clazz, null);
+    String result = invokeFirst(clazz);
 
     assertThat(result).isEqualTo("string");
   }
@@ -345,12 +344,11 @@ class BytecodeGeneratorTest {
           funcCall);
 
       var compUnit = compUnit(List.of(), List.of(), List.of(callerFunc, parameterizedFunc));
-//      System.err.println(compUnit.modules().get(0).toPrettyString());
 
       var result = new BytecodeGenerator().generateBytecode(compUnit.modules());
       result.generatedBytecode().forEach(cl::addClass);
       var clazz = cl.loadClass(CLASS_NAME);
-      Object box = invokeName(clazz, "baz", null);
+      Object box = invokeName(clazz, "baz");
 
       assertThat(result.generatedBytecode()).hasSize(3);
       assertThat(box).isInstanceOf(StructBase.class);
@@ -369,7 +367,7 @@ class BytecodeGeneratorTest {
     var func = tfunc("foo", List.of(), BuiltinType.INT, ifExpr);
 
     var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
-    int result = invokeFirst(clazz, null);
+    int result = invokeFirst(clazz);
 
     assertThat(result).isEqualTo(actualResult);
   }
@@ -382,7 +380,7 @@ class BytecodeGeneratorTest {
     var func = tfunc("foo", List.of(), BuiltinType.BOOLEAN, boolExpr);
 
     var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
-    boolean result = invokeFirst(clazz, null);
+    boolean result = invokeFirst(clazz);
 
     assertThat(result).isEqualTo(true);
   }
@@ -395,7 +393,7 @@ class BytecodeGeneratorTest {
     var func = tfunc("foo", List.of(), BuiltinType.BOOLEAN, boolExpr);
 
     var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
-    boolean result = invokeFirst(clazz, null);
+    boolean result = invokeFirst(clazz);
 
     assertThat(result).isEqualTo(false);
   }
@@ -409,7 +407,7 @@ class BytecodeGeneratorTest {
     var func = tfunc("foo", List.of(), BuiltinType.BOOLEAN, boolExpr);
 
     var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
-    boolean result = invokeFirst(clazz, null);
+    boolean result = invokeFirst(clazz);
 
     assertThat(result).isEqualTo(true);
   }
@@ -461,22 +459,6 @@ class BytecodeGeneratorTest {
     return new TFunctionParameter(id(name), type, range());
   }
 
-  @SuppressWarnings("unchecked")
-  private <T> T invokeFirst(Class<?> clazz, Object obj, Object... args) throws Exception {
-    return (T) clazz.getMethods()[0].invoke(obj, args);
-  }
-
-  @SuppressWarnings("unchecked")
-  private <T> T invokeName(Class<?> clazz, String name, Object obj, Object... args)
-      throws Exception {
-    for (var method : clazz.getMethods()) {
-      if (method.getName().equals(name)) {
-        return (T) method.invoke(obj, args);
-      }
-    }
-    throw new NoSuchMethodException();
-  }
-
   private Class<?> genClass(TCompilationUnit compilationUnit) throws Exception {
     return genClass(compilationUnit, false);
   }
@@ -485,24 +467,10 @@ class BytecodeGeneratorTest {
       throws Exception {
     var result = new BytecodeGenerator().generateBytecode(compilationUnit.modules());
     if (dumpClasses) {
-      dumpGeneratedClasses(result.generatedBytecode());
+      TestUtils.dumpGeneratedClasses(result.generatedBytecode());
     }
     result.generatedBytecode().forEach(cl::addClass);
     return cl.loadClass(CLASS_NAME);
-  }
-
-  public static void dumpGeneratedClasses(Map<String, byte[]> generatedClasses) {
-    try {
-      var tempPath = Files.createTempDirectory("class_dump_");
-      for (Map.Entry<String, byte[]> entry : generatedClasses.entrySet()) {
-        String name = entry.getKey();
-        byte[] bytecode = entry.getValue();
-        Compiler.saveBytecodeToFile(tempPath, name, bytecode);
-      }
-      System.err.println("Dumped files to: " + tempPath);
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
   }
 
   private TCompilationUnit compUnit(List<Use> useList, List<TField> fields,

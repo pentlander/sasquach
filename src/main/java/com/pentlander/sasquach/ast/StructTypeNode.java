@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.ast;
 
+import static com.pentlander.sasquach.Util.toLinkedMap;
 import static java.util.stream.Collectors.toMap;
 
 import com.pentlander.sasquach.Range;
@@ -20,7 +21,7 @@ public record StructTypeNode(String name, Map<String, TypeNode> fieldTypeNodes,
   @Override
   public StructType type() {
     var fieldTypes = fieldTypeNodes.entrySet().stream()
-        .collect(toMap(Entry::getKey, entry -> entry.getValue().type()));
+        .collect(toLinkedMap(Entry::getKey, entry -> entry.getValue().type()));
     return new StructType(name, fieldTypes);
   }
 

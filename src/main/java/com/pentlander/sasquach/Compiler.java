@@ -38,7 +38,7 @@ public class Compiler {
     return sources;
   }
 
-  Sources findFiles(Path sourcePath) throws IOException {
+  public Sources findFiles(Path sourcePath) throws IOException {
     if (Files.isDirectory(sourcePath)) {
       var sources = new HashMap<SourcePath, Source>();
       Files.walkFileTree(sourcePath, new SimpleFileVisitor<>() {
@@ -75,6 +75,10 @@ public class Compiler {
 
   public BytecodeResult compile(Source source) throws CompilationException {
     return new BytecodeResult(compileSources(Sources.single(source)));
+  }
+
+  public BytecodeResult compile(Sources sources) throws CompilationException {
+    return new BytecodeResult(compileSources(sources));
   }
 
   private Map<String, byte[]> compileSources(Sources sources) throws CompilationException {

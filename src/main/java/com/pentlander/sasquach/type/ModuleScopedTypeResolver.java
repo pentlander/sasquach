@@ -24,10 +24,13 @@ import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
 import com.pentlander.sasquach.tast.expression.TStructBuilder;
+import com.pentlander.sasquach.tast.expression.TVarReference;
+import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType.LocalVar;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -55,9 +58,8 @@ public class ModuleScopedTypeResolver {
 
   public StructType resolveModuleType() {
     var struct = moduleDecl.struct();
-    var fieldTypes = new HashMap<String, Type>();
-
-    // Change all of the for loops to use `resolveTypeNode and construct a TypedStruct
+    var fieldTypes = new LinkedHashMap<String, Type>();
+    var typedFields = new ArrayList<TField>();
 
     struct.typeAliases().forEach(typeAlias -> {
       // Add the types of all the sum type nodes.
@@ -70,13 +72,22 @@ public class ModuleScopedTypeResolver {
           idTypes.put(variantTypeNode.id(), variantTypeNode.type());
 
           if (variantTypeNode instanceof VariantTypeNode.Tuple tuple) {
-            var variantConstructorType = new FunctionType(tuple.type()
-                .fieldTypes()
-                .values()
+            var tupleFieldTypes = tuple.type().fieldTypes();
+            var paramTypes = tupleFieldTypes.values()
                 .stream()
                 .sorted(Comparator.comparing(Type::typeName))
-                .toList(), sumType.typeParameters(), sumType);
+                .toList();
+            var variantConstructorType = new FunctionType(paramTypes,
+                sumType.typeParameters(),
+                sumType);
             variantConstructorTypes.put(tuple.id(), variantConstructorType);
+            fieldTypes.put(tuple.id().name(), variantConstructorType);
+          } else if (variantTypeNode instanceof VariantTypeNode.Singleton singleton) {
+            typedFields.add(new TField(singleton.id(),
+                new TVarReference(singleton.id(),
+                    new RefDeclaration.Singleton(singleton.type()),
+                    sumType)));
+            fieldTypes.put(singleton.id().name(), sumType);
           }
         }
       }
@@ -91,7 +102,6 @@ public class ModuleScopedTypeResolver {
     });
 
     var modScopedTypes = new ResolverModuleScopedTypes();
-    var typedFields = new ArrayList<TField>();
     struct.fields().forEach(field -> {
       var resolver = new MemberScopedTypeResolver(nameResolutionResult,
           moduleTypeProvider,

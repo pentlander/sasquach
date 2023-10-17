@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.type;
 
+import static com.pentlander.sasquach.type.TypeUtils.reify;
 import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.joining;
@@ -380,7 +381,7 @@ public class MemberScopedTypeResolver {
 
   private TypedExpression resolveMatch(Match match) {
     var typedExpr = infer(match.expr());
-    if (typedExpr.type() instanceof SumType sumType) {
+    if (reify(typedExpr.type()) instanceof SumType sumType) {
       // All the variants of the sum type with any type parameters already filled in
       var exprVariantTypes = sumType.types().stream().collect(toMap(Type::typeName, identity()));
       var matchTypeNodes = nameResolutionResult.getMatchTypeNodes(match);
@@ -480,6 +481,7 @@ public class MemberScopedTypeResolver {
       addError(new TypeMismatchError("Function '%s' expects %s arguments but found %s".formatted(name,
           paramTypes.size(),
           args.size()), range));
+      return List.of();
     }
 
     // Handle mismatch between arg types and parameter types
@@ -536,7 +538,7 @@ public class MemberScopedTypeResolver {
         if (structType.isPresent()) {
           // need to replace existential types with actual types here
           var fieldType = structType.get().fieldType(name);
-          if (fieldType instanceof FunctionType fieldFuncType) {
+          if (reify(fieldType) instanceof FunctionType fieldFuncType) {
             var funcType = convertUniversals(fieldFuncType, range);
             var typedFuncArgs = checkFuncArgs(name, args, funcType.parameterTypes(), range);
             typedFuncCall = new TMemberFunctionCall(typedExpr,
@@ -547,9 +549,8 @@ public class MemberScopedTypeResolver {
                 range);
           } else if (fieldType == null) {
             return addError(funcCall,
-                new TypeMismatchError(("Struct of type '%s' has no field " + "named%s'").formatted(
-                    structType.get().toPrettyString(),
-                    name), range));
+                new TypeMismatchError(("Struct of type '%s' has no field "
+                    + "named '%s'").formatted(structType.get().toPrettyString(), name), range));
           } else {
             return addError(funcCall,
                 new TypeMismatchError(("Field '%s' of type '%s' is not a " + "function").formatted(

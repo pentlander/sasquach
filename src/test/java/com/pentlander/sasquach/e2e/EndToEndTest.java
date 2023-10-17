@@ -1,8 +1,15 @@
-package com.pentlander.sasquach;
+package com.pentlander.sasquach.e2e;
 
+import static com.pentlander.sasquach.TestUtils.invokeName;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.pentlander.sasquach.CompilationException;
+import com.pentlander.sasquach.Compiler;
+import com.pentlander.sasquach.SasquachClassloader;
+import com.pentlander.sasquach.Source;
+import com.pentlander.sasquach.TestUtils;
+import com.pentlander.sasquach.ast.QualifiedModuleName;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
@@ -14,8 +21,8 @@ public class EndToEndTest {
           plus = (): Int -> 3 + 4
         }
         """);
-    var clazz = compileClass(source, "main/Main");
-    int sum = invokeName(clazz, "plus", null);
+    var clazz = compileClass(source);
+    int sum = invokeName(clazz, "plus");
 
     assertThat(sum).isEqualTo(7);
   }
@@ -27,8 +34,8 @@ public class EndToEndTest {
           foo = (): Boolean -> false && true || true
         }
         """);
-    var clazz = compileClass(source, "main/Main");
-    boolean bool = invokeName(clazz, "foo", null);
+    var clazz = compileClass(source);
+    boolean bool = invokeName(clazz, "foo");
 
     assertThat(bool).isEqualTo(true);
   }
@@ -45,8 +52,8 @@ public class EndToEndTest {
         }
         """);
     // Figure out why the local named type isn't being replaced
-    var clazz = compileClass(source, "main/Main");
-    int sum = invokeName(clazz, "foo", null);
+    var clazz = compileClass(source);
+    int sum = invokeName(clazz, "foo");
 
     assertThat(sum).isEqualTo(5);
   }
@@ -64,8 +71,8 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source, "main/Main");
-    int sum = invokeName(clazz, "plus", null);
+    var clazz = compileClass(source);
+    int sum = invokeName(clazz, "plus");
 
     assertThat(sum).isEqualTo(5);
   }
@@ -80,8 +87,8 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source, "main/Main");
-    int sum = invokeName(clazz, "plus", null);
+    var clazz = compileClass(source);
+    int sum = invokeName(clazz, "plus");
 
     assertThat(sum).isEqualTo(5);
   }
@@ -99,8 +106,8 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClassDebug(source, "main/Main");
-    int sum = invokeName(clazz, "foo", null);
+    var clazz = compileClass(source);
+    int sum = invokeName(clazz, "foo");
 
     assertThat(sum).isEqualTo(27);
   }
@@ -120,8 +127,8 @@ public class EndToEndTest {
           },
         }
         """);
-    var clazz = compileClassDebug(source, "main/Main");
-    String sum = invokeName(clazz, "foo", null);
+    var clazz = compileClass(source);
+    String sum = invokeName(clazz, "foo");
 
     assertThat(sum).isEqualTo("foo");
   }
@@ -142,7 +149,7 @@ public class EndToEndTest {
           },
         }
         """);
-    var ex = assertThrows(CompilationException.class, () -> compileClass(source, "main/Main"));
+    var ex = assertThrows(CompilationException.class, () -> compileClass(source));
     assertThat(ex).hasMessageContaining("should be 'String'");
   }
 
@@ -161,8 +168,8 @@ public class EndToEndTest {
           },
         }
         """);
-    var clazz = compileClass(source, "main/Main");
-    Object singleton = invokeName(clazz, "foo", null);
+    var clazz = compileClass(source);
+    Object singleton = invokeName(clazz, "foo");
 
     assertThat(singleton.getClass().getName()).isEqualTo("main.Main$None");
   }
@@ -185,8 +192,8 @@ public class EndToEndTest {
           },
         }
         """);
-    var clazz = compileClass(source, "main/Main");
-    String sum = invokeName(clazz, "foo", null);
+    var clazz = compileClass(source);
+    String sum = invokeName(clazz, "foo");
 
     assertThat(sum).isEqualTo("foo");
   }
@@ -203,7 +210,7 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClass(source);
     invokeName(clazz, "foo", null);
   }
 
@@ -220,7 +227,7 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClass(source);
     String value = invokeName(clazz, "foo", null);
 
     assertThat(value).isEqualTo("bar");
@@ -236,7 +243,7 @@ public class EndToEndTest {
           main = (): Int -> getX(newPoint(5))
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClass(source);
     int sum = invokeName(clazz, "main", null);
 
     assertThat(sum).isEqualTo(5);
@@ -252,7 +259,7 @@ public class EndToEndTest {
           main = (): Int -> getX(newPoint(5))
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClass(source);
     int sum = invokeName(clazz, "main", null);
 
     assertThat(sum).isEqualTo(5);
@@ -267,7 +274,7 @@ public class EndToEndTest {
           main = (): Int -> getX(3, (x: Int, y: Int): Int -> x + y)
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClass(source);
     int sum = invokeName(clazz, "main", null);
 
     assertThat(sum).isEqualTo(9);
@@ -293,7 +300,7 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClass(source);
     int sum = invokeName(clazz, "main", null);
 
     assertThat(sum).isEqualTo(5);
@@ -317,7 +324,7 @@ public class EndToEndTest {
           },
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClass(source);
     Object boxedInt = invokeName(clazz, "main", null);
 
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 5);
@@ -332,7 +339,7 @@ public class EndToEndTest {
           main = (): { value: Int } -> map("foobar", { map = (inp: String): Int -> 10 })
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClass(source);
     Object boxedInt = invokeName(clazz, "main", null);
 
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
@@ -357,7 +364,7 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClass(source);
     int boxedInt = invokeName(clazz, "main", null);
 
     assertThat(boxedInt).isEqualTo(10);
@@ -377,7 +384,7 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClass(source);
     Object boxedInt = invokeName(clazz, "main", null);
 
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
@@ -397,7 +404,7 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClass(source);
     String str = invokeName(clazz, "main", null);
 
     assertThat(str).isEqualTo("hi");
@@ -420,7 +427,7 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClass(source);
     Object boxedStr = invokeName(clazz, "main", null);
 
     assertThat(boxedStr).hasFieldOrPropertyWithValue("value", "hello");
@@ -438,41 +445,29 @@ public class EndToEndTest {
           main = (): T[Int] -> map("foo", { map = (inp: String): Int -> 10 })
         }
         """);
-    var clazz = compileClass(source, "main/Main");
+    var clazz = compileClass(source);
     Object boxedInt = invokeName(clazz, "main", null);
 
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
   }
 
-  private Class<?> compileClass(Source source, String qualifiedName)
-      throws ClassNotFoundException, CompilationException {
-    return compileClass(source, qualifiedName, false);
+  private Class<?> compileClass(Source source) throws ClassNotFoundException, CompilationException {
+    return compileClass(source, false);
   }
 
-  private Class<?> compileClassDebug(Source source, String qualifiedName)
+  private Class<?> compileClassDebug(Source source)
       throws ClassNotFoundException, CompilationException {
-    return compileClass(source, qualifiedName, true);
+    return compileClass(source, true);
   }
 
-  private Class<?> compileClass(Source source, String qualifiedName, boolean dumpClasses)
+  private Class<?> compileClass(Source source, boolean dumpClasses)
       throws ClassNotFoundException, CompilationException {
     var bytecode = new Compiler().compile(source);
     var cl = new SasquachClassloader();
     if (dumpClasses) {
-      BytecodeGeneratorTest.dumpGeneratedClasses(bytecode.generatedBytecode());
+      TestUtils.dumpGeneratedClasses(bytecode.generatedBytecode());
     }
     bytecode.generatedBytecode().forEach(cl::addClass);
-    return cl.loadClass(qualifiedName.replace('/', '.'));
-  }
-
-  @SuppressWarnings("unchecked")
-  private <T> T invokeName(Class<?> clazz, String name, Object obj, Object... args)
-      throws Exception {
-    for (var method : clazz.getMethods()) {
-      if (method.getName().equals(name)) {
-        return (T) method.invoke(obj, args);
-      }
-    }
-    throw new NoSuchMethodException();
+    return cl.loadModule(new QualifiedModuleName("main", "Main"));
   }
 }
