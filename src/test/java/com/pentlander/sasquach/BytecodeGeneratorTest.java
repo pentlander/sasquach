@@ -39,11 +39,12 @@ import com.pentlander.sasquach.tast.expression.TBlock;
 import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
 import com.pentlander.sasquach.tast.expression.TIfExpression;
+import com.pentlander.sasquach.tast.expression.TLiteralStructBuilder;
 import com.pentlander.sasquach.tast.expression.TLocalFunctionCall;
 import com.pentlander.sasquach.tast.expression.TLocalFunctionCall.TargetKind;
 import com.pentlander.sasquach.tast.expression.TMemberFunctionCall;
+import com.pentlander.sasquach.tast.expression.TModuleStructBuilder;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
-import com.pentlander.sasquach.tast.expression.TStructBuilder;
 import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Local;
@@ -475,10 +476,9 @@ class BytecodeGeneratorTest {
 
   private TCompilationUnit compUnit(List<Use> useList, List<TField> fields,
       List<TNamedFunction> functions) {
-    var struct = TStructBuilder.builder()
-        .name(Optional.of(MOD_NAME))
+    var struct = TModuleStructBuilder.builder()
+        .name(MOD_NAME)
         .useList(useList)
-        .structKind(StructKind.MODULE)
         .fields(fields)
         .functions(functions)
         .range(NR)
@@ -496,11 +496,10 @@ class BytecodeGeneratorTest {
     return compUnit(List.of(use), List.of(), List.of(function));
   }
 
-  private TStructBuilder literalStructBuilder() {
-    return TStructBuilder.builder()
+  private TLiteralStructBuilder literalStructBuilder() {
+    return TLiteralStructBuilder.builder()
         .fields(List.of())
         .functions(List.of())
-        .structKind(StructKind.LITERAL)
         .range(NR);
   }
 

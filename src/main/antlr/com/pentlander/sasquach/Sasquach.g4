@@ -73,6 +73,7 @@ expression :
   | left=expression operator=(AND|OR) right=expression #booleanExpression
   | value #valueLiteral
   | struct #structLiteral
+  | namedStruct #namedStructLiteral
   | functionCall #functionExpression
   | ifBlock #ifExpression
   | varReference #varExpression
@@ -84,6 +85,7 @@ expression :
   | match # matchExpression;
 
 struct : '{' NL* structStatement (',' NL* structStatement)* (',')? NL* '}' ;
+namedStruct : typeIdentifier struct ;
 structStatement : use #useStatement
   | TYPEALIAS typeIdentifier typeParameterList? EQUALS (type|sumType) #typeAliasStatement
   | memberName EQUALS (function|expression) #identifierStatement ;

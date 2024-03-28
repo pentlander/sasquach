@@ -106,7 +106,9 @@ public interface ExpressionVisitor<T> {
   }
 
   default T visit(Struct struct) {
-    struct.useList().forEach(this::visit);
+    if (struct instanceof ModuleStruct moduleStruct) {
+      moduleStruct.useList().forEach(this::visit);
+    }
     struct.functions().forEach(this::visit);
     struct.fields().forEach(this::visit);
     return defaultValue();

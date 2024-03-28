@@ -11,10 +11,12 @@ import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.Match;
+import com.pentlander.sasquach.ast.expression.NamedStruct;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.FunctionCallTarget;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
+import com.pentlander.sasquach.type.SumType;
 import com.pentlander.sasquach.type.Type;
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -30,7 +32,7 @@ public class NameResolutionResult {
       Map.of(),
       Map.of(),
       Map.of(),
-      Map.of(), Map.of(),
+      Map.of(), Map.of(), Map.of(),
       Map.of(),
       new RangedErrorList(List.of()));
 
@@ -40,6 +42,7 @@ public class NameResolutionResult {
   private final Map<Identifier, ForeignFunctions> foreignFunctions;
   private final Map<Identifier, FunctionCallTarget> localFunctionCalls;
   private final Map<VarReference, ReferenceDeclaration> varReferences;
+  private final Map<NamedStruct, Identifier> namedStructTypes;
   private final Map<Recur, RecurPoint> recurPoints;
   private final Map<Match, List<TypeNode>> matchTypeNodes;
   private final RangedErrorList errors;
@@ -48,7 +51,8 @@ public class NameResolutionResult {
       Map<ForeignFieldAccess, Field> foreignFieldAccesses,
       Map<Identifier, ForeignFunctions> foreignFunctions,
       Map<Identifier, FunctionCallTarget> localFunctionCalls,
-      Map<VarReference, ReferenceDeclaration> varReferences, Map<Recur, RecurPoint> recurPoints, Map<Match, List<TypeNode>> matchTypeNodes,
+      Map<VarReference, ReferenceDeclaration> varReferences, Map<NamedStruct, Identifier> namedStructTypes,
+      Map<Recur, RecurPoint> recurPoints, Map<Match, List<TypeNode>> matchTypeNodes,
       RangedErrorList errors) {
     this.typeAliases = typeAliases;
     this.typeNameAliases = typeNameAliases(typeAliases);
@@ -56,6 +60,7 @@ public class NameResolutionResult {
     this.foreignFunctions = foreignFunctions;
     this.localFunctionCalls = localFunctionCalls;
     this.varReferences = varReferences;
+    this.namedStructTypes = namedStructTypes;
     this.recurPoints = recurPoints;
     this.matchTypeNodes = matchTypeNodes;
     this.errors = errors;
@@ -73,8 +78,7 @@ public class NameResolutionResult {
         foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
-        varReferences,
-        recurPoints,
+        varReferences, namedStructTypes, recurPoints,
         matchTypeNodes,
         this.errors.concat(errors));
   }
@@ -86,8 +90,7 @@ public class NameResolutionResult {
         foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
-        varReferences,
-        recurPoints,
+        varReferences, namedStructTypes, recurPoints,
         matchTypeNodes,
         errors);
   }
@@ -102,6 +105,10 @@ public class NameResolutionResult {
 
   public Optional<NamedTypeDefinition> getNamedType(Type type) {
     return Optional.ofNullable(typeNameAliases.get(type));
+  }
+
+  public Identifier getNamedStructType(NamedStruct namedStruct) {
+    return requireNonNull(namedStructTypes.get(namedStruct));
   }
 
   public Field getForeignField(ForeignFieldAccess foreignFieldAccess) {
@@ -142,7 +149,7 @@ public class NameResolutionResult {
         merged(foreignFunctions, other.foreignFunctions),
         merged(localFunctionCalls, other.localFunctionCalls),
         merged(varReferences, other.varReferences),
-        merged(recurPoints, other.recurPoints),
+        merged(namedStructTypes, other.namedStructTypes), merged(recurPoints, other.recurPoints),
         merged(matchTypeNodes, other.matchTypeNodes),
         errors.concat(other.errors));
   }

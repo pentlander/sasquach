@@ -134,13 +134,21 @@ public class TypeUnifier {
               .filter(t -> t.isAssignableFrom(sourceSingletonType))
               .findFirst()
               .orElseThrow(() -> new UnificationException(destType, sourceType));
-      case StructType destSumType when sourceType instanceof SumType sourceSumType -> {
+      case StructType destStructType when sourceType instanceof SumType sourceSumType -> {
         var matchingVariant = sourceSumType.types()
             .stream()
-            .filter(t -> t.isAssignableFrom(destSumType))
+            .filter(t -> t.isAssignableFrom(destStructType))
             .findFirst()
             .orElseThrow(() -> new UnificationException(destType, sourceType));
-        unify(destSumType, matchingVariant);
+        unify(destStructType, matchingVariant);
+      }
+      case SumType destSumType when sourceType instanceof StructType sourceStructType -> {
+        var matchingVariant = destSumType.types()
+            .stream()
+            .filter(t -> t.isAssignableFrom(sourceStructType))
+            .findFirst()
+            .orElseThrow(() -> new UnificationException(destType, sourceType));
+        unify(matchingVariant, sourceStructType);
       }
       case ClassType destClassType when sourceType instanceof ClassType sourceClassType -> {
         for (int i = 0; i < destClassType.typeArguments().size(); i++) {

@@ -10,11 +10,13 @@ import static java.util.stream.Collectors.toMap;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
+import com.pentlander.sasquach.RangedErrorList.Builder;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.Branch;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
+import com.pentlander.sasquach.ast.Pattern.VariantStruct;
 import com.pentlander.sasquach.ast.Pattern.VariantTuple;
 import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
@@ -30,16 +32,20 @@ import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.FunctionCall;
 import com.pentlander.sasquach.ast.expression.IfExpression;
+import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Loop;
 import com.pentlander.sasquach.ast.expression.Match;
 import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
+import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
+import com.pentlander.sasquach.ast.expression.NamedStruct;
 import com.pentlander.sasquach.ast.expression.PrintStatement;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
+import com.pentlander.sasquach.ast.expression.StructWithName;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
@@ -51,6 +57,9 @@ import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TFunctionSignature;
 import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.tast.TPattern;
+import com.pentlander.sasquach.tast.TPattern.TSingleton;
+import com.pentlander.sasquach.tast.TPattern.TVariantStruct;
+import com.pentlander.sasquach.tast.TPattern.TVariantTuple;
 import com.pentlander.sasquach.tast.TPatternVariable;
 import com.pentlander.sasquach.tast.expression.TApplyOperator;
 import com.pentlander.sasquach.tast.expression.TArrayValue;
@@ -64,21 +73,24 @@ import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
 import com.pentlander.sasquach.tast.expression.TFunction;
 import com.pentlander.sasquach.tast.expression.TFunctionCall;
 import com.pentlander.sasquach.tast.expression.TIfExpression;
+import com.pentlander.sasquach.tast.expression.TLiteralStruct;
+import com.pentlander.sasquach.tast.expression.TLiteralStructBuilder;
 import com.pentlander.sasquach.tast.expression.TLocalFunctionCall;
 import com.pentlander.sasquach.tast.expression.TLocalFunctionCall.TargetKind;
 import com.pentlander.sasquach.tast.expression.TLocalVariable;
 import com.pentlander.sasquach.tast.expression.TLoop;
 import com.pentlander.sasquach.tast.expression.TMatch;
 import com.pentlander.sasquach.tast.expression.TMemberFunctionCall;
+import com.pentlander.sasquach.tast.expression.TModuleStructBuilder;
 import com.pentlander.sasquach.tast.expression.TPrintStatement;
 import com.pentlander.sasquach.tast.expression.TRecur;
 import com.pentlander.sasquach.tast.expression.TStruct;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
-import com.pentlander.sasquach.tast.expression.TStructBuilder;
 import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Local;
 import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
+import com.pentlander.sasquach.tast.expression.TVariantStructBuilder;
 import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.ModuleScopedTypeResolver.ModuleTypeProvider;
@@ -109,7 +121,7 @@ public class MemberScopedTypeResolver {
   private final Map<Identifier, TLocalVariable> localVariables = new HashMap<>();
   private final Map<Expression, TypedExpression> typedExprs = new HashMap<>();
   private final TypeUnifier typeUnifier = new TypeUnifier();
-  private final RangedErrorList.Builder errors = RangedErrorList.builder();
+  private final Builder errors = RangedErrorList.builder();
   private final AtomicInteger typeVarNum = new AtomicInteger();
 
   private final NameResolutionResult nameResolutionResult;
@@ -154,6 +166,12 @@ public class MemberScopedTypeResolver {
     var typeParams = typeParams(type.typeParameters(),
         param -> new TypeVariable(param.typeName() + typeVarNum.getAndIncrement()));
     return (FunctionType) namedTypeResolver.resolveNames(type, typeParams, range);
+  }
+
+  SumType convertUniversals(SumType type, Range range) {
+    var typeParams = typeParams(type.typeParameters(),
+        param -> new TypeVariable(param.typeName() + typeVarNum.getAndIncrement()));
+    return (SumType) namedTypeResolver.resolveNames(type, typeParams, range);
   }
 
   private static Type builtinOrClassType(Class<?> clazz, List<Type> typeArgs) {
@@ -349,17 +367,61 @@ public class MemberScopedTypeResolver {
       var typedFunc = infer(func.function());
       return new TNamedFunction(func.id(), (TFunction) typedFunc);
     }).toList();
-    var typedFields = struct.fields()
-        .stream()
-        .map(field -> new TField(field.id(), infer(field.value())))
-        .toList();
-    return TStructBuilder.builder()
-        .name(struct.name())
-        .fields(typedFields)
-        .functions(typedFunctions)
-        .structKind(struct.structKind())
-        .range(struct.range())
-        .build();
+
+    return switch (struct) {
+      // Literal structs have all of their fields inferred since they're not "based" on any
+      // pre-existing type
+      case LiteralStruct s -> {
+        var typedFields = struct.fields()
+            .stream()
+            .map(field -> new TField(field.id(), infer(field.value())))
+            .toList();
+        yield TLiteralStructBuilder.builder()
+            .fields(typedFields)
+            .functions(typedFunctions)
+            .range(s.range())
+            .build();
+      }
+      case ModuleStruct s -> {
+        var typedFields = struct.fields()
+            .stream()
+            .map(field -> new TField(field.id(), infer(field.value())))
+            .toList();
+        yield TModuleStructBuilder.builder()
+            .name(s.name())
+            .fields(typedFields)
+            .functions(typedFunctions)
+            .range(s.range())
+            .build();
+      }
+      // Named structs need to have their field types checked against their type definition, similar
+      // to functions.
+      case NamedStruct s -> {
+        var sumType = moduleScopedTypes.getSumType(nameResolutionResult.getNamedStructType(s));
+        var convertedSumType = convertUniversals(sumType, s.range());
+        // TODO This is dumb. The name resolution step already determines what variant this
+        //  particular struct actually is. Pipe it through instead of this hack.
+        var variant = convertedSumType.types()
+            .stream()
+            .filter(t -> t.typeName().endsWith(s.name()))
+            .findFirst()
+            .map(StructType.class::cast)
+            .orElseThrow();
+        var typedFields = struct.fields().stream().map(field -> {
+          var typedExpr = check(field.value(), variant.fieldType(field.name()));
+          return new TField(field.id(), typedExpr);
+        }).toList();
+
+        var type = (SumType) typeUnifier.resolve(convertedSumType);
+        yield TVariantStructBuilder.builder()
+            .name(sumType.moduleName().qualifyInner(s.name()))
+            .fields(typedFields)
+            .functions(typedFunctions)
+            .type(type)
+            .range(s.range())
+            .build();
+      }
+    };
   }
 
   private TypedExpression resolveIfExpression(IfExpression ifExpr) {
@@ -382,6 +444,7 @@ public class MemberScopedTypeResolver {
   private TypedExpression resolveMatch(Match match) {
     var typedExpr = infer(match.expr());
     if (reify(typedExpr.type()) instanceof SumType sumType) {
+//      var convertedSumType = convertUniversals(sumType, match.range());
       // All the variants of the sum type with any type parameters already filled in
       var exprVariantTypes = sumType.types().stream().collect(toMap(Type::typeName, identity()));
       var matchTypeNodes = nameResolutionResult.getMatchTypeNodes(match);
@@ -395,7 +458,7 @@ public class MemberScopedTypeResolver {
         var variantType = requireNonNull(exprVariantTypes.remove(branchVariantTypeName));
         var typedPattern = switch (branch.pattern()) {
           case Pattern.Singleton singleton ->
-              new TPattern.TSingleton(singleton.id(), (SingletonType) variantType);
+              new TSingleton(singleton.id(), (SingletonType) variantType);
           case VariantTuple tuple -> {
             var tupleType = TypeUtils.asStructType(variantType).orElseThrow();
             // The fields types are stored in a hashmap, but we sort them to bind the variables
@@ -410,12 +473,12 @@ public class MemberScopedTypeResolver {
               putLocalVarType(binding, typedVar);
               typedPatternVars.add(typedVar);
             }
-            yield new TPattern.TVariantTuple(tuple.id(),
+            yield new TVariantTuple(tuple.id(),
                 tupleType,
                 typedPatternVars,
                 tuple.range());
           }
-          case Pattern.VariantStruct struct -> {
+          case VariantStruct struct -> {
             var structType = TypeUtils.asStructType(variantType).orElseThrow();
             var typedPatternVars = new ArrayList<TPatternVariable>();
             for (var binding : struct.bindings()) {
@@ -424,7 +487,7 @@ public class MemberScopedTypeResolver {
               putLocalVarType(binding, typedVar);
               typedPatternVars.add(typedVar);
             }
-            yield new TPattern.TVariantStruct(struct.id(),
+            yield new TVariantStruct(struct.id(),
                 structType,
                 typedPatternVars,
                 struct.range());
@@ -605,7 +668,7 @@ public class MemberScopedTypeResolver {
       case java.lang.reflect.TypeVariable<?> typeVariable ->
           typeVariables.getOrDefault(typeVariable.getName(),
               new TypeVariable(typeVariable.getName() + typeVarNum.getAndIncrement()));
-      case java.lang.reflect.ParameterizedType paramType -> {
+      case ParameterizedType paramType -> {
         var typeArgs = Arrays.stream(paramType.getActualTypeArguments())
             .map(t -> javaTypeToType(t, typeVariables))
             .toList();

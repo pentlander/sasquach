@@ -44,6 +44,7 @@ import com.pentlander.sasquach.SasquachParser.MemberApplicationExpressionContext
 import com.pentlander.sasquach.SasquachParser.ModuleNamedTypeContext;
 import com.pentlander.sasquach.SasquachParser.MultiTupleTypeContext;
 import com.pentlander.sasquach.SasquachParser.MultiTupleVariantPatternContext;
+import com.pentlander.sasquach.SasquachParser.NamedStructContext;
 import com.pentlander.sasquach.SasquachParser.SingleTupleTypeContext;
 import com.pentlander.sasquach.SasquachParser.SingleTupleVariantPatternContext;
 import com.pentlander.sasquach.SasquachParser.SingletonPatternContext;
@@ -321,6 +322,10 @@ public class Visitor {
     }
 
     @Override
+    public Expression visitNamedStruct(NamedStructContext ctx) {
+      return ctx.struct().accept(structVisitorForNamed(ctx.typeIdentifier().getText()));
+    }
+    @Override
     public Expression visitFunction(FunctionContext ctx) {
       return ctx.accept(new FunctionVisitor());
     }
@@ -505,6 +510,12 @@ public class Visitor {
     return new StructVisitor(null, StructKind.LITERAL);
   }
 
+  public StructVisitor structVisitorForNamed(String name) {
+    // TODO: Set the metadata at the end of the visitStruct func so struct methods work properly
+    // TODO: Figure out how to reference parent scope from struct literal
+    return new StructVisitor(name, StructKind.NAMED);
+  }
+
   class StructVisitor extends SasquachBaseVisitor<Struct> {
     private final String structName;
     private final StructKind structKind;
@@ -570,7 +581,7 @@ public class Visitor {
             fields,
             functions,
             rangeFrom(ctx));
-        case VARIANT -> Struct.variantLiteralStruct(structName, fields, functions, rangeFrom(ctx));
+        case NAMED -> Struct.variantLiteralStruct(structName, fields, functions, rangeFrom(ctx));
       };
     }
   }

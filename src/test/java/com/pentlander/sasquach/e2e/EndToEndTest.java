@@ -133,6 +133,51 @@ public class EndToEndTest {
     assertThat(sum).isEqualTo("foo");
   }
 
+  @Test
+  void matchSumType_generic() throws Exception {
+    // Failed because the A in the typedef and the func get resolved to the same Universal type and both get replaced.
+    var source = Source.fromString("main", """
+        Main {
+          type Option[A] = | Some(A) | None,
+          
+          isSome = [A](option: Option[A]): Boolean -> match option {
+            Some(_) -> true,
+            None -> false,
+          },
+          
+          foo = (): Boolean -> {
+            let option = if (true) Some("foo") else None
+            isSome(option)
+          },
+        }
+        """);
+    var clazz = compileClass(source);
+    boolean sum = invokeName(clazz, "foo");
+
+    assertThat(sum).isTrue();
+  }
+
+  @Test
+  void matchSumType_structVariant() throws Exception {
+    var source = Source.fromString("main", """
+        Main {
+          type Option[T] = | Some { inner: T } | None,
+          
+          foo = (): String -> {
+            let option = if (true) Some { inner = "foo" } else None
+            match option {
+              Some { inner } -> inner,
+              None -> "",
+            }
+          },
+        }
+        """);
+    var clazz = compileClass(source);
+    String sum = invokeName(clazz, "foo");
+
+    assertThat(sum).isEqualTo("foo");
+  }
+
   // should fail
   @Test
   void matchSumType_sameParam_multipleVariants() throws Exception {
@@ -187,15 +232,15 @@ public class EndToEndTest {
           identity = [T](option: Option[T]): Option[T] -> option,
           
           foo = (): String -> {
-            let some = Test { foo = (bar: Int): String -> Int.toString(bar) }
-            some._0
+            let some = Test { foo = (bar: Int): String -> "fox" }
+            some.foo("foo")
           },
         }
         """);
     var clazz = compileClass(source);
     String sum = invokeName(clazz, "foo");
 
-    assertThat(sum).isEqualTo("foo");
+    assertThat(sum).isEqualTo("fox");
   }
 
   @Test

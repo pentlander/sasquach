@@ -1,5 +1,7 @@
 package com.pentlander.sasquach;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -32,5 +34,16 @@ public final class Util {
       throw new IllegalStateException();
     }, LinkedHashMap::new);
   }
+
+//  public static String toStr(Record record) throws IllegalAccessException {
+//    var lookup = MethodHandles.lookup();
+//    for (var recordComponent : record.getClass().getRecordComponents()) {
+//      var method = recordComponent.getAccessor();
+//      var handle = lookup.unreflect(method);
+//      MethodHandles.
+//
+//    }
+//
+//  }
 }
 

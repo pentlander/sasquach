@@ -11,6 +11,7 @@ import static org.mockito.Mockito.mock;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.Use;
+import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.Struct;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,7 +45,7 @@ class ModuleScopedNameResolverTest {
 
   @Test
   void resolveFields() {
-    var field = new Struct.Field(id("foo"), stringValue("bar"));
+    var field = new LiteralStruct.Field(id("foo"), stringValue("bar"));
     var modDecl = new ModuleDeclaration(qualId("Main"),
         Struct.moduleStructBuilder("Main").fields(List.of(field)).range(range()).build(),
         range());

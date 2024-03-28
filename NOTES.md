@@ -77,12 +77,182 @@ When defining a sum type, you are actually adding multiple functions to the modu
 ## AST
 I was debating whether to create a separate typed ast or just add a nullable field to the existing AST and call it a day. The typed AST give us a chance to update the AST with resolved names as well as adding type information. The nullable field could just be a generic context object that lives in every expression, but it seems difficult to do that while retaining strong typing.
 
+## Interfaces
+An interface type is defined as a struct that contains a spread, e.g. `type Foo = { bar: () -> String , .. }`. 
+A struct without a spread is considered a concrete type. If it is defined with `type`, then it 
+generates a named class. Otherwise, it generates an anonymous class. Either one can be used where an
+interface type is expected. This means modules can also be used where an interface is expected. The
+consequence of this is that in the bytecode, the functions accept concrete class names and interface
+names, rather than everything simply accepting `StructBase`. This should improve the runtime 
+performance as the bytecode looks even more like regular Java code, as well as make debugging easier
+since the bytecode has proper classnames. The other consequence is that users need to explicitly 
+need to opt functions in to structural typing, rather than it being the default. I think this is the
+right move given most modules want to operate on the specific type they export, rather than 
+something that looks like their type. In addition, this simplifies the syntax for modules 
+implementing interfaces:
+```
+// Module Foo implements the intersection of Bar and Baz. This will be the same syntax used for
+// general intersection struct types
+mod Foo: Bar & Baz = { .. }
+
+type Compare[A] = { compare: (a1: A, a2: A) -> Cmp } & Eq,
+type Compare[A] = { compare: (a1: A, a2: A) -> Cmp, thisEq: Eq },
+```
+
+
 # To Investigate
 
 ## Indy for lazy anonymous struct creation
 Use invokedynamic to create hidden classes when they're actually used for the first time instead
 of eagerly creating classfiles for every anon struct. Maybe ast analysis could dedupe anon 
 structs if they show up enough in code?
+
+## Compile Time Reflection
+I want to have a kind of JITed derivation of attributes. The idea is similar to how Java does `toString`
+on more recent versions. The inner implementation uses `invokedynamic` and uses method handles or 
+bytecode generation to make what basically looks like a handwritten implementation of a `toString` 
+method. The question is, how do you sanely do that and make it more-or-less look like real code. Even
+excluding the invoke dynamic bit, type checking it at compile is tricky. It needs to iterate over all
+the fields in the struct and check if there's a module that implements the given type. The problem
+is that you end up with the same canonical module problem. How do you decide which module instance 
+to use? Do you have to add an import in your code for each type? Can it be more restrictive at first
+and loosened up later? Like make just look for modules in the package the type that has the derive is
+defined in, followed by the package the type being derived is defined in?
+
+There are two options for modules that ultimately get used implicitly:
+1. Accept a generic signature like `{ type T, toString: (t: T) -> String, .. }` so that the module  can just have the 
+   that defines the type can just have the functions added directly to type's module
+2. Require the implementing type to have a separate module of the type of the interface, e.g. 
+   `mod IntToString = ToString.T[Int] { toString[Int] = (a: Int) -> { ... } }`
+
+The first one avoid an explosion of different classes that need to be generated. You can have one 
+module (possibly the module that defined the type that need to impl interfaces) that itself 
+implements several methods it needs to satisfy the interfaces. The problem then becomes, when you 
+need to lookup an implicit module, you need to look at every implicitly imported module to see if it
+matches the type signature that you need. That sounds slow and error prone. I suppose that if you
+require that the module has an associated type instead of a bunch of generic functions, you can at
+least narrow it down to modules whose assoc type matches what you're looking for. 
+
+The second one definitely simplifies the lookup. You can just lookup the modules that are instances
+of the actual type you need. The downside? You end up with a bunch of small classes that each 
+implement a function or two. Also if you derive a type, then you need to magically know the name of
+the type to reference it. This is important for implicits, since you need to import an implicit 
+module by name. 
+
+Maybe there's another option? Which is basically having an interface type. That way you could add a
+bunch of function to your module if you want to either manually impl it or derive it without 
+exploding the number of classes. You could also separately impl the interface in a different module.
+I suppose the main hiccup becomes what if a module has some implementation of an interface defined, 
+but the client wants to implicitly use a different impl? Here's an example:
+```
+@Derive(ToString, Equals)
+mod Foo = deriveToString <| {
+  type T = { bar: Bar },
+}
+
+mod SpecialBarToString = ToString.T[Bar] { ... }
+
+// Some module defined in a libary, we ca
+mod Printer = {
+  printThing = [A](implicit toString: ToString.T[A], a: A) -> {
+    print(toString.toString(a))
+  }
+}
+
+mod Main = {
+  import implicit Foo,
+  
+  main = () -> {
+    let fooA = Foo { ... }
+    let fooB = Foo { ... }
+    // We want to implicitly use the Equals definition from Foo
+    if fooA != fooB {
+      
+      printThing(fooA)
+    }
+  },
+}
+```
+
+```
+@Derive(ToString.T)
+mod User = {
+  type T = { id: Int, name: String, settings: Map[String, String] },
+  
+  // This is roughly what's generated by the derive
+  mod UserToString = ToString.T[T] {
+    import implicit IntToString,
+    import implicit MapToString,
+  
+    toString: (a: User) ->
+      "User { id: ${ToString.call(id)}, name: ${name}, settings: ${ToString.call(settings)}"
+    
+    // VS
+      
+    toString: (a: User) ->
+      "User { id: ${IntToString.toString(id)}, name: ${name}, settings: ${MapToString.toString(settings)}"
+  }
+}
+
+// Singleton instance of named struct. Compiles down to class whose singleton instance is an 
+// instance of the ToString.T class. Would need to delegate function calls to the ToString.T class
+// since in this case the IntToString class doesn't have any methods
+mod IntToString = ToString.T[Int] {
+  toString: (a: Int) -> Integer.toString(a),
+}
+
+// VS
+
+// Singleton instance of class that implements the ToString.T interface
+mod IntToString: ToString.T[Int] = {
+  toString: (a: Int) -> Integer.toString(a),
+}
+
+mod ToString = {
+  type T[A] = { toString: (a: A) -> String },
+  
+  // VS
+  
+  type T[A] = { toString: (a: A) -> String, .. },
+  
+  toString = toString[A](implicit fn: T[A], a: A): String -> fn(a)
+}
+
+mod Stringer = {
+  generateToString = [A, B](module: { ..A }): { ..A, ..ToString.T[B] } -> {
+    Reflect.members(module) 
+        |> List.filterMap((member) ->
+          match member {
+            Field { name, type } -> {
+              // Look up a module 
+              (name, lookupModules(ToString.T[type])) |> List.first!() |> Option.some()
+            }
+            Function { .. } -> None
+          }
+        )
+        |> List.reduce(
+          "${reifyType(B).name}(",
+          (accum, (name, module)) -> {
+            
+          })
+          
+    
+}
+
+```
+
+I think the most sane path going forward is as follows:
+* Have abstract types in the form of `{ foo: Foo, .. }`, indicated by the `..` since that can't be 
+  instantiated. This means that the struct is generated as an interface instead of a class (this 
+  won't work currently since dispatch works based on fields right now, and interfaces don't have fields)
+* Add syntax for `implicit` module parameters on functions. The compiler will only look for that 
+  module impl in the module where the type was defined and doesn't require importing that module
+  implicitly. This effectively enables modules to implement interfaces structurally
+* Implement row typed functions
+
+I should just special case the things that I need right now instead of worrying how to actually do
+the general case of `derive`. The list includes: Equals, Hashcode, Compare, Serialize, Deserialize,
+ToResultSet, FromResultSet
 
 # Open Questions
 

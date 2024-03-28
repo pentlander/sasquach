@@ -11,3 +11,4 @@
     2. Update the TAST to replace all the TypeVariables with their actual types
     3. Use the TypeUnifier's map of TypeVariable -> Type and use that during bytecode gen
 * Parse named struct literals, e.g. `Foo { bar = "string" }`
+* Figure out how to properly unify the singleton with the named struct literal

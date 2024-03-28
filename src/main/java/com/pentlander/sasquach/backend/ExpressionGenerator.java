@@ -16,6 +16,7 @@ import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TPattern.TSingleton;
 import com.pentlander.sasquach.tast.TPattern.TVariantStruct;
 import com.pentlander.sasquach.tast.TPattern.TVariantTuple;
+import com.pentlander.sasquach.tast.TPatternVariable;
 import com.pentlander.sasquach.tast.TypedNode;
 import com.pentlander.sasquach.tast.expression.TApplyOperator;
 import com.pentlander.sasquach.tast.expression.TArrayValue;
@@ -35,6 +36,7 @@ import com.pentlander.sasquach.tast.expression.TMemberFunctionCall;
 import com.pentlander.sasquach.tast.expression.TPrintStatement;
 import com.pentlander.sasquach.tast.expression.TRecur;
 import com.pentlander.sasquach.tast.expression.TStruct;
+import com.pentlander.sasquach.tast.expression.TStructWithName;
 import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Local;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Module;
@@ -127,6 +129,10 @@ class ExpressionGenerator {
 
   Type type(TypedNode expression) {
     return type(expression.type());
+  }
+
+  Type type(TStruct expression) {
+    return type(expression.structType());
   }
 
   Type type(Type type) {
@@ -237,7 +243,8 @@ class ExpressionGenerator {
             generateMemberCall(type, "_invoke");
           }
           case TargetKind.VariantStructConstructor(var struct) -> {
-            var internalName = struct.name().orElseThrow();
+            var namedStruct = (TStructWithName) struct;
+            var internalName = namedStruct.name();
             generateNewDup(internalName);
             generateArgs(funcCall.arguments(), funcType.parameterTypes());
             var methodDesc = MethodHandleDesc.ofMethod(Kind.CONSTRUCTOR,
@@ -458,7 +465,21 @@ class ExpressionGenerator {
                 generateStoreVar(methodVisitor, bindType, idx);
               }
             }
-            case TVariantStruct variantStruct -> throw new IllegalStateException("Not implemented");
+            case TVariantStruct variantStruct -> {
+              var variantType = variantStruct.type();
+              for (var binding : variantStruct.bindings()) {
+                generateLoadVar(methodVisitor, variantType, exprVarIdx);
+                methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, variantType.internalName());
+
+                var fieldType = variantType.fieldType(binding.name());
+                generateFieldAccess(binding.name(), fieldType);
+
+                var bindType = type(binding);
+                int idx = localVarMeta.push(binding).idx();
+                generateStoreVar(methodVisitor, bindType, idx);
+              }
+
+            }
           }
           generate(branches.get(i).expr());
           methodVisitor.visitJumpInsn(Opcodes.GOTO, endLabel);

@@ -13,6 +13,7 @@ import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
@@ -25,13 +26,13 @@ import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Loop;
 import com.pentlander.sasquach.ast.expression.Match;
+import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
+import com.pentlander.sasquach.ast.expression.NamedStruct;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
-import com.pentlander.sasquach.type.StructType;
-import com.pentlander.sasquach.type.TypeParameter;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -72,6 +73,7 @@ public class MemberScopedNameResolver {
   private final Map<Identifier, ForeignFunctions> foreignFunctions = new HashMap<>();
   private final Map<Identifier, FunctionCallTarget> localFunctionCalls = new HashMap<>();
   private final Map<VarReference, ReferenceDeclaration> varReferences = new HashMap<>();
+  private final Map<NamedStruct, Identifier> namedStructRefs = new HashMap<>();
   private final Deque<Map<String, LocalVariable>> localVariableStacks = new ArrayDeque<>();
   private final Deque<Loop> loopStack = new ArrayDeque<>();
   private final Map<Recur, RecurPoint> recurPoints = new HashMap<>();
@@ -94,7 +96,7 @@ public class MemberScopedNameResolver {
     return resolutionResult();
   }
 
-  public NameResolutionResult resolve(Struct.Field field) {
+  public NameResolutionResult resolve(LiteralStruct.Field field) {
     visitor.visit(field);
     return resolutionResult();
   }
@@ -110,7 +112,7 @@ public class MemberScopedNameResolver {
         foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
-        varReferences,
+        varReferences, namedStructRefs,
         recurPoints,
         matchTypeNodes,
         errors.build()).merge(resolutionResults);
@@ -154,6 +156,21 @@ public class MemberScopedNameResolver {
     @Override
     public Void visit(FieldAccess fieldAccess) {
       return ExpressionVisitor.super.visit(fieldAccess);
+    }
+
+    @Override
+    public Void visit(Struct struct) {
+      if (struct instanceof ModuleStruct moduleStruct) {
+        moduleStruct.useList().forEach(this::visit);
+      } else if (struct instanceof NamedStruct namedStruct) {
+        moduleScopedNameResolver.resolveVariantTypeNode(namedStruct.name()).ifPresent(typeNode -> {
+//          typeNode.id()
+          namedStructRefs.put(namedStruct, typeNode.aliasId());
+        });
+      }
+      struct.functions().forEach(this::visit);
+      struct.fields().forEach(this::visit);
+      return null;
     }
 
     @Override
@@ -234,18 +251,16 @@ public class MemberScopedNameResolver {
           moduleScopedNameResolver.resolveVariantTypeNode(localFunctionCall.name())
               .ifPresentOrElse(typeNode -> {
                     var id = typeNode.id();
-                    var alias = moduleScopedNameResolver.resolveTypeAlias(typeNode.aliasId().name())
-                        .orElseThrow();
-                    var name = typeNode.moduleName().qualifyInner(id.name());
-                    var variantTuple = Struct.variantTupleStruct(name,
+                    var variantTuple = Struct.variantTupleStruct(id.name(),
                         localFunctionCall.arguments(),
                         localFunctionCall.range());
+
                     localFunctionCalls.put(localFunctionCall.functionId(), new VariantStructConstructor(
-                        id,
-                        alias.id(),
-                        (StructType) typeNode.type(),
-                        alias.typeParameters(),
-                        variantTuple));
+                        id, variantTuple));
+
+                    var alias = moduleScopedNameResolver.resolveTypeAlias(typeNode.aliasId().name())
+                        .orElseThrow();
+                    namedStructRefs.put(variantTuple, alias.id());
                   },
                   () -> errors.add(new NameNotFoundError(localFunctionCall.functionId(),
                       "function")));
@@ -438,9 +453,7 @@ public class MemberScopedNameResolver {
   /**
    * A named tuple variant may be invoked like a function, e.g. Foo("bar").
    **/
-  public record VariantStructConstructor(Identifier id, Identifier sumAliasId, StructType type,
-                                         List<TypeParameter> typeParameters,
-                                         Struct struct) implements FunctionCallTarget {}
+  public record VariantStructConstructor(Identifier id, Struct struct) implements FunctionCallTarget {}
 
   public record QualifiedFunction(QualifiedModuleId ownerId, Identifier id,
                                   Function function) implements FunctionCallTarget {}

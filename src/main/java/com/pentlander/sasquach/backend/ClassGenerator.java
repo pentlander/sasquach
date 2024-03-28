@@ -16,7 +16,10 @@ import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TypedNode;
 import com.pentlander.sasquach.tast.expression.TFunction;
+import com.pentlander.sasquach.tast.expression.TLiteralStruct;
+import com.pentlander.sasquach.tast.expression.TModuleStruct;
 import com.pentlander.sasquach.tast.expression.TStruct;
+import com.pentlander.sasquach.tast.expression.TStructWithName;
 import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.SingletonType;
@@ -184,14 +187,14 @@ class ClassGenerator {
   void generateStruct(TStruct struct) {
     setContext(struct);
     // Generate class header
-    var structType = struct.type();
+    var structType = struct.structType();
     var mv = generateStructStart(structType.internalName(),
         struct.range(),
         structType.fieldTypes());
 
     // Add a static INSTANCE field of the struct to make a singleton class.
-    if (struct.structKind() == StructKind.MODULE) {
-      struct.typeAliases()
+    if (struct instanceof TModuleStruct moduleStruct) {
+      moduleStruct.typeAliases()
           .stream()
           .map(TypeAlias::typeNode)
           .flatMap(type -> type instanceof SumTypeNode sumTypeNode ? Stream.of(sumTypeNode)

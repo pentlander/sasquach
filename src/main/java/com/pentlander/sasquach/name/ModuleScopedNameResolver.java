@@ -1,8 +1,6 @@
 package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.RangedErrorList;
-import com.pentlander.sasquach.ast.FunctionSignature;
-import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.NodeVisitor;
@@ -10,15 +8,15 @@ import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
+import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
-import com.pentlander.sasquach.ast.expression.FunctionParameter;
+import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Struct;
 import java.lang.invoke.MethodHandles;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -29,8 +27,8 @@ public class ModuleScopedNameResolver {
   private final Map<String, TypeAlias> typeAliasNames = new HashMap<>();
   private final Map<TypeNode, NamedTypeDefinition> namedTypes = new HashMap<>();
   private final Map<String, VariantTypeNode> variantTypes = new HashMap<>();
-  private final Map<String, Struct.Field> fields = new HashMap<>();
-  private final Map<Struct.Field, NameResolutionResult> fieldResults = new HashMap<>();
+  private final Map<String, LiteralStruct.Field> fields = new HashMap<>();
+  private final Map<LiteralStruct.Field, NameResolutionResult> fieldResults = new HashMap<>();
   private final Map<String, NamedFunction> functions = new HashMap<>();
   private final Map<Function, NameResolutionResult> functionResults = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
@@ -53,7 +51,7 @@ public class ModuleScopedNameResolver {
     return nameResolutionResult.withNamedTypes(namedTypes).withErrors(errors.build());
   }
 
-  NameResolutionResult getResolver(Struct.Field field) {
+  NameResolutionResult getResolver(LiteralStruct.Field field) {
     return Objects.requireNonNull(fieldResults.get(field));
   }
 
@@ -117,14 +115,16 @@ public class ModuleScopedNameResolver {
     @Override
     public Void visit(Expression expression) {
       if (expression instanceof Struct struct) {
-        for (var use : struct.useList()) {
-          visit(use);
-        }
+        if (struct instanceof ModuleStruct moduleStruct) {
+          for (var use : moduleStruct.useList()) {
+            visit(use);
+          }
 
-        for (var typeAlias : struct.typeAliases()) {
-          visit(typeAlias);
+          for (var typeAlias : moduleStruct.typeAliases()) {
+            visit(typeAlias);
+          }
+          checkAliases(typeAliasNames.values());
         }
-        checkAliases(typeAliasNames.values());
 
         for (var field : struct.fields()) {
           fields.put(field.name(), field);
@@ -166,7 +166,7 @@ public class ModuleScopedNameResolver {
     return Optional.ofNullable(functions.get(functionName));
   }
 
-  Optional<Struct.Field> resolveField(String fieldName) {
+  Optional<LiteralStruct.Field> resolveField(String fieldName) {
     return Optional.ofNullable(fields.get(fieldName));
   }
 

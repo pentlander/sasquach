@@ -12,7 +12,10 @@ import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
+import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
+import com.pentlander.sasquach.ast.expression.NamedStruct;
+import com.pentlander.sasquach.ast.expression.Struct.StructKind;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Local;
@@ -22,8 +25,8 @@ import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStructConstr
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TNamedFunction;
+import com.pentlander.sasquach.tast.expression.TModuleStructBuilder;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
-import com.pentlander.sasquach.tast.expression.TStructBuilder;
 import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType.LocalVar;
@@ -33,6 +36,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 
 public class ModuleScopedTypeResolver {
   private final NameResolutionResult nameResolutionResult;
@@ -41,7 +46,7 @@ public class ModuleScopedTypeResolver {
   private final ModuleTypeProvider moduleTypeProvider;
 
   private final List<NamedFunction> nameResolvedFunctions = new ArrayList<>();
-  private final TStructBuilder typedStructBuilder = TStructBuilder.builder();
+  private final TModuleStructBuilder typedStructBuilder = TModuleStructBuilder.builder();
   private final Map<Identifier, FunctionType> variantConstructorTypes = new HashMap<>();
 
   private final Map<Identifier, Type> idTypes = new HashMap<>();
@@ -57,7 +62,7 @@ public class ModuleScopedTypeResolver {
   }
 
   public StructType resolveModuleType() {
-    var struct = moduleDecl.struct();
+    var struct = (ModuleStruct) moduleDecl.struct();
     var fieldTypes = new LinkedHashMap<String, Type>();
     var typedFields = new ArrayList<TField>();
 
@@ -88,6 +93,10 @@ public class ModuleScopedTypeResolver {
                     new RefDeclaration.Singleton(singleton.type()),
                     sumType)));
             fieldTypes.put(singleton.id().name(), sumType);
+          } else if (variantTypeNode instanceof VariantTypeNode.Struct strct) {
+            // do something
+            // need to somehow replace the SumType in NameResolutionResult's namedStructTypes with
+            // the named resolved one here
           }
         }
       }
@@ -115,11 +124,9 @@ public class ModuleScopedTypeResolver {
         .useList(struct.useList())
         .typeAliases(namedTypeResolver.mapResolveTypeNode(struct.typeAliases()))
         .fields(typedFields)
-        .structKind(struct.structKind())
         .range(struct.range());
-    return struct.name()
-        .map(name -> new StructType(name, fieldTypes))
-        .orElseGet(() -> new StructType(fieldTypes));
+
+    return new StructType(struct.name(), fieldTypes);
   }
 
   interface ModuleTypeProvider {
@@ -177,6 +184,15 @@ public class ModuleScopedTypeResolver {
           yield new VarRefType.Singleton((SumType) resolvedType, singletonNode.type());
         }
       };
+    }
+
+    public SumType getSumType(Identifier id) {
+      return (SumType) Objects.requireNonNull(idTypes.get(id));
+    }
+
+    public SumType getSumType(NamedStruct namedStruct) {
+      var sumTypeId = nameResolutionResult.getNamedStructType(namedStruct);
+      return (SumType) Objects.requireNonNull(idTypes.get(sumTypeId));
     }
   }
 }
