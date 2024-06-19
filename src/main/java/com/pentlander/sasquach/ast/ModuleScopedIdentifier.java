@@ -2,7 +2,7 @@ package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range.Single;
 
-/** Identifier that is qualified by a module name. */
+/** Identifier that is qualified by a module captureName. */
 public record ModuleScopedIdentifier(Identifier moduleId, Identifier id) implements Id {
   @Override
   public String name() {

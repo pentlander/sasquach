@@ -20,6 +20,7 @@ import static com.pentlander.sasquach.SasquachParser.ModuleDeclarationContext;
 import static com.pentlander.sasquach.SasquachParser.ParenExpressionContext;
 import static com.pentlander.sasquach.SasquachParser.PrimitiveTypeContext;
 import static com.pentlander.sasquach.SasquachParser.PrintStatementContext;
+import static com.pentlander.sasquach.SasquachParser.SPREAD;
 import static com.pentlander.sasquach.SasquachParser.StringLiteralContext;
 import static com.pentlander.sasquach.SasquachParser.StructContext;
 import static com.pentlander.sasquach.SasquachParser.StructTypeContext;
@@ -49,7 +50,9 @@ import com.pentlander.sasquach.SasquachParser.SingleTupleTypeContext;
 import com.pentlander.sasquach.SasquachParser.SingleTupleVariantPatternContext;
 import com.pentlander.sasquach.SasquachParser.SingletonPatternContext;
 import com.pentlander.sasquach.SasquachParser.SingletonTypeContext;
+import com.pentlander.sasquach.SasquachParser.SpreadStatementContext;
 import com.pentlander.sasquach.SasquachParser.StructSumTypeContext;
+import com.pentlander.sasquach.SasquachParser.StructTypeFieldContext;
 import com.pentlander.sasquach.SasquachParser.StructVariantPatternContext;
 import com.pentlander.sasquach.SasquachParser.SumTypeContext;
 import com.pentlander.sasquach.SasquachParser.TupleExpressionContext;
@@ -71,6 +74,7 @@ import com.pentlander.sasquach.ast.PatternVariable;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.ast.StructTypeNode;
+import com.pentlander.sasquach.ast.StructTypeNode.RowModifier;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TupleTypeNode;
@@ -466,11 +470,18 @@ public class Visitor {
     @Override
     public StructTypeNode visitStructType(StructTypeContext ctx) {
       var fields = new HashMap<String, TypeNode>();
-      for (int i = 0; i < ctx.ID().size(); i++) {
-        var id = ctx.ID(i).getText();
-        fields.put(id, typeNode(ctx.type(i), new TypeVisitor()));
+      RowModifier rowModifier = RowModifier.none();
+      for (var fieldCtx : ctx.structTypeField()) {
+        var id = fieldCtx.ID();
+        if (fieldCtx.SPREAD() == null) {
+          fields.put(id.getText(), typeNode(fieldCtx.type(), new TypeVisitor()));
+        } else if (id != null) {
+          rowModifier = RowModifier.namedRow(id(id), rangeFrom(fieldCtx));
+        } else {
+          rowModifier = RowModifier.unnamedRow();
+        }
       }
-      return new StructTypeNode(fields, rangeFrom(ctx));
+      return new StructTypeNode(fields, rowModifier, rangeFrom(ctx));
     }
 
     @Override
@@ -534,6 +545,8 @@ public class Visitor {
       var typeAliases = new ArrayList<TypeAlias>();
       var fields = new ArrayList<Field>();
       var functions = new ArrayList<NamedFunction>();
+      var spreads = new ArrayList<VarReference>();
+
       for (var structStatementCtx : ctx.structStatement()) {
         if (structStatementCtx instanceof IdentifierStatementContext idCtx) {
           var fieldName = idCtx.memberName();
@@ -570,11 +583,14 @@ public class Visitor {
               : sumTypeNode(typeAliasCtx.sumType(), structName, aliasId, typeParameters);
           var typeAlias = new TypeAlias(aliasId, typeParameters, typeNode, rangeFrom(typeAliasCtx));
           typeAliases.add(typeAlias);
+        } else if (structStatementCtx instanceof SpreadStatementContext spreadCtx) {
+          var varRef = (VarReference) spreadCtx.varReference().accept(expressionVisitor);
+          spreads.add(varRef);
         }
       }
 
       return switch (structKind) {
-        case LITERAL -> Struct.literalStruct(fields, functions, rangeFrom(ctx));
+        case LITERAL -> Struct.literalStruct(fields, functions, spreads, rangeFrom(ctx));
         case MODULE -> Struct.moduleStruct(structName,
             useList,
             typeAliases,
@@ -647,7 +663,7 @@ public class Visitor {
         yield new VariantTypeNode.Struct(moduleName,
             aliasId,
             id,
-            new StructTypeNode(id.name(), typeNode.fieldTypeNodes(), typeNode.range()));
+            new StructTypeNode(id.name(), typeNode.fieldTypeNodes(), RowModifier.none(), typeNode.range()));
       }
       default -> throw new IllegalStateException();
     };

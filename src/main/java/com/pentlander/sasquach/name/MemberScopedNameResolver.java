@@ -118,7 +118,7 @@ public class MemberScopedNameResolver {
         errors.build()).merge(resolutionResults);
   }
 
-  // Need to check that there isn't already a local function or module alias with this name
+  // Need to check that there isn't already a local function or module alias with this captureName
   private void addLocalVariable(LocalVariable localVariable) {
     var map = localVariableStacks.getFirst();
     var existingVar = map.put(localVariable.name(), localVariable);
@@ -160,13 +160,12 @@ public class MemberScopedNameResolver {
 
     @Override
     public Void visit(Struct struct) {
-      if (struct instanceof ModuleStruct moduleStruct) {
-        moduleStruct.useList().forEach(this::visit);
-      } else if (struct instanceof NamedStruct namedStruct) {
-        moduleScopedNameResolver.resolveVariantTypeNode(namedStruct.name()).ifPresent(typeNode -> {
-//          typeNode.id()
-          namedStructRefs.put(namedStruct, typeNode.aliasId());
-        });
+      switch (struct) {
+        case ModuleStruct moduleStruct -> moduleStruct.useList().forEach(this::visit);
+        case NamedStruct namedStruct ->
+            moduleScopedNameResolver.resolveVariantTypeNode(namedStruct.name())
+                .ifPresent(typeNode -> namedStructRefs.put(namedStruct, typeNode.aliasId()));
+        case LiteralStruct literalStruct -> literalStruct.spreads().forEach(this::visit);
       }
       struct.functions().forEach(this::visit);
       struct.fields().forEach(this::visit);

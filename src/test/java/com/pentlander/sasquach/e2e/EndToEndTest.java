@@ -10,10 +10,21 @@ import com.pentlander.sasquach.SasquachClassloader;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.TestUtils;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
+import java.nio.file.Path;
+import org.assertj.core.util.Files;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
 
 public class EndToEndTest {
+  private String testName;
+
+  @BeforeEach
+  void setup(TestInfo testInfo) {
+    testName = testInfo.getDisplayName();
+  }
+
   @Test
   void addition() throws Exception {
     var source = Source.fromString("main", """
@@ -244,6 +255,69 @@ public class EndToEndTest {
   }
 
   @Test
+  void spread() throws Exception {
+    var clazz = compileClassDebug("""
+        Main {
+          main = (): { other: String, bar: String, baz: String } -> {
+            let foo = { bar = "bar", baz = "baz" }
+            { other = "hello", bar = "override", ..foo }
+          }
+        }
+        """);
+    Object baz = invokeName(clazz, "main");
+
+    assertThat(baz).hasFieldOrPropertyWithValue("other", "hello")
+        .hasFieldOrPropertyWithValue("bar", "override")
+        .hasFieldOrPropertyWithValue("baz", "baz");
+  }
+
+  @Test
+  void genericRow() throws Exception {
+    var clazz = compileClassDebug("""
+        Main {
+          addOther = [R](barRow: { bar: String, ..R }): { bar: String, other: String, ..R } -> {
+            { other = "hello", ..barRow }
+          },
+          
+          main = (): { bar: String, baz: String, other: String } -> {
+            let foo = { bar = "bar", baz = "baz" }
+            addOther(foo)
+          }
+        }
+        """);
+
+    Object struct = invokeName(clazz, "main");
+
+    assertThat(struct).hasFieldOrPropertyWithValue("other", "hello")
+        .hasFieldOrPropertyWithValue("bar", "bar")
+        .hasFieldOrPropertyWithValue("baz", "baz");
+  }
+
+  @Test
+  void genericRow_combine() throws Exception {
+    var clazz = compileClassDebug("""
+        Main {
+          combine = [R1, R2](struct1: { ..R1 }, struct2: { ..R2 }): { ..R1, ..R2 } -> {
+            { ..struct1, ..struct2 }
+          },
+          
+          main = (): { foo: String, bar: String } -> {
+            let foo = { foo = "foo" }
+            let bar = { bar = "bar", gg = "gg" }
+            let baz = { baz = "baz" }
+            combine(foo, baz)
+            combine(foo, bar)
+          }
+        }
+        """);
+
+    Object struct = invokeName(clazz, "main");
+
+    assertThat(struct).hasFieldOrPropertyWithValue("foo", "foo")
+        .hasFieldOrPropertyWithValue("bar", "bar");
+  }
+
+  @Test
   void foreignFunctionCall_withField() throws Exception {
     var source = Source.fromString("main", """
         Main {
@@ -325,7 +399,7 @@ public class EndToEndTest {
     assertThat(sum).isEqualTo(9);
   }
 
-  // Add test for local named type where the type name doesn't exist
+  // Add test for local named type where the type captureName doesn't exist
 
   @Test
   void typeAliasStruct_importModule() throws Exception {
@@ -496,6 +570,14 @@ public class EndToEndTest {
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
   }
 
+  private Class<?> compileClass(String source) throws ClassNotFoundException, CompilationException {
+    return compileClass(Source.fromString("main", source), false);
+  }
+
+  private Class<?> compileClassDebug(String source) throws ClassNotFoundException, CompilationException {
+    return compileClass(Source.fromString("main", source), true);
+  }
+
   private Class<?> compileClass(Source source) throws ClassNotFoundException, CompilationException {
     return compileClass(source, false);
   }
@@ -510,7 +592,8 @@ public class EndToEndTest {
     var bytecode = new Compiler().compile(source);
     var cl = new SasquachClassloader();
     if (dumpClasses) {
-      TestUtils.dumpGeneratedClasses(bytecode.generatedBytecode());
+      var path = Path.of(Files.temporaryFolderPath(), testName);
+      TestUtils.dumpGeneratedClasses(path, bytecode.generatedBytecode());
     }
     bytecode.generatedBytecode().forEach(cl::addClass);
     return cl.loadModule(new QualifiedModuleName("main", "Main"));

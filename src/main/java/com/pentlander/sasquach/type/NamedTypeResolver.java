@@ -7,12 +7,17 @@ import static java.util.stream.Collectors.toMap;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
+import com.pentlander.sasquach.RangedErrorList.Builder;
 import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
 import com.pentlander.sasquach.ast.StructTypeNode;
+import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.NamedRow;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
+import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Singleton;
+import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Struct;
+import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Tuple;
 import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -20,6 +25,9 @@ import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.type.MemberScopedTypeResolver.TypeMismatchError;
 import com.pentlander.sasquach.type.MemberScopedTypeResolver.UnknownType;
+import com.pentlander.sasquach.type.StructType.RowModifier;
+import com.pentlander.sasquach.type.StructType.RowModifier.None;
+import com.pentlander.sasquach.type.StructType.RowModifier.UnnamedRow;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -29,7 +37,7 @@ import java.util.Map.Entry;
 
 public class NamedTypeResolver {
   private final NameResolutionResult nameResolutionResult;
-  private final RangedErrorList.Builder errors = RangedErrorList.builder();
+  private final Builder errors = RangedErrorList.builder();
 
   public NamedTypeResolver(NameResolutionResult nameResolutionResult) {
     this.nameResolutionResult = nameResolutionResult;
@@ -53,12 +61,20 @@ public class NamedTypeResolver {
             resolveTypeNode(returnType, newTypeArgs),
             range);
       }
-      case StructTypeNode(var name, var fieldTypeNodes, var range) -> {
+      case StructTypeNode(var name, var fieldTypeNodes, var rowModifier, var range) -> {
         var resolvedFieldTypes = fieldTypeNodes.entrySet()
             .stream()
             .map(e -> Map.entry(e.getKey(), resolveTypeNode(e.getValue(), typeArgs)))
             .collect(toMap(Entry::getKey, Entry::getValue));
-        yield new StructTypeNode(name, resolvedFieldTypes, range);
+        var resolvedRowModifier = rowModifier;
+        if (rowModifier instanceof NamedRow namedRow) {
+          // Right now the localnamedtype is getting replaced with a universal type. This might be
+          // ok here since this is just the name resolution step. However, at some point the
+          // universal type needs to get converted into a special struct type variable that's able
+          // to take on the fields/funcs of the struct provided as an arg
+          resolvedRowModifier = new NamedRow(resolveTypeNode(namedRow.typeNode(), typeArgs));
+        }
+        yield new StructTypeNode(name, resolvedFieldTypes, resolvedRowModifier, range);
       }
       case SumTypeNode(
           var moduleName, var id, var typeParameters, var variantTypeNodes, var range
@@ -76,15 +92,15 @@ public class NamedTypeResolver {
         yield new TypeAlias(id, typeParameters, resolveTypeNode(aliasTypeNode, newTypeArgs), range);
       }
       case TypeParameter typeParameter -> typeParameter;
-      case VariantTypeNode.Singleton(var moduleName, var aliasId, var id) ->
-          new VariantTypeNode.Singleton(moduleName, aliasId, id);
-      case VariantTypeNode.Tuple(var moduleName, var aliasId, var id, var tupleTypeNode) ->
-          new VariantTypeNode.Tuple(moduleName,
+      case Singleton(var moduleName, var aliasId, var id) ->
+          new Singleton(moduleName, aliasId, id);
+      case Tuple(var moduleName, var aliasId, var id, var tupleTypeNode) ->
+          new Tuple(moduleName,
               aliasId,
               id,
               resolveTypeNode(tupleTypeNode, typeArgs));
-      case VariantTypeNode.Struct(var moduleName, var aliasId, var id, var structTypeNode) ->
-          new VariantTypeNode.Struct(moduleName,
+      case Struct(var moduleName, var aliasId, var id, var structTypeNode) ->
+          new Struct(moduleName,
               aliasId,
               id,
               resolveTypeNode(structTypeNode, typeArgs));
@@ -179,7 +195,12 @@ public class NamedTypeResolver {
           structType.fieldTypes()
               .entrySet()
               .stream()
-              .collect(toMap(Entry::getKey, e -> resolveNames(e.getValue(), typeArgs, range))));
+              .collect(toMap(Entry::getKey, e -> resolveNames(e.getValue(), typeArgs, range))),
+          switch (structType.rowModifier()) {
+            case RowModifier.NamedRow(var type) -> new RowModifier.NamedRow(resolveNames(type, typeArgs, range));
+            case UnnamedRow unnamedRow -> unnamedRow;
+            case None none -> none;
+          });
       case FunctionType funcType -> {
         var newTypeArgs = new HashMap<>(typeArgs);
         yield new FunctionType(resolveNamedTypes(funcType.parameterTypes(), newTypeArgs, range),

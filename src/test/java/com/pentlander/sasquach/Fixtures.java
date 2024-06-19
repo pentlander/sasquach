@@ -9,6 +9,7 @@ import com.pentlander.sasquach.ast.InvocationKind;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.ast.StructTypeNode;
+import com.pentlander.sasquach.ast.StructTypeNode.RowModifier;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
@@ -79,7 +80,7 @@ public class Fixtures {
       return new StructTypeNode(structType.fieldTypes()
           .entrySet()
           .stream()
-          .collect(toMap(Entry::getKey, entry -> typeNode(entry.getValue()))), range());
+          .collect(toMap(Entry::getKey, entry -> typeNode(entry.getValue()))), RowModifier.none(), range());
     }
     return new BasicTypeNode<>(type, range());
   }
@@ -107,7 +108,7 @@ public class Fixtures {
   }
 
   public static Struct literalStruct(List<Field> fields, List<NamedFunction> functions) {
-    return Struct.literalStruct(fields, functions, range());
+    return Struct.literalStruct(fields, functions, List.of(), range());
   }
 
   public static Value intValue(String value) {

@@ -7,7 +7,7 @@ import com.pentlander.sasquach.tast.expression.TLocalVariable;
 import com.pentlander.sasquach.type.Type;
 
 /**
- * Function parameter name with a type.
+ * Function parameter captureName with a type.
  */
 public record FunctionParameter(Identifier id, TypeNode typeNode) implements LocalVariable,
     TLocalVariable {

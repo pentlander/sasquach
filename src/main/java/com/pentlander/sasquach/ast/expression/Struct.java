@@ -13,8 +13,8 @@ import java.util.stream.Collectors;
 
 public sealed interface Struct extends Expression permits LiteralStruct,
     StructWithName {
-  static Struct literalStruct(List<Field> fields, List<NamedFunction> functions, Range range) {
-    return new LiteralStruct(fields, functions, range);
+  static Struct literalStruct(List<Field> fields, List<NamedFunction> functions, List<VarReference> spreads, Range range) {
+    return new LiteralStruct(fields, functions, spreads, range);
   }
 
   static Struct variantLiteralStruct(String name, List<Field> fields, List<NamedFunction> functions,
@@ -46,7 +46,7 @@ public sealed interface Struct extends Expression permits LiteralStruct,
   }
 
   static Struct tupleStruct(List<Expression> expressions, Range range) {
-    return new LiteralStruct(tupleFields(expressions), List.of(), range);
+    return new LiteralStruct(tupleFields(expressions), List.of(), List.of(), range);
   }
 
   static NamedStruct variantTupleStruct(String name, List<Expression> expressions, Range range) {

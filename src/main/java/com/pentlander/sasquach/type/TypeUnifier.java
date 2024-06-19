@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.type;
 
+import com.pentlander.sasquach.type.StructType.RowModifier;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
@@ -25,7 +26,14 @@ public class TypeUnifier {
           var fieldTypes = new LinkedHashMap<String, Type>();
           structType.fieldTypes()
               .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType)));
-          yield new StructType(structType.typeName(), fieldTypes);
+
+          StructType.RowModifier rowModifier = structType.rowModifier();
+          if (structType.rowModifier() instanceof RowModifier.NamedRow namedRow && namedRow.type() instanceof TypeVariable typeVar) {
+            var rowStruct = typeVar.resolvedType().flatMap(TypeUtils::asStructType);
+            rowStruct.ifPresent(value -> value.fieldTypes()
+                .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType))));
+          }
+          yield new StructType(structType.typeName(), fieldTypes, rowModifier);
         }
         case ResolvedModuleNamedType namedType ->
             new ResolvedModuleNamedType(namedType.moduleName(),
@@ -111,13 +119,27 @@ public class TypeUnifier {
         unify(destFuncType.returnType(), sourceFuncType.returnType());
       }
       case StructType destStructType when sourceType instanceof StructType sourceStructType -> {
-        for (var entry : destStructType.fieldTypes().entrySet()) {
-          var destFieldType = entry.getValue();
-          var sourceFieldType = sourceStructType.fieldType(entry.getKey());
-          if (sourceFieldType == null) {
+        var sourceFieldTypes = new LinkedHashMap<>(sourceStructType.fieldTypes());
+        var destFieldTypes = new LinkedHashMap<>(destStructType.fieldTypes());
+        destStructType.fieldTypes().forEach((fieldName, destFieldType) -> {
+          destFieldTypes.remove(fieldName);
+          var sourceFieldType = sourceFieldTypes.remove(fieldName);
+          if (!sourceStructType.isRow() && sourceFieldType == null) {
             throw new UnificationException(destType, sourceType);
+          } else if (!sourceStructType.isRow()) {
+            unify(destFieldType, sourceFieldType);
           }
-          unify(destFieldType, sourceFieldType);
+        });
+
+        if (!sourceFieldTypes.isEmpty() && destStructType.rowModifier() instanceof StructType.RowModifier.NamedRow namedRow) {
+          var typeVar = (TypeVariable) namedRow.type();
+          var structType = new StructType(sourceFieldTypes);
+          unifyTypeVariable(typeVar, structType);
+        }
+        if (!destFieldTypes.isEmpty() && sourceStructType.rowModifier() instanceof StructType.RowModifier.NamedRow namedRow) {
+          var typeVar = (TypeVariable) namedRow.type();
+          var structType = new StructType(destFieldTypes);
+          unifyTypeVariable(typeVar, structType);
         }
       }
       case SumType destSumType when sourceType instanceof SumType sourceSumType

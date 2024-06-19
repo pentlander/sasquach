@@ -38,7 +38,7 @@ public class AstValidator {
 
       for (var function : functions) {
         var existingFunction = functionNames.put(function.name(), function);
-        // Check if there are multiple functions with the same name
+        // Check if there are multiple functions with the same captureName
         if (existingFunction != null) {
           errors.add(new DuplicationError(
               "Function '%s' already defined in modules '%s'"

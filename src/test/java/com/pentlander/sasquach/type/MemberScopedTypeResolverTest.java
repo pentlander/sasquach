@@ -16,9 +16,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.Node;
+import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
@@ -40,6 +42,7 @@ import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType;
 import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType;
+import com.pentlander.sasquach.type.StructType.RowModifier;
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -249,6 +252,19 @@ class MemberScopedTypeResolverTest {
       return new FunctionParameter(id(name), typeNode(type));
     }
 
+//    @Test
+//    void row() {
+//      var
+//      new StructTypeNode(
+//          Map.of("str", typeNode(BuiltinType.STRING)),
+//          new StructTypeNode.RowModifier.NamedRow(new BasicTypeNode<>(new ResolvedLocalNamedType("A", List.of(), )))
+//          range());
+//      func = new NamedFunction(funcId,
+//          new Function(new FunctionSignature(List.of(param("arg1", BuiltinType.STRING)),
+//              typeNode(BuiltinType.BOOLEAN),
+//              range()), boolValue(true)));
+//    }
+//
     @Nested
     class Local {
       final Identifier funcId = id("foo");
@@ -330,6 +346,7 @@ class MemberScopedTypeResolverTest {
       void callFieldNotFunction() {
         var struct = Struct.literalStruct(List.of(new Field(id("foo"), intValue(10))),
             List.of(),
+            List.of(),
             range());
         var callFuncId = id("foo");
         var call = new MemberFunctionCall(struct, callFuncId, args, range());
@@ -360,7 +377,7 @@ class MemberScopedTypeResolverTest {
   @Nested
   class StructTypeTest {
     @Test
-    void structWithExtraFieldsIsAssignable() {
+    void structWithExtraFieldsIsNotAssignable() {
       var argFields = List.of(new Field(id("foo"), stringValue("str")),
           new Field(id("bar"), intValue("10")),
           new Field(id("baz"), boolValue("true")));
@@ -368,6 +385,20 @@ class MemberScopedTypeResolverTest {
       var argType = resolveExpr(struct);
 
       var paramType = new StructType(Map.of("foo", BuiltinType.STRING, "bar", BuiltinType.INT));
+
+      assertThat(paramType.isAssignableFrom(argType)).isFalse();
+    }
+
+    @Test
+    void rowStructWithExtraFieldsIsAssignable() {
+      var argFields = List.of(new Field(id("foo"), stringValue("str")),
+          new Field(id("bar"), intValue("10")),
+          new Field(id("baz"), boolValue("true")));
+      var struct = literalStruct(argFields, List.of());
+      var argType = resolveExpr(struct);
+
+      var paramType = new StructType(Map.of("foo", BuiltinType.STRING, "bar", BuiltinType.INT),
+          RowModifier.unnamedRow());
 
       assertThat(paramType.isAssignableFrom(argType)).isTrue();
     }

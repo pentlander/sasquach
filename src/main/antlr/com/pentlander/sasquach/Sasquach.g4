@@ -22,7 +22,8 @@ functionParameterList : '(' (functionArgument)? (',' functionArgument)* ')' ;
 type : primitiveType | classType | structType | localNamedType | functionType | moduleNamedType | tupleType ;
 primitiveType : 'Boolean' | 'String' ('[' ']')* | 'Char' | 'Byte' | 'Int' | 'Long' | 'Float' | 'Double' | 'Void' ;
 classType : qualifiedName ;
-structType : '{' NL* ID ':' NL* type (',' NL* ID ':' NL* type)* NL* '}' ;
+structTypeField : NL* ID ':' NL* type | SPREAD ID? ;
+structType : '{' structTypeField (',' structTypeField)* ','? NL* '}' ;
 functionType : functionParameterList '->' type ;
 typeArgumentList : ('[' type (',' type)* ']') ;
 localNamedType: typeIdentifier typeArgumentList? ;
@@ -88,7 +89,8 @@ struct : '{' NL* structStatement (',' NL* structStatement)* (',')? NL* '}' ;
 namedStruct : typeIdentifier struct ;
 structStatement : use #useStatement
   | TYPEALIAS typeIdentifier typeParameterList? EQUALS (type|sumType) #typeAliasStatement
-  | memberName EQUALS (function|expression) #identifierStatement ;
+  | memberName EQUALS (function|expression) #identifierStatement
+  | SPREAD varReference #spreadStatement ;
 
 value : NUMBER #intLiteral
       | STRING #stringLiteral
@@ -132,6 +134,7 @@ RP       : ')' ;
 AND      : '&&' ;
 OR       : '||' ;
 APPLY    : '|>' ;
+SPREAD   : '..' ;
 
 // Identifiers
 ID : [_a-zA-Z][$a-zA-Z0-9]* ;

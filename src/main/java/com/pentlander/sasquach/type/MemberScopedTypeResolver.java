@@ -3,6 +3,7 @@ package com.pentlander.sasquach.type;
 import static com.pentlander.sasquach.type.TypeUtils.reify;
 import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
+import static java.util.stream.Collectors.*;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
@@ -115,6 +116,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class MemberScopedTypeResolver {
@@ -249,19 +251,7 @@ public class MemberScopedTypeResolver {
         putLocalVarType(varDecl, localVar);
         yield localVar;
       }
-      case VarReference varRef -> switch (moduleScopedTypes.getVarReferenceType(varRef)) {
-        case Module(var moduleId, var fieldType) ->
-            new TVarReference(varRef.id(), new RefDeclaration.Module(moduleId), fieldType);
-        case LocalVar(var localVar) -> {
-          var typedLocalVar = getLocalVar(localVar).orElseThrow(() -> new IllegalStateException(
-              "Unable to find local: " + localVar));
-          yield new TVarReference(varRef.id(),
-              new Local(typedLocalVar),
-              typedLocalVar.variableType());
-        }
-        case Singleton(var sumType, var singletonType) ->
-            new TVarReference(varRef.id(), new RefDeclaration.Singleton(singletonType), sumType);
-      };
+      case VarReference varRef -> resolveVarReference(varRef);
       case BinaryExpression binExpr -> {
         var left = binExpr.left();
         var right = binExpr.right();
@@ -362,6 +352,22 @@ public class MemberScopedTypeResolver {
     return typedExpr;
   }
 
+  private TVarReference resolveVarReference(VarReference varRef) {
+    return switch (moduleScopedTypes.getVarReferenceType(varRef)) {
+      case Module(var moduleId, var fieldType) ->
+          new TVarReference(varRef.id(), new RefDeclaration.Module(moduleId), fieldType);
+      case LocalVar(var localVar) -> {
+        var typedLocalVar = getLocalVar(localVar).orElseThrow(() -> new IllegalStateException(
+            "Unable to find local: " + localVar));
+        yield new TVarReference(varRef.id(),
+            new Local(typedLocalVar),
+            typedLocalVar.variableType());
+      }
+      case Singleton(var sumType, var singletonType) ->
+          new TVarReference(varRef.id(), new RefDeclaration.Singleton(singletonType), sumType);
+    };
+  }
+
   private TStruct resolveStruct(Struct struct) {
     var typedFunctions = struct.functions().stream().map(func -> {
       var typedFunc = infer(func.function());
@@ -376,9 +382,21 @@ public class MemberScopedTypeResolver {
             .stream()
             .map(field -> new TField(field.id(), infer(field.value())))
             .toList();
+        var spreads = s.spreads().stream().map(varRef -> {
+          var tVarRef = resolveVarReference(varRef);
+          if (!(tVarRef.type() instanceof StructType)) {
+            addError(varRef,
+                new TypeMismatchError("Expected variable '%s' to be type struct, found: '%s'".formatted(
+                    varRef.name(),
+                    tVarRef.type().toPrettyString()), varRef.range()));
+          }
+          return tVarRef;
+        }).toList();
+
         yield TLiteralStructBuilder.builder()
             .fields(typedFields)
             .functions(typedFunctions)
+            .spreads(spreads)
             .range(s.range())
             .build();
       }
@@ -399,7 +417,7 @@ public class MemberScopedTypeResolver {
       case NamedStruct s -> {
         var sumType = moduleScopedTypes.getSumType(nameResolutionResult.getNamedStructType(s));
         var convertedSumType = convertUniversals(sumType, s.range());
-        // TODO This is dumb. The name resolution step already determines what variant this
+        // TODO This is dumb. The captureName resolution step already determines what variant this
         //  particular struct actually is. Pipe it through instead of this hack.
         var variant = convertedSumType.types()
             .stream()

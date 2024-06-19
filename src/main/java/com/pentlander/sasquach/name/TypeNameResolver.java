@@ -7,6 +7,7 @@ import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
 import com.pentlander.sasquach.ast.StructTypeNode;
+import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.NamedRow;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TupleTypeNode;
@@ -23,7 +24,7 @@ import java.util.Map;
 public class TypeNameResolver {
   private final List<TypeParameter> contextTypeParams;
   private final ModuleScopedNameResolver moduleScopedNameResolver;
-  // Map of named types to the name declaration, e.g. type alias or type parameter
+  // Map of named types to the captureName declaration, e.g. type alias or type parameter
   private final Map<TypeNode, NamedTypeDefinition> namedTypes = new HashMap<>();
   private final Map<String, VariantTypeNode> variantNodes = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
@@ -47,8 +48,12 @@ public class TypeNameResolver {
   public Result resolveTypeNode(TypeNode typeNode) {
     switch (typeNode) {
       case BasicTypeNode<?> basicTypeNode -> resolveNamedType(basicTypeNode);
-      case StructTypeNode structTypeNode -> structTypeNode.fieldTypeNodes().values()
-          .forEach(this::resolveTypeNode);
+      case StructTypeNode structTypeNode -> {
+        structTypeNode.fieldTypeNodes().values().forEach(this::resolveTypeNode);
+        if (structTypeNode.rowModifier() instanceof NamedRow namedRow) {
+          resolveTypeNode(namedRow.typeNode());
+        }
+      }
       case FunctionSignature functionSignature -> {
         var typeParams = Util.concat(contextTypeParams, functionSignature.typeParameters());
         var resolver = new TypeNameResolver(typeParams, moduleScopedNameResolver);
@@ -94,12 +99,12 @@ public class TypeNameResolver {
     if (type instanceof LocalNamedType localNamedType) {
       localNamedType.typeArgumentNodes().forEach(this::resolveNamedType);
       // Check if the named type matches a type parameter
-      var name = type.typeName();
+      var name = localNamedType.typeName();
       var typeParam = contextTypeParams.stream().filter(param -> param.typeName().equals(name))
           .findFirst();
       // Check if the named type matches a local type alias
-      var typeAlias = moduleScopedNameResolver.resolveTypeAlias(localNamedType.typeName());
-      var foreignClass = moduleScopedNameResolver.resolveForeignClass(localNamedType.typeName());
+      var typeAlias = moduleScopedNameResolver.resolveTypeAlias(name);
+      var foreignClass = moduleScopedNameResolver.resolveForeignClass(name);
       // Ensure that a named type is only resolved from one source. If it isn't, create an error.
       if (typeParam.isPresent() && typeAlias.isPresent()) {
         var aliasId =  typeAlias.get().id();

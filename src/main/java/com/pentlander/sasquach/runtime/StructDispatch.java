@@ -1,5 +1,7 @@
 package com.pentlander.sasquach.runtime;
 
+import com.pentlander.sasquach.runtime.StructLinker.InitCallsiteDesc;
+import com.pentlander.sasquach.runtime.StructLinker.StructOperation;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.ConstantCallSite;
 import java.lang.invoke.MethodHandle;
@@ -32,8 +34,13 @@ public final class StructDispatch {
       Double.TYPE,
       Double.class);
 
-  private static final DynamicLinker DYNAMIC_LINKER = new DynamicLinkerFactory().createLinker();
+  private static final DynamicLinker DYNAMIC_LINKER;
 
+  static {
+    var linkerFactory = new DynamicLinkerFactory();
+    linkerFactory.setPrioritizedLinkers(new StructLinker());
+    DYNAMIC_LINKER = linkerFactory.createLinker();
+  }
 
   /**
    * Handles dispatch on struct functions.
@@ -60,7 +67,9 @@ public final class StructDispatch {
     private MethodHandle findMethod(StructBase struct, Object[] args)
         throws IllegalAccessException, NoSuchMethodException {
       for (var method : struct.getClass().getMethods()) {
-        if (!method.getName().equals(methodName)) {continue;}
+        if (!method.getName().equals(methodName)) {
+          continue;
+        }
 
         var paramTypes = method.getParameterTypes();
         boolean matches = true;
@@ -101,7 +110,7 @@ public final class StructDispatch {
   private static Operation parseOperation(String name) {
     var parts = name.split(":");
     if (parts.length != 3) {
-      throw new IllegalArgumentException("Bad operation name");
+      throw new IllegalArgumentException("Bad operation captureName");
     }
     var op = StandardOperation.valueOf(parts[0]);
     var namespaces = Arrays.stream(parts[1].split("\\|"))
@@ -122,5 +131,16 @@ public final class StructDispatch {
     return new MethodDispatcher(invokedName, invokedType).buildCallSite();
   }
 
+  // The invoked type should be (FieldArgType0, FieldArgType1, ..., SpreadStructType0, SpreadStructType1, ...) -> NewStructType
+  // This lets us avoid needing to pass in the output struct type in. We do still need to pass in
+  // the names of the fields in the order they are assigned
+  public static CallSite bootstrapSpread(Lookup caller, String invokedName, MethodType invokedType,
+      Object... fieldNames) {
+    var fieldNameList = Arrays.stream(fieldNames).map(String.class::cast).toList();
+    return DYNAMIC_LINKER.link(new ChainedCallSite(new InitCallsiteDesc(caller,
+        StructOperation.INIT,
+        invokedType,
+        fieldNameList)));
+  }
 
 }

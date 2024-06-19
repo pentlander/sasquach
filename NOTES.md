@@ -99,6 +99,36 @@ type Compare[A] = { compare: (a1: A, a2: A) -> Cmp } & Eq,
 type Compare[A] = { compare: (a1: A, a2: A) -> Cmp, thisEq: Eq },
 ```
 
+## Row Types
+Creating functions that use row types is complicated from a runtime perspective. Take this example for combining two objects:
+```
+combine = [R1, R2](struct1: { ..R1 }, struct2: { ..R2 }): { ..R1, ..R2 } -> {
+  { ..struct1, ..struct2 }
+}
+
+Id {
+  type T = (String,)
+  
+  toString = (id: T): String -> id._0
+}
+
+FullName = mod {
+    type T = { first: String, last: String, id: Id.T } 
+} |> addToString
+
+
+deriveToString = comptime [R](struct: { ..R }): (({ ..R }) -> String) -> 
+  (struct) -> {
+      // [(fieldName, value), ...]
+      getFieldValues(struct)
+      |> map (fieldName, value) -> "${fieldName}: ${typeof(value).module.toString(value)}"
+  }
+
+addToString = comptime [R, T](module: { ..R }): { toString: (T) -> String, ..R } -> {
+  
+}
+```
+The base problem is that the spread operator inside the function does not have concrete struct types to work with. The function body here looks like `invokedynamic<spread>(StructBase;StructBase;)StructBase`, whereas the function invocation has concrete types to work with. The signature of the spread *must* be this unless the function is monomorphized. The consequence is that at runtime, the function either needs to somehow pass information about the types into the spread or the spread needs to reflect over the structs. In either case, the type of the output struct is not known ahead of time. This means at runtime it either has to create a new hidden class for the struct, or it needs to look up the correct struct to use. The problem with creating a hidden struct is that it couldn't copy over any functions associated with. Actually, if all the methods are static, you could do it. Replacing the call with a method handle invocation also could be less confusing than actually copying over the code, since there would be no source code for the created class. 
 
 # To Investigate
 

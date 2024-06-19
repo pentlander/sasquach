@@ -11,7 +11,7 @@ import java.util.concurrent.RecursiveTask;
 import java.util.stream.Stream;
 
 public class ModuleResolver {
-  // Map of qualified module name to resolver
+  // Map of qualified module captureName to resolver
   private final ConcurrentMap<String, ResolutionTask> moduleScopedResolverTasks =
       new ConcurrentHashMap<>();
 

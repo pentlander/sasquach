@@ -15,7 +15,7 @@ public final class TypeVariable implements Type, ParameterizedType {
   private InnerType inner = new InnerType();
 
   /**
-   * @param name name of the type variable.
+   * @param name captureName of the type variable.
    */
   public TypeVariable(String name) {
     this.name = name;
@@ -88,7 +88,7 @@ public final class TypeVariable implements Type, ParameterizedType {
 
   @Override
   public String toString() {
-    return "TypeVariable[" + "name=" + name + ", inner=" + inner + ']';
+    return "TypeVariable[" + "captureName=" + name + ", inner=" + inner + ']';
   }
 
   private static class InnerType {

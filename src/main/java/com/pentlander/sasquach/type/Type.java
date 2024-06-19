@@ -15,9 +15,9 @@ public sealed interface Type permits ArrayType, BuiltinType, ClassType, Universa
   String typeName();
 
   /**
-   * Internal name for a class.
+   * Internal captureName for a class.
    * <p>
-   * Equivalent to a fully qualified name with '.' replaces with '/'. Example: java/lang/String
+   * Equivalent to a fully qualified captureName with '.' replaces with '/'. Example: java/lang/String
    * </p>
    */
   String internalName();

@@ -28,6 +28,7 @@ import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
 import com.pentlander.sasquach.tast.expression.TFunction;
 import com.pentlander.sasquach.tast.expression.TIfExpression;
+import com.pentlander.sasquach.tast.expression.TLiteralStruct;
 import com.pentlander.sasquach.tast.expression.TLocalFunctionCall;
 import com.pentlander.sasquach.tast.expression.TLocalFunctionCall.TargetKind;
 import com.pentlander.sasquach.tast.expression.TLoop;
@@ -36,6 +37,7 @@ import com.pentlander.sasquach.tast.expression.TMemberFunctionCall;
 import com.pentlander.sasquach.tast.expression.TPrintStatement;
 import com.pentlander.sasquach.tast.expression.TRecur;
 import com.pentlander.sasquach.tast.expression.TStruct;
+import com.pentlander.sasquach.tast.expression.TStruct.TField;
 import com.pentlander.sasquach.tast.expression.TStructWithName;
 import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Local;
@@ -45,11 +47,13 @@ import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.FunctionType;
+import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeUtils;
 import com.pentlander.sasquach.type.TypeVariable;
 import com.pentlander.sasquach.type.UniversalType;
 import java.io.PrintStream;
+import java.lang.classfile.MethodBuilder;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.ConstantDescs;
 import java.lang.constant.DirectMethodHandleDesc;
@@ -60,10 +64,12 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import jdk.dynalink.StandardNamespace;
 import jdk.dynalink.StandardOperation;
 import org.objectweb.asm.ClassWriter;
@@ -78,6 +84,7 @@ class ExpressionGenerator {
   private static final String MATCH_BOOTSTRAP_DESCRIPTOR = MethodType.methodType(CallSite.class,
           List.of(Lookup.class, String.class, MethodType.class, Object[].class))
       .descriptorString();
+  private static final String SPREAD_BOOTSTRAP_DESCRIPTOR = MATCH_BOOTSTRAP_DESCRIPTOR;
   private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
   private final Deque<Label> loopLabels = new ArrayDeque<>();
   private final MethodVisitor methodVisitor;
@@ -535,13 +542,48 @@ class ExpressionGenerator {
   //  should be evaluated in the order they appear, but that doesn't necessarily correspond with
   //  the order of the constructor parameters. Since we're iterating over a hashmap, the order is
   //  not consistent.
-  // I need the struct name, the field types, and the expressions
   void generateStructInit(TStruct struct) {
     var structType = type(struct);
     var structName = structType.internalName();
     var structClassDesc = ClassDesc.of(structName.replace('/', '.'));
+    var fields = struct.fields();
+
+    if (struct instanceof TLiteralStruct literalStruct && !literalStruct.spreads().isEmpty()) {
+      var fieldNames = new Object[struct.fields().size()];
+      for (int i = 0; i < fields.size(); i++) {
+        TField tField = fields.get(i);
+        fieldNames[i] = tField.name();
+        generateExpr(tField.expr());
+      }
+      literalStruct.spreads().forEach(spread -> {
+        switch (spread.refDeclaration()) {
+          case Local(var localVar) -> {
+            var spreadStructType = TypeUtils.asStructType(localVar.variableType()).orElseThrow();
+            generateLoadVar(methodVisitor, spreadStructType, localVarMeta.get(localVar).idx());
+          }
+          case Module module -> {
+            // TODO
+          }
+          case Singleton singleton -> throw new IllegalStateException("Cannot spread singleton");
+        }
+      });
+
+      var handle = new Handle(Opcodes.H_INVOKESTATIC,
+          internalName(StructDispatch.class),
+          "bootstrapSpread",
+          SPREAD_BOOTSTRAP_DESCRIPTOR,
+          false);
+      var paramClassDescs = Stream.concat(
+          fields
+              .stream()
+              .map(field -> field.type().classDesc()),
+          literalStruct.spreads().stream().map(spread -> spread.type().classDesc())).toList();
+      var typeDesc = MethodTypeDesc.of(structType.classDesc(), paramClassDescs);
+      methodVisitor.visitInvokeDynamicInsn("spread", typeDesc.descriptorString(), handle, fieldNames);
+      return;
+    }
     generateNewDup(structName);
-    struct.fields().forEach(field -> generateExpr(field.expr()));
+    fields.forEach(field -> generateExpr(field.expr()));
     var paramDescs = ClassGenerator.fieldParamDescs(struct.fields());
     generate(MethodHandleDesc.ofConstructor(structClassDesc, paramDescs));
   }

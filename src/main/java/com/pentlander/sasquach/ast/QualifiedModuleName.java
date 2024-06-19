@@ -4,7 +4,7 @@ public record QualifiedModuleName(String packageName, String moduleName) {
   public static QualifiedModuleName fromString(String qualifiedModuleName) {
     var lastSlash = qualifiedModuleName.lastIndexOf("/");
     if (lastSlash == -1 || lastSlash == qualifiedModuleName.length() - 1) {
-      throw new IllegalStateException("Invalid qualified module name: " + qualifiedModuleName);
+      throw new IllegalStateException("Invalid qualified module captureName: " + qualifiedModuleName);
     }
     return new QualifiedModuleName(
         qualifiedModuleName.substring(0, lastSlash),

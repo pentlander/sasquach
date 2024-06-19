@@ -3,6 +3,7 @@ package com.pentlander.sasquach;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 public final class TestUtils {
@@ -13,12 +14,19 @@ public final class TestUtils {
   public static void dumpGeneratedClasses(Map<String, byte[]> generatedClasses) {
     try {
       var tempPath = Files.createTempDirectory("class_dump_");
+      dumpGeneratedClasses(tempPath, generatedClasses);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+  public static void dumpGeneratedClasses(Path path, Map<String, byte[]> generatedClasses) {
+    try {
       for (Map.Entry<String, byte[]> entry : generatedClasses.entrySet()) {
         String name = entry.getKey();
         byte[] bytecode = entry.getValue();
-        Compiler.saveBytecodeToFile(tempPath, name, bytecode);
+        Compiler.saveBytecodeToFile(path, name, bytecode);
       }
-      System.err.println("Dumped files to: " + tempPath);
+      System.err.println("Dumped files to: " + path);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

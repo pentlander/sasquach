@@ -27,10 +27,13 @@ import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.SumType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeVariable;
+import java.lang.classfile.ClassElement;
+import java.lang.classfile.ClassFile;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.ConstantDescs;
 import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
+import java.lang.reflect.AccessFlag;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -73,7 +76,6 @@ class ClassGenerator {
   static ClassDesc[] fieldParamDescs(List<? extends TypedNode> fields) {
     return fields.stream().map(TypedNode::type).map(Type::classDesc).toArray(ClassDesc[]::new);
   }
-
 
   private MethodVisitor generateStructStart(String internalName, Range range,
       Map<String, Type> fields) {

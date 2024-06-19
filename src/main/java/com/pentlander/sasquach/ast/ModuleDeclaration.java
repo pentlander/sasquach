@@ -8,7 +8,7 @@ import com.pentlander.sasquach.ast.expression.Struct;
  */
 public record ModuleDeclaration(QualifiedModuleId id, Struct struct, Range range) implements Node {
   /**
-   * Module name.
+   * Module captureName.
    */
   public String name() {
     return id.name();

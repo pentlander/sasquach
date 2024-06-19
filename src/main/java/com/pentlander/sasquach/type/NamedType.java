@@ -4,7 +4,7 @@ import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.TypeNode;
 import java.util.List;
 
-/** Unresolved type referred to by name. **/
+/** Unresolved type referred to by captureName. **/
 public sealed interface NamedType extends Type permits LocalNamedType, ModuleNamedType {
   Id id();
 
