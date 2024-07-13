@@ -85,7 +85,7 @@ class ExpressionGenerator {
           List.of(Lookup.class, String.class, MethodType.class, Object[].class))
       .descriptorString();
   private static final String SPREAD_BOOTSTRAP_DESCRIPTOR = MATCH_BOOTSTRAP_DESCRIPTOR;
-  private final Map<String, ClassWriter> generatedClasses = new HashMap<>();
+  private final Map<String, byte[]> generatedClasses = new HashMap<>();
   private final Deque<Label> loopLabels = new ArrayDeque<>();
   private final MethodVisitor methodVisitor;
   private final TLocalVarMeta localVarMeta;
@@ -105,7 +105,7 @@ class ExpressionGenerator {
     contextNode = node;
   }
 
-  public Map<String, ClassWriter> getGeneratedClasses() {
+  public Map<String, byte[]> getGeneratedClasses() {
     return Map.copyOf(generatedClasses);
   }
 

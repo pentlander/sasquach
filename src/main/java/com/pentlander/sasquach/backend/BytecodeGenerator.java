@@ -17,8 +17,7 @@ public class BytecodeGenerator implements Opcodes {
     var generatedBytecode = new LinkedHashMap<String, byte[]>();
     for (var moduleDeclaration : moduleDeclarations) {
       var classGen = new ClassGenerator();
-      classGen.generate(moduleDeclaration)
-          .forEach((name, cw) -> generatedBytecode.put(name, cw.toByteArray()));
+      generatedBytecode.putAll(classGen.generate(moduleDeclaration));
     }
 
     return new BytecodeResult(generatedBytecode);
