@@ -1,11 +1,11 @@
 package com.pentlander.sasquach.backend;
 
 import static com.pentlander.sasquach.backend.ClassGenerator.INSTANCE_FIELD;
+import static com.pentlander.sasquach.backend.ClassGenerator.CD_STRUCT_BASE;
 import static com.pentlander.sasquach.backend.ClassGenerator.fieldParamDescs;
-import static com.pentlander.sasquach.backend.ClassGenerator.signatureDescriptor;
+import static com.pentlander.sasquach.backend.GeneratorUtil.internalClassDesc;
 import static com.pentlander.sasquach.type.TypeUtils.asStructType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
-import static com.pentlander.sasquach.type.TypeUtils.internalName;
 
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
@@ -16,7 +16,6 @@ import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TPattern.TSingleton;
 import com.pentlander.sasquach.tast.TPattern.TVariantStruct;
 import com.pentlander.sasquach.tast.TPattern.TVariantTuple;
-import com.pentlander.sasquach.tast.TPatternVariable;
 import com.pentlander.sasquach.tast.TypedNode;
 import com.pentlander.sasquach.tast.expression.TApplyOperator;
 import com.pentlander.sasquach.tast.expression.TArrayValue;
@@ -47,17 +46,23 @@ import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.FunctionType;
-import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeUtils;
 import com.pentlander.sasquach.type.TypeVariable;
 import com.pentlander.sasquach.type.UniversalType;
 import java.io.PrintStream;
-import java.lang.classfile.MethodBuilder;
+import java.lang.classfile.CodeBuilder;
+import java.lang.classfile.Label;
+import java.lang.classfile.Opcode;
+import java.lang.classfile.TypeKind;
+import java.lang.classfile.instruction.LocalVariable;
+import java.lang.classfile.instruction.SwitchCase;
 import java.lang.constant.ClassDesc;
+import java.lang.constant.ConstantDesc;
 import java.lang.constant.ConstantDescs;
 import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.constant.DirectMethodHandleDesc.Kind;
+import java.lang.constant.DynamicCallSiteDesc;
 import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.invoke.CallSite;
@@ -69,36 +74,28 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import jdk.dynalink.StandardNamespace;
 import jdk.dynalink.StandardOperation;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Handle;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Opcodes;
 
 class ExpressionGenerator {
-  private static final String DISPATCH_BOOTSTRAP_DESCRIPTOR = MethodType.methodType(CallSite.class,
-      List.of(Lookup.class, String.class, MethodType.class)).descriptorString();
-  private static final String MATCH_BOOTSTRAP_DESCRIPTOR = MethodType.methodType(CallSite.class,
+  private static final MethodTypeDesc DISPATCH_BOOTSTRAP_DESC = MethodType.methodType(CallSite.class,
+      List.of(Lookup.class, String.class, MethodType.class)).describeConstable().orElseThrow();
+  private static final MethodTypeDesc MATCH_BOOTSTRAP_DESC = MethodType.methodType(CallSite.class,
           List.of(Lookup.class, String.class, MethodType.class, Object[].class))
-      .descriptorString();
-  private static final String SPREAD_BOOTSTRAP_DESCRIPTOR = MATCH_BOOTSTRAP_DESCRIPTOR;
+      .describeConstable().orElseThrow();
+  private static final MethodTypeDesc SPREAD_BOOTSTRAP_DESC = MATCH_BOOTSTRAP_DESC;
   private final Map<String, byte[]> generatedClasses = new HashMap<>();
   private final Deque<Label> loopLabels = new ArrayDeque<>();
-  private final MethodVisitor methodVisitor;
+  private final CodeBuilder cob;
   private final TLocalVarMeta localVarMeta;
   private TypedNode contextNode;
 
-  ExpressionGenerator(MethodVisitor methodVisitor, List<TFunctionParameter> params) {
-    this.methodVisitor = methodVisitor;
+  ExpressionGenerator(CodeBuilder cob, List<TFunctionParameter> params) {
+    this.cob = cob;
 
     this.localVarMeta = TLocalVarMeta.of(params);
-  }
-
-  private org.objectweb.asm.Type asmType(String internalName) {
-    return org.objectweb.asm.Type.getObjectType(internalName);
   }
 
   private void addContextNode(TypedNode node) {
@@ -112,18 +109,6 @@ class ExpressionGenerator {
   public void generateExpr(TypedExpression expression) {
     try {
       generate(expression);
-      var endLabel = new Label();
-      methodVisitor.visitLabel(endLabel);
-      for (var varMeta : localVarMeta.varMeta()) {
-        var varType = type(varMeta.localVar().variableType());
-
-        methodVisitor.visitLocalVariable(varMeta.localVar().name(),
-            varType.classDesc().descriptorString(),
-            signatureDescriptor(varType),
-            varMeta.label(),
-            endLabel,
-            varMeta.idx());
-      }
     } catch (RuntimeException e) {
       throw new CodeGenerationException(contextNode, e);
     }
@@ -166,14 +151,17 @@ class ExpressionGenerator {
       case TVariableDeclaration varDecl -> {
         var varDeclExpr = varDecl.expression();
         var varMeta = localVarMeta.push(varDecl);
-        methodVisitor.visitLabel(varMeta.label());
+        cob.with(LocalVariable.of(varMeta.idx(),
+            varDecl.name(),
+            varDecl.variableType().classDesc(), cob.newBoundLabel(),
+            cob.endLabel()));
         generate(varDeclExpr);
-        generateStoreVar(methodVisitor, type(varDeclExpr), varMeta.idx());
+        generateStoreVar(cob, type(varDeclExpr), varMeta.idx());
       }
       case TVarReference varReference -> {
         switch (varReference.refDeclaration()) {
           case Local(var localVar) ->
-              generateLoadVar(methodVisitor, type(varReference), localVarMeta.get(localVar).idx());
+              generateLoadVar(cob, type(varReference), localVarMeta.get(localVar).idx());
           case Module(var moduleId) -> generate(MethodHandleDesc.ofField(Kind.STATIC_GETTER,
               ClassDesc.of(moduleId.javaName()),
               INSTANCE_FIELD,
@@ -191,44 +179,42 @@ class ExpressionGenerator {
           switch (builtinType) {
             case BOOLEAN -> {
               boolean boolValue = Boolean.parseBoolean(literal);
-              methodVisitor.visitIntInsn(Opcodes.BIPUSH, boolValue ? 1 : 0);
+              cob.bipush(boolValue? 1 : 0);
             }
             case INT, CHAR, BYTE, SHORT -> {
               int intValue = Integer.parseInt(literal);
-              methodVisitor.visitIntInsn(Opcodes.BIPUSH, intValue);
+              cob.bipush(intValue);
             }
             case LONG -> {
               long longValue = Long.parseLong(literal);
-              methodVisitor.visitLdcInsn(longValue);
+              cob.ldc(longValue);
             }
             case FLOAT -> {
               float floatValue = Float.parseFloat(literal);
-              methodVisitor.visitLdcInsn(floatValue);
+              cob.ldc(floatValue);
             }
             case DOUBLE -> {
               double doubleValue = Double.parseDouble(literal);
-              methodVisitor.visitLdcInsn(doubleValue);
+              cob.ldc(doubleValue);
             }
-            case STRING -> methodVisitor.visitLdcInsn(literal.replace("\"", ""));
+            case STRING -> cob.ldc(literal.replace("\"", ""));
             case STRING_ARR -> {
             }
-            case VOID -> methodVisitor.visitInsn(Opcodes.ACONST_NULL);
+            case VOID -> cob.aconst_null();
           }
         }
       }
       case TArrayValue arrayValue -> {
         // TODO: Support primitive arrays.
-        methodVisitor.visitIntInsn(Opcodes.BIPUSH, arrayValue.expressions().size());
-        methodVisitor.visitTypeInsn(Opcodes.ANEWARRAY,
-            arrayValue.type().elementType().internalName());
+        cob.bipush(arrayValue.expressions().size())
+            .anewarray(arrayValue.type().classDesc().componentType());
 
         var expressions = arrayValue.expressions();
         for (int i = 0; i < expressions.size(); i++) {
           var expr = expressions.get(i);
-          methodVisitor.visitInsn(Opcodes.DUP);
-          methodVisitor.visitLdcInsn(i);
+          cob.dup().ldc(i);
           generate(expr);
-          methodVisitor.visitInsn(Opcodes.AASTORE);
+          cob.aastore();
         }
       }
       case TLocalFunctionCall funcCall -> {
@@ -245,7 +231,7 @@ class ExpressionGenerator {
           case TargetKind.LocalVariable(var localVar) -> {
             int idx = localVarMeta.get(localVar).idx();
             var type = TypeUtils.asFunctionType(type(localVar.variableType())).orElseThrow();
-            generateLoadVar(methodVisitor, type, idx);
+            generateLoadVar(cob, type, idx);
             generateArgs(funcCall.arguments(), type.parameterTypes());
             generateMemberCall(type, "_invoke");
           }
@@ -267,70 +253,65 @@ class ExpressionGenerator {
           case TBinaryExpression.TMathExpression mathExpr -> {
             generate(binExpr.left());
             generate(binExpr.right());
-            int opcode = switch (mathExpr.operator()) {
-              case PLUS -> Opcodes.IADD;
-              case MINUS -> Opcodes.ISUB;
-              case TIMES -> Opcodes.IMUL;
-              case DIVIDE -> Opcodes.IDIV;
+            var opcode = switch (mathExpr.operator()) {
+              case PLUS -> Opcode.IADD;
+              case MINUS -> Opcode.ISUB;
+              case TIMES -> Opcode.IMUL;
+              case DIVIDE -> Opcode.IDIV;
             };
-            methodVisitor.visitInsn(opcode);
+            cob.operatorInstruction(opcode);
           }
           case TBinaryExpression.TCompareExpression cmpExpr -> {
             generate(binExpr.left());
             generate(binExpr.right());
-            int opCode = switch (cmpExpr.operator()) {
-              case EQ -> Opcodes.IF_ICMPEQ;
-              case NE -> Opcodes.IF_ICMPNE;
-              case GE -> Opcodes.IF_ICMPGE;
-              case LE -> Opcodes.IF_ICMPLE;
-              case LT -> Opcodes.IF_ICMPLT;
-              case GT -> Opcodes.IF_ICMPGT;
+            var opCode = switch (cmpExpr.operator()) {
+              case EQ -> Opcode.IF_ICMPEQ;
+              case NE -> Opcode.IF_ICMPNE;
+              case GE -> Opcode.IF_ICMPGE;
+              case LE -> Opcode.IF_ICMPLE;
+              case LT -> Opcode.IF_ICMPLT;
+              case GT -> Opcode.IF_ICMPGT;
             };
-            var trueLabel = new Label();
-            var endLabel = new Label();
-            methodVisitor.visitJumpInsn(opCode, trueLabel);
-            methodVisitor.visitInsn(Opcodes.ICONST_0);
-            methodVisitor.visitJumpInsn(Opcodes.GOTO, endLabel);
-            methodVisitor.visitLabel(trueLabel);
-            methodVisitor.visitInsn(Opcodes.ICONST_1);
-            methodVisitor.visitLabel(endLabel);
+            cob.ifThenElse(opCode, CodeBuilder::iconst_1, CodeBuilder::iconst_0);
           }
           case TBooleanExpression boolExpr -> {
-            int opCode = switch (boolExpr.operator()) {
-              case AND -> Opcodes.IFEQ;
-              case OR -> Opcodes.IFNE;
+            Consumer<Label> opCode = switch (boolExpr.operator()) {
+              case AND -> cob::ifeq;
+              case OR -> cob::ifne;
             };
-            var labelEnd = new Label();
             generate(binExpr.left());
-            methodVisitor.visitInsn(Opcodes.DUP);
-            methodVisitor.visitJumpInsn(opCode, labelEnd);
-            methodVisitor.visitInsn(Opcodes.POP);
+            cob.dup();
+            var labelEnd = cob.newLabel();
+            opCode.accept(labelEnd);
+            cob.pop();
             generate(binExpr.right());
-            methodVisitor.visitLabel(labelEnd);
+            cob.labelBinding(labelEnd);
           }
         }
       }
       case TIfExpression ifExpr -> {
         generate(ifExpr.condition());
+        var falseLabel = cob.newLabel();
+        var endLabel = cob.newLabel();
         var hasFalseExpr = ifExpr.falseExpression() != null;
-        var falseLabel = new Label();
-        var endLabel = new Label();
         var ifEqLabel = hasFalseExpr ? falseLabel : endLabel;
-        methodVisitor.visitJumpInsn(Opcodes.IFEQ, ifEqLabel);
+        cob.ifeq(ifEqLabel);
         generate(ifExpr.trueExpression());
         if (hasFalseExpr) {
-          methodVisitor.visitJumpInsn(Opcodes.GOTO, endLabel);
-          methodVisitor.visitLabel(falseLabel);
+          cob.goto_(endLabel)
+              .labelBinding(falseLabel);
           generate(ifExpr.falseExpression());
         } else {
           generatePop(ifExpr.trueExpression());
         }
-        methodVisitor.visitLabel(endLabel);
+        cob.labelBinding(endLabel);
       }
       case TStruct struct -> {
-        var classGen = new ClassGenerator();
-        classGen.generateStruct(struct);
-        generatedClasses.putAll(classGen.getGeneratedClasses());
+        if (struct instanceof TLiteralStruct) {
+          var classGen = new ClassGenerator();
+          classGen.generateStruct(struct);
+          generatedClasses.putAll(classGen.getGeneratedClasses());
+        }
 
         generateStructInit(struct);
       }
@@ -343,13 +324,14 @@ class ExpressionGenerator {
       case TForeignFieldAccess fieldAccess -> {
         var fieldType = fieldAccess.type();
         var opCode = switch (fieldType.accessKind()) {
-          case INSTANCE -> Opcodes.GETFIELD;
-          case STATIC -> Opcodes.GETSTATIC;
+          case INSTANCE -> Opcode.GETFIELD;
+          case STATIC -> Opcode.GETSTATIC;
         };
-        methodVisitor.visitFieldInsn(opCode,
-            fieldType.ownerType().internalName(),
+        cob.fieldInstruction(
+            opCode,
+            fieldType.ownerType().classDesc(),
             fieldAccess.fieldName(),
-            fieldType.classDesc().descriptorString());
+            fieldType.classDesc());
       }
       case TForeignFunctionCall foreignFuncCall -> {
         var foreignFuncType = foreignFuncCall.foreignFunctionType();
@@ -362,7 +344,7 @@ class ExpressionGenerator {
         generate(foreignFuncType.methodHandleDesc());
         var castType = foreignFuncType.castType();
         if (castType != null) {
-          methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, castType.internalName());
+          cob.checkcast(castType.classDesc());
         }
       }
       case TMemberFunctionCall structFuncCall -> {
@@ -376,9 +358,8 @@ class ExpressionGenerator {
       }
       case TLoop loop -> {
         loop.varDeclarations().forEach(this::generate);
-        var recurPoint = new Label();
+        var recurPoint = cob.newBoundLabel();
         loopLabels.addLast(recurPoint);
-        methodVisitor.visitLabel(recurPoint);
         generate(loop.expression());
         loopLabels.removeLast();
       }
@@ -387,9 +368,9 @@ class ExpressionGenerator {
           var arg = recur.arguments().get(i);
           var varDecl = recur.localVars().get(i);
           generate(arg);
-          generateStoreVar(methodVisitor, type(arg), localVarMeta.get(varDecl).idx());
+          generateStoreVar(cob, type(arg), localVarMeta.get(varDecl).idx());
         }
-        methodVisitor.visitJumpInsn(Opcodes.GOTO, loopLabels.getLast());
+        cob.goto_(loopLabels.getLast());
       }
       case TFunction func -> {
         // TODO: Change generation of lambdas to be a static method and its method handle instead
@@ -404,53 +385,55 @@ class ExpressionGenerator {
       case TApplyOperator applyOperator -> generate(applyOperator.functionCall());
       case TMatch match -> {
         generate(match.expr());
-        methodVisitor.visitInsn(Opcodes.DUP);
+        cob.dup();
         int exprVarIdx = localVarMeta.pushHidden();
-        generateStoreVar(methodVisitor, type(match.expr()), exprVarIdx);
+        generateStoreVar(cob, type(match.expr()), exprVarIdx);
 
-        methodVisitor.visitInsn(Opcodes.ICONST_0);
-        var handle = new Handle(Opcodes.H_INVOKESTATIC,
-            internalName(SwitchBootstraps.class),
-            "bootstrapSwitch",
-            MATCH_BOOTSTRAP_DESCRIPTOR,
-            false);
+        cob.iconst_0();
 
         var branches = match.branches();
         var branchTypes = branches.stream()
             .map(branch -> branch.pattern().type())
-            .map(type -> asmType(type.internalName()))
-            .toArray();
-        methodVisitor.visitInvokeDynamicInsn("match",
-            SwitchBootstraps.DO_TYPE_SWITCH_TYPE.descriptorString(),
-            handle,
-            branchTypes);
+            .map(GeneratorUtil::internalClassDesc)
+            .toArray(ConstantDesc[]::new);
+        var bootstrapDesc = MethodHandleDesc.ofMethod(
+            Kind.STATIC,
+            classDesc(SwitchBootstraps.class),
+            "bootstrapSwitch",
+            MATCH_BOOTSTRAP_DESC);
+        var callSiteDesc = DynamicCallSiteDesc.of(
+                bootstrapDesc,
+                "match",
+                SwitchBootstraps.DO_TYPE_SWITCH_TYPE.describeConstable().orElseThrow())
+            .withArgs(branchTypes);
+        cob.invokeDynamicInstruction(callSiteDesc);
 
-        var defaultLabel = new Label();
-        var labels = new Label[branches.size()];
+        var switchCases = new ArrayList<SwitchCase>(branches.size());
         for (int i = 0; i < branches.size(); i++) {
-          labels[i] = new Label();
+          switchCases.add(SwitchCase.of(i, cob.newLabel()));
         }
-        methodVisitor.visitTableSwitchInsn(0, branches.size() - 1, defaultLabel, labels);
+        var defaultLabel = cob.newLabel();
+        cob.tableSwitchInstruction(0, branches.size() - 1, defaultLabel, switchCases)
+            .labelBinding(defaultLabel);
 
-        methodVisitor.visitLabel(defaultLabel);
-        var exInternalName = internalName(MatchException.class);
-        generateNewDup(exInternalName);
-        methodVisitor.visitInsn(Opcodes.ACONST_NULL);
-        methodVisitor.visitInsn(Opcodes.ACONST_NULL);
+        var exDesc = classDesc(MatchException.class);
+        generateNewDup(exDesc);
+        cob.aconst_null()
+            .aconst_null();
 
-        var methodDesc = MethodHandleDesc.ofConstructor(classDesc(MatchException.class),
+        var methodDesc = MethodHandleDesc.ofConstructor(exDesc,
             ConstantDescs.CD_String,
             ConstantDescs.CD_Throwable);
         generate(methodDesc);
-        methodVisitor.visitInsn(Opcodes.ATHROW);
+        cob.throwInstruction();
 
-        var endLabel = new Label();
+        var endLabel = cob.newLabel();
         for (int i = 0; i < branches.size(); i++) {
-          methodVisitor.visitLabel(labels[i]);
+          cob.labelBinding(switchCases.get(i).target());
           var branch = branches.get(i);
           switch (branch.pattern()) {
             // No-op, don't need to load any vars
-            case TSingleton singleton -> {}
+            case TSingleton _ -> {}
             case TVariantTuple variantTuple -> {
               var variantType = variantTuple.type();
               var tupleFieldTypes = variantType.sortedFields();
@@ -459,8 +442,8 @@ class ExpressionGenerator {
               // then store the value of the field in the variable
               for (int j = 0; j < bindings.size(); j++) {
                 // Load the value of the field and cast it
-                generateLoadVar(methodVisitor, variantType, exprVarIdx);
-                methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, variantType.internalName());
+                generateLoadVar(cob, variantType, exprVarIdx);
+                cob.checkcast(internalClassDesc(variantType));
 
                 var field = tupleFieldTypes.get(j);
                 generateFieldAccess(field.getKey(), field.getValue());
@@ -469,45 +452,46 @@ class ExpressionGenerator {
                 var binding = bindings.get(j);
                 var bindType = type(binding);
                 int idx = localVarMeta.push(binding).idx();
-                generateStoreVar(methodVisitor, bindType, idx);
+                generateStoreVar(cob, bindType, idx);
               }
             }
             case TVariantStruct variantStruct -> {
               var variantType = variantStruct.type();
               for (var binding : variantStruct.bindings()) {
-                generateLoadVar(methodVisitor, variantType, exprVarIdx);
-                methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, variantType.internalName());
+                generateLoadVar(cob, variantType, exprVarIdx);
+                cob.checkcast(internalClassDesc(variantType));
 
                 var fieldType = variantType.fieldType(binding.name());
                 generateFieldAccess(binding.name(), fieldType);
 
                 var bindType = type(binding);
                 int idx = localVarMeta.push(binding).idx();
-                generateStoreVar(methodVisitor, bindType, idx);
+                generateStoreVar(cob, bindType, idx);
               }
 
             }
           }
           generate(branches.get(i).expr());
-          methodVisitor.visitJumpInsn(Opcodes.GOTO, endLabel);
+          cob.goto_(endLabel);
         }
-        methodVisitor.visitLabel(endLabel);
+        cob.labelBinding(endLabel);
       }
       default -> throw new IllegalStateException("Unrecognized expression: " + expression);
     }
   }
 
   private void generateFieldAccess(String fieldName, Type fieldType) {
-    var handle = new Handle(Opcodes.H_INVOKESTATIC,
-        internalName(StructDispatch.class),
+    var bootstrapDesc = MethodHandleDesc.ofMethod(
+        Kind.STATIC,
+        classDesc(StructDispatch.class),
         "bootstrapField",
-        DISPATCH_BOOTSTRAP_DESCRIPTOR,
-        false);
+        DISPATCH_BOOTSTRAP_DESC);
     var operation = StandardOperation.GET.withNamespaces(StandardNamespace.PROPERTY)
         .named(fieldName)
         .toString();
-    var typeDesc = MethodTypeDesc.of(fieldType.classDesc(), classDesc(StructBase.class));
-    methodVisitor.visitInvokeDynamicInsn(operation, typeDesc.descriptorString(), handle);
+    var typeDesc = MethodTypeDesc.of(fieldType.classDesc(), CD_STRUCT_BASE);
+
+    cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(bootstrapDesc, operation, typeDesc));
   }
 
   private void generateArgs(List<TypedExpression> arguments, List<Type> paramTypes) {
@@ -519,14 +503,18 @@ class ExpressionGenerator {
   }
 
   void generateMemberCall(FunctionType funcType, String funcCallName) {
-    var handle = new Handle(Opcodes.H_INVOKESTATIC,
-        internalName(StructDispatch.class),
+    var bootstrapDesc = MethodHandleDesc.ofMethod(
+        Kind.STATIC,
+        classDesc(StructDispatch.class),
         "bootstrapMethod",
-        DISPATCH_BOOTSTRAP_DESCRIPTOR,
-        false);
+        DISPATCH_BOOTSTRAP_DESC);
     var methodTypeDesc = funcType.functionDesc()
         .insertParameterTypes(0, classDesc(StructBase.class));
-    methodVisitor.visitInvokeDynamicInsn(funcCallName, methodTypeDesc.descriptorString(), handle);
+
+    cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
+        bootstrapDesc,
+        funcCallName,
+        methodTypeDesc));
   }
 
   void generateFuncInit(String funcStructInternalName, List<TVarReference> captures) {
@@ -549,7 +537,7 @@ class ExpressionGenerator {
     var fields = struct.fields();
 
     if (struct instanceof TLiteralStruct literalStruct && !literalStruct.spreads().isEmpty()) {
-      var fieldNames = new Object[struct.fields().size()];
+      var fieldNames = new ConstantDesc[struct.fields().size()];
       for (int i = 0; i < fields.size(); i++) {
         TField tField = fields.get(i);
         fieldNames[i] = tField.name();
@@ -559,77 +547,57 @@ class ExpressionGenerator {
         switch (spread.refDeclaration()) {
           case Local(var localVar) -> {
             var spreadStructType = TypeUtils.asStructType(localVar.variableType()).orElseThrow();
-            generateLoadVar(methodVisitor, spreadStructType, localVarMeta.get(localVar).idx());
+            generateLoadVar(cob, spreadStructType, localVarMeta.get(localVar).idx());
           }
           case Module module -> {
             // TODO
           }
-          case Singleton singleton -> throw new IllegalStateException("Cannot spread singleton");
+          case Singleton _ -> throw new IllegalStateException("Cannot spread singleton");
         }
       });
 
-      var handle = new Handle(Opcodes.H_INVOKESTATIC,
-          internalName(StructDispatch.class),
+      var bootstrapDesc = MethodHandleDesc.ofMethod(
+          Kind.STATIC,
+          classDesc(StructDispatch.class),
           "bootstrapSpread",
-          SPREAD_BOOTSTRAP_DESCRIPTOR,
-          false);
-      var paramClassDescs = Stream.concat(
-          fields
-              .stream()
-              .map(field -> field.type().classDesc()),
+          SPREAD_BOOTSTRAP_DESC);
+      var paramClassDescs = Stream.concat(fields.stream().map(field -> field.type().classDesc()),
           literalStruct.spreads().stream().map(spread -> spread.type().classDesc())).toList();
       var typeDesc = MethodTypeDesc.of(structType.classDesc(), paramClassDescs);
-      methodVisitor.visitInvokeDynamicInsn("spread", typeDesc.descriptorString(), handle, fieldNames);
+      var callSiteDesc = DynamicCallSiteDesc.of(bootstrapDesc, "spread", typeDesc)
+          .withArgs(fieldNames);
+      cob.invokeDynamicInstruction(callSiteDesc);
       return;
     }
     generateNewDup(structName);
     fields.forEach(field -> generateExpr(field.expr()));
-    var paramDescs = ClassGenerator.fieldParamDescs(struct.fields());
+    var paramDescs = switch (struct) {
+      // TODO Remove this hack. The constructor type params should be derived from the type def
+      case com.pentlander.sasquach.tast.expression.TVariantStruct variantStruct ->
+          variantStruct.constructorParams().stream().map(type -> switch (type) {
+            case TypeVariable _ -> ConstantDescs.CD_Object;
+            default -> type.classDesc();
+          }).toArray(ClassDesc[]::new);
+      default -> ClassGenerator.fieldParamDescs(struct.fields());
+    };
     generate(MethodHandleDesc.ofConstructor(structClassDesc, paramDescs));
   }
 
-  static void generateLoadVar(MethodVisitor methodVisitor, Type type, int idx) {
+  static void generateLoadVar(CodeBuilder cob, Type type, int idx) {
     if (idx < 0) {
       return;
     }
 
-    if (type instanceof BuiltinType builtinType) {
-      Integer opcode = switch (builtinType) {
-        case BOOLEAN, INT, CHAR, BYTE, SHORT -> Opcodes.ILOAD;
-        case LONG -> Opcodes.LLOAD;
-        case FLOAT -> Opcodes.FLOAD;
-        case DOUBLE -> Opcodes.DLOAD;
-        case STRING -> Opcodes.ALOAD;
-        case STRING_ARR -> Opcodes.AALOAD;
-        case VOID -> null;
-      };
-      if (opcode != null) {
-        methodVisitor.visitVarInsn(opcode, idx);
-      } else {
-        methodVisitor.visitInsn(Opcodes.ACONST_NULL);
-      }
+    var typeKind = TypeKind.from(type.classDesc());
+    if (typeKind != TypeKind.VoidType) {
+      cob.loadInstruction(typeKind, idx);
     } else {
-      methodVisitor.visitVarInsn(Opcodes.ALOAD, idx);
+      cob.aconst_null();
     }
   }
 
-  static void generateStoreVar(MethodVisitor methodVisitor, Type type, int idx) {
-    if (type instanceof BuiltinType builtinType) {
-      Integer opcode = switch (builtinType) {
-        case BOOLEAN, INT, BYTE, CHAR, SHORT -> Opcodes.ISTORE;
-        case LONG -> Opcodes.LSTORE;
-        case FLOAT -> Opcodes.FSTORE;
-        case DOUBLE -> Opcodes.DSTORE;
-        case STRING -> Opcodes.ASTORE;
-        case STRING_ARR -> Opcodes.AASTORE;
-        case VOID -> null;
-      };
-      if (opcode != null) {
-        methodVisitor.visitVarInsn(opcode, idx);
-      }
-    } else {
-      methodVisitor.visitVarInsn(Opcodes.ASTORE, idx);
-    }
+  static void generateStoreVar(CodeBuilder cob, Type type, int idx) {
+    cob.storeInstruction(TypeKind.from(type.classDesc()), idx);
   }
 
   private void generateBlock(TBlock block) {
@@ -645,7 +613,7 @@ class ExpressionGenerator {
 
   private void generatePop(TypedExpression expr) {
     if (!(expr instanceof TVariableDeclaration) && !type(expr).equals(BuiltinType.VOID)) {
-      methodVisitor.visitInsn(Opcodes.POP);
+      cob.pop();
     }
   }
 
@@ -657,11 +625,10 @@ class ExpressionGenerator {
   private void tryBox(Type actualType, Type expectedType) {
     if (actualType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT
         && (expectedType instanceof UniversalType)) {
-      methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC,
-          "java/lang/Integer",
+      cob.invokestatic(
+          ConstantDescs.CD_Integer,
           "valueOf",
-          "(I)Ljava/lang/Integer;",
-          false);
+          MethodTypeDesc.of(ConstantDescs.CD_Integer, ConstantDescs.CD_int));
     }
   }
 
@@ -671,21 +638,22 @@ class ExpressionGenerator {
   private void tryUnbox(Type expectedType, Type actualType) {
     if (expectedType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT
         && (actualType instanceof UniversalType)) {
-      methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Integer");
-      methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
-          "java/lang/Integer",
-          "intValue",
-          "()I",
-          false);
+      cob.checkcast(ConstantDescs.CD_Integer)
+          .invokevirtual(ConstantDescs.CD_Integer,
+              "intValue",
+              MethodTypeDesc.of(ConstantDescs.CD_int));
     }
   }
 
   private void generate(DirectMethodHandleDesc methodHandleDesc) {
-    GeneratorUtil.generate(methodVisitor, methodHandleDesc);
+    GeneratorUtil.generate(cob, methodHandleDesc);
   }
 
   private void generateNewDup(String internalName) {
-    methodVisitor.visitTypeInsn(Opcodes.NEW, internalName);
-    methodVisitor.visitInsn(Opcodes.DUP);
+    generateNewDup(ClassDesc.ofInternalName(internalName));
+  }
+
+  private void generateNewDup(ClassDesc classDesc) {
+    cob.new_(classDesc).dup();
   }
 }

@@ -21,7 +21,7 @@ public class SwitchBootstraps {
   public static final MethodType DO_TYPE_SWITCH_TYPE = DO_TYPE_SWITCH_PRIVATE_TYPE.dropParameterTypes(2,
       DO_TYPE_SWITCH_PRIVATE_TYPE.parameterCount());
 
-  private static final MethodHandle DO_TYPE_SWITCH;
+  public static final MethodHandle DO_TYPE_SWITCH;
 
   static {
     DO_TYPE_SWITCH = LOOKUP.findStatic(SwitchBootstraps.class,
@@ -50,11 +50,3 @@ public class SwitchBootstraps {
     return labels.length;
   }
 }
-/*
-   NEW java/lang/MatchException
-    DUP
-    ACONST_NULL
-    ACONST_NULL
-    INVOKESPECIAL java/lang/MatchException.<init> (Ljava/lang/String;Ljava/lang/Throwable;)V
-    ATHROW
- */

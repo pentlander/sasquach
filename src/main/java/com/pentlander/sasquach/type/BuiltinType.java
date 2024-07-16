@@ -55,7 +55,7 @@ public enum BuiltinType implements Type {
 
   @Override
   public String internalName() {
-    return org.objectweb.asm.Type.getInternalName(typeClass);
+    return typeClass.getName().replace('.', '/');
   }
 
   @Override

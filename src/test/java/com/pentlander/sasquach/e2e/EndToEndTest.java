@@ -71,7 +71,7 @@ public class EndToEndTest {
 
   @Test
   void loopRecur() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass("""
         Main {
           plus = (): Int -> {
             loop (let a = 0) -> if (a > 4) {
@@ -82,7 +82,6 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source);
     int sum = invokeName(clazz, "plus");
 
     assertThat(sum).isEqualTo(5);
@@ -125,7 +124,7 @@ public class EndToEndTest {
 
   @Test
   void matchSumType() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClassDebug("""
         Main {
           type Option[T] = | Some(T) | None,
           
@@ -138,7 +137,6 @@ public class EndToEndTest {
           },
         }
         """);
-    var clazz = compileClass(source);
     String sum = invokeName(clazz, "foo");
 
     assertThat(sum).isEqualTo("foo");
@@ -170,7 +168,7 @@ public class EndToEndTest {
 
   @Test
   void matchSumType_structVariant() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClassDebug("""
         Main {
           type Option[T] = | Some { inner: T } | None,
           
@@ -183,7 +181,6 @@ public class EndToEndTest {
           },
         }
         """);
-    var clazz = compileClass(source);
     String sum = invokeName(clazz, "foo");
 
     assertThat(sum).isEqualTo("foo");
@@ -256,7 +253,7 @@ public class EndToEndTest {
 
   @Test
   void spread() throws Exception {
-    var clazz = compileClassDebug("""
+    var clazz = compileClass("""
         Main {
           main = (): { other: String, bar: String, baz: String } -> {
             let foo = { bar = "bar", baz = "baz" }
@@ -273,7 +270,7 @@ public class EndToEndTest {
 
   @Test
   void genericRow() throws Exception {
-    var clazz = compileClassDebug("""
+    var clazz = compileClass("""
         Main {
           addOther = [R](barRow: { bar: String, ..R }): { bar: String, other: String, ..R } -> {
             { other = "hello", ..barRow }
@@ -295,7 +292,7 @@ public class EndToEndTest {
 
   @Test
   void genericRow_combine() throws Exception {
-    var clazz = compileClassDebug("""
+    var clazz = compileClass("""
         Main {
           combine = [R1, R2](struct1: { ..R1 }, struct2: { ..R2 }): { ..R1, ..R2 } -> {
             { ..struct1, ..struct2 }

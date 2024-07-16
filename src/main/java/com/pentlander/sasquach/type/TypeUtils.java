@@ -9,10 +9,6 @@ public final class TypeUtils {
   private TypeUtils() {
   }
 
-  public static String internalName(Class<?> clazz) {
-    return org.objectweb.asm.Type.getInternalName(clazz);
-  }
-
   /**
    * Cast a type to a struct if possible.
    *

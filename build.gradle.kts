@@ -27,7 +27,6 @@ dependencies {
     compileOnly("io.soabase.record-builder:record-builder-core:37")
 
     implementation("org.atteo.classindex:classindex:3.13")
-    implementation("org.ow2.asm:asm:9.5")
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.0")
     testImplementation("org.junit.jupiter:junit-jupiter-params")

@@ -6,8 +6,6 @@ import java.lang.classfile.Opcode;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Opcodes;
 
 public final class GeneratorUtil {
   private GeneratorUtil() {
@@ -19,42 +17,6 @@ public final class GeneratorUtil {
 
   public static ClassDesc internalClassDesc(Type type) {
     return ClassDesc.ofInternalName(type.internalName());
-  }
-
-  public static void generate(MethodVisitor methodVisitor,
-      DirectMethodHandleDesc methodHandleDesc) {
-    var kind = methodHandleDesc.kind();
-    var isField = switch (kind) {
-      case GETTER, SETTER, STATIC_GETTER, STATIC_SETTER -> true;
-      default -> false;
-    };
-    var opCode = switch (kind) {
-      case STATIC, INTERFACE_STATIC -> Opcodes.INVOKESTATIC;
-      case VIRTUAL -> Opcodes.INVOKEVIRTUAL;
-      case INTERFACE_VIRTUAL -> Opcodes.INVOKEINTERFACE;
-      case SPECIAL, CONSTRUCTOR, INTERFACE_SPECIAL -> Opcodes.INVOKESPECIAL;
-      case GETTER -> Opcodes.GETFIELD;
-      case SETTER -> Opcodes.PUTFIELD;
-      case STATIC_GETTER -> Opcodes.GETSTATIC;
-      case STATIC_SETTER -> Opcodes.PUTSTATIC;
-    };
-    var ownerDescriptor = methodHandleDesc.owner().descriptorString();
-    var ownerInternalName = ownerDescriptor.substring(1, ownerDescriptor.length() - 1);
-
-    if (isField) {
-      methodVisitor.visitFieldInsn(
-          opCode,
-          ownerInternalName,
-          methodHandleDesc.methodName(),
-          methodHandleDesc.lookupDescriptor());
-    } else {
-      methodVisitor.visitMethodInsn(
-          opCode,
-          ownerInternalName,
-          methodHandleDesc.methodName(),
-          methodHandleDesc.lookupDescriptor(),
-          methodHandleDesc.isOwnerInterface());
-    }
   }
 
   public static void generate(CodeBuilder cob, DirectMethodHandleDesc methodHandleDesc) {

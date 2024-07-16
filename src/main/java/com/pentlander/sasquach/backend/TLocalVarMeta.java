@@ -10,7 +10,6 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.objectweb.asm.Label;
 
 class TLocalVarMeta {
   private final Deque<TVarMeta> varMetas = new ArrayDeque<>();
@@ -27,7 +26,7 @@ class TLocalVarMeta {
   }
 
   TVarMeta push(TLocalVariable localVar) {
-    var meta = new TVarMeta(localVar, count++, new Label());
+    var meta = new TVarMeta(localVar, count++);
     varMetas.push(meta);
     varToMeta.put(localVar.id(), meta);
     return meta;
@@ -45,5 +44,5 @@ class TLocalVarMeta {
     return varMetas;
   }
 
-  record TVarMeta(TLocalVariable localVar, int idx, Label label) {}
+  record TVarMeta(TLocalVariable localVar, int idx) {}
 }

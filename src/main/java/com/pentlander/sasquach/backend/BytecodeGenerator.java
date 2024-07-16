@@ -4,11 +4,9 @@ import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TypedNode;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
-import org.objectweb.asm.Opcodes;
 
-public class BytecodeGenerator implements Opcodes {
+public class BytecodeGenerator {
 
   public BytecodeGenerator() {
   }

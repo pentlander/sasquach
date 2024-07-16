@@ -430,11 +430,13 @@ public class MemberScopedTypeResolver {
           return new TField(field.id(), typedExpr);
         }).toList();
 
+        var constructorParams = List.copyOf(variant.fieldTypes().values());
         var type = (SumType) typeUnifier.resolve(convertedSumType);
         yield TVariantStructBuilder.builder()
             .name(sumType.moduleName().qualifyInner(s.name()))
             .fields(typedFields)
             .functions(typedFunctions)
+            .constructorParams(constructorParams)
             .type(type)
             .range(s.range())
             .build();

@@ -2,9 +2,7 @@ package com.pentlander.sasquach.backend;
 
 import static com.pentlander.sasquach.backend.GeneratorUtil.internalClassDesc;
 import static com.pentlander.sasquach.type.TypeUtils.asFunctionType;
-import static com.pentlander.sasquach.type.TypeUtils.asType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
-import static com.pentlander.sasquach.type.TypeUtils.internalName;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
 
@@ -27,36 +25,34 @@ import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeVariable;
 import java.lang.classfile.ClassBuilder;
 import java.lang.classfile.ClassFile;
+import java.lang.classfile.ClassFile.ClassHierarchyResolverOption;
+import java.lang.classfile.ClassHierarchyResolver;
+import java.lang.classfile.ClassModel;
 import java.lang.classfile.CodeBuilder;
+import java.lang.classfile.MethodSignature;
 import java.lang.classfile.TypeKind;
 import java.lang.classfile.attribute.PermittedSubclassesAttribute;
+import java.lang.classfile.attribute.SignatureAttribute;
 import java.lang.classfile.attribute.SourceFileAttribute;
+import java.lang.classfile.components.ClassPrinter;
+import java.lang.classfile.components.ClassPrinter.Verbosity;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.ConstantDescs;
 import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.AccessFlag;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Opcodes;
 
 class ClassGenerator {
-  static final String STRUCT_BASE_INTERNAL_NAME = internalName(StructBase.class);
-  static final ClassDesc STRUCT_BASE_CLASS_DESC = classDesc(StructBase.class);
+  static final ClassDesc CD_STRUCT_BASE = classDesc(StructBase.class);
   static final String INSTANCE_FIELD = "INSTANCE";
-  private static final int CLASS_VERSION = Opcodes.V19;
   private final Map<String, byte[]> generatedClasses = new LinkedHashMap<>();
-  private final ClassWriter classWriter = new SasqClassWriter(generatedClasses,
-      ClassWriter.COMPUTE_FRAMES + ClassWriter.COMPUTE_MAXS);
+  private final SasqClassHierarchyResolver resolver = new SasqClassHierarchyResolver();
   private TypedNode contextNode;
 
   public Map<String, byte[]> generate(TModuleDeclaration moduleDeclaration) {
@@ -72,11 +68,6 @@ class ClassGenerator {
     contextNode = node;
   }
 
-  static MethodTypeDesc constructorTypeDesc(Collection<Type> fieldTypes) {
-    var paramDescriptors = fieldTypes.stream().map(Type::classDesc).toArray(ClassDesc[]::new);
-    return MethodTypeDesc.of(ConstantDescs.CD_void, paramDescriptors);
-  }
-
   static ClassDesc[] fieldParamDescs(List<? extends TypedNode> fields) {
     return fields.stream().map(TypedNode::type).map(Type::classDesc).toArray(ClassDesc[]::new);
   }
@@ -86,61 +77,6 @@ class ClassGenerator {
     generateStructStart(clb, structDesc, range, fields, List.of());
   }
 
-  private MethodVisitor generateStructStart(String internalName, Range range,
-      Map<String, Type> fields) {
-    var entries = fields.entrySet()
-        .stream()
-        .filter(entry -> asFunctionType(entry.getValue()).isEmpty())
-        .toList();
-
-    classWriter.visit(
-        CLASS_VERSION,
-        Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL,
-        internalName,
-        null,
-        internalName(Object.class),
-        new String[]{STRUCT_BASE_INTERNAL_NAME});
-    var sourcePath = range.sourcePath().filepath();
-    classWriter.visitSource(sourcePath, null);
-    // Generate fields
-    for (var entry : entries) {
-      var name = entry.getKey();
-      var type = entry.getValue();
-      var fv = classWriter.visitField(Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL,
-          name,
-          type.classDesc().descriptorString(),
-          null,
-          null);
-      fv.visitEnd();
-    }
-
-    // Generate constructor
-    var initDescriptor = constructorTypeDesc(entries.stream().map(Entry::getValue).toList());
-    var mv = classWriter.visitMethod(Opcodes.ACC_PUBLIC,
-        "<init>",
-        initDescriptor.descriptorString(),
-        null,
-        null);
-    mv.visitCode();
-    mv.visitVarInsn(Opcodes.ALOAD, 0);
-    GeneratorUtil.generate(mv, MethodHandleDesc.ofConstructor(classDesc(Object.class)));
-
-    // Set fields in constructor
-    int i = 0;
-    for (var entry : entries) {
-      var name = entry.getKey();
-      var type = entry.getValue();
-      mv.visitVarInsn(Opcodes.ALOAD, 0);
-      ExpressionGenerator.generateLoadVar(mv, type, i + 1);
-      mv.visitFieldInsn(Opcodes.PUTFIELD, internalName, name, type.classDesc().descriptorString());
-      i++;
-    }
-    mv.visitInsn(Opcodes.RETURN);
-
-    return mv;
-  }
-
-
   private void generateStructStart(ClassBuilder clb, ClassDesc structDesc, Range range,
       Map<String, Type> fields, List<ClassDesc> interfaceDescs) {
     var entries = fields.entrySet()
@@ -149,7 +85,7 @@ class ClassGenerator {
         .toList();
 
     var allInterfaces = new ArrayList<ClassDesc>(interfaceDescs.size() + 1);
-    allInterfaces.add(STRUCT_BASE_CLASS_DESC);
+    allInterfaces.add(CD_STRUCT_BASE);
     allInterfaces.addAll(interfaceDescs);
 
     var sourcePath = range.sourcePath().filepath();
@@ -193,17 +129,25 @@ class ClassGenerator {
     buildAddClass(sumType, cob -> generateSumType(cob, sumType));
   }
 
-  private void buildAddClass(Type type, Consumer<? super ClassBuilder> handler) {
+  private void buildAddClass(String className, ClassDesc type, Consumer<? super ClassBuilder> handler) {
      var bytes = buildClass(type, handler);
-     generatedClasses.put(type.internalName().replace('/', '.'), bytes);
+     generatedClasses.put(className.replace('/', '.'), bytes);
   }
 
-  private static byte[] buildClass(Type type, Consumer<? super ClassBuilder> handler) {
-    var bytes = ClassFile.of().build(internalClassDesc(type), clb -> {
+  private void buildAddClass(Type type, Consumer<? super ClassBuilder> handler) {
+    buildAddClass(type.internalName(), internalClassDesc(type), handler);
+  }
+
+  private static byte[] buildClass(ClassDesc type, Consumer<? super ClassBuilder> handler) {
+    var opt = ClassHierarchyResolverOption.of(ClassHierarchyResolver.defaultResolver()
+        .orElse(new SasqClassHierarchyResolver()));
+    var classFile = ClassFile.of(opt);
+    var bytes = classFile.build(type, clb -> {
       clb.withVersion(ClassFile.JAVA_19_VERSION, 0);
       handler.accept(clb);
     });
-    ClassFile.of().verify(bytes).stream().findFirst().ifPresent(err -> {
+    classFile.verify(bytes).stream().findFirst().ifPresent(err -> {
+      ClassPrinter.toJson(classFile.parse(bytes), Verbosity.CRITICAL_ATTRIBUTES, System.err::printf);
       throw err;
     });
     return bytes;
@@ -216,8 +160,9 @@ class ClassGenerator {
         .map(type -> ClassDesc.ofInternalName(type.internalName()))
         .toList();
     clb.withFlags(AccessFlag.PUBLIC, AccessFlag.ABSTRACT, AccessFlag.INTERFACE)
-        .withInterfaceSymbols(STRUCT_BASE_CLASS_DESC)
+        .withInterfaceSymbols(CD_STRUCT_BASE)
         .with(PermittedSubclassesAttribute.ofSymbols(permittedSubclassDescs));
+    resolver.addSumType(internalClassDesc(sumType));
   }
 
   void generateSingleton(SingletonType singleton, SumType sumType, Range range) {
@@ -251,58 +196,7 @@ class ClassGenerator {
   }
 
   void generateStruct(TStruct struct) {
-    setContext(struct);
-    // Generate class header
-    var structType = struct.structType();
-    var internalName = structType.internalName();
-    var mv = generateStructStart(internalName,
-        struct.range(),
-        structType.fieldTypes());
-
-    // Add a static INSTANCE field of the struct to make a singleton class.
-    if (struct instanceof TModuleStruct moduleStruct) {
-      moduleStruct.typeAliases()
-          .stream()
-          .map(TypeAlias::typeNode)
-          .flatMap(type -> type instanceof SumTypeNode sumTypeNode ? Stream.of(sumTypeNode)
-              : Stream.empty())
-          .forEach(sumTypeNode -> {
-            var sumType = sumTypeNode.type();
-            var sumTypeGenerator = new ClassGenerator();
-            sumTypeGenerator.generateSumType(sumType);
-            generatedClasses.putAll(sumTypeGenerator.getGeneratedClasses());
-            sumTypeNode.variantTypeNodes().forEach(variantTypeNode -> {
-              var variantGenerator = new ClassGenerator();
-              switch (variantTypeNode.type()) {
-                case StructType variantStructType -> variantGenerator.generateVariantStruct(
-                    variantStructType,
-                    sumType,
-                    variantTypeNode.range());
-                case SingletonType singletonType ->
-                    variantGenerator.generateSingleton(singletonType,
-                        sumType,
-                        variantTypeNode.range());
-              }
-              generatedClasses.putAll(variantGenerator.getGeneratedClasses());
-            });
-          });
-
-      generateStaticInstance(structType.classDesc().descriptorString(),
-          internalName,
-          methodVisitor -> new ExpressionGenerator(methodVisitor, List.of()).generateStructInit(
-              struct));
-    }
-
-    // Generate methods
-    for (var function : struct.functions()) {
-      setContext(function);
-      generateFunction(function.name(), function.function());
-    }
-
-    // Class footer
-    mv.visitMaxs(-1, -1);
-    classWriter.visitEnd();
-    generatedClasses.put(internalName.replace('/', '.'), classWriter.toByteArray());
+    buildAddClass(struct.type(), clb -> generateStruct(clb, struct));
   }
 
   void generateStruct(ClassBuilder clb, TStruct struct) {
@@ -340,42 +234,17 @@ class ClassGenerator {
             });
           });
 
-      generateStaticInstance(structType.classDesc().descriptorString(),
-          structType.internalName(),
-          methodVisitor -> new ExpressionGenerator(methodVisitor, List.of()).generateStructInit(
+      generateStaticInstance(clb, structType.classDesc(),
+          internalClassDesc(structType),
+          cob -> new ExpressionGenerator(cob, List.of()).generateStructInit(
               struct));
     }
 
     // Generate methods
     for (var function : struct.functions()) {
       setContext(function);
-      generateFunction(function.name(), function.function());
+      generateFunction(clb, function.name(), function.function());
     }
-
-    // Class footer
-    classWriter.visitEnd();
-  }
-
-  void generateStaticInstance(String descriptor, String ownerInternalName,
-      Consumer<MethodVisitor> structInitGenerator) {
-    // Generate INSTANCE field
-    var field = classWriter.visitField(Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL + Opcodes.ACC_STATIC,
-        INSTANCE_FIELD,
-        descriptor,
-        null,
-        null);
-    field.visitEnd();
-
-    // Initialize INSTANCE with field expressions
-    var smv = classWriter.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
-    smv.visitCode();
-    structInitGenerator.accept(smv);
-    smv.visitFieldInsn(Opcodes.PUTSTATIC, ownerInternalName, INSTANCE_FIELD, descriptor);
-    smv.visitInsn(Opcodes.RETURN);
-
-    // Method footer
-    smv.visitMaxs(-1, -1);
-    smv.visitEnd();
   }
 
   void generateStaticInstance(ClassBuilder clb, ClassDesc fieldClassDesc, ClassDesc ownerClassDesc,
@@ -395,19 +264,19 @@ class ClassGenerator {
   }
 
   String generateFunctionStruct(TFunction function, List<TVarReference> captures) {
-    // Generate class header
     var name = "Lambda$" + Integer.toHexString(function.hashCode());
+    var structDesc = ClassDesc.of(name);
+    buildAddClass(name, structDesc, clb -> generateFunctionStruct(clb, structDesc, function, captures));
+    return name;
+  }
+
+  void generateFunctionStruct(ClassBuilder clb, ClassDesc structDesc, TFunction function, List<TVarReference> captures) {
+    // Generate class header
     var captureTypes = captures.stream().collect(toMap(TVarReference::name, TypedNode::type));
-    var mv = generateStructStart(name, function.range(), captureTypes);
+    generateStructStart(clb, structDesc, function.range(), captureTypes);
 
     // Generate methods
-    generateFunction("_invoke", function);
-
-    // Class footer
-    mv.visitMaxs(-1, -1);
-    classWriter.visitEnd();
-    generatedClasses.put(name.replace('/', '.'), classWriter.toByteArray());
-    return name;
+    generateFunction(clb, "_invoke", function);
   }
 
   static String signatureDescriptor(Type type) {
@@ -418,50 +287,40 @@ class ClassGenerator {
     };
   }
 
-  private void generateFunction(String funcName, TFunction function) {
+  private void generateFunction(ClassBuilder clb, String funcName, TFunction function) {
     var funcType = function.type();
-    String signature = null;
+    MethodSignature signature;
     if (!funcType.typeParameters().isEmpty()) {
-      signature = funcType.typeParameters()
+      var sigStr = funcType.typeParameters()
           .stream()
           .map(typeParameter -> typeParameter.typeName() + ":Ljava/lang/Object;")
           .collect(joining("", "<", ">")) + funcType.parameterTypes()
           .stream()
           .map(ClassGenerator::signatureDescriptor)
           .collect(joining("", "(", ")")) + signatureDescriptor(funcType.returnType());
-    }
-    var methodVisitor = classWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC,
-        funcName,
-        funcType.functionDesc().descriptorString(),
-        signature,
-        null);
-    var lineNum = function.range().start().line();
-    methodVisitor.visitLineNumber(lineNum, new Label());
-    methodVisitor.visitCode();
-    var exprGenerator = new ExpressionGenerator(methodVisitor, function.parameters());
-    var returnExpr = function.expression();
-    if (returnExpr != null) {
-      exprGenerator.generateExpr(returnExpr);
-      var type = asType(BuiltinType.class, returnExpr.type());
-      if (type.isPresent()) {
-        int opcode = switch (type.get()) {
-          case BOOLEAN, INT, CHAR, BYTE, SHORT -> Opcodes.IRETURN;
-          case LONG -> Opcodes.LRETURN;
-          case FLOAT -> Opcodes.FRETURN;
-          case DOUBLE -> Opcodes.DRETURN;
-          case STRING, STRING_ARR -> Opcodes.ARETURN;
-          case VOID -> Opcodes.RETURN;
-        };
-        methodVisitor.visitInsn(opcode);
-      } else {
-        methodVisitor.visitInsn(Opcodes.ARETURN);
+      signature = MethodSignature.parseFrom(sigStr);
+    } else
+      signature = null;
+
+    clb.withMethod(funcName, funcType.functionDesc(), ClassFile.ACC_PUBLIC + ClassFile.ACC_STATIC, mb -> {
+      if (signature != null) {
+        mb.with(SignatureAttribute.of(signature));
       }
-    } else {
-      methodVisitor.visitInsn(Opcodes.RETURN);
-    }
-    methodVisitor.visitMaxs(-1, -1);
-    methodVisitor.visitEnd();
-    generatedClasses.putAll(exprGenerator.getGeneratedClasses());
+
+      mb.withCode(cob -> {
+        var lineNum = function.range().start().line();
+        cob.lineNumber(lineNum);
+        var exprGenerator = new ExpressionGenerator(cob, function.parameters());
+        var returnExpr = function.expression();
+        if (returnExpr != null) {
+          exprGenerator.generateExpr(returnExpr);
+          cob.returnInstruction(TypeKind.from(returnExpr.type().classDesc()));
+        } else {
+          cob.return_();
+        }
+        generatedClasses.putAll(exprGenerator.getGeneratedClasses());
+      });
+    });
   }
 
   public Map<String, byte[]> getGeneratedClasses() {
