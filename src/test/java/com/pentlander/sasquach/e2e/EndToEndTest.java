@@ -27,12 +27,11 @@ public class EndToEndTest {
 
   @Test
   void addition() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           plus = (): Int -> 3 + 4
         }
         """);
-    var clazz = compileClass(source);
     int sum = invokeName(clazz, "plus");
 
     assertThat(sum).isEqualTo(7);
@@ -40,12 +39,11 @@ public class EndToEndTest {
 
   @Test
   void booleanExpr() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           foo = (): Boolean -> false && true || true
         }
         """);
-    var clazz = compileClass(source);
     boolean bool = invokeName(clazz, "foo");
 
     assertThat(bool).isEqualTo(true);
@@ -53,7 +51,7 @@ public class EndToEndTest {
 
   @Test
   void tuple() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           tuplify = [A, B](a: A, b: B): (A, B) -> (a, b),
           foo = (): Int -> {
@@ -63,7 +61,6 @@ public class EndToEndTest {
         }
         """);
     // Figure out why the local named type isn't being replaced
-    var clazz = compileClass(source);
     int sum = invokeName(clazz, "foo");
 
     assertThat(sum).isEqualTo(5);
@@ -89,7 +86,7 @@ public class EndToEndTest {
 
   @Test
   void higherOrderFunc() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           plus = (): Int -> {
             let add = (a: Int, b: Int): Int -> a + b
@@ -97,7 +94,6 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source);
     int sum = invokeName(clazz, "plus");
 
     assertThat(sum).isEqualTo(5);
@@ -105,7 +101,7 @@ public class EndToEndTest {
 
   @Test
   void applyOperator() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           inc = (i: Int): Int -> i + 1,
           timesTwo = (i: Int): Int -> i * 2,
@@ -116,7 +112,6 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source);
     int sum = invokeName(clazz, "foo");
 
     assertThat(sum).isEqualTo(27);
@@ -124,7 +119,7 @@ public class EndToEndTest {
 
   @Test
   void matchSumType() throws Exception {
-    var clazz = compileClassDebug("""
+    var clazz = compileClass("""
         Main {
           type Option[T] = | Some(T) | None,
           
@@ -145,7 +140,7 @@ public class EndToEndTest {
   @Test
   void matchSumType_generic() throws Exception {
     // Failed because the A in the typedef and the func get resolved to the same Universal type and both get replaced.
-    var source = Source.fromString("main", """
+    var clazz = compileClass("""
         Main {
           type Option[A] = | Some(A) | None,
           
@@ -160,7 +155,6 @@ public class EndToEndTest {
           },
         }
         """);
-    var clazz = compileClass(source);
     boolean sum = invokeName(clazz, "foo");
 
     assertThat(sum).isTrue();
@@ -168,7 +162,7 @@ public class EndToEndTest {
 
   @Test
   void matchSumType_structVariant() throws Exception {
-    var clazz = compileClassDebug("""
+    var clazz = compileClass("""
         Main {
           type Option[T] = | Some { inner: T } | None,
           
@@ -208,7 +202,7 @@ public class EndToEndTest {
 
   @Test
   void sumTypeSingleton() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           type Option[T] = | Some(T) | None,
           
@@ -221,7 +215,6 @@ public class EndToEndTest {
           },
         }
         """);
-    var clazz = compileClass(source);
     Object singleton = invokeName(clazz, "foo");
 
     assertThat(singleton.getClass().getName()).isEqualTo("main.Main$None");
@@ -233,7 +226,7 @@ public class EndToEndTest {
     // function object in the constructor
   void sumTypeWithFunc() throws Exception {
     // let none = identity(None)
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           type Option[T] = | Test { foo: (bar: Int) -> String },
           
@@ -245,7 +238,6 @@ public class EndToEndTest {
           },
         }
         """);
-    var clazz = compileClass(source);
     String sum = invokeName(clazz, "foo");
 
     assertThat(sum).isEqualTo("fox");
@@ -316,7 +308,7 @@ public class EndToEndTest {
 
   @Test
   void foreignFunctionCall_withField() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           use foreign java/io/PrintStream,
           use foreign java/lang/System,
@@ -326,13 +318,12 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source);
     invokeName(clazz, "foo", null);
   }
 
   @Test
   void foreignFunctionCall_mapGet() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           use foreign java/util/HashMap,
           
@@ -343,7 +334,6 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source);
     String value = invokeName(clazz, "foo", null);
 
     assertThat(value).isEqualTo("bar");
@@ -351,7 +341,7 @@ public class EndToEndTest {
 
   @Test
   void typeAliasStruct() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           type Point = { x: Int, y: Int },
           newPoint = (x: Int): Point -> { x = x, y = 4 },
@@ -359,7 +349,6 @@ public class EndToEndTest {
           main = (): Int -> getX(newPoint(5))
         }
         """);
-    var clazz = compileClass(source);
     int sum = invokeName(clazz, "main", null);
 
     assertThat(sum).isEqualTo(5);
@@ -367,7 +356,7 @@ public class EndToEndTest {
 
   @Test
   void typeAliasStructs() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           type Point = { x: Int, y: Int },
           newPoint = (x: Int): Point -> { x = x, y = 2 },
@@ -375,7 +364,6 @@ public class EndToEndTest {
           main = (): Int -> getX(newPoint(5))
         }
         """);
-    var clazz = compileClass(source);
     int sum = invokeName(clazz, "main", null);
 
     assertThat(sum).isEqualTo(5);
@@ -383,14 +371,13 @@ public class EndToEndTest {
 
   @Test
   void typeAliasFunction() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           type MathFunc = (x: Int, y: Int) -> Int,
           getX = (x: Int, func: MathFunc): Int -> func(x, 6),
           main = (): Int -> getX(3, (x: Int, y: Int): Int -> x + y)
         }
         """);
-    var clazz = compileClass(source);
     int sum = invokeName(clazz, "main", null);
 
     assertThat(sum).isEqualTo(9);
@@ -400,7 +387,7 @@ public class EndToEndTest {
 
   @Test
   void typeAliasStruct_importModule() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Point {
           type T = { x: Int, y: Int },
           
@@ -416,7 +403,6 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source);
     int sum = invokeName(clazz, "main", null);
 
     assertThat(sum).isEqualTo(5);
@@ -424,7 +410,7 @@ public class EndToEndTest {
 
   @Test
   void typeCheckForeignParamType() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           use foreign java/util/ArrayList,
           use foreign java/util/Iterator,
@@ -440,7 +426,6 @@ public class EndToEndTest {
           },
         }
         """);
-    var clazz = compileClass(source);
     Object boxedInt = invokeName(clazz, "main", null);
 
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 5);
@@ -448,14 +433,13 @@ public class EndToEndTest {
 
   @Test
   void complexParameterizedExpression() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           map = [T, U](value: T, mapper: { map: (inp: T) -> U }): { value: U } ->
               { value = mapper.map(value) },
           main = (): { value: Int } -> map("foobar", { map = (inp: String): Int -> 10 })
         }
         """);
-    var clazz = compileClass(source);
     Object boxedInt = invokeName(clazz, "main", null);
 
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
@@ -463,7 +447,7 @@ public class EndToEndTest {
 
   @Test
   void complexParamaterizedExpression_multiModule() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Box {
           type T[A] = { value: A },
           
@@ -480,7 +464,6 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source);
     int boxedInt = invokeName(clazz, "main", null);
 
     assertThat(boxedInt).isEqualTo(10);
@@ -488,7 +471,7 @@ public class EndToEndTest {
 
   @Test
   void complexParameterizedExpression_sameTypeVarName() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           type Box[A] = { value: A },
                 
@@ -500,7 +483,6 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source);
     Object boxedInt = invokeName(clazz, "main", null);
 
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
@@ -508,7 +490,7 @@ public class EndToEndTest {
 
   @Test
   void complexParameterizedExpression_sameTypeVarNamee() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           type Box[A] = { value: A },
                 
@@ -520,7 +502,6 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source);
     String str = invokeName(clazz, "main", null);
 
     assertThat(str).isEqualTo("hi");
@@ -528,7 +509,7 @@ public class EndToEndTest {
 
   @Test
   void complexParameterizedExpression_sameAliasParamName() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           type Box[A] = { value: A },
           type BoxTwo[A, B] = { one: A, two: Box[B] },
@@ -543,7 +524,6 @@ public class EndToEndTest {
           }
         }
         """);
-    var clazz = compileClass(source);
     Object boxedStr = invokeName(clazz, "main", null);
 
     assertThat(boxedStr).hasFieldOrPropertyWithValue("value", "hello");
@@ -551,7 +531,7 @@ public class EndToEndTest {
 
   @Test
   void complexParameterizedExpression_withAlias() throws Exception {
-    var source = Source.fromString("main", """
+    var clazz = compileClass( """
         Main {
           type T[A] = { value: A },
           type Mapper[A, B] = { map: (inp: A) -> B },
@@ -561,7 +541,6 @@ public class EndToEndTest {
           main = (): T[Int] -> map("foo", { map = (inp: String): Int -> 10 })
         }
         """);
-    var clazz = compileClass(source);
     Object boxedInt = invokeName(clazz, "main", null);
 
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);

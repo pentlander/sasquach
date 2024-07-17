@@ -157,7 +157,7 @@ class ClassGenerator {
   void generateSumType(ClassBuilder clb, SumType sumType) {
     var permittedSubclassDescs = sumType.types()
         .stream()
-        .map(type -> ClassDesc.ofInternalName(type.internalName()))
+        .map(GeneratorUtil::internalClassDesc)
         .toList();
     clb.withFlags(AccessFlag.PUBLIC, AccessFlag.ABSTRACT, AccessFlag.INTERFACE)
         .withInterfaceSymbols(CD_STRUCT_BASE)
@@ -170,7 +170,7 @@ class ClassGenerator {
   }
 
   void generateSingleton(ClassBuilder clb, SingletonType singleton, SumType sumType, Range range) {
-    var structDesc = ClassDesc.ofInternalName(singleton.internalName());
+    var structDesc = internalClassDesc(singleton);
     generateStructStart(clb, structDesc, range, Map.of(), List.of(internalClassDesc(sumType)));
 
     generateStaticInstance(clb, singleton.classDesc(),
@@ -263,11 +263,11 @@ class ClassGenerator {
             fieldClassDesc).return_()));
   }
 
-  String generateFunctionStruct(TFunction function, List<TVarReference> captures) {
+  ClassDesc generateFunctionStruct(TFunction function, List<TVarReference> captures) {
     var name = "Lambda$" + Integer.toHexString(function.hashCode());
     var structDesc = ClassDesc.of(name);
     buildAddClass(name, structDesc, clb -> generateFunctionStruct(clb, structDesc, function, captures));
-    return name;
+    return structDesc;
   }
 
   void generateFunctionStruct(ClassBuilder clb, ClassDesc structDesc, TFunction function, List<TVarReference> captures) {

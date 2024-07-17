@@ -65,8 +65,4 @@ public final class TypeUtils {
   public static ClassDesc classDesc(Class<?> clazz) {
     return clazz.describeConstable().orElseThrow();
   }
-
-  public static ClassDesc classDesc(String internalName) {
-    return ClassDesc.of(internalName.replace('/', '.'));
-  }
 }

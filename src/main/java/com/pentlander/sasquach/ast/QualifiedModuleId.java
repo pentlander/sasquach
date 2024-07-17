@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
+import java.lang.constant.ClassDesc;
 
 /**
  * Package-qualified id used for imports. Packages are separated by '/'.
@@ -20,8 +21,7 @@ public record QualifiedModuleId(QualifiedModuleName moduleName, Range.Single ran
     return moduleName.toString();
   }
 
-  public String javaName() {
-    return name().replace('/', '.');
+  public ClassDesc classDesc() {
+    return ClassDesc.ofInternalName(name());
   }
-
 }

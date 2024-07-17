@@ -11,10 +11,6 @@ public final class GeneratorUtil {
   private GeneratorUtil() {
   }
 
-  public static ClassDesc classDesc(Class<?> clazz) {
-    return clazz.describeConstable().orElseThrow();
-  }
-
   public static ClassDesc internalClassDesc(Type type) {
     return ClassDesc.ofInternalName(type.internalName());
   }

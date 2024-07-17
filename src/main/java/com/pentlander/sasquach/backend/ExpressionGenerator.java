@@ -138,15 +138,12 @@ class ExpressionGenerator {
     addContextNode(expression);
     switch (expression) {
       case TPrintStatement printStatement -> {
-        generate(MethodHandleDesc.ofField(Kind.STATIC_GETTER,
-            classDesc(System.class),
-            "out",
-            classDesc(PrintStream.class)));
+        var printStreamDesc = classDesc(PrintStream.class);
+        cob.getstatic(classDesc(System.class), "out", printStreamDesc);
         var expr = printStatement.expression();
         generate(expr);
         var methodType = MethodTypeDesc.of(ConstantDescs.CD_void, type(expr).classDesc());
-        var methodDesc = methodHandleDesc(Kind.VIRTUAL, PrintStream.class, "println", methodType);
-        generate(methodDesc);
+        cob.invokevirtual(printStreamDesc, "println", methodType);
       }
       case TVariableDeclaration varDecl -> {
         var varDeclExpr = varDecl.expression();
@@ -162,14 +159,11 @@ class ExpressionGenerator {
         switch (varReference.refDeclaration()) {
           case Local(var localVar) ->
               generateLoadVar(cob, type(varReference), localVarMeta.get(localVar).idx());
-          case Module(var moduleId) -> generate(MethodHandleDesc.ofField(Kind.STATIC_GETTER,
-              ClassDesc.of(moduleId.javaName()),
+          case Module(var moduleId) ->
+              cob.getstatic(moduleId.classDesc(), INSTANCE_FIELD, type(varReference).classDesc());
+          case Singleton(var singletonType) -> cob.getstatic(internalClassDesc(singletonType),
               INSTANCE_FIELD,
-              type(varReference).classDesc()));
-          case Singleton(var singletonType) -> generate(MethodHandleDesc.ofField(Kind.STATIC_GETTER,
-              ClassDesc.of(singletonType.internalName().replace('/', '.')),
-              INSTANCE_FIELD,
-              type(varReference).classDesc()));
+              type(varReference).classDesc());
         }
       }
       case Value value -> {
@@ -222,11 +216,9 @@ class ExpressionGenerator {
         switch (funcCall.targetKind()) {
           case TargetKind.QualifiedFunction qualifiedFunc -> {
             generateArgs(funcCall.arguments(), funcType.parameterTypes());
-            var methodDesc = MethodHandleDesc.ofMethod(Kind.STATIC,
-                ClassDesc.of(qualifiedFunc.ownerId().javaName()),
+            cob.invokestatic(qualifiedFunc.ownerId().classDesc(),
                 funcCall.name(),
                 funcType.functionDesc());
-            generate(methodDesc);
           }
           case TargetKind.LocalVariable(var localVar) -> {
             int idx = localVarMeta.get(localVar).idx();
@@ -237,11 +229,12 @@ class ExpressionGenerator {
           }
           case TargetKind.VariantStructConstructor(var struct) -> {
             var namedStruct = (TStructWithName) struct;
-            var internalName = namedStruct.name();
-            generateNewDup(internalName);
+            var structDesc = ClassDesc.ofInternalName(namedStruct.name());
+            generateNewDup(structDesc);
             generateArgs(funcCall.arguments(), funcType.parameterTypes());
-            var methodDesc = MethodHandleDesc.ofMethod(Kind.CONSTRUCTOR,
-                ClassDesc.of(internalName.replace('/', '.')),
+            var methodDesc = MethodHandleDesc.ofMethod(
+                Kind.CONSTRUCTOR,
+                structDesc,
                 funcCall.name(),
                 funcType.functionDesc().changeReturnType(ConstantDescs.CD_void));
             generate(methodDesc);
@@ -335,9 +328,8 @@ class ExpressionGenerator {
       }
       case TForeignFunctionCall foreignFuncCall -> {
         var foreignFuncType = foreignFuncCall.foreignFunctionType();
-        String owner = GeneratorUtil.internalName(foreignFuncType.ownerDesc());
         if (foreignFuncType.methodKind() == Kind.CONSTRUCTOR) {
-          generateNewDup(owner);
+          generateNewDup(foreignFuncType.ownerDesc());
         }
         foreignFuncCall.arguments().forEach(this::generate);
 
@@ -377,10 +369,10 @@ class ExpressionGenerator {
         //  of a struct. Java only needs to generate a class because lambdas need to conform to
         //  an interface
         var classGen = new ClassGenerator();
-        var name = classGen.generateFunctionStruct(func, List.of());
+        var structDesc = classGen.generateFunctionStruct(func, List.of());
 
         generatedClasses.putAll(classGen.getGeneratedClasses());
-        generateFuncInit(name, List.of());
+        generateFuncInit(structDesc, List.of());
       }
       case TApplyOperator applyOperator -> generate(applyOperator.functionCall());
       case TMatch match -> {
@@ -517,12 +509,11 @@ class ExpressionGenerator {
         methodTypeDesc));
   }
 
-  void generateFuncInit(String funcStructInternalName, List<TVarReference> captures) {
-    generateNewDup(funcStructInternalName);
+  void generateFuncInit(ClassDesc funcStructDesc, List<TVarReference> captures) {
+    generateNewDup(funcStructDesc);
     captures.forEach(this::generateExpr);
     var paramDescs = fieldParamDescs(captures);
-    var constructorDesc = MethodHandleDesc.ofConstructor(classDesc(funcStructInternalName),
-        paramDescs);
+    var constructorDesc = MethodHandleDesc.ofConstructor(funcStructDesc, paramDescs);
     generate(constructorDesc);
   }
 
@@ -532,8 +523,7 @@ class ExpressionGenerator {
   //  not consistent.
   void generateStructInit(TStruct struct) {
     var structType = type(struct);
-    var structName = structType.internalName();
-    var structClassDesc = ClassDesc.of(structName.replace('/', '.'));
+    var structClassDesc = internalClassDesc(structType);
     var fields = struct.fields();
 
     if (struct instanceof TLiteralStruct literalStruct && !literalStruct.spreads().isEmpty()) {
@@ -569,7 +559,7 @@ class ExpressionGenerator {
       cob.invokeDynamicInstruction(callSiteDesc);
       return;
     }
-    generateNewDup(structName);
+    generateNewDup(structClassDesc);
     fields.forEach(field -> generateExpr(field.expr()));
     var paramDescs = switch (struct) {
       // TODO Remove this hack. The constructor type params should be derived from the type def
@@ -647,10 +637,6 @@ class ExpressionGenerator {
 
   private void generate(DirectMethodHandleDesc methodHandleDesc) {
     GeneratorUtil.generate(cob, methodHandleDesc);
-  }
-
-  private void generateNewDup(String internalName) {
-    generateNewDup(ClassDesc.ofInternalName(internalName));
   }
 
   private void generateNewDup(ClassDesc classDesc) {

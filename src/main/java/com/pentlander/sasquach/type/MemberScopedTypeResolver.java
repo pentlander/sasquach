@@ -102,6 +102,8 @@ import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType.Singleton;
 import com.pentlander.sasquach.type.TypeUnifier.UnificationException;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.DirectMethodHandleDesc;
+import java.lang.constant.MethodHandleDesc;
+import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Executable;
 import java.lang.reflect.GenericDeclaration;
@@ -757,13 +759,12 @@ public class MemberScopedTypeResolver {
         var castType = returnType instanceof TypeVariable ? resolvedReturnType : null;
 
         var foreignFuncType = new ForeignFunctionType(methodHandleDesc, castType);
-        var foreignFuncCall = new TForeignFunctionCall(funcCall.classAlias(),
+        return new TForeignFunctionCall(funcCall.classAlias(),
             funcCall.functionId(),
             foreignFuncType,
             typedExprs,
             resolvedReturnType,
             funcCall.range());
-        return foreignFuncCall;
       }
     }
 
