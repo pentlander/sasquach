@@ -1,13 +1,16 @@
 package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.RangedErrorList;
+import com.pentlander.sasquach.Visitor;
+import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
-import com.pentlander.sasquach.ast.NodeVisitor;
+import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
@@ -47,7 +50,7 @@ public class ModuleScopedNameResolver {
   }
 
   public NameResolutionResult resolve() {
-    new Visitor().visit(module);
+    resolve(module);
     return nameResolutionResult.withNamedTypes(namedTypes).withErrors(errors.build());
   }
 
@@ -59,95 +62,116 @@ public class ModuleScopedNameResolver {
     return Objects.requireNonNull(functionResults.get(function));
   }
 
-  private class Visitor implements NodeVisitor<Void> {
-    @Override
-    public Void visit(TypeNode typeNode) {
-      throw new IllegalStateException();
+  public void resolve(TypeNode typeNode) {
+    throw new IllegalStateException();
+  }
+
+  public void resolve(TypeAlias typeAlias) {
+    var prevAlias = typeAliasNames.put(typeAlias.id().name(), typeAlias);
+    if (prevAlias != null) {
+      errors.add(new DuplicateNameError(typeAlias.id(), prevAlias.id()));
     }
+  }
 
-    @Override
-    public Void visit(TypeAlias typeAlias) {
-      var prevAlias = typeAliasNames.put(typeAlias.id().name(), typeAlias);
-      if (prevAlias != null) {
-        errors.add(new DuplicateNameError(typeAlias.id(), prevAlias.id()));
-      }
-      return null;
+  public void resolve(Use.Module use) {
+    var moduleScopedResolver = moduleResolver.resolveModule(use.id().name());
+    if (moduleScopedResolver == null) {
+      errors.add(new NameNotFoundError(use.id(), "module"));
+      return;
     }
-
-    @Override
-    public Void visit(Use.Module use) {
-      var moduleScopedResolver = moduleResolver.resolveModule(use.id().name());
-      if (moduleScopedResolver == null) {
-        errors.add(new NameNotFoundError(use.id(), "module"));
-        return null;
-      }
-      var existingImport = moduleImports.put(
-          use.alias().name(),
-          moduleScopedResolver);
-      if (existingImport != null) {
-        errors.add(new DuplicateNameError(use.id(), existingImport.moduleDeclaration().id()));
-      }
-      return null;
+    var existingImport = moduleImports.put(use.alias().name(), moduleScopedResolver);
+    if (existingImport != null) {
+      errors.add(new DuplicateNameError(use.id(), existingImport.moduleDeclaration().id()));
     }
+  }
 
-    @Override
-    public Void visit(Use.Foreign use) {
-      try {
-        var qualifiedName = use.id().name().replace('/', '.');
-        var clazz = MethodHandles.lookup().findClass(qualifiedName);
-        foreignClasses.put(use.alias().name(), clazz);
-      } catch (ClassNotFoundException | IllegalAccessException e) {
-        errors.add(new NameNotFoundError(use.alias(), "foreign class"));
-      }
-      return null;
+  public void resolve(Use.Foreign use) {
+    try {
+      var qualifiedName = use.id().name().replace('/', '.');
+      var clazz = MethodHandles.lookup().findClass(qualifiedName);
+      foreignClasses.put(use.alias().name(), clazz);
+    } catch (ClassNotFoundException | IllegalAccessException e) {
+      errors.add(new NameNotFoundError(use.alias(), "foreign class"));
     }
+  }
 
-    private void checkAliases(Collection<TypeAlias> typeAliases) {
-      for (var typeAlias : typeAliases) {
-        var resolver = new TypeNameResolver(ModuleScopedNameResolver.this);
-        var result = resolver.resolveTypeNode(typeAlias);
-        namedTypes.putAll(result.namedTypes());
-        variantTypes.putAll(result.variantTypes());
-        errors.addAll(result.errors());
-      }
+  private void checkAliases(Collection<TypeAlias> typeAliases) {
+    for (var typeAlias : typeAliases) {
+      var resolver = new TypeNameResolver(ModuleScopedNameResolver.this);
+      var result = resolver.resolveTypeNode(typeAlias);
+      namedTypes.putAll(result.namedTypes());
+      variantTypes.putAll(result.variantTypes());
+      errors.addAll(result.errors());
     }
+  }
 
-    @Override
-    public Void visit(Expression expression) {
-      if (expression instanceof Struct struct) {
-        if (struct instanceof ModuleStruct moduleStruct) {
-          for (var use : moduleStruct.useList()) {
-            visit(use);
-          }
-
-          for (var typeAlias : moduleStruct.typeAliases()) {
-            visit(typeAlias);
-          }
-          checkAliases(typeAliasNames.values());
+  public void resolve(Expression expression) {
+    if (expression instanceof Struct struct) {
+      if (struct instanceof ModuleStruct moduleStruct) {
+        for (var use : moduleStruct.useList()) {
+          resolve(use);
         }
 
-        for (var field : struct.fields()) {
-          fields.put(field.name(), field);
+        for (var typeAlias : moduleStruct.typeAliases()) {
+          resolve(typeAlias);
         }
-        for (var function : struct.functions()) {
-          functions.put(function.name(), function);
-        }
-
-        for (var field : struct.fields()) {
-          var resolver = new MemberScopedNameResolver(ModuleScopedNameResolver.this);
-          var result = resolver.resolve(field);
-          nameResolutionResult = nameResolutionResult.merge(result);
-          fieldResults.put(field, result);
-        }
-        for (var function : struct.functions()) {
-          var resolver = new MemberScopedNameResolver(ModuleScopedNameResolver.this);
-          var result = resolver.resolve(function);
-          nameResolutionResult = nameResolutionResult.merge(result);
-          functionResults.put(function.function(), result);
-        }
+        checkAliases(typeAliasNames.values());
       }
-      return null;
+
+      for (var field : struct.fields()) {
+        fields.put(field.name(), field);
+      }
+      for (var function : struct.functions()) {
+        functions.put(function.name(), function);
+      }
+
+      for (var field : struct.fields()) {
+        var resolver = new MemberScopedNameResolver(ModuleScopedNameResolver.this);
+        var result = resolver.resolve(field);
+        nameResolutionResult = nameResolutionResult.merge(result);
+        fieldResults.put(field, result);
+      }
+      for (var function : struct.functions()) {
+        var resolver = new MemberScopedNameResolver(ModuleScopedNameResolver.this);
+        var result = resolver.resolve(function);
+        nameResolutionResult = nameResolutionResult.merge(result);
+        functionResults.put(function.function(), result);
+      }
     }
+  }
+
+  public void resolve(Node node) {
+    switch (node) {
+      case FunctionParameter funcParam -> resolve(funcParam);
+      case FunctionSignature funcSig -> resolve(funcSig);
+      case ModuleDeclaration modDecl -> resolve(modDecl);
+      case TypeAlias typeAlias -> resolve(typeAlias);
+      case TypeNode typeNode -> resolve(typeNode);
+      case Use use -> resolve(use);
+      case Expression expression -> resolve(expression);
+      case null, default -> throw new IllegalStateException();
+    };
+  }
+
+  public void resolve(FunctionParameter functionParameter) {
+    resolve(functionParameter.typeNode());
+  }
+
+  public void resolve(FunctionSignature functionSignature) {
+    functionSignature.typeParameters().forEach(this::resolve);
+    functionSignature.parameters().forEach(this::resolve);
+    resolve(functionSignature.returnTypeNode());
+  }
+
+  public void resolve(ModuleDeclaration moduleDeclaration) {
+    resolve(moduleDeclaration.struct());
+  }
+
+  public void resolve(Use use) {
+    switch (use) {
+      case Use.Module useModule -> resolve(useModule);
+      case Use.Foreign useForeign -> resolve(useForeign);
+    };
   }
 
   Optional<Class<?>> resolveForeignClass(String classAlias) {
@@ -155,7 +179,8 @@ public class ModuleScopedNameResolver {
   }
 
   Optional<ModuleDeclaration> resolveModule(String moduleAlias) {
-    return Optional.ofNullable(moduleImports.get(moduleAlias)).map(ModuleScopedNameResolver::moduleDeclaration);
+    return Optional.ofNullable(moduleImports.get(moduleAlias))
+        .map(ModuleScopedNameResolver::moduleDeclaration);
   }
 
   Optional<ModuleScopedNameResolver> resolveModuleResolver(String moduleAlias) {
