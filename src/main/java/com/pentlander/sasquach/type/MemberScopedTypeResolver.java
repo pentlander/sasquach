@@ -42,6 +42,7 @@ import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
 import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.NamedStruct;
+import com.pentlander.sasquach.ast.expression.Not;
 import com.pentlander.sasquach.ast.expression.PrintStatement;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.Struct;
@@ -83,6 +84,7 @@ import com.pentlander.sasquach.tast.expression.TLoop;
 import com.pentlander.sasquach.tast.expression.TMatch;
 import com.pentlander.sasquach.tast.expression.TMemberFunctionCall;
 import com.pentlander.sasquach.tast.expression.TModuleStructBuilder;
+import com.pentlander.sasquach.tast.expression.TNot;
 import com.pentlander.sasquach.tast.expression.TPrintStatement;
 import com.pentlander.sasquach.tast.expression.TRecur;
 import com.pentlander.sasquach.tast.expression.TStruct;
@@ -347,6 +349,10 @@ public class MemberScopedTypeResolver {
         yield new TApplyOperator(infer(funcCall), funcCall.range());
       }
       case Match match -> resolveMatch(match);
+      case Not(var notExpr, var range) -> {
+        var tExpr = check(notExpr, BuiltinType.BOOLEAN);
+        yield new TNot(tExpr, range);
+      }
     };
 
     memoizeExpr(expr,

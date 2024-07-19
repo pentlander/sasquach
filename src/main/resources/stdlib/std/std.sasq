@@ -6,8 +6,23 @@ Integer {
   parse = (str: String): Int -> Integer#parseInt(str)
 }
 
+Exception {
+  use foreign com/pentlander/sasquach/runtime/Stdlib,
+
+  throwIllegalStateException = [A](msg: String): A ->
+    Stdlib#throwIllegalStateException(msg)
+}
+
+Eq {
+  type T[A] = { equals: (val1: A, val2: A) -> Boolean, .. },
+
+  equals = [A](eq: T[A], val1: A, val2: A): Boolean -> eq.equals(val1, val2)
+}
+
 Option {
+  use std/std/Eq,
   use std/std/Result,
+  use std/std/Exception,
   use foreign java/util/Objects,
   use foreign java/util/Optional,
 
@@ -20,6 +35,11 @@ Option {
   isSome = [A](option: T[A]): Boolean -> match option {
     Some(_) -> true,
     None -> false,
+  },
+
+  unwrap = [A](option: T[A]): A -> match option {
+    Some(value) -> value,
+    None -> Exception.throwIllegalStateException("options was none"),
   },
 
   getOrElse = [A](option: T[A], fn: () -> A): A -> match option {
@@ -51,6 +71,13 @@ Option {
     Some(value) -> Result.Ok(value),
     None -> Result.Err(fn()),
   },
+
+  equals = [A](eq: Eq.T[A], val1: T[A], val2: T[A]): Boolean ->
+    if isSome(val1) && isSome(val2) {
+      eq.equals(unwrap(val1), unwrap(val2))
+    } else {
+      !isSome(val1) && !isSome(val2)
+    },
 }
 
 Result {
@@ -97,6 +124,7 @@ Result {
 }
 
 List {
+  use std/std/Eq,
   use foreign java/util/ArrayList,
   use foreign java/util/Iterator,
 
@@ -156,6 +184,19 @@ List {
         b
       }
   },
+
+  equals = [A](list: T[A], otherList: T[A], eq: Eq.T[A]): Boolean -> {
+    let size = size(list)
+    let otherSize = size(otherList)
+    loop (let i = 0, let isEq = size == otherSize) ->
+      if isEq && i < size && i < otherSize {
+        let item = get(list, i)
+        let otherItem = get(otherList, i)
+        recur(i + 1, isEq && eq.equals(item, otherItem))
+      } else {
+        isEq
+      }
+  }
 }
 
 Map {

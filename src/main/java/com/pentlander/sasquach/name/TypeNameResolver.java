@@ -32,7 +32,7 @@ public class TypeNameResolver {
   public TypeNameResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
     this(List.of(), moduleScopedNameResolver);
   }
-  private TypeNameResolver(List<TypeParameter> contextTypeParams,
+  public TypeNameResolver(List<TypeParameter> contextTypeParams,
       ModuleScopedNameResolver moduleScopedNameResolver) {
     this.contextTypeParams = contextTypeParams;
     this.moduleScopedNameResolver = moduleScopedNameResolver;

@@ -33,6 +33,7 @@ import com.pentlander.sasquach.tast.expression.TLocalFunctionCall.TargetKind;
 import com.pentlander.sasquach.tast.expression.TLoop;
 import com.pentlander.sasquach.tast.expression.TMatch;
 import com.pentlander.sasquach.tast.expression.TMemberFunctionCall;
+import com.pentlander.sasquach.tast.expression.TNot;
 import com.pentlander.sasquach.tast.expression.TPrintStatement;
 import com.pentlander.sasquach.tast.expression.TRecur;
 import com.pentlander.sasquach.tast.expression.TStruct;
@@ -43,6 +44,7 @@ import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Loca
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Module;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Singleton;
 import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
+import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.FunctionType;
@@ -137,6 +139,10 @@ class ExpressionGenerator {
   void generate(TypedExpression expression) {
     addContextNode(expression);
     switch (expression) {
+      case TNot not -> {
+        generate(not.expr());
+        cob.ifThenElse(CodeBuilder::iconst_0, CodeBuilder::iconst_1);
+      }
       case TPrintStatement printStatement -> {
         var printStreamDesc = classDesc(PrintStream.class);
         cob.getstatic(classDesc(System.class), "out", printStreamDesc);
@@ -468,7 +474,7 @@ class ExpressionGenerator {
         }
         cob.labelBinding(endLabel);
       }
-      default -> throw new IllegalStateException("Unrecognized expression: " + expression);
+      case TypedExprWrapper _ -> throw new IllegalStateException("Unrecognized expression: " + expression);
     }
   }
 

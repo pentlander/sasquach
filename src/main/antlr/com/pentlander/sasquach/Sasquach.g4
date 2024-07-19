@@ -68,6 +68,7 @@ expression :
   | foreignName '#' memberApplication #foreignMemberApplicationExpression
   | foreignName '#' memberName #foreignMemberAccessExpression
   | LP expression RP #parenExpression
+  | NOT expression #notExpression
   | left=expression operator=(DIVISION|ASTERISK) right=expression #binaryOperation
   | left=expression operator=(PLUS|MINUS) right=expression #binaryOperation
   | left=expression operator=(EQ|NEQ|GE|GT|LE|LT) right=expression #compareExpression
@@ -123,6 +124,7 @@ MINUS    : '-' ;
 ASTERISK : '*' ;
 DIVISION : '/' ;
 EQUALS   : '=' ;
+NOT      : '!' ;
 GT       : '>' ;
 LT       : '<' ;
 GE       : '>=' ;

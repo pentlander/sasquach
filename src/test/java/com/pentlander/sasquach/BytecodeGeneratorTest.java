@@ -44,6 +44,7 @@ import com.pentlander.sasquach.tast.expression.TLocalFunctionCall;
 import com.pentlander.sasquach.tast.expression.TLocalFunctionCall.TargetKind;
 import com.pentlander.sasquach.tast.expression.TMemberFunctionCall;
 import com.pentlander.sasquach.tast.expression.TModuleStructBuilder;
+import com.pentlander.sasquach.tast.expression.TNot;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
 import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration;
@@ -371,6 +372,18 @@ class BytecodeGeneratorTest {
     int result = invokeFirst(clazz);
 
     assertThat(result).isEqualTo(actualResult);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"true, false", "false, true"})
+  void notExpression(boolean left, boolean right) throws Exception {
+    var notExpr = new TNot(boolValue(left), NR);
+    var func = tfunc("foo", List.of(), BuiltinType.BOOLEAN, notExpr);
+
+    var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
+    boolean result = invokeFirst(clazz);
+
+    assertThat(result).isEqualTo(right);
   }
 
   @ParameterizedTest

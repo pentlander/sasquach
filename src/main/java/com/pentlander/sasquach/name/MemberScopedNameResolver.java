@@ -2,7 +2,6 @@ package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.InternalCompilerException;
 import com.pentlander.sasquach.RangedErrorList;
-import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.InvocationKind;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
@@ -13,11 +12,14 @@ import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.expression.ArrayValue;
+import com.pentlander.sasquach.ast.expression.BinaryExpression;
+import com.pentlander.sasquach.ast.expression.FunctionCall;
+import com.pentlander.sasquach.ast.expression.IfExpression;
 import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
-import com.pentlander.sasquach.ast.expression.ExpressionVisitor;
 import com.pentlander.sasquach.ast.expression.FieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
@@ -26,13 +28,18 @@ import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Loop;
 import com.pentlander.sasquach.ast.expression.Match;
+import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
 import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.NamedStruct;
+import com.pentlander.sasquach.ast.expression.Not;
+import com.pentlander.sasquach.ast.expression.PrintStatement;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.Struct;
+import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
+import com.pentlander.sasquach.type.TypeParameter;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -82,6 +89,8 @@ public class MemberScopedNameResolver {
   private final Visitor visitor = new Visitor();
   private final List<NameResolutionResult> resolutionResults = new ArrayList<>();
 
+  private final List<TypeParameter> typeParameters = new ArrayList<>();
+
   /**
    * Set if currently resolving a named function. Used to resolve recursion.
    */
@@ -92,18 +101,18 @@ public class MemberScopedNameResolver {
   }
 
   public NameResolutionResult resolve(Expression expression) {
-    visitor.visit(expression);
+    visitor.resolve(expression);
     return resolutionResult();
   }
 
   public NameResolutionResult resolve(LiteralStruct.Field field) {
-    visitor.visit(field);
+    visitor.resolve(field.value());
     return resolutionResult();
   }
 
   public NameResolutionResult resolve(NamedFunction function) {
     this.namedFunction = function;
-    visitor.visit(function);
+    visitor.resolveFunc(function.function());
     return resolutionResult();
   }
 
@@ -112,7 +121,8 @@ public class MemberScopedNameResolver {
         foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
-        varReferences, namedStructRefs,
+        varReferences,
+        namedStructRefs,
         recurPoints,
         matchTypeNodes,
         errors.build()).merge(resolutionResults);
@@ -141,39 +151,26 @@ public class MemberScopedNameResolver {
     return moduleScopedNameResolver.resolveForeignClass(id.name());
   }
 
-  private class Visitor implements ExpressionVisitor<Void> {
-    @Override
-    public Void defaultValue() {
-      return null;
-    }
+  private class Visitor {
 
-    @Override
-    public Void visit(VariableDeclaration variableDeclaration) {
+    public void resolve(VariableDeclaration variableDeclaration) {
       addLocalVariable(variableDeclaration);
-      return visit(variableDeclaration.expression());
+      resolve(variableDeclaration.expression());
     }
 
-    @Override
-    public Void visit(FieldAccess fieldAccess) {
-      return ExpressionVisitor.super.visit(fieldAccess);
-    }
-
-    @Override
-    public Void visit(Struct struct) {
+    public void resolve(Struct struct) {
       switch (struct) {
-        case ModuleStruct moduleStruct -> moduleStruct.useList().forEach(this::visit);
+        case ModuleStruct moduleStruct -> moduleStruct.useList().forEach(this::resolve);
         case NamedStruct namedStruct ->
             moduleScopedNameResolver.resolveVariantTypeNode(namedStruct.name())
                 .ifPresent(typeNode -> namedStructRefs.put(namedStruct, typeNode.aliasId()));
-        case LiteralStruct literalStruct -> literalStruct.spreads().forEach(this::visit);
+        case LiteralStruct literalStruct -> literalStruct.spreads().forEach(this::resolve);
       }
-      struct.functions().forEach(this::visit);
-      struct.fields().forEach(this::visit);
-      return null;
+      struct.functions().forEach(function -> resolveNestedFunc(function.function()));
+      struct.fields().forEach(field -> resolve(field.value()));
     }
 
-    @Override
-    public Void visit(ForeignFieldAccess fieldAccess) {
+    public void resolve(ForeignFieldAccess fieldAccess) {
       getForeign(fieldAccess.classAlias()).ifPresentOrElse(clazz -> {
         try {
           var field = clazz.getField(fieldAccess.fieldName());
@@ -182,11 +179,9 @@ public class MemberScopedNameResolver {
           errors.add(new NameNotFoundError(fieldAccess.id(), "foreign field"));
         }
       }, () -> errors.add(new NameNotFoundError(fieldAccess.classAlias(), "foreign class")));
-      return null;
     }
 
-    @Override
-    public Void visit(ForeignFunctionCall foreignFunctionCall) {
+    public void resolve(ForeignFunctionCall foreignFunctionCall) {
       getForeign(foreignFunctionCall.classAlias()).ifPresentOrElse(clazz -> {
             var matchingForeignFunctions = new ArrayList<ForeignFunctionHandle>();
             var funcName = foreignFunctionCall.name();
@@ -228,14 +223,13 @@ public class MemberScopedNameResolver {
           },
           () -> errors.add(new NameNotFoundError(foreignFunctionCall.classAlias(),
               "foreign class")));
-      return null;
     }
 
-    @Override
-    public Void visit(LocalFunctionCall localFunctionCall) {
+    public void resolve(LocalFunctionCall localFunctionCall) {
       // Resolve as function defined within the module
       var func = moduleScopedNameResolver.resolveFunction(localFunctionCall.name());
-      if (func.isPresent() && !localFunctionCall.name().equals(namedFunction.name())) {
+      var funcName = namedFunction != null ? namedFunction.name() : null;
+      if (func.isPresent() && !localFunctionCall.name().equals(funcName)) {
         localFunctionCalls.put(localFunctionCall.functionId(), new QualifiedFunction(
             moduleScopedNameResolver.moduleDeclaration().id(),
             func.get().id(),
@@ -265,43 +259,38 @@ public class MemberScopedNameResolver {
                       "function")));
         }
       }
-      return null;
     }
 
     // Inside a block you can access the variables defined before it. Code after the block should
     // not resolve variables defined inside the block.
-    @Override
-    public Void visit(Block block) {
+    public void resolve(Block block) {
       pushScope();
-      block.expressions().forEach(this::visit);
+      block.expressions().forEach(this::resolve);
       popScope();
-      return null;
     }
 
-    @Override
-    public Void visit(Function function) {
-      if (namedFunction != null && namedFunction.function().equals(function)) {
-        pushScope();
-        visit(function.functionSignature());
-        visit(function.expression());
-        popScope();
-      } else {
-        var resolver = new MemberScopedNameResolver(moduleScopedNameResolver);
-        resolver.pushScope();
-        resolver.visitor.visit(function.functionSignature());
-        resolver.visitor.visit(function.expression());
-        resolutionResults.add(resolver.resolutionResult());
-        resolver.popScope();
-      }
-      return null;
-    }
+    public void resolveFunc(Function function) {
+      pushScope();
 
-    private void visit(FunctionSignature funcSignature) {
-      var resolver = new TypeNameResolver(moduleScopedNameResolver);
+      var funcSignature = function.functionSignature();
+      var resolver = new TypeNameResolver(typeParameters, moduleScopedNameResolver);
       var result = resolver.resolveTypeNode(funcSignature);
       typeAliases.putAll(result.namedTypes());
+      typeParameters.addAll(funcSignature.typeParameters());
       errors.addAll(result.errors());
       funcSignature.parameters().forEach(MemberScopedNameResolver.this::addLocalVariable);
+
+      resolve(function.expression());
+      popScope();
+    }
+
+    public void resolveNestedFunc(Function function) {
+      var resolver = new MemberScopedNameResolver(moduleScopedNameResolver);
+      resolver.typeParameters.addAll(typeParameters);
+      resolver.localVariableStacks.addAll(localVariableStacks);
+
+      resolver.visitor.resolveFunc(function);
+      resolutionResults.add(resolver.resolutionResult());
     }
 
     private Optional<LocalVariable> resolveLocalVar(VarReference varReference) {
@@ -325,8 +314,7 @@ public class MemberScopedNameResolver {
 
     // Determine what a variable reference refers to. It could refer to a local variable, function
     // parameter, module, or variant singleton.
-    @Override
-    public Void visit(VarReference varReference) {
+    public void resolve(VarReference varReference) {
       var name = varReference.name();
       var localVariable = resolveLocalVar(varReference);
       if (localVariable.isPresent()) {
@@ -345,22 +333,18 @@ public class MemberScopedNameResolver {
           }
         }
       }
-      return null;
     }
 
-    @Override
-    public Void visit(Loop loop) {
+    public void resolve(Loop loop) {
       pushScope();
       loopStack.addLast(loop);
-      loop.varDeclarations().forEach(this::visit);
-      visit(loop.expression());
+      loop.varDeclarations().forEach(this::resolve);
+      resolve(loop.expression());
       loopStack.removeLast();
       popScope();
-      return null;
     }
 
-    @Override
-    public Void visit(Recur recur) {
+    public void resolve(Recur recur) {
       var loop = loopStack.getLast();
       if (loop != null) {
         recurPoints.put(recur, loop);
@@ -369,13 +353,11 @@ public class MemberScopedNameResolver {
       } else {
         throw new IllegalStateException();
       }
-      recur.arguments().forEach(this::visit);
-      return null;
+      recur.arguments().forEach(this::resolve);
     }
 
-    @Override
-    public Void visit(Match match) {
-      visit(match.expr());
+    public void resolve(Match match) {
+      resolve(match.expr());
       var branchTypeNodes = new ArrayList<TypeNode>();
       for (var branch : match.branches()) {
         pushScope();
@@ -398,23 +380,64 @@ public class MemberScopedNameResolver {
             struct.bindings().forEach(MemberScopedNameResolver.this::addLocalVariable);
           }
         }
-        visit(branch.expr());
+        resolve(branch.expr());
         popScope();
       }
       matchTypeNodes.put(match, branchTypeNodes);
-      return null;
     }
 
-    @Override
-    public Void visit(ApplyOperator applyOperator) {
-      visit(applyOperator.expression());
-      visit(applyOperator.functionCall());
-      return null;
+    public void resolve(ApplyOperator applyOperator) {
+      resolve(applyOperator.expression());
+      resolve(applyOperator.functionCall());
     }
 
-    @Override
-    public Void visit(Node node) {
+    public void resolve(Node node) {
       throw new IllegalStateException("Unable to handle: " + node);
+    }
+
+    public void resolve(Expression expr) {
+      switch (expr) {
+        case ArrayValue arrayValue -> arrayValue.expressions().forEach(this::resolve);
+        case BinaryExpression binExpr -> resolve(binExpr);
+        case Block block -> resolve(block);
+        case FieldAccess fieldAccess -> resolve(fieldAccess.expr());
+        case ForeignFieldAccess fieldAccess -> resolve(fieldAccess);
+        case FunctionCall funcCall -> resolve(funcCall);
+        case Function func -> resolveNestedFunc(func);
+        case IfExpression ifExpr -> resolve(ifExpr);
+        case PrintStatement printStatement -> resolve(printStatement.expression());
+        case Struct struct -> resolve(struct);
+        case Value _ -> {}
+        case VariableDeclaration variableDeclaration -> resolve(variableDeclaration);
+        case VarReference varReference -> resolve(varReference);
+        case Recur recur -> resolve(recur);
+        case Loop loop -> resolve(loop);
+        case ApplyOperator applyOperator -> resolve(applyOperator);
+        case Match match -> resolve(match);
+        case Not not -> resolve(not.expression());
+      };
+    }
+
+    public void resolve(BinaryExpression binaryExpression) {
+      resolve(binaryExpression.left());
+      resolve(binaryExpression.right());
+    }
+
+    public void resolve(FunctionCall functionCall) {
+      functionCall.arguments().forEach(this::resolve);
+      switch (functionCall) {
+        case LocalFunctionCall localFuncCall -> resolve(localFuncCall);
+        case MemberFunctionCall memberFuncCall -> resolve(memberFuncCall.structExpression());
+        case ForeignFunctionCall foreignFunctionCall -> resolve(foreignFunctionCall);
+      }
+    }
+
+    public void resolve(IfExpression ifExpression) {
+      resolve(ifExpression.condition());
+      resolve(ifExpression.trueExpression());
+      if (ifExpression.falseExpression() != null) {
+        resolve(ifExpression.falseExpression());
+      }
     }
   }
 

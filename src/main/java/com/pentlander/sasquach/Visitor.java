@@ -46,6 +46,7 @@ import com.pentlander.sasquach.SasquachParser.ModuleNamedTypeContext;
 import com.pentlander.sasquach.SasquachParser.MultiTupleTypeContext;
 import com.pentlander.sasquach.SasquachParser.MultiTupleVariantPatternContext;
 import com.pentlander.sasquach.SasquachParser.NamedStructContext;
+import com.pentlander.sasquach.SasquachParser.NotExpressionContext;
 import com.pentlander.sasquach.SasquachParser.SingleTupleTypeContext;
 import com.pentlander.sasquach.SasquachParser.SingleTupleVariantPatternContext;
 import com.pentlander.sasquach.SasquachParser.SingletonPatternContext;
@@ -102,6 +103,7 @@ import com.pentlander.sasquach.ast.expression.Loop;
 import com.pentlander.sasquach.ast.expression.Match;
 import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
+import com.pentlander.sasquach.ast.expression.Not;
 import com.pentlander.sasquach.ast.expression.PrintStatement;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.Struct;
@@ -224,6 +226,11 @@ public class Visitor {
     @Override
     public Expression visitParenExpression(ParenExpressionContext ctx) {
       return ctx.expression().accept(this);
+    }
+
+    @Override
+    public Expression visitNotExpression(NotExpressionContext ctx) {
+      return new Not(ctx.expression().accept(this), rangeFrom(ctx));
     }
 
     @Override
