@@ -5,6 +5,8 @@ import static java.util.stream.Collectors.joining;
 
 import com.pentlander.sasquach.runtime.StructBase;
 import java.lang.constant.ClassDesc;
+import java.lang.constant.DirectMethodHandleDesc.Kind;
+import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.util.HashMap;
 import java.util.List;
@@ -32,7 +34,7 @@ public record FunctionType(List<Type> parameterTypes, List<TypeParameter> typePa
     return StructBase.class.describeConstable().orElseThrow();
   }
 
-  public MethodTypeDesc functionDesc() {
+  public MethodTypeDesc functionTypeDesc() {
     return MethodTypeDesc.of(
         returnType.classDesc(),
         parameterTypes.stream().map(Type::classDesc).toArray(ClassDesc[]::new));

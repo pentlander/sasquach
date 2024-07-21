@@ -86,7 +86,7 @@ public class EndToEndTest {
 
   @Test
   void higherOrderFunc() throws Exception {
-    var clazz = compileClass( """
+    var clazz = compileClassDebug( """
         Main {
           plus = (): Int -> {
             let add = (a: Int, b: Int): Int -> a + b

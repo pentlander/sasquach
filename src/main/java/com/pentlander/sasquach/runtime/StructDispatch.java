@@ -2,6 +2,10 @@ package com.pentlander.sasquach.runtime;
 
 import com.pentlander.sasquach.runtime.StructLinker.InitCallsiteDesc;
 import com.pentlander.sasquach.runtime.StructLinker.StructOperation;
+import java.lang.constant.DirectMethodHandleDesc;
+import java.lang.constant.DirectMethodHandleDesc.Kind;
+import java.lang.constant.MethodHandleDesc;
+import java.lang.constant.MethodTypeDesc;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.ConstantCallSite;
 import java.lang.invoke.MethodHandle;
@@ -10,6 +14,7 @@ import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import jdk.dynalink.CallSiteDescriptor;
 import jdk.dynalink.DynamicLinker;
@@ -23,6 +28,15 @@ import jdk.dynalink.support.ChainedCallSite;
  * Class that handle dynamic dispatch on structs via invokedynamic.
  */
 public final class StructDispatch {
+
+  private static final MethodTypeDesc MT_BOOTSTRAP = MethodType.methodType(CallSite.class,
+      List.of(Lookup.class, String.class, MethodType.class)).describeConstable().orElseThrow();
+  public static final DirectMethodHandleDesc MH_BOOTSTRAP_FIELD =
+      MethodHandleDesc.ofMethod(
+          Kind.STATIC,
+          StructDispatch.class.describeConstable().orElseThrow(),
+          "bootstrapField",
+          MT_BOOTSTRAP);
   private static final Map<Class<?>, Class<?>> PRIMITIVE_MAP = Map.of(Boolean.TYPE,
       Boolean.class,
       Integer.TYPE,
@@ -35,6 +49,8 @@ public final class StructDispatch {
       Double.class);
 
   private static final DynamicLinker DYNAMIC_LINKER;
+  private static final jdk.dynalink.linker.support.Lookup LOOKUP = new jdk.dynalink.linker.support.Lookup(
+      MethodHandles.lookup());
 
   static {
     var linkerFactory = new DynamicLinkerFactory();
@@ -65,7 +81,7 @@ public final class StructDispatch {
     }
 
     private MethodHandle findMethod(StructBase struct, Object[] args)
-        throws IllegalAccessException, NoSuchMethodException {
+        throws NoSuchMethodException {
       for (var method : struct.getClass().getMethods()) {
         if (!method.getName().equals(methodName)) {
           continue;
@@ -80,7 +96,7 @@ public final class StructDispatch {
           }
         }
         if (matches) {
-          return MethodHandles.lookup().unreflect(method);
+          return LOOKUP.unreflect(method);
         }
       }
       throw new NoSuchMethodException("No method '%s' on '%s' with params matching: %s".formatted(methodName,
@@ -96,8 +112,8 @@ public final class StructDispatch {
       return to.isAssignableFrom(from);
     }
 
-    CallSite buildCallSite() throws NoSuchMethodException, IllegalAccessException {
-      var mh = MethodHandles.lookup()
+    CallSite buildCallSite() {
+      var mh = LOOKUP
           .findVirtual(getClass(),
               "invoke",
               MethodType.methodType(Object.class, StructBase.class, Object[].class))
@@ -109,15 +125,21 @@ public final class StructDispatch {
 
   private static Operation parseOperation(String name) {
     var parts = name.split(":");
-    if (parts.length != 3) {
-      throw new IllegalArgumentException("Bad operation captureName");
+    if (parts.length > 3) {
+      throw new IllegalArgumentException("Bad operation " + name);
     }
-    var op = StandardOperation.valueOf(parts[0]);
-    var namespaces = Arrays.stream(parts[1].split("\\|"))
-        .map(StandardNamespace::valueOf)
-        .toArray(StandardNamespace[]::new);
-    var opName = parts[2];
-    return op.withNamespaces(namespaces).named(opName);
+    Operation op = StandardOperation.valueOf(parts[0]);
+    if (parts.length > 1) {
+      var namespaces = Arrays.stream(parts[1].split("\\|"))
+          .map(StandardNamespace::valueOf)
+          .toArray(StandardNamespace[]::new);
+      op = op.withNamespaces(namespaces);
+    }
+    if (parts.length > 2) {
+      var opName = parts[2];
+      op = op.named(opName);
+    }
+    return op;
   }
 
   public static CallSite bootstrapField(Lookup caller, String invokedName, MethodType invokedType) {
@@ -126,8 +148,7 @@ public final class StructDispatch {
         invokedType)));
   }
 
-  public static CallSite bootstrapMethod(Lookup caller, String invokedName, MethodType invokedType)
-      throws NoSuchMethodException, IllegalAccessException {
+  public static CallSite bootstrapMethod(Lookup caller, String invokedName, MethodType invokedType) {
     return new MethodDispatcher(invokedName, invokedType).buildCallSite();
   }
 

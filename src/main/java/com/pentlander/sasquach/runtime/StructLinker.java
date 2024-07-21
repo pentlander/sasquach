@@ -1,5 +1,7 @@
 package com.pentlander.sasquach.runtime;
 
+import com.pentlander.sasquach.runtime.Func.AnonFunc;
+import com.pentlander.sasquach.runtime.Func.NamedFunc;
 import java.lang.constant.ClassDesc;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -13,6 +15,7 @@ import java.util.List;
 import java.util.Objects;
 import jdk.dynalink.CallSiteDescriptor;
 import jdk.dynalink.Operation;
+import jdk.dynalink.StandardOperation;
 import jdk.dynalink.linker.GuardedInvocation;
 import jdk.dynalink.linker.GuardingDynamicLinker;
 import jdk.dynalink.linker.LinkRequest;
@@ -166,6 +169,18 @@ final class StructLinker implements GuardingDynamicLinker {
           return new GuardedInvocation(handle, guard);
         }
       }
+    } else if (operation instanceof StandardOperation op && op == StandardOperation.CALL) {
+      var callSiteDesc = linkRequest.getCallSiteDescriptor();
+      var args = linkRequest.getArguments();
+      var func = (Func) args[0];
+      return switch (func) {
+        case AnonFunc(var inner) ->
+            new GuardedInvocation(MethodHandles.dropArguments(inner, 0, Func.class, Object.class));
+        case NamedFunc(var inner) -> {
+          args[0] = inner;
+          yield linkerServices.getGuardedInvocation(linkRequest.replaceArguments(callSiteDesc, args));
+        }
+      };
     }
     return null;
   }

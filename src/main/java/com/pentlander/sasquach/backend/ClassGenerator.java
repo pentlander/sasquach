@@ -9,6 +9,7 @@ import static java.util.stream.Collectors.toMap;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
+import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
@@ -27,7 +28,6 @@ import java.lang.classfile.ClassBuilder;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.ClassFile.ClassHierarchyResolverOption;
 import java.lang.classfile.ClassHierarchyResolver;
-import java.lang.classfile.ClassModel;
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.MethodSignature;
 import java.lang.classfile.TypeKind;
@@ -236,7 +236,7 @@ class ClassGenerator {
 
       generateStaticInstance(clb, structType.classDesc(),
           internalClassDesc(structType),
-          cob -> new ExpressionGenerator(cob, List.of()).generateStructInit(
+          cob -> new ExpressionGenerator(cob, "modInit", List.of()).generateStructInit(
               struct));
     }
 
@@ -263,22 +263,6 @@ class ClassGenerator {
             fieldClassDesc).return_()));
   }
 
-  ClassDesc generateFunctionStruct(TFunction function, List<TVarReference> captures) {
-    var name = "Lambda$" + Integer.toHexString(function.hashCode());
-    var structDesc = ClassDesc.of(name);
-    buildAddClass(name, structDesc, clb -> generateFunctionStruct(clb, structDesc, function, captures));
-    return structDesc;
-  }
-
-  void generateFunctionStruct(ClassBuilder clb, ClassDesc structDesc, TFunction function, List<TVarReference> captures) {
-    // Generate class header
-    var captureTypes = captures.stream().collect(toMap(TVarReference::name, TypedNode::type));
-    generateStructStart(clb, structDesc, function.range(), captureTypes);
-
-    // Generate methods
-    generateFunction(clb, "_invoke", function);
-  }
-
   static String signatureDescriptor(Type type) {
     return switch (type) {
       case TypeVariable typeVar -> "T" + typeVar.typeName() + ";";
@@ -288,6 +272,11 @@ class ClassGenerator {
   }
 
   private void generateFunction(ClassBuilder clb, String funcName, TFunction function) {
+    generateFunction(clb, funcName, function, ClassFile.ACC_PUBLIC + ClassFile.ACC_STATIC);
+  }
+
+  private void generateFunction(ClassBuilder clb, String funcName, TFunction function,
+      int methodFlags) {
     var funcType = function.type();
     MethodSignature signature;
     if (!funcType.typeParameters().isEmpty()) {
@@ -299,10 +288,12 @@ class ClassGenerator {
           .map(ClassGenerator::signatureDescriptor)
           .collect(joining("", "(", ")")) + signatureDescriptor(funcType.returnType());
       signature = MethodSignature.parseFrom(sigStr);
-    } else
+    } else {
       signature = null;
+    }
 
-    clb.withMethod(funcName, funcType.functionDesc(), ClassFile.ACC_PUBLIC + ClassFile.ACC_STATIC, mb -> {
+    var namedAnonFuncs = new ArrayList<NamedAnonFunc>();
+    clb.withMethod(funcName, funcType.functionTypeDesc(), methodFlags, mb -> {
       if (signature != null) {
         mb.with(SignatureAttribute.of(signature));
       }
@@ -310,7 +301,7 @@ class ClassGenerator {
       mb.withCode(cob -> {
         var lineNum = function.range().start().line();
         cob.lineNumber(lineNum);
-        var exprGenerator = new ExpressionGenerator(cob, function.parameters());
+        var exprGenerator = new ExpressionGenerator(cob, funcName, function.parameters());
         var returnExpr = function.expression();
         if (returnExpr != null) {
           exprGenerator.generateExpr(returnExpr);
@@ -319,8 +310,15 @@ class ClassGenerator {
           cob.return_();
         }
         generatedClasses.putAll(exprGenerator.getGeneratedClasses());
+        namedAnonFuncs.addAll(exprGenerator.namedAnonFuncs());
       });
     });
+
+    namedAnonFuncs.forEach(func -> generateFunction(
+        clb,
+        func.name(),
+        func.function(),
+        ClassFile.ACC_PUBLIC + ClassFile.ACC_STATIC + ClassFile.ACC_SYNTHETIC));
   }
 
   public Map<String, byte[]> getGeneratedClasses() {

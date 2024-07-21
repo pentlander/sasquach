@@ -2,13 +2,14 @@ package com.pentlander.sasquach.backend;
 
 import static com.pentlander.sasquach.backend.ClassGenerator.INSTANCE_FIELD;
 import static com.pentlander.sasquach.backend.ClassGenerator.CD_STRUCT_BASE;
-import static com.pentlander.sasquach.backend.ClassGenerator.fieldParamDescs;
 import static com.pentlander.sasquach.backend.GeneratorUtil.internalClassDesc;
 import static com.pentlander.sasquach.type.TypeUtils.asStructType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
 
 import com.pentlander.sasquach.ast.expression.Value;
+import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
+import com.pentlander.sasquach.runtime.Func;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.runtime.StructDispatch;
 import com.pentlander.sasquach.runtime.SwitchBootstraps;
@@ -90,13 +91,16 @@ class ExpressionGenerator {
   private static final MethodTypeDesc SPREAD_BOOTSTRAP_DESC = MATCH_BOOTSTRAP_DESC;
   private final Map<String, byte[]> generatedClasses = new HashMap<>();
   private final Deque<Label> loopLabels = new ArrayDeque<>();
+  private final AnonFunctions anonFunctions;
   private final CodeBuilder cob;
+  private final String functionName;
   private final TLocalVarMeta localVarMeta;
   private TypedNode contextNode;
 
-  ExpressionGenerator(CodeBuilder cob, List<TFunctionParameter> params) {
+  ExpressionGenerator(CodeBuilder cob, String functionName, List<TFunctionParameter> params) {
     this.cob = cob;
-
+    this.functionName = functionName;
+    this.anonFunctions = new AnonFunctions(functionName);
     this.localVarMeta = TLocalVarMeta.of(params);
   }
 
@@ -108,17 +112,16 @@ class ExpressionGenerator {
     return Map.copyOf(generatedClasses);
   }
 
+  public List<NamedAnonFunc> namedAnonFuncs() {
+    return anonFunctions.getFunctions();
+  }
+
   public void generateExpr(TypedExpression expression) {
     try {
       generate(expression);
     } catch (RuntimeException e) {
       throw new CodeGenerationException(contextNode, e);
     }
-  }
-
-  DirectMethodHandleDesc methodHandleDesc(Kind kind, Class<?> owner, String name,
-      MethodTypeDesc typeDesc) {
-    return MethodHandleDesc.ofMethod(kind, owner.describeConstable().orElseThrow(), name, typeDesc);
   }
 
   Type type(TypedNode expression) {
@@ -224,14 +227,20 @@ class ExpressionGenerator {
             generateArgs(funcCall.arguments(), funcType.parameterTypes());
             cob.invokestatic(qualifiedFunc.ownerId().classDesc(),
                 funcCall.name(),
-                funcType.functionDesc());
+                funcType.functionTypeDesc());
           }
           case TargetKind.LocalVariable(var localVar) -> {
             int idx = localVarMeta.get(localVar).idx();
             var type = TypeUtils.asFunctionType(type(localVar.variableType())).orElseThrow();
             generateLoadVar(cob, type, idx);
+            cob.aconst_null();
             generateArgs(funcCall.arguments(), type.parameterTypes());
-            generateMemberCall(type, "_invoke");
+
+            var funcTypeDesc = funcType.functionTypeDesc().insertParameterTypes(0, classDesc(Func.class), ConstantDescs.CD_Object);
+            cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
+                StructDispatch.MH_BOOTSTRAP_FIELD,
+                StandardOperation.CALL.toString(),
+                funcTypeDesc));
           }
           case TargetKind.VariantStructConstructor(var struct) -> {
             var namedStruct = (TStructWithName) struct;
@@ -242,7 +251,7 @@ class ExpressionGenerator {
                 Kind.CONSTRUCTOR,
                 structDesc,
                 funcCall.name(),
-                funcType.functionDesc().changeReturnType(ConstantDescs.CD_void));
+                funcType.functionTypeDesc().changeReturnType(ConstantDescs.CD_void));
             generate(methodDesc);
           }
         }
@@ -371,14 +380,16 @@ class ExpressionGenerator {
         cob.goto_(loopLabels.getLast());
       }
       case TFunction func -> {
-        // TODO: Change generation of lambdas to be a static method and its method handle instead
-        //  of a struct. Java only needs to generate a class because lambdas need to conform to
-        //  an interface
-        var classGen = new ClassGenerator();
-        var structDesc = classGen.generateFunctionStruct(func, List.of());
-
-        generatedClasses.putAll(classGen.getGeneratedClasses());
-        generateFuncInit(structDesc, List.of());
+        var funcTypeDesc = func.type().functionTypeDesc();
+        var anonFuncName = anonFunctions.add(func);
+        cob.invokestatic(ConstantDescs.CD_MethodHandles,
+                "lookup",
+                MethodTypeDesc.of(ConstantDescs.CD_MethodHandles_Lookup))
+            .constantInstruction(anonFuncName)
+            .constantInstruction(funcTypeDesc)
+            .bipush(0)
+            .anewarray(ConstantDescs.CD_Object)
+            .invokestatic(classDesc(Func.class), "anon", Func.MTD_ANON, true);
       }
       case TApplyOperator applyOperator -> generate(applyOperator.functionCall());
       case TMatch match -> {
@@ -479,17 +490,12 @@ class ExpressionGenerator {
   }
 
   private void generateFieldAccess(String fieldName, Type fieldType) {
-    var bootstrapDesc = MethodHandleDesc.ofMethod(
-        Kind.STATIC,
-        classDesc(StructDispatch.class),
-        "bootstrapField",
-        DISPATCH_BOOTSTRAP_DESC);
     var operation = StandardOperation.GET.withNamespaces(StandardNamespace.PROPERTY)
         .named(fieldName)
         .toString();
     var typeDesc = MethodTypeDesc.of(fieldType.classDesc(), CD_STRUCT_BASE);
 
-    cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(bootstrapDesc, operation, typeDesc));
+    cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(StructDispatch.MH_BOOTSTRAP_FIELD, operation, typeDesc));
   }
 
   private void generateArgs(List<TypedExpression> arguments, List<Type> paramTypes) {
@@ -506,21 +512,13 @@ class ExpressionGenerator {
         classDesc(StructDispatch.class),
         "bootstrapMethod",
         DISPATCH_BOOTSTRAP_DESC);
-    var methodTypeDesc = funcType.functionDesc()
+    var methodTypeDesc = funcType.functionTypeDesc()
         .insertParameterTypes(0, classDesc(StructBase.class));
 
     cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
         bootstrapDesc,
         funcCallName,
         methodTypeDesc));
-  }
-
-  void generateFuncInit(ClassDesc funcStructDesc, List<TVarReference> captures) {
-    generateNewDup(funcStructDesc);
-    captures.forEach(this::generateExpr);
-    var paramDescs = fieldParamDescs(captures);
-    var constructorDesc = MethodHandleDesc.ofConstructor(funcStructDesc, paramDescs);
-    generate(constructorDesc);
   }
 
   // TODO: Add test to ensure that the arguments are passed in in a consistent order. Field args
