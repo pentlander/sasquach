@@ -274,7 +274,8 @@ class ClassGenerator {
   public Signature typeSignature(Type type) {
     return switch (type) {
       case UniversalType t -> TypeVarSig.of(t.name());
-      case BuiltinType t -> BaseTypeSig.of(t.classDesc());
+      case BuiltinType t when t != BuiltinType.STRING && t != BuiltinType.STRING_ARR ->
+          BaseTypeSig.of(t.classDesc());
       default -> ClassTypeSig.of(type.classDesc());
     };
   }
