@@ -9,6 +9,7 @@ import com.pentlander.sasquach.tast.TypedMember;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 public class TypeResolutionResult {
   public static final TypeResolutionResult EMPTY = new TypeResolutionResult(
@@ -20,8 +21,8 @@ public class TypeResolutionResult {
   private final TypedMember typedMember;
   private final RangedErrorList errors;
 
-  public TypeResolutionResult(Map<QualifiedModuleId, TModuleDeclaration> typedModules, TypedMember typedMember,
-      RangedErrorList errors) {
+  public TypeResolutionResult(Map<QualifiedModuleId, TModuleDeclaration> typedModules,
+      @Nullable TypedMember typedMember, RangedErrorList errors) {
     this.typedModules = typedModules;
     this.typedMember = typedMember;
     this.errors = errors;

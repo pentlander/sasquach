@@ -12,7 +12,7 @@ public class Main {
       compiler.compile(sasquachPaths, outputPath);
     } catch (Exception e) {
       System.err.println(e);
-      e.printStackTrace();
+      e.printStackTrace(System.err);
     }
   }
 

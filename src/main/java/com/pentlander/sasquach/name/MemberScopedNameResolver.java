@@ -46,11 +46,11 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.SequencedSet;
+import org.jspecify.annotations.Nullable;
 
 /*
 use std/io/File,
@@ -96,7 +96,7 @@ public class MemberScopedNameResolver {
   /**
    * Set if currently resolving a named function. Used to resolve recursion.
    */
-  private NamedFunction namedFunction = null;
+  @Nullable private NamedFunction namedFunction = null;
 
   public MemberScopedNameResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
     this(moduleScopedNameResolver, null);
@@ -400,7 +400,7 @@ public class MemberScopedNameResolver {
         case ApplyOperator applyOperator -> resolve(applyOperator);
         case Match match -> resolve(match);
         case Not not -> resolve(not.expression());
-      };
+      }
     }
 
     public void resolve(BinaryExpression binaryExpression) {

@@ -3,8 +3,9 @@ package com.pentlander.sasquach.type;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.constant.DirectMethodHandleDesc.Kind;
+import org.jspecify.annotations.Nullable;
 
-public record ForeignFunctionType(DirectMethodHandleDesc methodHandleDesc, Type castType) implements
+public record ForeignFunctionType(DirectMethodHandleDesc methodHandleDesc, @Nullable Type castType) implements
     Type {
 
 

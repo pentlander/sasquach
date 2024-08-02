@@ -1,7 +1,6 @@
 package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.QualifiedModuleName;
-import java.lang.constant.ClassDesc;
 
 /**
  * Classloader for Sasquach classes.

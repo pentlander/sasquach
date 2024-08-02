@@ -28,6 +28,8 @@ dependencies {
 
     implementation("org.atteo.classindex:classindex:3.13")
 
+    api("org.jspecify:jspecify:1.0.0")
+
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.0")
     testImplementation("org.junit.jupiter:junit-jupiter-params")
     testImplementation("org.assertj:assertj-core:3.23.1")

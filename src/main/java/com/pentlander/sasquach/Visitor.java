@@ -20,7 +20,6 @@ import static com.pentlander.sasquach.SasquachParser.ModuleDeclarationContext;
 import static com.pentlander.sasquach.SasquachParser.ParenExpressionContext;
 import static com.pentlander.sasquach.SasquachParser.PrimitiveTypeContext;
 import static com.pentlander.sasquach.SasquachParser.PrintStatementContext;
-import static com.pentlander.sasquach.SasquachParser.SPREAD;
 import static com.pentlander.sasquach.SasquachParser.StringLiteralContext;
 import static com.pentlander.sasquach.SasquachParser.StructContext;
 import static com.pentlander.sasquach.SasquachParser.StructTypeContext;
@@ -53,7 +52,6 @@ import com.pentlander.sasquach.SasquachParser.SingletonPatternContext;
 import com.pentlander.sasquach.SasquachParser.SingletonTypeContext;
 import com.pentlander.sasquach.SasquachParser.SpreadStatementContext;
 import com.pentlander.sasquach.SasquachParser.StructSumTypeContext;
-import com.pentlander.sasquach.SasquachParser.StructTypeFieldContext;
 import com.pentlander.sasquach.SasquachParser.StructVariantPatternContext;
 import com.pentlander.sasquach.SasquachParser.SumTypeContext;
 import com.pentlander.sasquach.SasquachParser.TupleExpressionContext;
@@ -123,11 +121,12 @@ import java.util.Optional;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.jspecify.annotations.NullUnmarked;
 
 /**
  * Visitor that parses the source code into an abstract syntax tree.
  */
-@SuppressWarnings("ClassCanBeRecord")
+@NullUnmarked
 public class Visitor {
   private final SourcePath sourcePath;
   private final PackageName packageName;
@@ -534,7 +533,7 @@ public class Visitor {
     return new StructVisitor(name, StructKind.NAMED);
   }
 
-  class StructVisitor extends SasquachBaseVisitor<Struct> {
+  public class StructVisitor extends SasquachBaseVisitor<Struct> {
     private final String structName;
     private final StructKind structKind;
     private final ExpressionVisitor expressionVisitor;
@@ -572,7 +571,7 @@ public class Visitor {
           var useCtx = useStatementCtx.use();
           var qualifiedName = useCtx.qualifiedName().getText();
           var qualifiedNameIds = useCtx.qualifiedName().ID();
-          var aliasNode = qualifiedNameIds.get(qualifiedNameIds.size() - 1);
+          var aliasNode = qualifiedNameIds.getLast();
           var aliasId = id(aliasNode);
           var qualifiedId = QualifiedModuleId.fromString(qualifiedName,
               (Range.Single) rangeFrom(useCtx.qualifiedName()));
@@ -633,7 +632,6 @@ public class Visitor {
     return params;
   }
 
-  @SuppressWarnings("unchecked")
   private TypeNode sumTypeNode(SumTypeContext ctx, String moduleName, Identifier aliasId,
       List<TypeParameter> typeParameters) {
     var numVariants = ctx.typeIdentifier().size();
@@ -676,7 +674,6 @@ public class Visitor {
     };
   }
 
-  @SuppressWarnings("unchecked")
   private static TypeNode typeNode(TypeContext ctx, TypeVisitor visitor) {
     return ctx.accept(visitor);
   }

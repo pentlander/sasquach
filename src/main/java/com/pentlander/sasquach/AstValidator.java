@@ -124,12 +124,12 @@ public class AstValidator {
   record DuplicationError(String message, List<Range.Single> ranges) implements RangedError {
     @Override
     public Range range() {
-      return ranges.get(0);
+      return ranges.getFirst();
     }
 
     @Override
     public String toPrettyString(Source source) {
-      var firstRange = ranges.get(0);
+      var firstRange = ranges.getFirst();
       var restHighlights = ranges.stream().skip(1)
           .map(range -> source.highlight(range) + " other appearance here")
           .collect(Collectors.joining("\n"));

@@ -3,13 +3,13 @@ package com.pentlander.sasquach.ast;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
 
-public record TupleTypeNode(String name, List<TypeNode> fields, Range range) implements TypeNode {
+public record TupleTypeNode(@Nullable String name, List<TypeNode> fields, Range range) implements TypeNode {
 
   public TupleTypeNode(List<TypeNode> fields, Range range) {
     this(null, fields, range);

@@ -77,7 +77,8 @@ public class TypeNameResolver {
         variantNodes.put(variantTypeNode.id().name(), variantTypeNode);
         switch (variantTypeNode) {
           case VariantTypeNode.Singleton singleton -> {
-            var typeAlias = moduleScopedNameResolver.resolveTypeAlias(singleton.aliasId().name()).get();
+            var typeAlias = moduleScopedNameResolver.resolveTypeAlias(singleton.aliasId().name())
+                .orElseThrow();
             putNamedType(singleton, typeAlias);
           }
           case VariantTypeNode.Tuple tuple -> resolveTypeNode(tuple.typeNode());

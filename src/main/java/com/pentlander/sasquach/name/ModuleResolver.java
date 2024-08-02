@@ -45,7 +45,7 @@ public class ModuleResolver {
   }
 
   public ModuleScopedNameResolver resolveModule(String qualifiedModuleName) {
-    var task =  moduleScopedResolverTasks.get(qualifiedModuleName);
+    var task = moduleScopedResolverTasks.get(qualifiedModuleName);
     return task != null ? task.moduleScopedNameResolver : null;
   }
 

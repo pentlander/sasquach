@@ -4,7 +4,6 @@ import static java.util.Objects.requireNonNull;
 import static java.util.Objects.requireNonNullElse;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.Identifier;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 

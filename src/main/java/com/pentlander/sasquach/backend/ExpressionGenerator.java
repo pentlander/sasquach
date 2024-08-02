@@ -85,6 +85,7 @@ import java.util.stream.Stream;
 import jdk.dynalink.StandardNamespace;
 import jdk.dynalink.StandardOperation;
 import jdk.dynalink.linker.support.TypeUtilities;
+import org.jspecify.annotations.Nullable;
 
 class ExpressionGenerator {
   private static final MethodTypeDesc DISPATCH_BOOTSTRAP_DESC = MethodType.methodType(CallSite.class,
@@ -96,13 +97,11 @@ class ExpressionGenerator {
   private final Deque<Label> loopLabels = new ArrayDeque<>();
   private final AnonFunctions anonFunctions;
   private final CodeBuilder cob;
-  private final String functionName;
   private final TLocalVarMeta localVarMeta;
-  private TypedNode contextNode;
+  @Nullable private TypedNode contextNode;
 
   ExpressionGenerator(CodeBuilder cob, String functionName, List<TFunctionParameter> params) {
     this.cob = cob;
-    this.functionName = functionName;
     this.anonFunctions = new AnonFunctions(functionName);
     this.localVarMeta = TLocalVarMeta.of(params);
   }

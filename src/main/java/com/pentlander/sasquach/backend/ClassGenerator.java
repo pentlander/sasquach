@@ -50,13 +50,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 
 class ClassGenerator {
   static final ClassDesc CD_STRUCT_BASE = classDesc(StructBase.class);
   static final String INSTANCE_FIELD = "INSTANCE";
   private final Map<String, byte[]> generatedClasses = new LinkedHashMap<>();
   private final SasqClassHierarchyResolver resolver = new SasqClassHierarchyResolver();
-  private TypedNode contextNode;
+  @Nullable private TypedNode contextNode;
 
   public Map<String, byte[]> generate(TModuleDeclaration moduleDeclaration) {
     try {

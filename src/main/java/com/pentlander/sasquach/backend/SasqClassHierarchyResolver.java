@@ -4,7 +4,6 @@ import java.lang.classfile.ClassHierarchyResolver;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.ConstantDescs;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 public final class SasqClassHierarchyResolver implements ClassHierarchyResolver {

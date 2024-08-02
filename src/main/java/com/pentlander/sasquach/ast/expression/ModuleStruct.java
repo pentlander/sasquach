@@ -9,7 +9,6 @@ import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.Use;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RecordBuilder

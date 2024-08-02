@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import java.lang.constant.ClassDesc;
 import java.util.Objects;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Represents a type parameter that hasn't been resolved yet. It is essentially a placeholder that
@@ -92,7 +93,7 @@ public final class TypeVariable implements Type, ParameterizedType {
   }
 
   private static class InnerType {
-    private Type type = null;
+    @Nullable private Type type = null;
 
     @Override
     public boolean equals(Object o) {

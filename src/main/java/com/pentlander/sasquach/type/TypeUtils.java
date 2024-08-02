@@ -4,6 +4,7 @@ import java.lang.constant.ClassDesc;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
 
 public final class TypeUtils {
   private TypeUtils() {
@@ -53,7 +54,7 @@ public final class TypeUtils {
     return typeName + typeArgString;
   }
 
-  public static Type reify(Type type) {
+  public static Type reify(@Nullable Type type) {
     return switch (type) {
       case ResolvedNamedType resolvedNamedType -> reify(resolvedNamedType.type());
       case TypeVariable typeVariable -> reify(typeVariable.resolvedType().orElseThrow());

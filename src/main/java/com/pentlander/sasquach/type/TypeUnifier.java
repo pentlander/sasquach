@@ -4,6 +4,7 @@ import com.pentlander.sasquach.type.StructType.RowModifier;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Resolves type parameters by unifying type variables with concrete types.
@@ -196,9 +197,9 @@ public class TypeUnifier {
   static class UnificationException extends RuntimeException {
     private final Type destType;
     private final Type sourceType;
-    private final Type resolvedDestType;
+    @Nullable private final Type resolvedDestType;
 
-    UnificationException(Type destType, Type sourceType, Type resolvedDestType) {
+    UnificationException(Type destType, Type sourceType, @Nullable Type resolvedDestType) {
       super("Failed to unify types '%s' and '%s'".formatted(destType.toPrettyString(),
           sourceType.toPrettyString()));
       this.destType = destType;

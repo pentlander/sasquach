@@ -164,6 +164,7 @@ final class StructLinker implements GuardingDynamicLinker {
       LinkerServices linkerServices) throws Exception {
     var operation = linkRequest.getCallSiteDescriptor().getOperation();
     if (NamedOperation.getBaseOperation(operation) instanceof StructOperation structOp) {
+      //noinspection SwitchStatementWithTooFewBranches
       switch (structOp) {
         case STRUCT_INIT -> {
           var callSiteDescriptor = (StructInitCallSiteDesc) linkRequest.getCallSiteDescriptor();

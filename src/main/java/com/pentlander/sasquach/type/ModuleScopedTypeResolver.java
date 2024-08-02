@@ -15,7 +15,6 @@ import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.NamedStruct;
-import com.pentlander.sasquach.ast.expression.Struct.StructKind;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Local;
@@ -37,7 +36,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 public class ModuleScopedTypeResolver {
   private final NameResolutionResult nameResolutionResult;
@@ -76,27 +74,31 @@ public class ModuleScopedTypeResolver {
           var variantTypeNode = sumTypeNode.variantTypeNodes().get(i);
           idTypes.put(variantTypeNode.id(), variantTypeNode.type());
 
-          if (variantTypeNode instanceof VariantTypeNode.Tuple tuple) {
-            var tupleFieldTypes = tuple.type().fieldTypes();
-            var paramTypes = tupleFieldTypes.values()
-                .stream()
-                .sorted(Comparator.comparing(Type::typeName))
-                .toList();
-            var variantConstructorType = new FunctionType(paramTypes,
-                sumType.typeParameters(),
-                sumType);
-            variantConstructorTypes.put(tuple.id(), variantConstructorType);
-            fieldTypes.put(tuple.id().name(), variantConstructorType);
-          } else if (variantTypeNode instanceof VariantTypeNode.Singleton singleton) {
-            typedFields.add(new TField(singleton.id(),
-                new TVarReference(singleton.id(),
-                    new RefDeclaration.Singleton(singleton.type()),
-                    sumType)));
-            fieldTypes.put(singleton.id().name(), sumType);
-          } else if (variantTypeNode instanceof VariantTypeNode.Struct strct) {
-            // do something
-            // need to somehow replace the SumType in NameResolutionResult's namedStructTypes with
-            // the named resolved one here
+          switch (variantTypeNode) {
+            case VariantTypeNode.Tuple tuple -> {
+              var tupleFieldTypes = tuple.type().fieldTypes();
+              var paramTypes = tupleFieldTypes.values()
+                  .stream()
+                  .sorted(Comparator.comparing(Type::typeName))
+                  .toList();
+              var variantConstructorType = new FunctionType(paramTypes,
+                  sumType.typeParameters(),
+                  sumType);
+              variantConstructorTypes.put(tuple.id(), variantConstructorType);
+              fieldTypes.put(tuple.id().name(), variantConstructorType);
+            }
+            case VariantTypeNode.Singleton singleton -> {
+              typedFields.add(new TField(singleton.id(),
+                  new TVarReference(singleton.id(),
+                      new RefDeclaration.Singleton(singleton.type()),
+                      sumType)));
+              fieldTypes.put(singleton.id().name(), sumType);
+            }
+            case VariantTypeNode.Struct strct -> {
+              // do something
+              // need to somehow replace the SumType in NameResolutionResult's namedStructTypes with
+              // the named resolved one here
+            }
           }
         }
       }

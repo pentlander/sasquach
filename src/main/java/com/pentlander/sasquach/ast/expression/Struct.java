@@ -8,7 +8,6 @@ import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.Use;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 public sealed interface Struct extends Expression permits LiteralStruct,

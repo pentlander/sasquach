@@ -1,8 +1,6 @@
 package com.pentlander.sasquach.tast.expression;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.expression.ArrayValue;
-import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.type.ArrayType;
 import com.pentlander.sasquach.type.Type;
 import java.util.List;

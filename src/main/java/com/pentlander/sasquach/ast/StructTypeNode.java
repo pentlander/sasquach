@@ -1,7 +1,6 @@
 package com.pentlander.sasquach.ast;
 
 import static com.pentlander.sasquach.Util.toLinkedMap;
-import static java.util.stream.Collectors.toMap;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.NamedRow;
@@ -12,9 +11,10 @@ import com.pentlander.sasquach.type.StructType;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 
 /** Type node for a struct that contains type nodes for all of its fields. */
-public record StructTypeNode(String name, Map<String, TypeNode> fieldTypeNodes, RowModifier rowModifier,
+public record StructTypeNode(@Nullable String name, Map<String, TypeNode> fieldTypeNodes, RowModifier rowModifier,
                              Range range) implements TypeNode {
 
   public StructTypeNode(Map<String, TypeNode> fieldTypeNodes, RowModifier rowModifier, Range range) {

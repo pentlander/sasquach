@@ -14,14 +14,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.SequencedSet;
 import java.util.function.Consumer;
+import org.jspecify.annotations.Nullable;
 
 public class LocalVariableStack {
   private final Deque<Map<String, LocalVariable>> localVariableStacks = new ArrayDeque<>();
   private final SequencedSet<LocalVariable> captures = new LinkedHashSet<>();
-  private final LocalVariableStack parentStack;
+  @Nullable private final LocalVariableStack parentStack;
   private final Consumer<RangedError> errorConsumer;
 
-  public LocalVariableStack(LocalVariableStack parentStack, Consumer<RangedError> errorConsumer) {
+  public LocalVariableStack(@Nullable LocalVariableStack parentStack, Consumer<RangedError> errorConsumer) {
     this.parentStack = parentStack;
     this.errorConsumer = errorConsumer;
   }

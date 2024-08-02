@@ -1,13 +1,9 @@
 package com.pentlander.sasquach.runtime;
 
 import static com.pentlander.sasquach.runtime.Bootstrap.*;
-import static java.util.Objects.requireNonNull;
 
-import java.io.Serial;
-import java.lang.annotation.Target;
 import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.constant.DynamicCallSiteDesc;
-import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.ConstantCallSite;
@@ -31,7 +27,7 @@ public final class FuncBootstrap {
 
   private static final MethodTypeDesc MTD_BOOTSTRAP_FUNC_INIT = bootstrapMethodTypeDesc(MethodType.class);
 
-  public static DirectMethodHandleDesc MHD_BOOTSTRAP_FUNC_INIT = methodHandleDesc(
+  public static final DirectMethodHandleDesc MHD_BOOTSTRAP_FUNC_INIT = methodHandleDesc(
       FuncBootstrap.class,
       "bootstrapFuncInit",
       MTD_BOOTSTRAP_FUNC_INIT);

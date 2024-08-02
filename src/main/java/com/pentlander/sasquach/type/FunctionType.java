@@ -4,10 +4,7 @@ import static java.util.Objects.requireNonNullElse;
 import static java.util.stream.Collectors.joining;
 
 import com.pentlander.sasquach.runtime.Func;
-import com.pentlander.sasquach.runtime.StructBase;
 import java.lang.constant.ClassDesc;
-import java.lang.constant.DirectMethodHandleDesc.Kind;
-import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.util.HashMap;
 import java.util.List;

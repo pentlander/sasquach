@@ -1,7 +1,6 @@
 package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.RangedErrorList;
-import com.pentlander.sasquach.Visitor;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
@@ -150,7 +149,7 @@ public class ModuleScopedNameResolver {
       case Use use -> resolve(use);
       case Expression expression -> resolve(expression);
       case null, default -> throw new IllegalStateException();
-    };
+    }
   }
 
   public void resolve(FunctionParameter functionParameter) {
@@ -171,7 +170,7 @@ public class ModuleScopedNameResolver {
     switch (use) {
       case Use.Module useModule -> resolve(useModule);
       case Use.Foreign useForeign -> resolve(useForeign);
-    };
+    }
   }
 
   Optional<Class<?>> resolveForeignClass(String classAlias) {

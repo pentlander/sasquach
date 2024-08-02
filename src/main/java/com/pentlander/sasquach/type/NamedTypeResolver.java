@@ -14,7 +14,6 @@ import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
 import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.NamedRow;
 import com.pentlander.sasquach.ast.SumTypeNode;
-import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Singleton;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Struct;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Tuple;
@@ -121,12 +120,6 @@ public class NamedTypeResolver {
         .orElseThrow(() -> new IllegalStateException("Unable to find named type: " + namedType));
 
     return switch (typeDefNode) {
-      // If it's a type parameter, check if there's a corresponding type argument within the
-      // current scope. If not, resolve to a type variable for later unification
-//      case TypeParameter typeParameter -> requireNonNull(typeArgs.get(typeParameter.typeName()),
-//          "No mapping for type param '%s'".formatted(typeParameter.typeName()));
-//      case TypeParameter typeParameter -> typeArgs.getOrDefault(typeParameter.typeName(),
-//          new TypeVariable(typeParameter.typeName()));
       case TypeParameter typeParameter ->
           typeArgs.getOrDefault(typeParameter.typeName(), namedType);
       case TypeAlias typeAlias -> {

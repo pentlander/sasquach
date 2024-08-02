@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNullElse;
 import com.pentlander.sasquach.Range;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
-import java.util.Optional;
 
 @RecordBuilder
 public record NamedStruct(String name, List<Field> fields, List<NamedFunction> functions,

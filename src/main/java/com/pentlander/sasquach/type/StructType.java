@@ -2,7 +2,6 @@ package com.pentlander.sasquach.type;
 
 import static java.util.stream.Collectors.joining;
 
-import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.type.StructType.RowModifier.NamedRow;
 import com.pentlander.sasquach.type.StructType.RowModifier.None;
@@ -13,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Type of a struct.
@@ -30,7 +30,7 @@ public record StructType(String typeName, Map<String, Type> fieldTypes, RowModif
     typeName = Objects.requireNonNullElse(typeName, PREFIX + hashFieldTypes(fieldTypes));
   }
 
-  public StructType(String name, Map<String, Type> fieldTypes) {
+  public StructType(@Nullable String name, Map<String, Type> fieldTypes) {
     this(name, fieldTypes, RowModifier.none());
   }
 

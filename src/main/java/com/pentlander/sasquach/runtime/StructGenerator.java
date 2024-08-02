@@ -1,8 +1,6 @@
 package com.pentlander.sasquach.runtime;
 
-import java.lang.classfile.ClassBuilder;
 import java.lang.classfile.ClassFile;
-import java.lang.classfile.ClassFileBuilder;
 import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.ConstantDescs;

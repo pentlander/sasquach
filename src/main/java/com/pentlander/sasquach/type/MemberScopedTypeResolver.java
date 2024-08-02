@@ -4,9 +4,6 @@ import static com.pentlander.sasquach.type.TypeUtils.reify;
 import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.*;
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
@@ -47,7 +44,6 @@ import com.pentlander.sasquach.ast.expression.PrintStatement;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
-import com.pentlander.sasquach.ast.expression.StructWithName;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
@@ -58,7 +54,6 @@ import com.pentlander.sasquach.tast.TBranch;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TFunctionSignature;
 import com.pentlander.sasquach.tast.TNamedFunction;
-import com.pentlander.sasquach.tast.TPattern;
 import com.pentlander.sasquach.tast.TPattern.TSingleton;
 import com.pentlander.sasquach.tast.TPattern.TVariantStruct;
 import com.pentlander.sasquach.tast.TPattern.TVariantTuple;
@@ -75,7 +70,6 @@ import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
 import com.pentlander.sasquach.tast.expression.TFunction;
 import com.pentlander.sasquach.tast.expression.TFunctionCall;
 import com.pentlander.sasquach.tast.expression.TIfExpression;
-import com.pentlander.sasquach.tast.expression.TLiteralStruct;
 import com.pentlander.sasquach.tast.expression.TLiteralStructBuilder;
 import com.pentlander.sasquach.tast.expression.TLocalFunctionCall;
 import com.pentlander.sasquach.tast.expression.TLocalFunctionCall.TargetKind;
@@ -104,8 +98,6 @@ import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType.Singleton;
 import com.pentlander.sasquach.type.TypeUnifier.UnificationException;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.DirectMethodHandleDesc;
-import java.lang.constant.MethodHandleDesc;
-import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Executable;
 import java.lang.reflect.GenericDeclaration;
@@ -120,8 +112,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 
 public class MemberScopedTypeResolver {
   private final Map<Identifier, TLocalVariable> localVariables = new HashMap<>();
@@ -131,17 +123,15 @@ public class MemberScopedTypeResolver {
   private final AtomicInteger typeVarNum = new AtomicInteger();
 
   private final NameResolutionResult nameResolutionResult;
-  private final ModuleTypeProvider moduleTypeProvider;
   private final NamedTypeResolver namedTypeResolver;
   private final ModuleScopedTypes moduleScopedTypes;
-  private Node nodeResolving = null;
-  private Node currentNode = null;
+  @Nullable private Node nodeResolving = null;
+  @Nullable private Node currentNode = null;
 
   public MemberScopedTypeResolver(NameResolutionResult nameResolutionResult,
       ModuleTypeProvider moduleTypeProvider, ModuleScopedTypes moduleScopedTypes) {
     this.nameResolutionResult = nameResolutionResult;
     this.namedTypeResolver = new NamedTypeResolver(nameResolutionResult);
-    this.moduleTypeProvider = moduleTypeProvider;
     this.moduleScopedTypes = moduleScopedTypes;
   }
 
@@ -196,7 +186,6 @@ public class MemberScopedTypeResolver {
     return typeParams.stream().collect(toMap(TypeParameter::typeName, paramFunc));
   }
 
-  @SuppressWarnings("SwitchStatementWithTooFewBranches")
   public TypedExpression check(Expression expr, Type type) {
     return switch (expr) {
       // Check that the function matches the given type
@@ -597,7 +586,7 @@ public class MemberScopedTypeResolver {
   }
 
   private TypedExpression resolveFunctionCall(FunctionCall funcCall) {
-    TFunctionCall typedFuncCall = null;
+    TFunctionCall typedFuncCall;
     var name = funcCall.name();
     var args = funcCall.arguments();
     var range = funcCall.range();
@@ -792,9 +781,9 @@ public class MemberScopedTypeResolver {
             classType.typeName()), funcCall.range()));
   }
 
-  private Type addError(RangedError error) {
+  private void addError(RangedError error) {
     errors.add(error);
-    return new UnknownType();
+    new UnknownType();
   }
 
   private TypedExpression addError(Expression expr, RangedError error) {
