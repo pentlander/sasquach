@@ -3,8 +3,8 @@ package com.pentlander.sasquach.backend;
 import static com.pentlander.sasquach.backend.GeneratorUtil.internalClassDesc;
 import static com.pentlander.sasquach.type.TypeUtils.asFunctionType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toMap;
+import static java.lang.classfile.Signature.ClassTypeSig;
+import static java.lang.classfile.Signature.TypeVarSig;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.SumTypeNode;
@@ -12,24 +12,27 @@ import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.runtime.StructBase;
+import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TypedNode;
 import com.pentlander.sasquach.tast.expression.TFunction;
 import com.pentlander.sasquach.tast.expression.TModuleStruct;
 import com.pentlander.sasquach.tast.expression.TStruct;
-import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.SingletonType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.SumType;
 import com.pentlander.sasquach.type.Type;
-import com.pentlander.sasquach.type.TypeVariable;
+import com.pentlander.sasquach.type.UniversalType;
 import java.lang.classfile.ClassBuilder;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.ClassFile.ClassHierarchyResolverOption;
 import java.lang.classfile.ClassHierarchyResolver;
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.MethodSignature;
+import java.lang.classfile.Signature;
+import java.lang.classfile.Signature.BaseTypeSig;
+import java.lang.classfile.Signature.TypeParam;
 import java.lang.classfile.TypeKind;
 import java.lang.classfile.attribute.PermittedSubclassesAttribute;
 import java.lang.classfile.attribute.SignatureAttribute;
@@ -147,7 +150,7 @@ class ClassGenerator {
       handler.accept(clb);
     });
     classFile.verify(bytes).stream().findFirst().ifPresent(err -> {
-      ClassPrinter.toJson(classFile.parse(bytes), Verbosity.CRITICAL_ATTRIBUTES, System.err::printf);
+      ClassPrinter.toYaml(classFile.parse(bytes), Verbosity.CRITICAL_ATTRIBUTES, System.err::printf);
       throw err;
     });
     return bytes;
@@ -263,31 +266,36 @@ class ClassGenerator {
             fieldClassDesc).return_()));
   }
 
-  static String signatureDescriptor(Type type) {
-    return switch (type) {
-      case TypeVariable typeVar -> "T" + typeVar.typeName() + ";";
-      case BuiltinType builtinType when builtinType == BuiltinType.VOID -> null;
-      default -> type.classDesc().descriptorString();
-    };
-  }
-
   private void generateFunction(ClassBuilder clb, String funcName, TFunction function) {
     generateFunction(clb, funcName, function, ClassFile.ACC_PUBLIC + ClassFile.ACC_STATIC);
   }
 
+  public Signature typeSignature(Type type) {
+    return switch (type) {
+      case UniversalType t -> TypeVarSig.of(t.name());
+      case BuiltinType t -> BaseTypeSig.of(t.classDesc());
+      default -> ClassTypeSig.of(type.classDesc());
+    };
+  }
+
   private void generateFunction(ClassBuilder clb, String funcName, TFunction function,
       int methodFlags) {
-    var funcType = function.type();
+    var funcType = function.typeWithCaptures();
     MethodSignature signature;
     if (!funcType.typeParameters().isEmpty()) {
-      var sigStr = funcType.typeParameters()
+      var typeParams = funcType.typeParameters()
           .stream()
-          .map(typeParameter -> typeParameter.typeName() + ":Ljava/lang/Object;")
-          .collect(joining("", "<", ">")) + funcType.parameterTypes()
+          .map(typeParam -> TypeParam.of(typeParam.typeName(),
+              ClassTypeSig.of(ConstantDescs.CD_Object)))
+          .toList();
+      var paramTypeSigs = funcType.parameterTypes()
           .stream()
-          .map(ClassGenerator::signatureDescriptor)
-          .collect(joining("", "(", ")")) + signatureDescriptor(funcType.returnType());
-      signature = MethodSignature.parseFrom(sigStr);
+          .map(this::typeSignature)
+          .toArray(Signature[]::new);
+      signature = MethodSignature.of(typeParams,
+          List.of(),
+          typeSignature(funcType.returnType()),
+          paramTypeSigs);
     } else {
       signature = null;
     }
@@ -301,7 +309,11 @@ class ClassGenerator {
       mb.withCode(cob -> {
         var lineNum = function.range().start().line();
         cob.lineNumber(lineNum);
-        var exprGenerator = new ExpressionGenerator(cob, funcName, function.parameters());
+
+        var captures = function.captures().stream().map(localVar -> new TFunctionParameter(localVar.id(), localVar.variableType(),
+            localVar.range()));
+        var params = Stream.concat(captures, function.parameters().stream()).toList();
+        var exprGenerator = new ExpressionGenerator(cob, funcName, params).initParams();
         var returnExpr = function.expression();
         if (returnExpr != null) {
           exprGenerator.generateExpr(returnExpr);

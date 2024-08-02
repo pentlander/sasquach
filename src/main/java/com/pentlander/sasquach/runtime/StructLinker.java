@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import jdk.dynalink.CallSiteDescriptor;
+import jdk.dynalink.NamedOperation;
 import jdk.dynalink.Operation;
 import jdk.dynalink.StandardOperation;
 import jdk.dynalink.linker.GuardedInvocation;
@@ -83,29 +84,69 @@ final class StructLinker implements GuardingDynamicLinker {
     return MethodHandles.permuteArguments(filteredHandle, invokedType, reorder);
   }
 
-  public static final class InitCallsiteDesc extends CallSiteDescriptor {
+  public static abstract class AbstractCallSiteDescriptor<T extends AbstractCallSiteDescriptor<T>> extends
+      CallSiteDescriptor {
+    public AbstractCallSiteDescriptor(Lookup lookup, Operation operation, MethodType methodType) {
+      super(lookup, operation, methodType);
+    }
+
+    protected abstract boolean fieldsEquals(T other);
+
+    protected abstract int fieldsHash();
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public boolean equals(Object obj) {
+      return super.equals(obj) && fieldsEquals((T) obj);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(super.hashCode(), fieldsHash());
+    }
+  }
+  public static final class StructInitCallSiteDesc extends AbstractCallSiteDescriptor<StructInitCallSiteDesc> {
     private final List<String> fieldNames;
 
-    public InitCallsiteDesc(Lookup lookup, Operation operation, MethodType methodType,
+    public StructInitCallSiteDesc(Lookup lookup, Operation operation, MethodType methodType,
         List<String> fieldNames) {
       super(lookup, operation, methodType);
       this.fieldNames = fieldNames;
     }
 
     @Override
-    public boolean equals(Object o) {
-      return o instanceof InitCallsiteDesc other && getOperation().equals(other.getOperation())
-          && getMethodType().equals(other.getMethodType()) && fieldNames.equals(other.fieldNames);
+    protected boolean fieldsEquals(StructInitCallSiteDesc other) {
+      return fieldNames.equals(other.fieldNames);
     }
 
     @Override
-    public int hashCode() {
-      return Objects.hash(getOperation(), getMethodType(), fieldNames);
+    protected int fieldsHash() {
+      return fieldNames.hashCode();
+    }
+  }
+
+  static final class FuncInitCallSiteDesc extends AbstractCallSiteDescriptor<FuncInitCallSiteDesc> {
+    private final MethodType funcMethodType;
+
+    public FuncInitCallSiteDesc(Lookup lookup, Operation operation, MethodType methodType, MethodType funcMethodType) {
+      super(lookup, operation, methodType);
+      this.funcMethodType = funcMethodType;
+    }
+
+
+    @Override
+    protected boolean fieldsEquals(FuncInitCallSiteDesc other) {
+      return funcMethodType.equals(other.funcMethodType);
+    }
+
+    @Override
+    protected int fieldsHash() {
+      return funcMethodType.hashCode();
     }
   }
 
   public enum StructOperation implements Operation {
-    INIT
+    STRUCT_INIT
   }
 
   @SuppressWarnings("unused")
@@ -122,10 +163,10 @@ final class StructLinker implements GuardingDynamicLinker {
   public GuardedInvocation getGuardedInvocation(LinkRequest linkRequest,
       LinkerServices linkerServices) throws Exception {
     var operation = linkRequest.getCallSiteDescriptor().getOperation();
-    if (operation instanceof StructOperation structOp) {
+    if (NamedOperation.getBaseOperation(operation) instanceof StructOperation structOp) {
       switch (structOp) {
-        case INIT -> {
-          var callSiteDescriptor = (InitCallsiteDesc) linkRequest.getCallSiteDescriptor();
+        case STRUCT_INIT -> {
+          var callSiteDescriptor = (StructInitCallSiteDesc) linkRequest.getCallSiteDescriptor();
           var fieldNames = callSiteDescriptor.fieldNames;
 
           // Determine the field types for the returned struct
@@ -150,8 +191,8 @@ final class StructLinker implements GuardingDynamicLinker {
 
           // Generate and define the class with the field types from the previous section
           var callSiteLookup = callSiteDescriptor.getLookup();
-          var pn = callSiteLookup.lookupClass().describeConstable().orElseThrow().packageName();
-          var classFileBytes = StructGenerator.generateDelegateStruct(pn, fieldTypes);
+          var packageName = callSiteLookup.lookupClass().getPackageName();
+          var classFileBytes = StructGenerator.generateDelegateStruct(packageName, fieldTypes);
           var delegateStruct = callSiteLookup.defineHiddenClass(classFileBytes, true).lookupClass();
 
           // Create a method handle that invokes the constructor of the returned struct

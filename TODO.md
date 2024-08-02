@@ -4,5 +4,4 @@
 * Avoid generation of duplicate struct classes
 
 ## Right Now
-* Generate first class functions as MethodHandles instead of structs
-  * They are only generated as classes in Java because they need to implement the functional interfaces. Also, the codegen can be unified for functions with and without captures using dynalink
+* Handle variable captures in functions in anon functions

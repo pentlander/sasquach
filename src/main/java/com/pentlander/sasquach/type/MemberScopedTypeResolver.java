@@ -216,7 +216,12 @@ public class MemberScopedTypeResolver {
             func.typeParameters(),
             funcType.returnType(),
             func.range());
-        yield new TFunction(typedFuncSig, typedExpr);
+        var captures = nameResolutionResult.getFunctionCaptures(func)
+            .stream()
+            .map(this::getLocalVar)
+            .map(Optional::orElseThrow)
+            .toList();
+        yield new TFunction(typedFuncSig, typedExpr, captures);
       }
       default -> switch (type) {
         case ResolvedNamedType resolvedType -> check(expr, resolvedType.type());
@@ -342,7 +347,12 @@ public class MemberScopedTypeResolver {
             func.typeParameters(),
             typedBodyExpr.type(),
             func.range());
-        yield new TFunction(typedFuncSig, typedBodyExpr);
+        var captures = nameResolutionResult.getFunctionCaptures(func)
+            .stream()
+            .map(this::getLocalVar)
+            .map(Optional::orElseThrow)
+            .toList();
+        yield new TFunction(typedFuncSig, typedBodyExpr, captures);
       }
       case ApplyOperator applyOperator -> {
         var funcCall = applyOperator.toFunctionCall();

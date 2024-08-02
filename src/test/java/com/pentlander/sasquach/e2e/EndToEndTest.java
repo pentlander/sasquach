@@ -86,7 +86,7 @@ public class EndToEndTest {
 
   @Test
   void higherOrderFunc() throws Exception {
-    var clazz = compileClassDebug( """
+    var clazz = compileClass( """
         Main {
           plus = (): Int -> {
             let add = (a: Int, b: Int): Int -> a + b
@@ -97,6 +97,58 @@ public class EndToEndTest {
     int sum = invokeName(clazz, "plus");
 
     assertThat(sum).isEqualTo(5);
+  }
+
+  @Test
+  void higherOrderFunc_withCapture() throws Exception {
+    var clazz = compileClass( """
+        Main {
+          plus = (): Int -> {
+            let capture = 5
+            let addFive = (a: Int): Int -> a + capture
+            addFive(1)
+          }
+        }
+        """);
+    int sum = invokeName(clazz, "plus");
+
+    assertThat(sum).isEqualTo(6);
+  }
+
+  @Test
+  void higherOrderFunc_withNestedCapture() throws Exception {
+    var clazz = compileClass( """
+        Main {
+          plus = (): Int -> {
+            let innerCapture = 5
+            let outerCapture = 7
+            let addVars = (a: Int, b: Int): Int -> {
+              let addCapture = (c: Int): Int -> c + innerCapture
+              a + outerCapture + addCapture(b)
+            }
+            addVars(1, 2)
+          }
+        }
+        """);
+    int sum = invokeName(clazz, "plus");
+
+    assertThat(sum).isEqualTo(15);
+  }
+
+  @Test @Disabled
+  void literalStructFunc_withCapture() throws Exception {
+    var clazz = compileClass( """
+        Main {
+          plus = (): Int -> {
+            let capture = 5
+            let adder = { addFive = (a: Int): Int -> a + capture, }
+            adder.addFive(1)
+          }
+        }
+        """);
+    int sum = invokeName(clazz, "plus");
+
+    assertThat(sum).isEqualTo(6);
   }
 
   @Test
@@ -183,7 +235,7 @@ public class EndToEndTest {
   // should fail
   @Test
   void matchSumType_sameParam_multipleVariants() throws Exception {
-    var source = Source.fromString("main", """
+    var ex = assertThrows(CompilationException.class, () -> compileClass("""
         Main {
           type Same[T] = | A(T) | B(T),
           
@@ -195,8 +247,7 @@ public class EndToEndTest {
             }
           },
         }
-        """);
-    var ex = assertThrows(CompilationException.class, () -> compileClass(source));
+        """));
     assertThat(ex).hasMessageContaining("should be 'String'");
   }
 
@@ -483,7 +534,7 @@ public class EndToEndTest {
           }
         }
         """);
-    Object boxedInt = invokeName(clazz, "main", null);
+    Object boxedInt = invokeName(clazz, "main");
 
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
   }
@@ -550,17 +601,9 @@ public class EndToEndTest {
     return compileClass(Source.fromString("main", source), false);
   }
 
+  @SuppressWarnings("unused")
   private Class<?> compileClassDebug(String source) throws ClassNotFoundException, CompilationException {
     return compileClass(Source.fromString("main", source), true);
-  }
-
-  private Class<?> compileClass(Source source) throws ClassNotFoundException, CompilationException {
-    return compileClass(source, false);
-  }
-
-  private Class<?> compileClassDebug(Source source)
-      throws ClassNotFoundException, CompilationException {
-    return compileClass(source, true);
   }
 
   private Class<?> compileClass(Source source, boolean dumpClasses)

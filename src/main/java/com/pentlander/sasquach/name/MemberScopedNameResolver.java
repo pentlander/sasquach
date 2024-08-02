@@ -1,6 +1,5 @@
 package com.pentlander.sasquach.name;
 
-import com.pentlander.sasquach.InternalCompilerException;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.InvocationKind;
@@ -47,10 +46,11 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.SequencedSet;
 
 /*
 use std/io/File,
@@ -81,15 +81,17 @@ public class MemberScopedNameResolver {
   private final Map<Identifier, FunctionCallTarget> localFunctionCalls = new HashMap<>();
   private final Map<VarReference, ReferenceDeclaration> varReferences = new HashMap<>();
   private final Map<NamedStruct, Identifier> namedStructRefs = new HashMap<>();
-  private final Deque<Map<String, LocalVariable>> localVariableStacks = new ArrayDeque<>();
   private final Deque<Loop> loopStack = new ArrayDeque<>();
   private final Map<Recur, RecurPoint> recurPoints = new HashMap<>();
   private final Map<Match, List<TypeNode>> matchTypeNodes = new HashMap<>();
+  private final Map<Function, SequencedSet<LocalVariable>> funcCaptures = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
   private final Visitor visitor = new Visitor();
   private final List<NameResolutionResult> resolutionResults = new ArrayList<>();
 
   private final List<TypeParameter> typeParameters = new ArrayList<>();
+
+  private final LocalVariableStack localVarStack;
 
   /**
    * Set if currently resolving a named function. Used to resolve recursion.
@@ -97,7 +99,12 @@ public class MemberScopedNameResolver {
   private NamedFunction namedFunction = null;
 
   public MemberScopedNameResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
+    this(moduleScopedNameResolver, null);
+  }
+
+  private MemberScopedNameResolver(ModuleScopedNameResolver moduleScopedNameResolver, LocalVariableStack parentVariableStack) {
     this.moduleScopedNameResolver = moduleScopedNameResolver;
+    this.localVarStack = new LocalVariableStack(parentVariableStack, errors::add);
   }
 
   public NameResolutionResult resolve(Expression expression) {
@@ -117,7 +124,8 @@ public class MemberScopedNameResolver {
   }
 
   private NameResolutionResult resolutionResult() {
-    return new NameResolutionResult(typeAliases,
+    return new NameResolutionResult(
+        typeAliases,
         foreignFieldAccesses,
         foreignFunctions,
         localFunctionCalls,
@@ -125,26 +133,21 @@ public class MemberScopedNameResolver {
         namedStructRefs,
         recurPoints,
         matchTypeNodes,
+        funcCaptures,
         errors.build()).merge(resolutionResults);
   }
 
   // Need to check that there isn't already a local function or module alias with this captureName
   private void addLocalVariable(LocalVariable localVariable) {
-    var map = localVariableStacks.getFirst();
-    var existingVar = map.put(localVariable.name(), localVariable);
-    if (existingVar != null) {
-      errors.add(new DuplicateNameError(localVariable.id(), existingVar.id()));
-      throw new InternalCompilerException(
-          "Found existing variable in scope named " + existingVar.name());
-    }
+    localVarStack.addLocalVariable(localVariable);
   }
 
   private void pushScope() {
-    localVariableStacks.addFirst(new LinkedHashMap<>());
+    localVarStack.pushScope();
   }
 
   private void popScope() {
-    localVariableStacks.removeFirst();
+    localVarStack.popScope();
   }
 
   private Optional<Class<?>> getForeign(Identifier id) {
@@ -236,7 +239,7 @@ public class MemberScopedNameResolver {
             func.get().function()));
       } else {
         // Resolve as function defined in local variables
-        var localVar = resolveLocalVar(localFunctionCall);
+        var localVar = localVarStack.resolveLocalVar(localFunctionCall);
         if (localVar.isPresent()) {
           localFunctionCalls.put(localFunctionCall.functionId(), localVar.get());
         } else {
@@ -285,38 +288,20 @@ public class MemberScopedNameResolver {
     }
 
     public void resolveNestedFunc(Function function) {
-      var resolver = new MemberScopedNameResolver(moduleScopedNameResolver);
+      var resolver = new MemberScopedNameResolver(moduleScopedNameResolver, localVarStack);
       resolver.typeParameters.addAll(typeParameters);
-      resolver.localVariableStacks.addAll(localVariableStacks);
 
       resolver.visitor.resolveFunc(function);
+
+      funcCaptures.put(function, resolver.localVarStack.captures());
       resolutionResults.add(resolver.resolutionResult());
     }
-
-    private Optional<LocalVariable> resolveLocalVar(VarReference varReference) {
-      return resolveLocalVar(varReference.name());
-    }
-
-    private Optional<LocalVariable> resolveLocalVar(LocalFunctionCall localFunctionCall) {
-      return resolveLocalVar(localFunctionCall.name());
-    }
-
-    private Optional<LocalVariable> resolveLocalVar(String localVarName) {
-      for (var localVars : localVariableStacks) {
-        var localVar = localVars.get(localVarName);
-        if (localVar != null) {
-          return Optional.of(localVar);
-        }
-      }
-      return Optional.empty();
-    }
-
 
     // Determine what a variable reference refers to. It could refer to a local variable, function
     // parameter, module, or variant singleton.
     public void resolve(VarReference varReference) {
       var name = varReference.name();
-      var localVariable = resolveLocalVar(varReference);
+      var localVariable = localVarStack.resolveLocalVar(varReference);
       if (localVariable.isPresent()) {
         varReferences.put(varReference, new ReferenceDeclaration.Local(localVariable.get()));
       } else {

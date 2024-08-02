@@ -9,14 +9,15 @@ import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
+import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
+import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Match;
 import com.pentlander.sasquach.ast.expression.NamedStruct;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.FunctionCallTarget;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
-import com.pentlander.sasquach.type.SumType;
 import com.pentlander.sasquach.type.Type;
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.SequencedSet;
 import java.util.stream.Collectors;
 
 public class NameResolutionResult {
@@ -33,6 +35,7 @@ public class NameResolutionResult {
       Map.of(),
       Map.of(),
       Map.of(), Map.of(), Map.of(),
+      Map.of(),
       Map.of(),
       new RangedErrorList(List.of()));
 
@@ -45,6 +48,7 @@ public class NameResolutionResult {
   private final Map<NamedStruct, Identifier> namedStructTypes;
   private final Map<Recur, RecurPoint> recurPoints;
   private final Map<Match, List<TypeNode>> matchTypeNodes;
+  private final Map<Function, SequencedSet<LocalVariable>> funcCaptures;
   private final RangedErrorList errors;
 
   public NameResolutionResult(Map<TypeNode, NamedTypeDefinition> typeAliases,
@@ -52,7 +56,7 @@ public class NameResolutionResult {
       Map<Identifier, ForeignFunctions> foreignFunctions,
       Map<Identifier, FunctionCallTarget> localFunctionCalls,
       Map<VarReference, ReferenceDeclaration> varReferences, Map<NamedStruct, Identifier> namedStructTypes,
-      Map<Recur, RecurPoint> recurPoints, Map<Match, List<TypeNode>> matchTypeNodes,
+      Map<Recur, RecurPoint> recurPoints, Map<Match, List<TypeNode>> matchTypeNodes, Map<Function, SequencedSet<LocalVariable>> funcCaptures,
       RangedErrorList errors) {
     this.typeAliases = typeAliases;
     this.typeNameAliases = typeNameAliases(typeAliases);
@@ -63,6 +67,7 @@ public class NameResolutionResult {
     this.namedStructTypes = namedStructTypes;
     this.recurPoints = recurPoints;
     this.matchTypeNodes = matchTypeNodes;
+    this.funcCaptures = funcCaptures;
     this.errors = errors;
   }
 
@@ -80,6 +85,7 @@ public class NameResolutionResult {
         localFunctionCalls,
         varReferences, namedStructTypes, recurPoints,
         matchTypeNodes,
+        funcCaptures,
         this.errors.concat(errors));
   }
 
@@ -92,6 +98,7 @@ public class NameResolutionResult {
         localFunctionCalls,
         varReferences, namedStructTypes, recurPoints,
         matchTypeNodes,
+        funcCaptures,
         errors);
   }
 
@@ -151,6 +158,7 @@ public class NameResolutionResult {
         merged(varReferences, other.varReferences),
         merged(namedStructTypes, other.namedStructTypes), merged(recurPoints, other.recurPoints),
         merged(matchTypeNodes, other.matchTypeNodes),
+        merged(funcCaptures, other.funcCaptures),
         errors.concat(other.errors));
   }
 
@@ -162,5 +170,10 @@ public class NameResolutionResult {
     var map = new HashMap<>(mapA);
     map.putAll(mapB);
     return map;
+  }
+
+  public List<LocalVariable> getFunctionCaptures(Function func) {
+    var captures = funcCaptures.get(func);
+    return captures != null ? List.copyOf(captures) : List.of();
   }
 }

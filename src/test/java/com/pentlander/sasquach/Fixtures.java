@@ -100,7 +100,7 @@ public class Fixtures {
         new TFunction(new TFunctionSignature(functionParameters,
             typeParameters,
             funcType.returnType(),
-            range()), expression));
+            range()), expression, List.of()));
   }
 
   public static NamedFunction voidFunc(String name, Expression expression) {

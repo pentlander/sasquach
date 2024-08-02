@@ -7,13 +7,12 @@ import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TFunctionSignature;
 import com.pentlander.sasquach.tast.TRecurPoint;
 import com.pentlander.sasquach.type.FunctionType;
-import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
+import java.util.stream.Stream;
 
-@RecordBuilder
 // Need to include both the signature and function type in preparation for not requiring
 // parameters types and return type for lambdas
-public record TFunction(TFunctionSignature functionSignature, TypedExpression expression) implements
+public record TFunction(TFunctionSignature functionSignature, TypedExpression expression, List<TLocalVariable> captures) implements
     TypedExpression, TRecurPoint {
   public TFunction {
     requireNonNull(functionSignature);
@@ -21,6 +20,16 @@ public record TFunction(TFunctionSignature functionSignature, TypedExpression ex
 
   public FunctionType type() {
     return functionSignature.type();
+  }
+
+  public FunctionType typeWithCaptures() {
+    var captureTypes = captures.stream().map(TLocalVariable::variableType);
+    var sigParamTypes = functionSignature.parameters().stream().map(TFunctionParameter::type);
+    var paramTypes = Stream.concat(captureTypes, sigParamTypes).toList();
+    return new FunctionType(
+        paramTypes,
+        functionSignature.typeParameters(),
+        functionSignature.returnType());
   }
 
   @Override

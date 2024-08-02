@@ -9,7 +9,9 @@ import static com.pentlander.sasquach.type.TypeUtils.classDesc;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
+import com.pentlander.sasquach.backend.TLocalVarMeta.TVarMeta;
 import com.pentlander.sasquach.runtime.Func;
+import com.pentlander.sasquach.runtime.FuncBootstrap;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.runtime.StructDispatch;
 import com.pentlander.sasquach.runtime.SwitchBootstraps;
@@ -31,6 +33,7 @@ import com.pentlander.sasquach.tast.expression.TIfExpression;
 import com.pentlander.sasquach.tast.expression.TLiteralStruct;
 import com.pentlander.sasquach.tast.expression.TLocalFunctionCall;
 import com.pentlander.sasquach.tast.expression.TLocalFunctionCall.TargetKind;
+import com.pentlander.sasquach.tast.expression.TLocalVariable;
 import com.pentlander.sasquach.tast.expression.TLoop;
 import com.pentlander.sasquach.tast.expression.TMatch;
 import com.pentlander.sasquach.tast.expression.TMemberFunctionCall;
@@ -81,6 +84,7 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 import jdk.dynalink.StandardNamespace;
 import jdk.dynalink.StandardOperation;
+import jdk.dynalink.linker.support.TypeUtilities;
 
 class ExpressionGenerator {
   private static final MethodTypeDesc DISPATCH_BOOTSTRAP_DESC = MethodType.methodType(CallSite.class,
@@ -88,7 +92,6 @@ class ExpressionGenerator {
   private static final MethodTypeDesc MATCH_BOOTSTRAP_DESC = MethodType.methodType(CallSite.class,
           List.of(Lookup.class, String.class, MethodType.class, Object[].class))
       .describeConstable().orElseThrow();
-  private static final MethodTypeDesc SPREAD_BOOTSTRAP_DESC = MATCH_BOOTSTRAP_DESC;
   private final Map<String, byte[]> generatedClasses = new HashMap<>();
   private final Deque<Label> loopLabels = new ArrayDeque<>();
   private final AnonFunctions anonFunctions;
@@ -106,6 +109,11 @@ class ExpressionGenerator {
 
   private void addContextNode(TypedNode node) {
     contextNode = node;
+  }
+
+  public ExpressionGenerator initParams() {
+    localVarMeta.varMeta().forEach(this::attachVarMeta);
+    return this;
   }
 
   public Map<String, byte[]> getGeneratedClasses() {
@@ -139,6 +147,16 @@ class ExpressionGenerator {
     return type;
   }
 
+  void attachVarMeta(TVarMeta varMeta) {
+    var localVar = varMeta.localVar();
+    cob.with(LocalVariable.of(
+        varMeta.idx(),
+        localVar.name(),
+        localVar.variableType().classDesc(),
+        cob.newBoundLabel(),
+        cob.endLabel()));
+  }
+
   void generate(TypedExpression expression) {
     addContextNode(expression);
     switch (expression) {
@@ -157,17 +175,16 @@ class ExpressionGenerator {
       case TVariableDeclaration varDecl -> {
         var varDeclExpr = varDecl.expression();
         var varMeta = localVarMeta.push(varDecl);
-        cob.with(LocalVariable.of(varMeta.idx(),
-            varDecl.name(),
-            varDecl.variableType().classDesc(), cob.newBoundLabel(),
-            cob.endLabel()));
+        attachVarMeta(varMeta);
         generate(varDeclExpr);
         generateStoreVar(cob, type(varDeclExpr), varMeta.idx());
       }
       case TVarReference varReference -> {
         switch (varReference.refDeclaration()) {
           case Local(var localVar) ->
-              generateLoadVar(cob, type(varReference), localVarMeta.get(localVar).idx());
+              // Getting an NPE here. Need to update function signature to include the parameters
+            // for the captured vars
+              generateLoadVar(localVar);
           case Module(var moduleId) ->
               cob.getstatic(moduleId.classDesc(), INSTANCE_FIELD, type(varReference).classDesc());
           case Singleton(var singletonType) -> cob.getstatic(internalClassDesc(singletonType),
@@ -230,15 +247,14 @@ class ExpressionGenerator {
                 funcType.functionTypeDesc());
           }
           case TargetKind.LocalVariable(var localVar) -> {
-            int idx = localVarMeta.get(localVar).idx();
             var type = TypeUtils.asFunctionType(type(localVar.variableType())).orElseThrow();
-            generateLoadVar(cob, type, idx);
+            generateLoadVar(localVar);
             cob.aconst_null();
             generateArgs(funcCall.arguments(), type.parameterTypes());
 
             var funcTypeDesc = funcType.functionTypeDesc().insertParameterTypes(0, classDesc(Func.class), ConstantDescs.CD_Object);
             cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
-                StructDispatch.MH_BOOTSTRAP_FIELD,
+                StructDispatch.MHD_BOOTSTRAP_FIELD,
                 StandardOperation.CALL.toString(),
                 funcTypeDesc));
           }
@@ -380,16 +396,19 @@ class ExpressionGenerator {
         cob.goto_(loopLabels.getLast());
       }
       case TFunction func -> {
-        var funcTypeDesc = func.type().functionTypeDesc();
+        var funcTypeDesc = func.typeWithCaptures().functionTypeDesc();
         var anonFuncName = anonFunctions.add(func);
-        cob.invokestatic(ConstantDescs.CD_MethodHandles,
-                "lookup",
-                MethodTypeDesc.of(ConstantDescs.CD_MethodHandles_Lookup))
-            .constantInstruction(anonFuncName)
-            .constantInstruction(funcTypeDesc)
-            .bipush(0)
-            .anewarray(ConstantDescs.CD_Object)
-            .invokestatic(classDesc(Func.class), "anon", Func.MTD_ANON, true);
+        var captures = func.captures();
+
+        cob.bipush(captures.size()).anewarray(ConstantDescs.CD_Object);
+        for (int i = 0; i < captures.size(); i++) {
+          var capture = captures.get(i);
+          cob.dup().bipush(i);
+          generateLoadVar(capture);
+          box(capture.variableType());
+          cob.aastore();
+        }
+        cob.invokeDynamicInstruction(FuncBootstrap.bootstrapFuncInit(anonFuncName, funcTypeDesc));
       }
       case TApplyOperator applyOperator -> generate(applyOperator.functionCall());
       case TMatch match -> {
@@ -405,16 +424,7 @@ class ExpressionGenerator {
             .map(branch -> branch.pattern().type())
             .map(GeneratorUtil::internalClassDesc)
             .toArray(ConstantDesc[]::new);
-        var bootstrapDesc = MethodHandleDesc.ofMethod(
-            Kind.STATIC,
-            classDesc(SwitchBootstraps.class),
-            "bootstrapSwitch",
-            MATCH_BOOTSTRAP_DESC);
-        var callSiteDesc = DynamicCallSiteDesc.of(
-                bootstrapDesc,
-                "match",
-                SwitchBootstraps.DO_TYPE_SWITCH_TYPE.describeConstable().orElseThrow())
-            .withArgs(branchTypes);
+        var callSiteDesc = SwitchBootstraps.DCSD_SWITCH.withArgs(branchTypes);
         cob.invokeDynamicInstruction(callSiteDesc);
 
         var switchCases = new ArrayList<SwitchCase>(branches.size());
@@ -495,7 +505,7 @@ class ExpressionGenerator {
         .toString();
     var typeDesc = MethodTypeDesc.of(fieldType.classDesc(), CD_STRUCT_BASE);
 
-    cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(StructDispatch.MH_BOOTSTRAP_FIELD, operation, typeDesc));
+    cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(StructDispatch.MHD_BOOTSTRAP_FIELD, operation, typeDesc));
   }
 
   private void generateArgs(List<TypedExpression> arguments, List<Type> paramTypes) {
@@ -507,16 +517,11 @@ class ExpressionGenerator {
   }
 
   void generateMemberCall(FunctionType funcType, String funcCallName) {
-    var bootstrapDesc = MethodHandleDesc.ofMethod(
-        Kind.STATIC,
-        classDesc(StructDispatch.class),
-        "bootstrapMethod",
-        DISPATCH_BOOTSTRAP_DESC);
     var methodTypeDesc = funcType.functionTypeDesc()
         .insertParameterTypes(0, classDesc(StructBase.class));
 
     cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
-        bootstrapDesc,
+        StructDispatch.MHD_BOOTSTRAP_METHOD,
         funcCallName,
         methodTypeDesc));
   }
@@ -550,15 +555,10 @@ class ExpressionGenerator {
         }
       });
 
-      var bootstrapDesc = MethodHandleDesc.ofMethod(
-          Kind.STATIC,
-          classDesc(StructDispatch.class),
-          "bootstrapSpread",
-          SPREAD_BOOTSTRAP_DESC);
       var paramClassDescs = Stream.concat(fields.stream().map(field -> field.type().classDesc()),
           literalStruct.spreads().stream().map(spread -> spread.type().classDesc())).toList();
       var typeDesc = MethodTypeDesc.of(structType.classDesc(), paramClassDescs);
-      var callSiteDesc = DynamicCallSiteDesc.of(bootstrapDesc, "spread", typeDesc)
+      var callSiteDesc = DynamicCallSiteDesc.of(StructDispatch.MHD_BOOTSTRAP_SPREAD, typeDesc)
           .withArgs(fieldNames);
       cob.invokeDynamicInstruction(callSiteDesc);
       return;
@@ -575,6 +575,11 @@ class ExpressionGenerator {
       default -> ClassGenerator.fieldParamDescs(struct.fields());
     };
     generate(MethodHandleDesc.ofConstructor(structClassDesc, paramDescs));
+  }
+
+  void generateLoadVar(TLocalVariable localVar) {
+    var varMeta = localVarMeta.get(localVar);
+    generateLoadVar(cob, varMeta.localVar().variableType(), varMeta.idx());
   }
 
   static void generateLoadVar(CodeBuilder cob, Type type, int idx) {
@@ -611,18 +616,28 @@ class ExpressionGenerator {
     }
   }
 
+  private void box(Type type) {
+    if (type instanceof BuiltinType builtinType) {
+      switch (builtinType) {
+        case BOOLEAN, INT, CHAR, BYTE, SHORT, LONG, FLOAT, DOUBLE -> {
+          var wrapperTypeDesc = classDesc(TypeUtilities.getWrapperType(builtinType.typeClass()));
+          var methodTypeDesc = MethodTypeDesc.of(wrapperTypeDesc, builtinType.classDesc());
+          cob.invokestatic(wrapperTypeDesc, "valueOf",  methodTypeDesc);
+        }
+        default -> {}
+      }
+    }
+  }
+
   /**
    * Convert a primitive type into its boxed type.
    * <p>This method should be used when providing a primitive to a function call with type
    * parameters, as the parameter type is {@link Object}.</p>
    */
   private void tryBox(Type actualType, Type expectedType) {
-    if (actualType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT
-        && (expectedType instanceof UniversalType)) {
-      cob.invokestatic(
-          ConstantDescs.CD_Integer,
-          "valueOf",
-          MethodTypeDesc.of(ConstantDescs.CD_Integer, ConstantDescs.CD_int));
+    var expectedTypeKind = TypeKind.from(expectedType.classDesc());
+    if (expectedTypeKind.equals(TypeKind.ReferenceType)) {
+      box(actualType);
     }
   }
 

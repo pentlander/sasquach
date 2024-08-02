@@ -3,6 +3,7 @@ package com.pentlander.sasquach.type;
 import static java.util.Objects.requireNonNullElse;
 import static java.util.stream.Collectors.joining;
 
+import com.pentlander.sasquach.runtime.Func;
 import com.pentlander.sasquach.runtime.StructBase;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.DirectMethodHandleDesc.Kind;
@@ -31,7 +32,7 @@ public record FunctionType(List<Type> parameterTypes, List<TypeParameter> typePa
 
   @Override
   public ClassDesc classDesc() {
-    return StructBase.class.describeConstable().orElseThrow();
+    return Func.class.describeConstable().orElseThrow();
   }
 
   public MethodTypeDesc functionTypeDesc() {
