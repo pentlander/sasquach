@@ -50,8 +50,10 @@ class MemberScopedNameResolverTest {
         .functionSignature(new FunctionSignature(List.of(), typeNode(BuiltinType.VOID), range()))
         .expression(new Block(List.of(varDeclA, varDeclB, varDeclC), range()))
         .build();
+    var namedFunc = new NamedFunction(id("func"), function);
+
     var memberResolver = new MemberScopedNameResolver(modResolver);
-    var result = memberResolver.resolve(function);
+    var result = memberResolver.resolve(namedFunc);
     var localRef = (ReferenceDeclaration.Local) result.getVarReference(varReference);
 
     assertThat(localRef.localVariable()).isEqualTo(varDeclA);
@@ -71,8 +73,9 @@ class MemberScopedNameResolverTest {
         .functionSignature(new FunctionSignature(List.of(), typeNode(BuiltinType.VOID), range()))
         .expression(new Block(List.of(varDeclA), range()))
         .build();
+    var namedFunc = new NamedFunction(id("func"), function);
     var memberResolver = new MemberScopedNameResolver(modResolver);
-    var result = memberResolver.resolve(function);
+    var result = memberResolver.resolve(namedFunc);
     var localRef = (ReferenceDeclaration.Module) result.getVarReference(varReference);
 
     assertThat(localRef.moduleDeclaration()).isEqualTo(module);

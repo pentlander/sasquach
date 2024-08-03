@@ -1,15 +1,12 @@
 package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.RangedErrorList;
-import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
-import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.Use;
-import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
@@ -61,10 +58,6 @@ public class ModuleScopedNameResolver {
     return Objects.requireNonNull(functionResults.get(function));
   }
 
-  public void resolve(TypeNode typeNode) {
-    throw new IllegalStateException();
-  }
-
   public void resolve(TypeAlias typeAlias) {
     var prevAlias = typeAliasNames.put(typeAlias.id().name(), typeAlias);
     if (prevAlias != null) {
@@ -96,7 +89,7 @@ public class ModuleScopedNameResolver {
 
   private void checkAliases(Collection<TypeAlias> typeAliases) {
     for (var typeAlias : typeAliases) {
-      var resolver = new TypeNameResolver(ModuleScopedNameResolver.this);
+      var resolver = new TypeNameResolver(this);
       var result = resolver.resolveTypeNode(typeAlias);
       namedTypes.putAll(result.namedTypes());
       variantTypes.putAll(result.variantTypes());
@@ -125,41 +118,18 @@ public class ModuleScopedNameResolver {
       }
 
       for (var field : struct.fields()) {
-        var resolver = new MemberScopedNameResolver(ModuleScopedNameResolver.this);
+        var resolver = new MemberScopedNameResolver(this);
         var result = resolver.resolve(field);
         nameResolutionResult = nameResolutionResult.merge(result);
         fieldResults.put(field, result);
       }
       for (var function : struct.functions()) {
-        var resolver = new MemberScopedNameResolver(ModuleScopedNameResolver.this);
+        var resolver = new MemberScopedNameResolver(this);
         var result = resolver.resolve(function);
         nameResolutionResult = nameResolutionResult.merge(result);
         functionResults.put(function.function(), result);
       }
     }
-  }
-
-  public void resolve(Node node) {
-    switch (node) {
-      case FunctionParameter funcParam -> resolve(funcParam);
-      case FunctionSignature funcSig -> resolve(funcSig);
-      case ModuleDeclaration modDecl -> resolve(modDecl);
-      case TypeAlias typeAlias -> resolve(typeAlias);
-      case TypeNode typeNode -> resolve(typeNode);
-      case Use use -> resolve(use);
-      case Expression expression -> resolve(expression);
-      case null, default -> throw new IllegalStateException();
-    }
-  }
-
-  public void resolve(FunctionParameter functionParameter) {
-    resolve(functionParameter.typeNode());
-  }
-
-  public void resolve(FunctionSignature functionSignature) {
-    functionSignature.typeParameters().forEach(this::resolve);
-    functionSignature.parameters().forEach(this::resolve);
-    resolve(functionSignature.returnTypeNode());
   }
 
   public void resolve(ModuleDeclaration moduleDeclaration) {
