@@ -4,7 +4,7 @@ import static java.util.stream.Collectors.toMap;
 
 import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.FunctionSignature;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.InvocationKind;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
@@ -53,8 +53,8 @@ public class Fixtures {
     return new Range.Single(SOURCE_PATH, new Position(RANGE_COUNTER.getAndIncrement(), 1), 1);
   }
 
-  public static Identifier id(String name) {
-    return new Identifier(name, range());
+  public static Id id(String name) {
+    return new Id(name, range());
   }
 
   public static QualifiedModuleId qualId(String name) {

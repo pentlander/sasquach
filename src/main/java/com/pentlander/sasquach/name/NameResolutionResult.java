@@ -3,7 +3,7 @@ package com.pentlander.sasquach.name;
 import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.RangedErrorList;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -42,10 +42,10 @@ public class NameResolutionResult {
   private final Map<TypeNode, NamedTypeDefinition> typeAliases;
   private final Map<Type, NamedTypeDefinition> typeNameAliases;
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses;
-  private final Map<Identifier, ForeignFunctions> foreignFunctions;
-  private final Map<Identifier, FunctionCallTarget> localFunctionCalls;
+  private final Map<Id, ForeignFunctions> foreignFunctions;
+  private final Map<Id, FunctionCallTarget> localFunctionCalls;
   private final Map<VarReference, ReferenceDeclaration> varReferences;
-  private final Map<NamedStruct, Identifier> namedStructTypes;
+  private final Map<NamedStruct, Id> namedStructTypes;
   private final Map<Recur, RecurPoint> recurPoints;
   private final Map<Match, List<TypeNode>> matchTypeNodes;
   private final Map<Function, SequencedSet<LocalVariable>> funcCaptures;
@@ -53,9 +53,9 @@ public class NameResolutionResult {
 
   public NameResolutionResult(Map<TypeNode, NamedTypeDefinition> typeAliases,
       Map<ForeignFieldAccess, Field> foreignFieldAccesses,
-      Map<Identifier, ForeignFunctions> foreignFunctions,
-      Map<Identifier, FunctionCallTarget> localFunctionCalls,
-      Map<VarReference, ReferenceDeclaration> varReferences, Map<NamedStruct, Identifier> namedStructTypes,
+      Map<Id, ForeignFunctions> foreignFunctions,
+      Map<Id, FunctionCallTarget> localFunctionCalls,
+      Map<VarReference, ReferenceDeclaration> varReferences, Map<NamedStruct, Id> namedStructTypes,
       Map<Recur, RecurPoint> recurPoints, Map<Match, List<TypeNode>> matchTypeNodes, Map<Function, SequencedSet<LocalVariable>> funcCaptures,
       RangedErrorList errors) {
     this.typeAliases = typeAliases;
@@ -114,7 +114,7 @@ public class NameResolutionResult {
     return Optional.ofNullable(typeNameAliases.get(type));
   }
 
-  public Identifier getNamedStructType(NamedStruct namedStruct) {
+  public Id getNamedStructType(NamedStruct namedStruct) {
     return requireNonNull(namedStructTypes.get(namedStruct));
   }
 

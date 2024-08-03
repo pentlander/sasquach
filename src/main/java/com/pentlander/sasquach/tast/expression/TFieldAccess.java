@@ -1,10 +1,10 @@
 package com.pentlander.sasquach.tast.expression;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.type.Type;
 
-public record TFieldAccess(TypedExpression expr, Identifier id, Type type) implements TypedExpression {
+public record TFieldAccess(TypedExpression expr, Id id, Type type) implements TypedExpression {
 
   public String fieldName() {
     return id.name();

@@ -4,7 +4,7 @@ import static com.pentlander.sasquach.type.MemberScopedTypeResolver.typeParams;
 
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.FunctionSignature;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.SumTypeNode;
@@ -45,9 +45,9 @@ public class ModuleScopedTypeResolver {
 
   private final List<NamedFunction> nameResolvedFunctions = new ArrayList<>();
   private final TModuleStructBuilder typedStructBuilder = TModuleStructBuilder.builder();
-  private final Map<Identifier, FunctionType> variantConstructorTypes = new HashMap<>();
+  private final Map<Id, FunctionType> variantConstructorTypes = new HashMap<>();
 
-  private final Map<Identifier, Type> idTypes = new HashMap<>();
+  private final Map<Id, Type> idTypes = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
 
@@ -188,7 +188,7 @@ public class ModuleScopedTypeResolver {
       };
     }
 
-    public SumType getSumType(Identifier id) {
+    public SumType getSumType(Id id) {
       return (SumType) Objects.requireNonNull(idTypes.get(id));
     }
 

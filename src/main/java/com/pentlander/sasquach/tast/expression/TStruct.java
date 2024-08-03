@@ -1,7 +1,7 @@
 package com.pentlander.sasquach.tast.expression;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.tast.TypedMember;
 import com.pentlander.sasquach.tast.TypedNode;
@@ -21,7 +21,7 @@ public sealed interface TStruct extends TypedExpression permits TLiteralStruct, 
     return structType();
   }
 
-  record TField(Identifier id, TypedExpression expr) implements TypedNode, TypedMember {
+  record TField(Id id, TypedExpression expr) implements TypedNode, TypedMember {
     public String name() {
       return id.name();
     }

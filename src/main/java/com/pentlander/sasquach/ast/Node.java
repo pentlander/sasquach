@@ -9,7 +9,7 @@ import com.pentlander.sasquach.ast.expression.Struct.Field;
 /**
  * A node in the abstract syntax tree.
  */
-public sealed interface Node permits Branch, FunctionSignature, Identifier, ModuleDeclaration,
+public sealed interface Node permits Branch, FunctionSignature, Id, ModuleDeclaration,
     Pattern, QualifiedModuleId, TypeNode, Use, Expression, LocalVariable, NamedFunction, Field {
   /**
    * Range in the source code that this node can be found.

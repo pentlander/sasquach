@@ -65,9 +65,9 @@ import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.Branch;
 import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.FunctionSignature;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
-import com.pentlander.sasquach.ast.ModuleScopedIdentifier;
+import com.pentlander.sasquach.ast.ModuleScopedId;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.PatternVariable;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
@@ -499,7 +499,7 @@ public class Visitor {
     @Override
     public TypeNode visitModuleNamedType(ModuleNamedTypeContext ctx) {
       return new BasicTypeNode<>(new ModuleNamedType(
-          new ModuleScopedIdentifier(id(ctx.moduleName().ID()), id(ctx.typeIdentifier().ID())),
+          new ModuleScopedId(id(ctx.moduleName().ID()), id(ctx.typeIdentifier().ID())),
           typeArguments(ctx.typeArgumentList())), rangeFrom(ctx));
     }
 
@@ -608,8 +608,8 @@ public class Visitor {
     }
   }
 
-  private Identifier id(TerminalNode node) {
-    return new Identifier(node.getText(), rangeFrom(node));
+  private Id id(TerminalNode node) {
+    return new Id(node.getText(), rangeFrom(node));
   }
 
   private List<TypeParameter> typeParams(TypeParameterListContext ctx) {
@@ -632,7 +632,7 @@ public class Visitor {
     return params;
   }
 
-  private TypeNode sumTypeNode(SumTypeContext ctx, String moduleName, Identifier aliasId,
+  private TypeNode sumTypeNode(SumTypeContext ctx, String moduleName, Id aliasId,
       List<TypeParameter> typeParameters) {
     var numVariants = ctx.typeIdentifier().size();
     var variantNodes = new ArrayList<VariantTypeNode>();
@@ -647,8 +647,8 @@ public class Visitor {
     return new SumTypeNode(qualModuleName, aliasId, typeParameters, variantNodes, rangeFrom(ctx));
   }
 
-  private VariantTypeNode variantTypeNode(QualifiedModuleName moduleName, Identifier aliasId,
-      Identifier id, VariantTypeContext ctx) {
+  private VariantTypeNode variantTypeNode(QualifiedModuleName moduleName, Id aliasId,
+      Id id, VariantTypeContext ctx) {
     return switch (ctx) {
       case SingletonTypeContext ignored -> new VariantTypeNode.Singleton(moduleName, aliasId, id);
       case SingleTupleTypeContext tupCtx -> {

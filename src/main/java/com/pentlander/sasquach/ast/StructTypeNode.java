@@ -45,7 +45,7 @@ public record StructTypeNode(@Nullable String name, Map<String, TypeNode> fieldT
       }
     }
 
-    static NamedRow namedRow(Identifier id, Range range) {
+    static NamedRow namedRow(Id id, Range range) {
       return new NamedRow(new BasicTypeNode<>(new LocalNamedType(id), range));
     }
 

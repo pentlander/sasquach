@@ -8,7 +8,7 @@ import java.lang.constant.ClassDesc;
  *
  */
 public record QualifiedModuleId(QualifiedModuleName moduleName, Range.Single range) implements Node,
-    Id {
+    Identifier {
   public QualifiedModuleId(String packageName, String moduleName, Range.Single range) {
     this(new QualifiedModuleName(packageName, moduleName), range);
   }

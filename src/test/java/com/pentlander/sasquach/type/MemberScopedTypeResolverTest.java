@@ -16,11 +16,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.FunctionSignature;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
-import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
@@ -236,7 +234,7 @@ class MemberScopedTypeResolverTest {
 
   @Nested
   class FunctionCallTest {
-    private final Identifier funcId = id("foo");
+    private final Id funcId = id("foo");
     private NamedFunction func;
 
     @BeforeEach
@@ -267,7 +265,7 @@ class MemberScopedTypeResolverTest {
 //
     @Nested
     class Local {
-      final Identifier funcId = id("foo");
+      final Id funcId = id("foo");
 
       @BeforeEach
       void setUp() {

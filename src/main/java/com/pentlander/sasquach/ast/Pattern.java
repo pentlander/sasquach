@@ -4,16 +4,16 @@ import com.pentlander.sasquach.Range;
 import java.util.List;
 
 public sealed interface Pattern extends Node {
-  Id id();
+  Identifier id();
 
-  record Singleton(Id id) implements Pattern {
+  record Singleton(Identifier id) implements Pattern {
     @Override
     public Range range() {
       return id.range();
     }
   }
 
-  record VariantTuple(Id id, List<PatternVariable> bindings, Range range) implements Pattern {}
+  record VariantTuple(Identifier id, List<PatternVariable> bindings, Range range) implements Pattern {}
 
-  record VariantStruct(Id id, List<PatternVariable> bindings, Range range) implements Pattern {}
+  record VariantStruct(Identifier id, List<PatternVariable> bindings, Range range) implements Pattern {}
 }

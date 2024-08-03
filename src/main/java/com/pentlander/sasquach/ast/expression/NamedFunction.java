@@ -2,12 +2,12 @@ package com.pentlander.sasquach.ast.expression;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.FunctionSignature;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.type.Type;
 import java.util.List;
 
-public record NamedFunction(Identifier id, Function function) implements Node {
+public record NamedFunction(Id id, Function function) implements Node {
   public String name() {
     return id().name();
   }

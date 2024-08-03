@@ -1,9 +1,9 @@
 package com.pentlander.sasquach.ast.expression;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 
-public record VariableDeclaration(Identifier id, Expression expression, Range range) implements Expression, LocalVariable {
+public record VariableDeclaration(Id id, Expression expression, Range range) implements Expression, LocalVariable {
   public String name() {
     return id.name();
   }

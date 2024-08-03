@@ -2,7 +2,7 @@ package com.pentlander.sasquach.ast.expression;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.Range.Single;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.Use;
@@ -39,7 +39,7 @@ public sealed interface Struct extends Expression permits LiteralStruct,
     var fields = new ArrayList<Field>();
     for (int i = 0; i < expressions.size(); i++) {
       var expr = expressions.get(i);
-      fields.add(new Field(new Identifier("_" + i, (Single) expr.range()), expr));
+      fields.add(new Field(new Id("_" + i, (Single) expr.range()), expr));
     }
     return fields;
   }
@@ -71,7 +71,7 @@ public sealed interface Struct extends Expression permits LiteralStruct,
     LITERAL, MODULE, NAMED,
   }
 
-  record Field(Identifier id, Expression value) implements Node {
+  record Field(Id id, Expression value) implements Node {
     public String name() {
       return id.name();
     }

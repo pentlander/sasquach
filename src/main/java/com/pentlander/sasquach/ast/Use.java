@@ -22,15 +22,15 @@ public sealed interface Use extends Node {
   /**
    * Alias for the qualified module or class.
    */
-  Identifier alias();
+  Id alias();
 
   /**
    * Import for a module.
    */
-  record Module(QualifiedModuleId id, Identifier alias, Range range) implements Use {}
+  record Module(QualifiedModuleId id, Id alias, Range range) implements Use {}
 
   /**
    * Import for a foreign class.
    */
-  record Foreign(QualifiedModuleId id, Identifier alias, Range range) implements Use {}
+  record Foreign(QualifiedModuleId id, Id alias, Range range) implements Use {}
 }

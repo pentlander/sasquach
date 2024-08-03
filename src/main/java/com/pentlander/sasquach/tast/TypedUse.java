@@ -1,21 +1,21 @@
 package com.pentlander.sasquach.tast;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.type.Type;
 
 public sealed interface TypedUse extends TypedNode {
   QualifiedModuleId id();
 
-  Identifier alias();
+  Id alias();
 
   Type type();
 
-  record Module(QualifiedModuleId id, Identifier alias, Type type, Range range) implements
+  record Module(QualifiedModuleId id, Id alias, Type type, Range range) implements
       TypedUse {}
 
-  record Foreign(QualifiedModuleId id, Identifier alias, Type type, Range range) implements
+  record Foreign(QualifiedModuleId id, Id alias, Type type, Range range) implements
       TypedUse {}
 
 }

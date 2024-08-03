@@ -9,7 +9,7 @@ import com.pentlander.sasquach.type.VariantType;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public record SumTypeNode(QualifiedModuleName moduleName, Identifier id,
+public record SumTypeNode(QualifiedModuleName moduleName, Id id,
                           List<TypeParameter> typeParameters,
                           List<VariantTypeNode> variantTypeNodes, Range range) implements TypeNode {
   public SumTypeNode {
@@ -42,13 +42,13 @@ public record SumTypeNode(QualifiedModuleName moduleName, Identifier id,
   public sealed interface VariantTypeNode extends TypeNode {
     QualifiedModuleName moduleName();
 
-    Identifier aliasId();
+    Id aliasId();
 
-    Identifier id();
+    Id id();
 
     VariantType type();
 
-    record Singleton(QualifiedModuleName moduleName, Identifier aliasId, Identifier id) implements
+    record Singleton(QualifiedModuleName moduleName, Id aliasId, Id id) implements
         VariantTypeNode {
       @Override
       public Range range() {
@@ -61,7 +61,7 @@ public record SumTypeNode(QualifiedModuleName moduleName, Identifier id,
       }
     }
 
-    record Tuple(QualifiedModuleName moduleName, Identifier aliasId, Identifier id,
+    record Tuple(QualifiedModuleName moduleName, Id aliasId, Id id,
                  TupleTypeNode typeNode) implements VariantTypeNode {
       @Override
       public Range range() {
@@ -74,7 +74,7 @@ public record SumTypeNode(QualifiedModuleName moduleName, Identifier id,
       }
     }
 
-    record Struct(QualifiedModuleName moduleName, Identifier aliasId, Identifier id,
+    record Struct(QualifiedModuleName moduleName, Id aliasId, Id id,
                   StructTypeNode typeNode) implements VariantTypeNode {
       @Override
       public Range range() {

@@ -1,7 +1,7 @@
 package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.RangedErrorList;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.InvocationKind;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
@@ -77,10 +77,10 @@ public class MemberScopedNameResolver {
    */
   private final Map<TypeNode, NamedTypeDefinition> typeAliases = new HashMap<>();
   private final Map<ForeignFieldAccess, Field> foreignFieldAccesses = new HashMap<>();
-  private final Map<Identifier, ForeignFunctions> foreignFunctions = new HashMap<>();
-  private final Map<Identifier, FunctionCallTarget> localFunctionCalls = new HashMap<>();
+  private final Map<Id, ForeignFunctions> foreignFunctions = new HashMap<>();
+  private final Map<Id, FunctionCallTarget> localFunctionCalls = new HashMap<>();
   private final Map<VarReference, ReferenceDeclaration> varReferences = new HashMap<>();
-  private final Map<NamedStruct, Identifier> namedStructRefs = new HashMap<>();
+  private final Map<NamedStruct, Id> namedStructRefs = new HashMap<>();
   private final Deque<Loop> loopStack = new ArrayDeque<>();
   private final Map<Recur, RecurPoint> recurPoints = new HashMap<>();
   private final Map<Match, List<TypeNode>> matchTypeNodes = new HashMap<>();
@@ -150,7 +150,7 @@ public class MemberScopedNameResolver {
     localVarStack.popScope();
   }
 
-  private Optional<Class<?>> getForeign(Identifier id) {
+  private Optional<Class<?>> getForeign(Id id) {
     return moduleScopedNameResolver.resolveForeignClass(id.name());
   }
 
@@ -460,8 +460,8 @@ public class MemberScopedNameResolver {
   /**
    * A named tuple variant may be invoked like a function, e.g. Foo("bar").
    **/
-  public record VariantStructConstructor(Identifier id, Struct struct) implements FunctionCallTarget {}
+  public record VariantStructConstructor(Id id, Struct struct) implements FunctionCallTarget {}
 
-  public record QualifiedFunction(QualifiedModuleId ownerId, Identifier id,
+  public record QualifiedFunction(QualifiedModuleId ownerId, Id id,
                                   Function function) implements FunctionCallTarget {}
 }

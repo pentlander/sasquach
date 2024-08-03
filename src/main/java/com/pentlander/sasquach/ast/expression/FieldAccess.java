@@ -1,11 +1,11 @@
 package com.pentlander.sasquach.ast.expression;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 
-public record FieldAccess(Expression expr, Identifier id) implements Expression {
+public record FieldAccess(Expression expr, Id id) implements Expression {
   public static FieldAccess of(Expression expr, String fieldName, Range.Single range) {
-    return new FieldAccess(expr, new Identifier(fieldName, range));
+    return new FieldAccess(expr, new Id(fieldName, range));
   }
 
   public String fieldName() {

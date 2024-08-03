@@ -3,11 +3,11 @@ package com.pentlander.sasquach.name;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.Source;
-import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.Identifier;
 import java.util.List;
 
-record NameNotFoundError(Id id, String nodeType, List<String> suggestions) implements RangedError {
-  public NameNotFoundError(Id id, String nodeType) {
+record NameNotFoundError(Identifier id, String nodeType, List<String> suggestions) implements RangedError {
+  public NameNotFoundError(Identifier id, String nodeType) {
     this(id, nodeType, List.of());
   }
 

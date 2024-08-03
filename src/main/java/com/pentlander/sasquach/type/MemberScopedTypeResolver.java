@@ -11,7 +11,7 @@ import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.RangedErrorList.Builder;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.Branch;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.Pattern.VariantStruct;
@@ -116,7 +116,7 @@ import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
 public class MemberScopedTypeResolver {
-  private final Map<Identifier, TLocalVariable> localVariables = new HashMap<>();
+  private final Map<Id, TLocalVariable> localVariables = new HashMap<>();
   private final Map<Expression, TypedExpression> typedExprs = new HashMap<>();
   private final TypeUnifier typeUnifier = new TypeUnifier();
   private final Builder errors = RangedErrorList.builder();

@@ -2,7 +2,7 @@ package com.pentlander.sasquach.backend;
 
 import static java.util.Objects.requireNonNull;
 
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.tast.expression.TLocalVariable;
 import java.util.ArrayDeque;
 import java.util.Collection;
@@ -13,7 +13,7 @@ import java.util.Map;
 
 class TLocalVarMeta {
   private final Deque<TVarMeta> varMetas = new ArrayDeque<>();
-  private final Map<Identifier, TVarMeta> varToMeta = new HashMap<>();
+  private final Map<Id, TVarMeta> varToMeta = new HashMap<>();
   private int count = 0;
 
   public static TLocalVarMeta of(List<? extends TLocalVariable> localVars) {

@@ -1,6 +1,6 @@
 package com.pentlander.sasquach.ast;
 
-public record QualifiedModuleName(String packageName, String moduleName) {
+public record QualifiedModuleName(String packageName, String moduleName) implements Name {
   public static QualifiedModuleName fromString(String qualifiedModuleName) {
     var lastSlash = qualifiedModuleName.lastIndexOf("/");
     if (lastSlash == -1 || lastSlash == qualifiedModuleName.length() - 1) {
