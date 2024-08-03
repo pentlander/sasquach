@@ -259,7 +259,7 @@ class ExpressionGenerator {
           }
           case TargetKind.VariantStructConstructor(var struct) -> {
             var namedStruct = (TStructWithName) struct;
-            var structDesc = ClassDesc.ofInternalName(namedStruct.name());
+            var structDesc = ClassDesc.ofInternalName(namedStruct.name().toString());
             generateNewDup(structDesc);
             generateArgs(funcCall.arguments(), funcType.parameterTypes());
             var methodDesc = MethodHandleDesc.ofMethod(

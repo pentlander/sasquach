@@ -184,7 +184,7 @@ public class NamedTypeResolver {
   private Type resolveParameterizedType(ParameterizedType parameterizedType,
       Map<String, Type> typeArgs, Range range) {
     return switch (parameterizedType) {
-      case StructType structType -> new StructType(structType.typeName(),
+      case StructType structType -> new StructType(structType.structName(),
           structType.fieldTypes()
               .entrySet()
               .stream()

@@ -5,6 +5,8 @@ import static java.util.Objects.requireNonNullElse;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Node;
+import com.pentlander.sasquach.ast.QualifiedModuleName;
+import com.pentlander.sasquach.ast.StructName;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.Use;
 import io.soabase.recordbuilder.core.RecordBuilder;
@@ -12,7 +14,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @RecordBuilder
-public record ModuleStruct(String name, List<Use> useList, List<TypeAlias> typeAliases, List<Field> fields, List<NamedFunction> functions,
+public record ModuleStruct(QualifiedModuleName name, List<Use> useList, List<TypeAlias> typeAliases, List<Field> fields, List<NamedFunction> functions,
                            Range range) implements StructWithName {
 
   public ModuleStruct {

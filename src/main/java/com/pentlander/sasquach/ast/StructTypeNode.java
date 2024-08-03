@@ -14,7 +14,7 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /** Type node for a struct that contains type nodes for all of its fields. */
-public record StructTypeNode(@Nullable String name, Map<String, TypeNode> fieldTypeNodes, RowModifier rowModifier,
+public record StructTypeNode(@Nullable UnqualifiedStructName name, Map<String, TypeNode> fieldTypeNodes, RowModifier rowModifier,
                              Range range) implements TypeNode {
 
   public StructTypeNode(Map<String, TypeNode> fieldTypeNodes, RowModifier rowModifier, Range range) {
@@ -35,7 +35,7 @@ public record StructTypeNode(@Nullable String name, Map<String, TypeNode> fieldT
 
   @Override
   public String typeName() {
-    return Objects.requireNonNullElse(name, type().typeName());
+    return Objects.requireNonNullElse(name, type().structName()).toString();
   }
 
   public sealed interface RowModifier {

@@ -34,7 +34,7 @@ public class TypeUnifier {
             rowStruct.ifPresent(value -> value.fieldTypes()
                 .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType))));
           }
-          yield new StructType(structType.typeName(), fieldTypes, rowModifier);
+          yield new StructType(structType.structName(), fieldTypes, rowModifier);
         }
         case ResolvedModuleNamedType namedType ->
             new ResolvedModuleNamedType(namedType.moduleName(),

@@ -28,9 +28,10 @@ class ModuleScopedNameResolverTest {
 
   @Test
   void resolveForeignClass() {
+    var id = qualId("Main");
     var modDecl = new ModuleDeclaration(
-        qualId("Main"),
-        Struct.moduleStructBuilder("Main")
+        id,
+        Struct.moduleStructBuilder(id.moduleName())
             .useList(List.of(new Use.Foreign(QualifiedModuleId.fromString(
                 "java/lang/System",
                 range()), id("System"), range())))
@@ -45,9 +46,10 @@ class ModuleScopedNameResolverTest {
 
   @Test
   void resolveFields() {
+    var id = qualId("Main");
     var field = new LiteralStruct.Field(id("foo"), stringValue("bar"));
-    var modDecl = new ModuleDeclaration(qualId("Main"),
-        Struct.moduleStructBuilder("Main").fields(List.of(field)).range(range()).build(),
+    var modDecl = new ModuleDeclaration(id,
+        Struct.moduleStructBuilder(id.moduleName()).fields(List.of(field)).range(range()).build(),
         range());
     resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
     resolver.resolve();
@@ -59,9 +61,14 @@ class ModuleScopedNameResolverTest {
 
   @Test
   void resolveFunctions() {
+    var id = qualId("Main");
     var function = voidFunc("foo", stringValue("bar"));
-    var modDecl = new ModuleDeclaration(qualId("Main"),
-        Struct.moduleStructBuilder("Main").functions(List.of(function)).range(range()).build(),
+    var modDecl = new ModuleDeclaration(
+        id,
+        Struct.moduleStructBuilder(id.moduleName())
+            .functions(List.of(function))
+            .range(range())
+            .build(),
         range());
     resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
     resolver.resolve();

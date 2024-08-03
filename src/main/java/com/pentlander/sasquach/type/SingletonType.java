@@ -17,6 +17,6 @@ public record SingletonType(QualifiedModuleName moduleName, String name) impleme
 
   @Override
   public String internalName() {
-    return moduleName.qualifyInner(name);
+    return moduleName.qualifyInner(name).toString();
   }
 }

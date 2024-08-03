@@ -1,6 +1,6 @@
 package com.pentlander.sasquach.ast;
 
-public record QualifiedModuleName(String packageName, String moduleName) implements Name {
+public record QualifiedModuleName(String packageName, String moduleName) implements StructName, QualifiedName {
   public static QualifiedModuleName fromString(String qualifiedModuleName) {
     var lastSlash = qualifiedModuleName.lastIndexOf("/");
     if (lastSlash == -1 || lastSlash == qualifiedModuleName.length() - 1) {
@@ -11,8 +11,12 @@ public record QualifiedModuleName(String packageName, String moduleName) impleme
         qualifiedModuleName.substring(lastSlash + 1));
   }
 
-  public String qualifyInner(String name) {
-    return this + "$" + name;
+  public QualifiedStructName qualifyInner(String name) {
+    return qualifyInner(new UnqualifiedStructName(name));
+  }
+
+  public QualifiedStructName qualifyInner(UnqualifiedStructName name) {
+    return new QualifiedStructName(this, name);
   }
 
   public String javaName() {
@@ -22,5 +26,10 @@ public record QualifiedModuleName(String packageName, String moduleName) impleme
   @Override
   public String toString() {
     return packageName + "/" + moduleName;
+  }
+
+  @Override
+  public QualifiedModuleName qualifiedModuleName() {
+    return this;
   }
 }

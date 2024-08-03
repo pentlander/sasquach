@@ -9,7 +9,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 
-public record TupleTypeNode(@Nullable String name, List<TypeNode> fields, Range range) implements TypeNode {
+public record TupleTypeNode(@Nullable UnqualifiedStructName name, List<TypeNode> fields, Range range) implements TypeNode {
 
   public TupleTypeNode(List<TypeNode> fields, Range range) {
     this(null, fields, range);
@@ -23,12 +23,12 @@ public record TupleTypeNode(@Nullable String name, List<TypeNode> fields, Range 
       var typeNode = typeNodes.get(i);
       fieldTypes.put("_" + i, typeNode.type());
     }
-    return new StructType(typeName(), fieldTypes);
+    return new StructType(name, fieldTypes);
   }
 
   @Override
   public String typeName() {
-    return Objects.requireNonNullElse(name, "Tuple" + fields.size());
+    return name != null ? name.toString() : "Tuple" + fields.size();
   }
 
   @Override

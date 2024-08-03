@@ -2,6 +2,8 @@ package com.pentlander.sasquach.type;
 
 import static java.util.stream.Collectors.joining;
 
+import com.pentlander.sasquach.ast.StructName;
+import com.pentlander.sasquach.ast.UnqualifiedStructName;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.type.StructType.RowModifier.NamedRow;
 import com.pentlander.sasquach.type.StructType.RowModifier.None;
@@ -20,17 +22,17 @@ import org.jspecify.annotations.Nullable;
  * @param fieldTypes Map of field names to types. Field types include any value type, as well as
  *                   functions.
  */
-public record StructType(String typeName, Map<String, Type> fieldTypes, RowModifier rowModifier) implements
+public record StructType(StructName structName, Map<String, Type> fieldTypes, RowModifier rowModifier) implements
     ParameterizedType, VariantType {
   private static final String PREFIX = "Struct";
 
   public StructType {
     fieldTypes = Objects.requireNonNullElse(fieldTypes, Map.of());
     fieldTypes.values().forEach(value -> Objects.requireNonNull(value, toString()));
-    typeName = Objects.requireNonNullElse(typeName, PREFIX + hashFieldTypes(fieldTypes));
+    structName = Objects.requireNonNullElse(structName, new UnqualifiedStructName(PREFIX + hashFieldTypes(fieldTypes)));
   }
 
-  public StructType(@Nullable String name, Map<String, Type> fieldTypes) {
+  public StructType(@Nullable StructName name, Map<String, Type> fieldTypes) {
     this(name, fieldTypes, RowModifier.none());
   }
 
@@ -40,6 +42,11 @@ public record StructType(String typeName, Map<String, Type> fieldTypes, RowModif
 
   public StructType(Map<String, Type> fieldTypes) {
     this(null, fieldTypes, RowModifier.none());
+  }
+
+  @Override
+  public String typeName() {
+    return structName.toString();
   }
 
   private static String hashFieldTypes(Map<String, Type> fieldTypes) {

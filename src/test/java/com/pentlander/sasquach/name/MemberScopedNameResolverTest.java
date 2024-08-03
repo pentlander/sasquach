@@ -59,8 +59,9 @@ class MemberScopedNameResolverTest {
 
   @Test
   void resolveVariable_module() {
-    var module = new ModuleDeclaration(qualId("OtherModule"),
-        Struct.moduleStruct("OtherModule", List.of(), List.of(), List.of(), List.of(), range()),
+    var id = qualId("OtherModule");
+    var module = new ModuleDeclaration(id,
+        Struct.moduleStructBuilder(id.moduleName()).range(range()).build(),
         range());
     when(modResolver.resolveModule("OtherModule")).thenReturn(Optional.of(module));
 

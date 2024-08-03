@@ -4,6 +4,7 @@ import static com.pentlander.sasquach.Fixtures.CLASS_NAME;
 import static com.pentlander.sasquach.Fixtures.MOD_NAME;
 import static com.pentlander.sasquach.Fixtures.PACKAGE_NAME;
 import static com.pentlander.sasquach.Fixtures.QUAL_MOD_ID;
+import static com.pentlander.sasquach.Fixtures.QUAL_MOD_NAME;
 import static com.pentlander.sasquach.Fixtures.SOURCE_PATH;
 import static com.pentlander.sasquach.Fixtures.boolValue;
 import static com.pentlander.sasquach.Fixtures.id;
@@ -490,7 +491,7 @@ class BytecodeGeneratorTest {
   private TCompilationUnit compUnit(List<Use> useList, List<TField> fields,
       List<TNamedFunction> functions) {
     var struct = TModuleStructBuilder.builder()
-        .name(MOD_NAME)
+        .name(QUAL_MOD_NAME)
         .useList(useList)
         .fields(fields)
         .functions(functions)

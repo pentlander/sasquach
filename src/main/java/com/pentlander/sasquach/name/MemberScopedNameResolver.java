@@ -11,6 +11,7 @@ import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.UnqualifiedStructName;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
 import com.pentlander.sasquach.ast.expression.FunctionCall;
@@ -165,7 +166,7 @@ public class MemberScopedNameResolver {
       switch (struct) {
         case ModuleStruct moduleStruct -> moduleStruct.useList().forEach(this::resolve);
         case NamedStruct namedStruct ->
-            moduleScopedNameResolver.resolveVariantTypeNode(namedStruct.name())
+            moduleScopedNameResolver.resolveVariantTypeNode(namedStruct.name().toString())
                 .ifPresent(typeNode -> namedStructRefs.put(namedStruct, typeNode.aliasId()));
         case LiteralStruct literalStruct -> literalStruct.spreads().forEach(this::resolve);
       }
@@ -247,7 +248,7 @@ public class MemberScopedNameResolver {
           moduleScopedNameResolver.resolveVariantTypeNode(localFunctionCall.name())
               .ifPresentOrElse(typeNode -> {
                     var id = typeNode.id();
-                    var variantTuple = Struct.variantTupleStruct(id.name(),
+                    var variantTuple = Struct.variantTupleStruct(new UnqualifiedStructName(id.name()),
                         localFunctionCall.arguments(),
                         localFunctionCall.range());
 

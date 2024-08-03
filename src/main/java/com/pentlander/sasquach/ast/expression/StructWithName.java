@@ -1,5 +1,7 @@
 package com.pentlander.sasquach.ast.expression;
 
+import com.pentlander.sasquach.ast.StructName;
+
 public sealed interface StructWithName extends Struct permits ModuleStruct, NamedStruct {
-  String name();
+  StructName name();
 }

@@ -16,6 +16,7 @@ import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.Pattern.VariantStruct;
 import com.pentlander.sasquach.ast.Pattern.VariantTuple;
+import com.pentlander.sasquach.ast.UnqualifiedStructName;
 import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
@@ -428,7 +429,7 @@ public class MemberScopedTypeResolver {
         //  particular struct actually is. Pipe it through instead of this hack.
         var variant = convertedSumType.types()
             .stream()
-            .filter(t -> t.typeName().endsWith(s.name()))
+            .filter(t -> t.typeName().endsWith(s.name().toString()))
             .findFirst()
             .map(StructType.class::cast)
             .orElseThrow();

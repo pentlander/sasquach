@@ -19,6 +19,7 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
+import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
@@ -316,13 +317,11 @@ class MemberScopedTypeResolverTest {
 
       @Test
       void call() {
-        var qualifiedName = "base/MyMod";
-        var struct = Struct.moduleStruct(qualifiedName,
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(func),
-            range());
+        var qualifiedName = new QualifiedModuleName("base", "MyMod");
+        var struct = Struct.moduleStructBuilder(qualifiedName)
+            .functions(List.of(func))
+            .range(range())
+            .build();
         var call = new MemberFunctionCall(struct, id("foo"), args, range());
 
         var type = resolveExpr(call);
@@ -356,13 +355,11 @@ class MemberScopedTypeResolverTest {
 
       @Test
       void callNoField() {
-        var qualifiedName = "base/MyMod";
-        var struct = Struct.moduleStruct(qualifiedName,
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(func),
-            range());
+        var qualifiedName = new QualifiedModuleName("base", "MyMod");
+        var struct = Struct.moduleStructBuilder(qualifiedName)
+            .functions(List.of(func))
+            .range(range())
+            .build();
         var call = new MemberFunctionCall(struct, id("bar"), args, range());
 
         resolveExpr(call);

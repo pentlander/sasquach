@@ -72,6 +72,7 @@ import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.PatternVariable;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
+import com.pentlander.sasquach.ast.StructName;
 import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier;
 import com.pentlander.sasquach.ast.SumTypeNode;
@@ -79,6 +80,7 @@ import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.UnqualifiedStructName;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
@@ -184,9 +186,9 @@ public class Visitor {
 
     @Override
     public ModuleDeclaration visitModuleDeclaration(ModuleDeclarationContext ctx) {
-      String name = packageName + "/" + ctx.moduleName().getText();
+      var name = new QualifiedModuleName(packageName, ctx.moduleName().getText());
       var struct = ctx.struct().accept(structVisitorForModule(name));
-      return new ModuleDeclaration(QualifiedModuleId.fromString(
+      return new ModuleDeclaration(new QualifiedModuleId(
           name,
           rangeFrom(ctx.moduleName().ID())),
           struct,
@@ -517,7 +519,7 @@ public class Visitor {
     }
   }
 
-  public StructVisitor structVisitorForModule(String name) {
+  public StructVisitor structVisitorForModule(QualifiedModuleName name) {
     return new StructVisitor(name, StructKind.MODULE);
   }
 
@@ -530,15 +532,15 @@ public class Visitor {
   public StructVisitor structVisitorForNamed(String name) {
     // TODO: Set the metadata at the end of the visitStruct func so struct methods work properly
     // TODO: Figure out how to reference parent scope from struct literal
-    return new StructVisitor(name, StructKind.NAMED);
+    return new StructVisitor(new UnqualifiedStructName(name), StructKind.NAMED);
   }
 
   public class StructVisitor extends SasquachBaseVisitor<Struct> {
-    private final String structName;
+    private final StructName structName;
     private final StructKind structKind;
     private final ExpressionVisitor expressionVisitor;
 
-    private StructVisitor(String structName, StructKind structKind) {
+    private StructVisitor(StructName structName, StructKind structKind) {
       this.structName = structName;
       this.structKind = structKind;
       this.expressionVisitor = new ExpressionVisitor();
@@ -586,7 +588,7 @@ public class Visitor {
           var aliasId = id(typeAliasCtx.typeIdentifier().ID());
           var typeParameters = typeParams(typeAliasCtx.typeParameterList());
           var typeNode = typeAliasCtx.type() != null ? typeNode(typeAliasCtx.type(), typeVisitor)
-              : sumTypeNode(typeAliasCtx.sumType(), structName, aliasId, typeParameters);
+              : sumTypeNode(typeAliasCtx.sumType(), (QualifiedModuleName) structName, aliasId, typeParameters);
           var typeAlias = new TypeAlias(aliasId, typeParameters, typeNode, rangeFrom(typeAliasCtx));
           typeAliases.add(typeAlias);
         } else if (structStatementCtx instanceof SpreadStatementContext spreadCtx) {
@@ -597,13 +599,14 @@ public class Visitor {
 
       return switch (structKind) {
         case LITERAL -> Struct.literalStruct(fields, functions, spreads, rangeFrom(ctx));
-        case MODULE -> Struct.moduleStruct(structName,
-            useList,
-            typeAliases,
-            fields,
-            functions,
-            rangeFrom(ctx));
-        case NAMED -> Struct.variantLiteralStruct(structName, fields, functions, rangeFrom(ctx));
+        case MODULE -> Struct.moduleStructBuilder((QualifiedModuleName) structName)
+            .useList(useList)
+            .typeAliases(typeAliases)
+            .fields(fields)
+            .functions(functions)
+            .range(rangeFrom(ctx))
+            .build();
+        case NAMED -> Struct.variantLiteralStruct((UnqualifiedStructName) structName, fields, functions, rangeFrom(ctx));
       };
     }
   }
@@ -632,27 +635,25 @@ public class Visitor {
     return params;
   }
 
-  private TypeNode sumTypeNode(SumTypeContext ctx, String moduleName, Id aliasId,
+  private TypeNode sumTypeNode(SumTypeContext ctx, QualifiedModuleName moduleName, Id aliasId,
       List<TypeParameter> typeParameters) {
     var numVariants = ctx.typeIdentifier().size();
     var variantNodes = new ArrayList<VariantTypeNode>();
-    var unqualifiedIdx = moduleName.lastIndexOf('/') + 1;
-    var qualModuleName = new QualifiedModuleName(packageName.name(),
-        moduleName.substring(unqualifiedIdx));
     for (int i = 0; i < numVariants; i++) {
       var id = id(ctx.typeIdentifier(i).ID());
       var variantTypeCtx = ctx.variantType(i);
-      variantNodes.add(variantTypeNode(qualModuleName, aliasId, id, variantTypeCtx));
+      variantNodes.add(variantTypeNode(moduleName, aliasId, id, variantTypeCtx));
     }
-    return new SumTypeNode(qualModuleName, aliasId, typeParameters, variantNodes, rangeFrom(ctx));
+    return new SumTypeNode(moduleName, aliasId, typeParameters, variantNodes, rangeFrom(ctx));
   }
 
   private VariantTypeNode variantTypeNode(QualifiedModuleName moduleName, Id aliasId,
       Id id, VariantTypeContext ctx) {
+    var structName = new UnqualifiedStructName(id.name());
     return switch (ctx) {
       case SingletonTypeContext ignored -> new VariantTypeNode.Singleton(moduleName, aliasId, id);
       case SingleTupleTypeContext tupCtx -> {
-        var typeNode = new TupleTypeNode(id.name(),
+        var typeNode = new TupleTypeNode(structName,
             List.of(typeNode(tupCtx.type(), new TypeVisitor())),
             rangeFrom(ctx));
         yield new VariantTypeNode.Tuple(moduleName, aliasId, id, typeNode);
@@ -660,7 +661,10 @@ public class Visitor {
       case MultiTupleTypeContext tupCtx -> {
         var visitor = new TypeVisitor();
         var typeNodes = tupCtx.type().stream().map(t -> typeNode(t, visitor)).toList();
-        var typeNode = new TupleTypeNode(id.name(), typeNodes, rangeFrom(ctx));
+        var typeNode = new TupleTypeNode(
+            structName,
+            typeNodes,
+            rangeFrom(ctx));
         yield new VariantTypeNode.Tuple(moduleName, aliasId, id, typeNode);
       }
       case StructSumTypeContext structSumCtx -> {
@@ -668,7 +672,10 @@ public class Visitor {
         yield new VariantTypeNode.Struct(moduleName,
             aliasId,
             id,
-            new StructTypeNode(id.name(), typeNode.fieldTypeNodes(), RowModifier.none(), typeNode.range()));
+            new StructTypeNode(structName,
+                typeNode.fieldTypeNodes(),
+                RowModifier.none(),
+                typeNode.range()));
       }
       default -> throw new IllegalStateException();
     };
