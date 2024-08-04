@@ -26,48 +26,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.SequencedSet;
 import java.util.stream.Collectors;
 
 public class NameResolutionResult {
-  private static final NameResolutionResult EMPTY = new NameResolutionResult(Map.of(),
-      Map.of(),
-      Map.of(),
-      Map.of(),
-      Map.of(), Map.of(), Map.of(),
-      Map.of(),
-      Map.of(),
+  private static final NameResolutionResult EMPTY = new NameResolutionResult(
+      NameResolutionDataBuilder.builder().build(),
       new RangedErrorList(List.of()));
 
-  private final Map<TypeNode, NamedTypeDefinition> typeAliases;
   private final Map<Type, NamedTypeDefinition> typeNameAliases;
-  private final Map<ForeignFieldAccess, Field> foreignFieldAccesses;
-  private final Map<Id, ForeignFunctions> foreignFunctions;
-  private final Map<Id, FunctionCallTarget> localFunctionCalls;
-  private final Map<VarReference, ReferenceDeclaration> varReferences;
-  private final Map<NamedStruct, Id> namedStructTypes;
-  private final Map<Recur, RecurPoint> recurPoints;
-  private final Map<Match, List<TypeNode>> matchTypeNodes;
-  private final Map<Function, SequencedSet<LocalVariable>> funcCaptures;
+  private final NameResolutionData nameData;
   private final RangedErrorList errors;
 
-  public NameResolutionResult(Map<TypeNode, NamedTypeDefinition> typeAliases,
-      Map<ForeignFieldAccess, Field> foreignFieldAccesses,
-      Map<Id, ForeignFunctions> foreignFunctions,
-      Map<Id, FunctionCallTarget> localFunctionCalls,
-      Map<VarReference, ReferenceDeclaration> varReferences, Map<NamedStruct, Id> namedStructTypes,
-      Map<Recur, RecurPoint> recurPoints, Map<Match, List<TypeNode>> matchTypeNodes, Map<Function, SequencedSet<LocalVariable>> funcCaptures,
-      RangedErrorList errors) {
-    this.typeAliases = typeAliases;
-    this.typeNameAliases = typeNameAliases(typeAliases);
-    this.foreignFieldAccesses = foreignFieldAccesses;
-    this.foreignFunctions = foreignFunctions;
-    this.localFunctionCalls = localFunctionCalls;
-    this.varReferences = varReferences;
-    this.namedStructTypes = namedStructTypes;
-    this.recurPoints = recurPoints;
-    this.matchTypeNodes = matchTypeNodes;
-    this.funcCaptures = funcCaptures;
+  public NameResolutionResult(NameResolutionData nameData, RangedErrorList errors) {
+    this.typeNameAliases = typeNameAliases(nameData.typeAliases());
+    this.nameData = nameData;
     this.errors = errors;
   }
 
@@ -79,27 +51,14 @@ public class NameResolutionResult {
   }
 
   public NameResolutionResult withErrors(RangedErrorList errors) {
-    return new NameResolutionResult(typeAliases,
-        foreignFieldAccesses,
-        foreignFunctions,
-        localFunctionCalls,
-        varReferences, namedStructTypes, recurPoints,
-        matchTypeNodes,
-        funcCaptures,
-        this.errors.concat(errors));
+    return new NameResolutionResult(nameData, this.errors.concat(errors));
   }
 
   public NameResolutionResult withNamedTypes(Map<TypeNode, NamedTypeDefinition> namedTypes) {
-    var mergedNamedTypes = new HashMap<>(this.typeAliases);
-    mergedNamedTypes.putAll(namedTypes);
-    return new NameResolutionResult(mergedNamedTypes,
-        foreignFieldAccesses,
-        foreignFunctions,
-        localFunctionCalls,
-        varReferences, namedStructTypes, recurPoints,
-        matchTypeNodes,
-        funcCaptures,
-        errors);
+    var mergedNameData = NameResolutionDataBuilder.builder(nameData)
+        .addTypeAliases(namedTypes.entrySet())
+        .build();
+    return new NameResolutionResult(mergedNameData, errors);
   }
 
   public static NameResolutionResult empty() {
@@ -107,7 +66,7 @@ public class NameResolutionResult {
   }
 
   public Optional<NamedTypeDefinition> getNamedType(TypeNode typeNode) {
-    return Optional.ofNullable(typeAliases.get(typeNode));
+    return Optional.ofNullable(nameData.typeAliases().get(typeNode));
   }
 
   public Optional<NamedTypeDefinition> getNamedType(Type type) {
@@ -115,35 +74,35 @@ public class NameResolutionResult {
   }
 
   public Id getNamedStructType(NamedStruct namedStruct) {
-    return requireNonNull(namedStructTypes.get(namedStruct));
+    return requireNonNull(nameData.namedStructTypes().get(namedStruct));
   }
 
   public Field getForeignField(ForeignFieldAccess foreignFieldAccess) {
-    return requireNonNull(foreignFieldAccesses.get(foreignFieldAccess));
+    return requireNonNull(nameData.foreignFieldAccesses().get(foreignFieldAccess));
   }
 
   public ForeignFunctions getForeignFunction(ForeignFunctionCall foreignFunctionCall) {
-    return requireNonNull(foreignFunctions.get(foreignFunctionCall.functionId()));
+    return requireNonNull(nameData.foreignFunctions().get(foreignFunctionCall.functionId()));
   }
 
   public FunctionCallTarget getLocalFunctionCallTarget(LocalFunctionCall localFunctionCall) {
-    return requireNonNull(localFunctionCalls.get(localFunctionCall.functionId()),
+    return requireNonNull(nameData.localFunctionCalls().get(localFunctionCall.functionId()),
         localFunctionCall.toString());
   }
 
   public ReferenceDeclaration getVarReference(VarReference varReference) {
-    return requireNonNull(varReferences.get(varReference), varReference.toString());
+    return requireNonNull(nameData.varReferences().get(varReference), varReference.toString());
   }
 
   public RecurPoint getRecurPoint(Recur recur) {
-    return requireNonNull(recurPoints.get(recur));
+    return requireNonNull(nameData.recurPoints().get(recur));
   }
 
   /**
    * Returns a list of type nodes that correspond to the match branches in order.
    **/
   public List<TypeNode> getMatchTypeNodes(Match match) {
-    return requireNonNull(matchTypeNodes.get(match));
+    return requireNonNull(nameData.matchTypeNodes().get(match));
   }
 
   public RangedErrorList errors() {
@@ -151,15 +110,22 @@ public class NameResolutionResult {
   }
 
   public NameResolutionResult merge(NameResolutionResult other) {
-    return new NameResolutionResult(merged(typeAliases, other.typeAliases),
-        merged(foreignFieldAccesses, other.foreignFieldAccesses),
-        merged(foreignFunctions, other.foreignFunctions),
-        merged(localFunctionCalls, other.localFunctionCalls),
-        merged(varReferences, other.varReferences),
-        merged(namedStructTypes, other.namedStructTypes), merged(recurPoints, other.recurPoints),
-        merged(matchTypeNodes, other.matchTypeNodes),
-        merged(funcCaptures, other.funcCaptures),
-        errors.concat(other.errors));
+    var nd = nameData;
+    var ond = other.nameData;
+    return new NameResolutionResult(
+        NameResolutionDataBuilder.builder()
+            .typeAliases(merged(nd.typeAliases(), ond.typeAliases()))
+            .foreignFieldAccesses(merged(nd.foreignFieldAccesses(), ond.foreignFieldAccesses()))
+            .foreignFunctions(merged(nd.foreignFunctions(), ond.foreignFunctions()))
+            .localFunctionCalls(merged(nd.localFunctionCalls(), ond.localFunctionCalls()))
+            .varReferences(merged(nd.varReferences(), ond.varReferences()))
+            .namedStructTypes(merged(nd.namedStructTypes(), ond.namedStructTypes()))
+            .recurPoints(merged(nd.recurPoints(), ond.recurPoints()))
+            .matchTypeNodes(merged(nd.matchTypeNodes(), ond.matchTypeNodes()))
+            .funcCaptures(merged(nd.funcCaptures(), ond.funcCaptures()))
+            .build(),
+        errors.concat(other.errors)
+     );
   }
 
   public NameResolutionResult merge(Collection<NameResolutionResult> results) {
@@ -173,7 +139,7 @@ public class NameResolutionResult {
   }
 
   public List<LocalVariable> getFunctionCaptures(Function func) {
-    var captures = funcCaptures.get(func);
+    var captures = nameData.funcCaptures().get(func);
     return captures != null ? List.copyOf(captures) : List.of();
   }
 }

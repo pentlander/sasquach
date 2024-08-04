@@ -1,30 +1,27 @@
 package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.RangedErrorList;
-import com.pentlander.sasquach.Visitor;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.InvocationKind;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
-import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
-import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.UnqualifiedStructName;
+import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
-import com.pentlander.sasquach.ast.expression.FunctionCall;
-import com.pentlander.sasquach.ast.expression.IfExpression;
-import com.pentlander.sasquach.ast.expression.LiteralStruct;
-import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.FieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.FunctionCall;
+import com.pentlander.sasquach.ast.expression.IfExpression;
+import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Loop;
@@ -42,16 +39,12 @@ import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.lang.invoke.MethodHandles;
-import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.SequencedSet;
 import org.jspecify.annotations.Nullable;
 
 /*
@@ -74,20 +67,8 @@ localFunction()
  */
 public class MemberScopedNameResolver {
   private final ModuleScopedNameResolver moduleScopedNameResolver;
-  /**
-   * Map of type nodes to their definition sites.
-   */
-  private final Map<TypeNode, NamedTypeDefinition> typeAliases = new HashMap<>();
-
-  private final Map<ForeignFieldAccess, Field> foreignFieldAccesses = new HashMap<>();
-  private final Map<Id, ForeignFunctions> foreignFunctions = new HashMap<>();
-  private final Map<Id, FunctionCallTarget> localFunctionCalls = new HashMap<>();
-  private final Map<VarReference, ReferenceDeclaration> varReferences = new HashMap<>();
-  private final Map<NamedStruct, Id> namedStructRefs = new HashMap<>();
+  private final NameResolutionDataBuilder nameData = NameResolutionDataBuilder.builder();
   private final Deque<Loop> loopStack = new ArrayDeque<>();
-  private final Map<Recur, RecurPoint> recurPoints = new HashMap<>();
-  private final Map<Match, List<TypeNode>> matchTypeNodes = new HashMap<>();
-  private final Map<Function, SequencedSet<LocalVariable>> funcCaptures = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
   private final List<NameResolutionResult> resolutionResults = new ArrayList<>();
 
@@ -123,16 +104,7 @@ public class MemberScopedNameResolver {
   }
 
   private NameResolutionResult resolutionResult() {
-    return new NameResolutionResult(typeAliases,
-        foreignFieldAccesses,
-        foreignFunctions,
-        localFunctionCalls,
-        varReferences,
-        namedStructRefs,
-        recurPoints,
-        matchTypeNodes,
-        funcCaptures,
-        errors.build()).merge(resolutionResults);
+    return new NameResolutionResult(nameData.build(), errors.build()).merge(resolutionResults);
   }
 
   // Need to check that there isn't already a local function or module alias with this captureName
@@ -162,7 +134,7 @@ public class MemberScopedNameResolver {
       case ModuleStruct moduleStruct -> moduleStruct.useList().forEach(this::resolve);
       case NamedStruct namedStruct ->
           moduleScopedNameResolver.resolveVariantTypeNode(namedStruct.name().toString())
-              .ifPresent(typeNode -> namedStructRefs.put(namedStruct, typeNode.aliasId()));
+              .ifPresent(typeNode -> nameData.addNamedStructTypes(namedStruct, typeNode.aliasId()));
       case LiteralStruct literalStruct -> literalStruct.spreads().forEach(this::resolve);
     }
     struct.functions().forEach(function -> resolveNestedFunc(function.function()));
@@ -173,7 +145,7 @@ public class MemberScopedNameResolver {
     getForeign(fieldAccess.classAlias()).ifPresentOrElse(clazz -> {
       try {
         var field = clazz.getField(fieldAccess.fieldName());
-        foreignFieldAccesses.put(fieldAccess, field);
+        nameData.addForeignFieldAccesses(fieldAccess, field);
       } catch (NoSuchFieldException e) {
         errors.add(new NameNotFoundError(fieldAccess.id(), "foreign field"));
       }
@@ -216,7 +188,8 @@ public class MemberScopedNameResolver {
         }
       }
       if (!matchingForeignFunctions.isEmpty()) {
-        foreignFunctions.put(foreignFunctionCall.functionId(),
+        nameData.addForeignFunctions(
+            foreignFunctionCall.functionId(),
             new ForeignFunctions(clazz, matchingForeignFunctions));
       }
     }, () -> errors.add(new NameNotFoundError(foreignFunctionCall.classAlias(), "foreign class")));
@@ -225,17 +198,19 @@ public class MemberScopedNameResolver {
   private void resolve(LocalFunctionCall localFunctionCall) {
     // Resolve as function defined within the module
     var func = moduleScopedNameResolver.resolveFunction(localFunctionCall.name());
+    var funcId = localFunctionCall.functionId();
     var funcName = namedFunction != null ? namedFunction.name() : null;
     if (func.isPresent() && !localFunctionCall.name().equals(funcName)) {
-      localFunctionCalls.put(localFunctionCall.functionId(), new QualifiedFunction(
+      nameData.addLocalFunctionCalls(funcId, new QualifiedFunction(
           moduleScopedNameResolver.moduleDeclaration().id(),
           func.get().id(),
-          func.get().function()));
+          func.get().function()
+      ));
     } else {
       // Resolve as function defined in local variables
       var localVar = localVarStack.resolveLocalVar(localFunctionCall);
       if (localVar.isPresent()) {
-        localFunctionCalls.put(localFunctionCall.functionId(), localVar.get());
+        nameData.addLocalFunctionCalls(funcId, localVar.get());
       } else {
         // Resolve as a variant constructor
         moduleScopedNameResolver.resolveVariantTypeNode(localFunctionCall.name())
@@ -245,13 +220,13 @@ public class MemberScopedNameResolver {
                   localFunctionCall.arguments(),
                   localFunctionCall.range());
 
-              localFunctionCalls.put(
-                  localFunctionCall.functionId(),
+              nameData.addLocalFunctionCalls(
+                  funcId,
                   new VariantStructConstructor(id, variantTuple));
 
               var alias = moduleScopedNameResolver.resolveTypeAlias(typeNode.aliasId().name())
                   .orElseThrow();
-              namedStructRefs.put(variantTuple, alias.id());
+              nameData.addNamedStructTypes(variantTuple, alias.id());
             }, () -> errors.add(new NameNotFoundError(localFunctionCall.functionId(), "function")));
       }
     }
@@ -271,7 +246,7 @@ public class MemberScopedNameResolver {
     var funcSignature = function.functionSignature();
     var resolver = new TypeNameResolver(typeParameters, moduleScopedNameResolver);
     var result = resolver.resolveTypeNode(funcSignature);
-    typeAliases.putAll(result.namedTypes());
+    nameData.addTypeAliases(result.namedTypes().entrySet());
     typeParameters.addAll(funcSignature.typeParameters());
     errors.addAll(result.errors());
     funcSignature.parameters().forEach(MemberScopedNameResolver.this::addLocalVariable);
@@ -286,7 +261,7 @@ public class MemberScopedNameResolver {
 
     resolver.resolveFunc(function);
 
-    funcCaptures.put(function, resolver.localVarStack.captures());
+    nameData.addFuncCaptures(function, resolver.localVarStack.captures());
     resolutionResults.add(resolver.resolutionResult());
   }
 
@@ -296,15 +271,15 @@ public class MemberScopedNameResolver {
     var name = varReference.name();
     var localVariable = localVarStack.resolveLocalVar(varReference);
     if (localVariable.isPresent()) {
-      varReferences.put(varReference, new ReferenceDeclaration.Local(localVariable.get()));
+      nameData.addVarReferences(varReference, new ReferenceDeclaration.Local(localVariable.get()));
     } else {
       var module = moduleScopedNameResolver.resolveModule(name);
       if (module.isPresent()) {
-        varReferences.put(varReference, new ReferenceDeclaration.Module(module.get()));
+        nameData.addVarReferences(varReference, new ReferenceDeclaration.Module(module.get()));
       } else {
         var variantNode = moduleScopedNameResolver.resolveVariantTypeNode(varReference.name());
         if (variantNode.isPresent()) {
-          varReferences.put(varReference,
+          nameData.addVarReferences(varReference,
               new ReferenceDeclaration.Singleton((VariantTypeNode.Singleton) variantNode.get()));
         } else {
           errors.add(new NameNotFoundError(varReference.id(), "variable, parameter, or module"));
@@ -325,9 +300,9 @@ public class MemberScopedNameResolver {
   private void resolve(Recur recur) {
     var loop = loopStack.getLast();
     if (loop != null) {
-      recurPoints.put(recur, loop);
+      nameData.addRecurPoints(recur, loop);
     } else if (namedFunction != null) {
-      recurPoints.put(recur, namedFunction.function());
+      nameData.addRecurPoints(recur, namedFunction.function());
     } else {
       throw new IllegalStateException();
     }
@@ -361,7 +336,7 @@ public class MemberScopedNameResolver {
       resolve(branch.expr());
       popScope();
     }
-    matchTypeNodes.put(match, branchTypeNodes);
+    nameData.addMatchTypeNodes(match, branchTypeNodes);
   }
 
   private void resolve(ApplyOperator applyOperator) {
