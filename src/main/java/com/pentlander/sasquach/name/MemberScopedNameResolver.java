@@ -1,8 +1,9 @@
 package com.pentlander.sasquach.name;
 
+import static java.util.function.Predicate.*;
+
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.Id;
-import com.pentlander.sasquach.ast.InvocationKind;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
@@ -38,8 +39,6 @@ import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.type.TypeParameter;
-import java.lang.invoke.MethodHandles;
-import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -153,46 +152,14 @@ public class MemberScopedNameResolver {
   }
 
   private void resolve(ForeignFunctionCall foreignFunctionCall) {
-    getForeign(foreignFunctionCall.classAlias()).ifPresentOrElse(clazz -> {
-      var matchingForeignFunctions = new ArrayList<ForeignFunctionHandle>();
-      var funcName = foreignFunctionCall.name();
-      var isConstructor = funcName.equals("new");
-      var lookup = MethodHandles.lookup();
-      if (isConstructor) {
-        for (var constructor : clazz.getConstructors()) {
-          try {
-            var methodHandle = lookup.unreflectConstructor(constructor);
-            matchingForeignFunctions.add(new ForeignFunctionHandle(methodHandle,
-                InvocationKind.SPECIAL,
-                constructor));
-          } catch (IllegalAccessException e) {
-            // Ignore inaccessible constructors
-          }
-        }
-      } else {
-        for (var method : clazz.getMethods()) {
-          boolean isStatic = Modifier.isStatic(method.getModifiers());
-          boolean isInterface = method.getDeclaringClass().isInterface();
-          try {
-            var methodHandle = lookup.unreflect(method);
-            if (method.getName().equals(funcName)) {
-              var invocationKind = isStatic ? InvocationKind.STATIC
-                  : isInterface ? InvocationKind.INTERFACE : InvocationKind.VIRTUAL;
-              matchingForeignFunctions.add(new ForeignFunctionHandle(methodHandle,
-                  invocationKind,
-                  method));
-            }
-          } catch (IllegalAccessException e) {
-            // Ignore inaccessible methods
-          }
-        }
-      }
-      if (!matchingForeignFunctions.isEmpty()) {
-        nameData.addForeignFunctions(
-            foreignFunctionCall.functionId(),
-            new ForeignFunctions(clazz, matchingForeignFunctions));
-      }
-    }, () -> errors.add(new NameNotFoundError(foreignFunctionCall.classAlias(), "foreign class")));
+    getForeign(foreignFunctionCall.classAlias())
+        .flatMap(clazz -> new ForeignClassResolver().resolveFuncCall(foreignFunctionCall, clazz))
+        .ifPresentOrElse(foreignFunctions -> nameData.addForeignFunctions(
+                foreignFunctionCall.functionId(),
+                foreignFunctions),
+            () -> errors.add(new NameNotFoundError(
+                foreignFunctionCall.classAlias(),
+                "foreign class")));
   }
 
   private void resolve(LocalFunctionCall localFunctionCall) {

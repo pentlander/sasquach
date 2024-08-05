@@ -158,6 +158,8 @@ class ExpressionGenerator {
 
   void generate(TypedExpression expression) {
     addContextNode(expression);
+    cob.lineNumber(expression.range().start().line());
+
     switch (expression) {
       case TNot not -> {
         generate(not.expr());
@@ -258,8 +260,7 @@ class ExpressionGenerator {
                 funcTypeDesc));
           }
           case TargetKind.VariantStructConstructor(var struct) -> {
-            var namedStruct = (TStructWithName) struct;
-            var structDesc = ClassDesc.ofInternalName(namedStruct.name().toString());
+            var structDesc = ClassDesc.ofInternalName(struct.name().toString());
             generateNewDup(structDesc);
             generateArgs(funcCall.arguments(), funcType.parameterTypes());
             var methodDesc = MethodHandleDesc.ofMethod(
@@ -358,7 +359,7 @@ class ExpressionGenerator {
       }
       case TForeignFunctionCall foreignFuncCall -> {
         var foreignFuncType = foreignFuncCall.foreignFunctionType();
-        if (foreignFuncType.methodKind() == Kind.CONSTRUCTOR) {
+        if (foreignFuncType.isConstructor()) {
           generateNewDup(foreignFuncType.ownerDesc());
         }
         foreignFuncCall.arguments().forEach(this::generate);

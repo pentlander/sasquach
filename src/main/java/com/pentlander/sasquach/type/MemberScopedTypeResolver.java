@@ -16,7 +16,6 @@ import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.Pattern.VariantStruct;
 import com.pentlander.sasquach.ast.Pattern.VariantTuple;
-import com.pentlander.sasquach.ast.UnqualifiedStructName;
 import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
@@ -84,6 +83,7 @@ import com.pentlander.sasquach.tast.expression.TPrintStatement;
 import com.pentlander.sasquach.tast.expression.TRecur;
 import com.pentlander.sasquach.tast.expression.TStruct;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
+import com.pentlander.sasquach.tast.expression.TStructWithName;
 import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Local;
@@ -608,7 +608,7 @@ public class MemberScopedTypeResolver {
           // means that the actual constructor with possible generic parameters is not found and
           // it fails at runtime.
           case VariantStructConstructor variantConstructor ->
-              new TargetKind.VariantStructConstructor((TStruct) infer(variantConstructor.struct()));
+              new TargetKind.VariantStructConstructor((TStructWithName) infer(variantConstructor.struct()));
           case LocalVariable localVar ->
               new TargetKind.LocalVariable(getLocalVar(localVar).orElseThrow());
         };
@@ -758,13 +758,11 @@ public class MemberScopedTypeResolver {
             paramTypes,
             funcCall.range());
         var resolvedReturnType = typeUnifier.resolve(returnType);
-        var methodHandleDesc = foreignFuncHandle.methodHandle()
-            .describeConstable()
-            .map(DirectMethodHandleDesc.class::cast)
-            .orElseThrow();
         var castType = returnType instanceof TypeVariable ? resolvedReturnType : null;
 
-        var foreignFuncType = new ForeignFunctionType(methodHandleDesc, castType);
+        var foreignFuncType = new ForeignFunctionType(
+            foreignFuncHandle.methodHandleDesc(),
+            castType);
         return new TForeignFunctionCall(funcCall.classAlias(),
             funcCall.functionId(),
             foreignFuncType,

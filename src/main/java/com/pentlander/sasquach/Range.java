@@ -54,6 +54,10 @@ public sealed interface Range {
       return new Position(start.line(), start.column() + length);
     }
 
+    public Range.Single join(Range.Single other) {
+      return new Single(sourcePath, start, other.end().column() + start().column());
+    }
+
     @Override
     public String toString() {
       return sourcePath.toString() + ":" + start.line() + ":" + start.column() + "-" + (

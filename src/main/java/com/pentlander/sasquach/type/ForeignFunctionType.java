@@ -8,14 +8,13 @@ import org.jspecify.annotations.Nullable;
 public record ForeignFunctionType(DirectMethodHandleDesc methodHandleDesc, @Nullable Type castType) implements
     Type {
 
+  public boolean isConstructor() {
+    return methodHandleDesc.kind().equals(Kind.CONSTRUCTOR);
+  }
 
   @Override
   public String typeName() {
     return methodHandleDesc.invocationType().toString();
-  }
-
-  public Kind methodKind() {
-    return methodHandleDesc.kind();
   }
 
   public ClassDesc ownerDesc() {

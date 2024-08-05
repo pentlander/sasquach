@@ -5,7 +5,6 @@ import static java.util.stream.Collectors.toMap;
 import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Id;
-import com.pentlander.sasquach.ast.InvocationKind;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.ast.StructTypeNode;
@@ -30,16 +29,18 @@ import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
+import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import jdk.dynalink.linker.support.Lookup;
 
 public class Fixtures {
+  private static final Lookup LOOKUP = new Lookup(MethodHandles.lookup());
   private static final AtomicInteger RANGE_COUNTER = new AtomicInteger();
   public static final SourcePath SOURCE_PATH = new SourcePath("test.sasq");
   public static final String PACKAGE_NAME = "test";
@@ -74,7 +75,6 @@ public class Fixtures {
     return tfunc(name, functionParameters, List.of(), funcType, expression);
   }
 
-  @SuppressWarnings("unchecked")
   public static TypeNode typeNode(Type type) {
     if (type instanceof StructType structType) {
       return new StructTypeNode(structType.fieldTypes()
@@ -133,31 +133,20 @@ public class Fixtures {
 
   public static ForeignFunctions foreignMethods(Class<?> clazz, Predicate<Method> methodPredicate) {
     return new ForeignFunctions(clazz,
-        Arrays.stream(clazz.getMethods()).filter(methodPredicate).map(m -> {
-          try {
-            boolean isStatic = Modifier.isStatic(m.getModifiers());
-            return new ForeignFunctionHandle(MethodHandles.lookup().unreflect(m),
-                isStatic ? InvocationKind.STATIC : InvocationKind.VIRTUAL,
-                m);
-          } catch (IllegalAccessException e) {
-            throw new IllegalStateException(e);
-          }
-        }).toList());
+        Arrays.stream(clazz.getMethods()).filter(methodPredicate).map(m -> new ForeignFunctionHandle((DirectMethodHandleDesc) LOOKUP.unreflect(m)
+            .describeConstable()
+            .orElseThrow(), m)).toList());
   }
 
   public static ForeignFunctions foreignMethods(Class<?> clazz) {
-    return foreignMethods(clazz, m -> true);
+    return foreignMethods(clazz, _ -> true);
   }
 
   public static ForeignFunctions foreignConstructors(Class<?> clazz) {
-    return new ForeignFunctions(clazz, Arrays.stream(clazz.getConstructors()).map(c -> {
-      try {
-        return new ForeignFunctionHandle(MethodHandles.lookup().unreflectConstructor(c),
-            InvocationKind.SPECIAL,
-            c);
-      } catch (IllegalAccessException e) {
-        throw new IllegalStateException(e);
-      }
-    }).toList());
+    return new ForeignFunctions(clazz,
+        Arrays.stream(clazz.getConstructors())
+            .map(c -> new ForeignFunctionHandle((DirectMethodHandleDesc) LOOKUP.unreflectConstructor(
+                c).describeConstable().orElseThrow(), c))
+            .toList());
   }
 }

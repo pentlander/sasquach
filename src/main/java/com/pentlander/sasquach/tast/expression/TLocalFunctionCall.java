@@ -25,6 +25,6 @@ public record TLocalFunctionCall(Id functionId, TargetKind targetKind,
 
     record LocalVariable(TLocalVariable localVariable) implements TargetKind {}
 
-    record VariantStructConstructor(TStruct struct) implements TargetKind {}
+    record VariantStructConstructor(TStructWithName struct) implements TargetKind {}
   }
 }

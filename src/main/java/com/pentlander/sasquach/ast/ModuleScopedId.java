@@ -11,6 +11,6 @@ public record ModuleScopedId(Id moduleId, Id id) implements Identifier {
 
   @Override
   public Single range() {
-    return (Single) moduleId.range().join(id.range());
+    return  moduleId.range().join(id.range());
   }
 }
