@@ -16,8 +16,13 @@ class TLocalVarMeta {
   private final Map<Id, TVarMeta> varToMeta = new HashMap<>();
   private int count = 0;
 
-  public static TLocalVarMeta of(List<? extends TLocalVariable> localVars) {
+  public static TLocalVarMeta of(List<? extends TLocalVariable> localVars, ExpressionGenerator.Context context) {
     var localVarMeta = new TLocalVarMeta();
+    localVarMeta.count = switch (context) {
+      case INIT, ANON_FUNC -> 0;
+      case NAMED_FUNC -> 1;
+
+    };
     for (var localVar : localVars) {
       localVarMeta.push(localVar);
     }

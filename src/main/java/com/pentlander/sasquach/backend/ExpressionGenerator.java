@@ -12,7 +12,6 @@ import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException
 import com.pentlander.sasquach.backend.TLocalVarMeta.TVarMeta;
 import com.pentlander.sasquach.runtime.Func;
 import com.pentlander.sasquach.runtime.FuncBootstrap;
-import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.runtime.StructDispatch;
 import com.pentlander.sasquach.runtime.SwitchBootstraps;
 import com.pentlander.sasquach.tast.TFunctionParameter;
@@ -42,7 +41,6 @@ import com.pentlander.sasquach.tast.expression.TPrintStatement;
 import com.pentlander.sasquach.tast.expression.TRecur;
 import com.pentlander.sasquach.tast.expression.TStruct;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
-import com.pentlander.sasquach.tast.expression.TStructWithName;
 import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Local;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Module;
@@ -51,7 +49,6 @@ import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
 import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
-import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeUtils;
 import com.pentlander.sasquach.type.TypeVariable;
@@ -100,10 +97,11 @@ class ExpressionGenerator {
   private final TLocalVarMeta localVarMeta;
   @Nullable private TypedNode contextNode;
 
-  ExpressionGenerator(CodeBuilder cob, String functionName, List<TFunctionParameter> params) {
+  ExpressionGenerator(CodeBuilder cob, Context context, String functionName,
+      List<TFunctionParameter> params) {
     this.cob = cob;
     this.anonFunctions = new AnonFunctions(functionName);
-    this.localVarMeta = TLocalVarMeta.of(params);
+    this.localVarMeta = TLocalVarMeta.of(params, context);
   }
 
   private void addContextNode(TypedNode node) {
@@ -242,8 +240,9 @@ class ExpressionGenerator {
         var funcType = funcCall.functionType();
         switch (funcCall.targetKind()) {
           case TargetKind.QualifiedFunction qualifiedFunc -> {
+            cob.aload(cob.receiverSlot());
             generateArgs(funcCall.arguments(), funcType.parameterTypes());
-            cob.invokestatic(qualifiedFunc.ownerId().classDesc(),
+            cob.invokevirtual(qualifiedFunc.ownerId().classDesc(),
                 funcCall.name(),
                 funcType.functionTypeDesc());
           }
@@ -255,7 +254,7 @@ class ExpressionGenerator {
 
             var funcTypeDesc = funcType.functionTypeDesc().insertParameterTypes(0, classDesc(Func.class), ConstantDescs.CD_Object);
             cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
-                StructDispatch.MHD_BOOTSTRAP_FIELD,
+                StructDispatch.MHD_BOOTSTRAP_MEMBER,
                 StandardOperation.CALL.toString(),
                 funcTypeDesc));
           }
@@ -372,10 +371,19 @@ class ExpressionGenerator {
       }
       case TMemberFunctionCall structFuncCall -> {
         generate(structFuncCall.structExpression());
+        cob.dup();
         var funcType = structFuncCall.functionType();
+        // Consume one of the struct references to create a Func object, making the stack:
+        // Struct -> Func, then swap them since the func call expects the order to be Func -> Struct
+        generateFieldAccess(structFuncCall.name(), funcType);
+        cob.swap();
 
         generateArgs(structFuncCall.arguments(), funcType.parameterTypes());
-        generateMemberCall(funcType, structFuncCall.name());
+        var funcTypeDesc = funcType.functionTypeDesc().insertParameterTypes(0, classDesc(Func.class), ConstantDescs.CD_Object);
+        cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
+            StructDispatch.MHD_BOOTSTRAP_MEMBER,
+            StandardOperation.CALL.toString(),
+            funcTypeDesc));
         var funcCallType = type(structFuncCall);
         tryUnbox(funcCallType, funcType.returnType());
       }
@@ -500,12 +508,14 @@ class ExpressionGenerator {
   }
 
   private void generateFieldAccess(String fieldName, Type fieldType) {
-    var operation = StandardOperation.GET.withNamespaces(StandardNamespace.PROPERTY)
+    var isFunc = TypeUtils.asFunctionType(fieldType).isPresent();
+    var operation = StandardOperation.GET.withNamespaces(
+            isFunc ? StandardNamespace.METHOD : StandardNamespace.PROPERTY)
         .named(fieldName)
         .toString();
     var typeDesc = MethodTypeDesc.of(fieldType.classDesc(), CD_STRUCT_BASE);
 
-    cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(StructDispatch.MHD_BOOTSTRAP_FIELD, operation, typeDesc));
+    cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(StructDispatch.MHD_BOOTSTRAP_MEMBER, operation, typeDesc));
   }
 
   private void generateArgs(List<TypedExpression> arguments, List<Type> paramTypes) {
@@ -514,16 +524,6 @@ class ExpressionGenerator {
       generate(expr);
       tryBox(type(expr), paramTypes.get(i));
     }
-  }
-
-  void generateMemberCall(FunctionType funcType, String funcCallName) {
-    var methodTypeDesc = funcType.functionTypeDesc()
-        .insertParameterTypes(0, classDesc(StructBase.class));
-
-    cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
-        StructDispatch.MHD_BOOTSTRAP_METHOD,
-        funcCallName,
-        methodTypeDesc));
   }
 
   // TODO: Add test to ensure that the arguments are passed in in a consistent order. Field args
@@ -660,5 +660,9 @@ class ExpressionGenerator {
 
   private void generateNewDup(ClassDesc classDesc) {
     cob.new_(classDesc).dup();
+  }
+
+  public enum Context {
+    INIT, NAMED_FUNC, ANON_FUNC
   }
 }

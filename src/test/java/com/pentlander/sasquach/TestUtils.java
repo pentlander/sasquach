@@ -26,15 +26,21 @@ public final class TestUtils {
         byte[] bytecode = entry.getValue();
         Compiler.saveBytecodeToFile(path, name, bytecode);
       }
-      System.err.println("Dumped files to: " + path);
+      System.err.println("Dumped files to: file://" + path);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
   }
 
+  private static Object staticInstance(Class<?> clazz)
+      throws NoSuchFieldException, IllegalAccessException {
+    return clazz.getField("INSTANCE").get(null);
+  }
+
   @SuppressWarnings("unchecked")
-  public static <T> T invokeName(Class<?> clazz, String name, Object obj, Object... args)
+  private static <T> T invokeNameInner(Class<?> clazz, String name, Object... args)
       throws Exception {
+    var obj = staticInstance(clazz);
     for (var method : clazz.getMethods()) {
       if (method.getName().equals(name)) {
         return (T) method.invoke(obj, args);
@@ -44,15 +50,15 @@ public final class TestUtils {
   }
 
   public static <T> T invokeName(Class<?> clazz, String name) throws Exception {
-    return invokeName(clazz, name, null);
+    return invokeNameInner(clazz, name);
+  }
+
+  public static <T> T invokeMain(Class<?> clazz) throws Exception {
+    return invokeName(clazz, "main");
   }
 
   @SuppressWarnings("unchecked")
-  public static <T> T invokeFirst(Class<?> clazz, Object obj, Object... args) throws Exception {
-    return (T) clazz.getMethods()[0].invoke(obj, args);
-  }
-
-  public static  <T> T invokeFirst(Class<?> clazz) throws Exception {
-    return invokeFirst(clazz, null);
+  public static <T> T invokeFirst(Class<?> clazz, Object... args) throws Exception {
+    return (T) clazz.getMethods()[0].invoke(staticInstance(clazz), args);
   }
 }

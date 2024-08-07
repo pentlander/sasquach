@@ -13,16 +13,21 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 import jdk.dynalink.CallSiteDescriptor;
 import jdk.dynalink.NamedOperation;
+import jdk.dynalink.NamespaceOperation;
 import jdk.dynalink.Operation;
 import jdk.dynalink.StandardOperation;
+import jdk.dynalink.beans.BeansLinker;
 import jdk.dynalink.linker.GuardedInvocation;
 import jdk.dynalink.linker.GuardingDynamicLinker;
+import jdk.dynalink.linker.GuardingTypeConverterFactory;
 import jdk.dynalink.linker.LinkRequest;
 import jdk.dynalink.linker.LinkerServices;
+import jdk.dynalink.linker.support.TypeUtilities;
 
-final class StructLinker implements GuardingDynamicLinker {
+final class StructLinker implements GuardingDynamicLinker, GuardingTypeConverterFactory {
   private static final jdk.dynalink.linker.support.Lookup LOOKUP = new jdk.dynalink.linker.support.Lookup(
       MethodHandles.lookup());
 
@@ -31,6 +36,20 @@ final class StructLinker implements GuardingDynamicLinker {
       boolean.class,
       List.class,
       Object[].class);
+
+  private static final MethodHandle MH_NAMED_FUNC = LOOKUP.findStatic(
+      Func.class,
+      "named",
+      MethodType.methodType(Func.class, Object.class));
+
+  @Override
+  public GuardedInvocation convertToType(Class<?> sourceType, Class<?> targetType,
+      Supplier<Lookup> lookupSupplier) {
+    if (sourceType.equals(Object.class) && targetType.equals(Func.class)) {
+      return new GuardedInvocation(MH_NAMED_FUNC);
+    }
+    return null;
+  }
 
 
   record IdxMethodHandle(int idx, MethodHandle methodHandle) {}
@@ -125,26 +144,6 @@ final class StructLinker implements GuardingDynamicLinker {
     }
   }
 
-  static final class FuncInitCallSiteDesc extends AbstractCallSiteDescriptor<FuncInitCallSiteDesc> {
-    private final MethodType funcMethodType;
-
-    public FuncInitCallSiteDesc(Lookup lookup, Operation operation, MethodType methodType, MethodType funcMethodType) {
-      super(lookup, operation, methodType);
-      this.funcMethodType = funcMethodType;
-    }
-
-
-    @Override
-    protected boolean fieldsEquals(FuncInitCallSiteDesc other) {
-      return funcMethodType.equals(other.funcMethodType);
-    }
-
-    @Override
-    protected int fieldsHash() {
-      return funcMethodType.hashCode();
-    }
-  }
-
   public enum StructOperation implements Operation {
     STRUCT_INIT
   }
@@ -162,17 +161,23 @@ final class StructLinker implements GuardingDynamicLinker {
   @Override
   public GuardedInvocation getGuardedInvocation(LinkRequest linkRequest,
       LinkerServices linkerServices) throws Exception {
-    var operation = linkRequest.getCallSiteDescriptor().getOperation();
-    if (NamedOperation.getBaseOperation(operation) instanceof StructOperation structOp) {
+    var structLinkReq = switch (linkRequest) {
+      case StructLinkRequest structLinkRequest -> structLinkRequest;
+      case null, default ->  StructLinkRequest.from(linkRequest, true);
+    };
+    if (!structLinkReq.shouldHandle()) return null;
+
+    var baseOperation = structLinkReq.baseOperation();
+    if (structLinkReq.baseOperation() instanceof StructOperation structOp) {
       //noinspection SwitchStatementWithTooFewBranches
       switch (structOp) {
         case STRUCT_INIT -> {
-          var callSiteDescriptor = (StructInitCallSiteDesc) linkRequest.getCallSiteDescriptor();
+          var callSiteDescriptor = (StructInitCallSiteDesc) structLinkReq.getCallSiteDescriptor();
           var fieldNames = callSiteDescriptor.fieldNames;
 
           // Determine the field types for the returned struct
           var fieldTypes = new LinkedHashMap<String, ClassDesc>();
-          var args = linkRequest.getArguments();
+          var args = structLinkReq.getArguments();
           var argClasses = new ArrayList<Class<?>>();
           for (int i = 0; i < args.length; i++) {
             var argClass = args[i].getClass();
@@ -211,16 +216,18 @@ final class StructLinker implements GuardingDynamicLinker {
           return new GuardedInvocation(handle, guard);
         }
       }
-    } else if (operation instanceof StandardOperation op && op == StandardOperation.CALL) {
-      var callSiteDesc = linkRequest.getCallSiteDescriptor();
-      var args = linkRequest.getArguments();
+    } else if (baseOperation instanceof StandardOperation op && op == StandardOperation.CALL) {
+      var callSiteDesc = structLinkReq.getCallSiteDescriptor();
+      var args = structLinkReq.getArguments();
       var func = (Func) args[0];
       return switch (func) {
         case AnonFunc(var inner) ->
             new GuardedInvocation(MethodHandles.dropArguments(inner, 0, Func.class, Object.class));
         case NamedFunc(var inner) -> {
           args[0] = inner;
-          yield linkerServices.getGuardedInvocation(linkRequest.replaceArguments(callSiteDesc, args));
+          yield linkerServices.getGuardedInvocation(StructLinkRequest.from(structLinkReq.replaceArguments(
+              callSiteDesc,
+              args), false));
         }
       };
     }

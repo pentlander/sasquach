@@ -199,18 +199,29 @@ List {
   }
 }
 
+Hash {
+  type T[A] = { hashCode: (key: A) -> Int, .. },
+}
+
 Map {
   use foreign java/util/HashMap,
   use foreign java/util/Set,
   use foreign java/util/Iterator,
   use foreign java/util/Map$Entry,
+  use std/std/Hash,
 
-  type T[A, B] = { map: HashMap[A, B] },
+  type T[A, B] = {
+    hasher: Hash.T[A],
+    map: HashMap[A, B]
+  },
 
-  new = [A, B](): T[A, B] -> { map = HashMap#new() },
+  new = [A, B](hasher: Hash.T[A]): T[A, B] -> {
+    hasher = hasher,
+    map = HashMap#new()
+  },
 
-  of = [A, B](key: A, value: B): T[A, B] -> {
-    let  map = new()
+  of = [A, B](hasher: Hash.T[A], key: A, value: B): T[A, B] -> {
+    let map = new(hasher)
     HashMap#put(map.map, key, value)
     map
   },
@@ -222,13 +233,13 @@ Map {
   assoc = [A, B](map: T[A, B], key: A, value: B): T[A, B] -> {
     let newMap = HashMap#new(map.map)
     HashMap#put(newMap, key, value)
-    { map = newMap }
+    { hasher = map.hasher, map = newMap }
   },
 
   dissoc = [A, B](map: T[A, B], key: A): T[A, B] -> {
     let newMap = HashMap#new(map.map)
     HashMap#remove(newMap, key)
-    { map = newMap }
+    { hasher = map.hasher, map = newMap }
   },
 
   map = [A, B, C, D](map: T[A, B], mapper: (entry: (A, B)) -> (C, D)): T[A, B] -> {
@@ -240,7 +251,7 @@ Map {
         HashMap#put(newMap, Map$Entry#getKey(entry), Map$Entry#getValue(entry))
         recur(iter)
       } else {
-        { map = newMap }
+        { hasher = map.hasher, map = newMap }
       }
   },
 }

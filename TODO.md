@@ -5,3 +5,7 @@
 
 ## Right Now
 * Handle variable captures in functions in anon functions
+* Figure out how to automatically derive a small set of functions for a struct at compile time
+  * Keep the set small to make it simpler
+  * toString, serialize/deserialize, hash, equals, compare
+  * Maybe not that simple since the struct object itself needs to implement them

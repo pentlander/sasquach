@@ -130,6 +130,38 @@ addToString = comptime [R, T](module: { ..R }): { toString: (T) -> String, ..R }
 ```
 The base problem is that the spread operator inside the function does not have concrete struct types to work with. The function body here looks like `invokedynamic<spread>(StructBase;StructBase;)StructBase`, whereas the function invocation has concrete types to work with. The signature of the spread *must* be this unless the function is monomorphized. The consequence is that at runtime, the function either needs to somehow pass information about the types into the spread or the spread needs to reflect over the structs. In either case, the type of the output struct is not known ahead of time. This means at runtime it either has to create a new hidden class for the struct, or it needs to look up the correct struct to use. The problem with creating a hidden struct is that it couldn't copy over any functions associated with. Actually, if all the methods are static, you could do it. Replacing the call with a method handle invocation also could be less confusing than actually copying over the code, since there would be no source code for the created class. 
 
+## Coherence
+
+```
+Comparator {
+    // What does this actually mean
+    type Foo = { sym: Symbol, .. },
+    
+    type T[A, P] = { compare: (a1: A, a2: A) -> Int, sym: P, .. },
+    
+    new = [A](compareFn: (a1: A, a2: A) -> Int): T[A, Symbol] -> {
+      compare = compareFn
+      sym = symbol()
+    }
+}
+
+type Comparator[A, P] = { compare: (a1: A, a2: A) -> Int },
+Set {
+    type T[A, P] = { comparator: Comparator[A, P], set: TreeSet[A] },
+    
+    new = [A, C] = (comparator: 
+}
+
+compareAsc = { compare: (s1: String, s2: String) -> ... }
+compareDsc = { compare: (s1: String, s2: String) -> ... }
+
+let s1 = Set.new(compareAsc)
+let s2 = Set.new(compareDsc)
+// Should fail at compile time
+Set.equals(s1, 2)
+
+```
+
 # To Investigate
 
 ## Indy for lazy anonymous struct creation

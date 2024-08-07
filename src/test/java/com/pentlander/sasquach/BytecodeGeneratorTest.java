@@ -147,7 +147,7 @@ class BytecodeGeneratorTest {
       var block = new TBlock(List.of(varDecl, varRef), NR);
       var func = tfunc("foo", List.of(), type, block);
 
-      var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)), true);
+      var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)), false);
       return invokeFirst(clazz);
     }
   }
@@ -437,7 +437,7 @@ class BytecodeGeneratorTest {
     var func = tfunc("foo", List.of(paramA, paramB), BuiltinType.BOOLEAN, compare);
 
     var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
-    boolean result = invokeFirst(clazz, null, 6, 3);
+    boolean result = invokeFirst(clazz, 6, 3);
 
     assertThat(result).isEqualTo(actualResult);
   }
@@ -451,7 +451,7 @@ class BytecodeGeneratorTest {
     var func = tfunc("foo", List.of(paramA, paramB), BuiltinType.BOOLEAN, compare);
 
     var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
-    boolean result = invokeFirst(clazz, null, 3, 3);
+    boolean result = invokeFirst(clazz, 3, 3);
 
     assertThat(result).isEqualTo(actualResult);
   }
@@ -465,7 +465,7 @@ class BytecodeGeneratorTest {
     var func = tfunc("foo", List.of(paramA, paramB), BuiltinType.INT, plus);
 
     var clazz = genClass(compUnit(List.of(), List.of(), List.of(func)));
-    int result = invokeFirst(clazz, null, 6, 3);
+    int result = invokeFirst(clazz, 6, 3);
 
     assertThat(result).isEqualTo(actualResult);
   }

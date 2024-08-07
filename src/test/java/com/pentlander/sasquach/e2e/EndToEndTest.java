@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.e2e;
 
+import static com.pentlander.sasquach.TestUtils.invokeMain;
 import static com.pentlander.sasquach.TestUtils.invokeName;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -11,6 +12,7 @@ import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.TestUtils;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
 import java.nio.file.Path;
+import jdk.dynalink.beans.BeansLinker;
 import org.assertj.core.util.Files;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -137,7 +139,7 @@ public class EndToEndTest {
 
   @Test @Disabled
   void literalStructFunc_withCapture() throws Exception {
-    var clazz = compileClass( """
+    var clazz = compileClassDebug( """
         Main {
           plus = (): Int -> {
             let capture = 5
@@ -149,6 +151,25 @@ public class EndToEndTest {
     int sum = invokeName(clazz, "plus");
 
     assertThat(sum).isEqualTo(6);
+  }
+
+  @Test @Disabled
+  void higherOrderFunc_inStruct() throws Exception {
+    var clazz = compileClassDebug("""
+        Main {
+          wrapFn = (fn: (s: String) -> String): { fn: (s: String) -> String } -> {
+            fn = fn
+          },
+          
+          main = (): String -> {
+            let wrappedFn = wrapFn((s: String): String -> "hello")
+            wrappedFn.fn("foo")
+          }
+        }
+        """);
+    String sum = invokeMain(clazz);
+
+    assertThat(sum).isEqualTo("hello");
   }
 
   @Test
@@ -312,6 +333,27 @@ public class EndToEndTest {
   }
 
   @Test
+  void interfaceType() throws Exception {
+    var clazz = compileClass("""
+        Main {
+          type Foo[A] = { foo: A, .. },
+          
+          newFoo = [A](foo: A): Foo[A] -> {
+            foo = foo
+          },
+          
+          main = (): Foo[String] -> {
+            newFoo("hello")
+          }
+        }
+        """);
+
+    Object struct = invokeName(clazz, "main");
+
+    assertThat(struct).hasFieldOrPropertyWithValue("foo", "hello");
+  }
+
+  @Test
   void genericRow() throws Exception {
     var clazz = compileClass("""
         Main {
@@ -369,7 +411,7 @@ public class EndToEndTest {
           }
         }
         """);
-    invokeName(clazz, "foo", null);
+    invokeName(clazz, "foo");
   }
 
   @Test
@@ -385,7 +427,7 @@ public class EndToEndTest {
           }
         }
         """);
-    String value = invokeName(clazz, "foo", null);
+    String value = invokeName(clazz, "foo");
 
     assertThat(value).isEqualTo("bar");
   }
@@ -400,7 +442,7 @@ public class EndToEndTest {
           main = (): Int -> getX(newPoint(5))
         }
         """);
-    int sum = invokeName(clazz, "main", null);
+    int sum = invokeName(clazz, "main");
 
     assertThat(sum).isEqualTo(5);
   }
@@ -415,7 +457,7 @@ public class EndToEndTest {
           main = (): Int -> getX(newPoint(5))
         }
         """);
-    int sum = invokeName(clazz, "main", null);
+    int sum = invokeName(clazz, "main");
 
     assertThat(sum).isEqualTo(5);
   }
@@ -429,7 +471,7 @@ public class EndToEndTest {
           main = (): Int -> getX(3, (x: Int, y: Int): Int -> x + y)
         }
         """);
-    int sum = invokeName(clazz, "main", null);
+    int sum = invokeName(clazz, "main");
 
     assertThat(sum).isEqualTo(9);
   }
@@ -454,7 +496,7 @@ public class EndToEndTest {
           }
         }
         """);
-    int sum = invokeName(clazz, "main", null);
+    int sum = invokeName(clazz, "main");
 
     assertThat(sum).isEqualTo(5);
   }
@@ -477,7 +519,7 @@ public class EndToEndTest {
           },
         }
         """);
-    Object boxedInt = invokeName(clazz, "main", null);
+    Object boxedInt = invokeName(clazz, "main");
 
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 5);
   }
@@ -491,14 +533,14 @@ public class EndToEndTest {
           main = (): { value: Int } -> map("foobar", { map = (inp: String): Int -> 10 })
         }
         """);
-    Object boxedInt = invokeName(clazz, "main", null);
+    Object boxedInt = invokeName(clazz, "main");
 
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
   }
 
   @Test
-  void complexParamaterizedExpression_multiModule() throws Exception {
-    var clazz = compileClass( """
+  void complexParameterizedExpression_multiModule() throws Exception {
+    var clazz = compileClassDebug( """
         Box {
           type T[A] = { value: A },
           
@@ -515,7 +557,7 @@ public class EndToEndTest {
           }
         }
         """);
-    int boxedInt = invokeName(clazz, "main", null);
+    int boxedInt = invokeName(clazz, "main");
 
     assertThat(boxedInt).isEqualTo(10);
   }
@@ -553,7 +595,7 @@ public class EndToEndTest {
           }
         }
         """);
-    String str = invokeName(clazz, "main", null);
+    String str = invokeName(clazz, "main");
 
     assertThat(str).isEqualTo("hi");
   }
@@ -575,7 +617,7 @@ public class EndToEndTest {
           }
         }
         """);
-    Object boxedStr = invokeName(clazz, "main", null);
+    Object boxedStr = invokeName(clazz, "main");
 
     assertThat(boxedStr).hasFieldOrPropertyWithValue("value", "hello");
   }
@@ -592,7 +634,7 @@ public class EndToEndTest {
           main = (): T[Int] -> map("foo", { map = (inp: String): Int -> 10 })
         }
         """);
-    Object boxedInt = invokeName(clazz, "main", null);
+    Object boxedInt = invokeName(clazz, "main");
 
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
   }
@@ -611,7 +653,7 @@ public class EndToEndTest {
     var bytecode = new Compiler().compile(source);
     var cl = new SasquachClassloader();
     if (dumpClasses) {
-      var path = Path.of(Files.temporaryFolderPath(), testName);
+      var path = Path.of(Files.temporaryFolderPath(), testName.replaceAll("[()]", ""));
       TestUtils.dumpGeneratedClasses(path, bytecode.generatedBytecode());
     }
     bytecode.generatedBytecode().forEach(cl::addClass);

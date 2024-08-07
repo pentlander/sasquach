@@ -11,6 +11,7 @@ import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
+import com.pentlander.sasquach.backend.ExpressionGenerator.Context;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
@@ -240,7 +241,7 @@ class ClassGenerator {
 
       generateStaticInstance(clb, structType.classDesc(),
           internalClassDesc(structType),
-          cob -> new ExpressionGenerator(cob, "modInit", List.of()).generateStructInit(
+          cob -> new ExpressionGenerator(cob, Context.INIT, "modInit", List.of()).generateStructInit(
               struct));
     }
 
@@ -268,7 +269,7 @@ class ClassGenerator {
   }
 
   private void generateFunction(ClassBuilder clb, String funcName, TFunction function) {
-    generateFunction(clb, funcName, function, ClassFile.ACC_PUBLIC + ClassFile.ACC_STATIC);
+    generateFunction(clb, funcName, function, ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL);
   }
 
   public Signature typeSignature(Type type) {
@@ -315,7 +316,12 @@ class ClassGenerator {
         var captures = function.captures().stream().map(localVar -> new TFunctionParameter(localVar.id(), localVar.variableType(),
             localVar.range()));
         var params = Stream.concat(captures, function.parameters().stream()).toList();
-        var exprGenerator = new ExpressionGenerator(cob, funcName, params).initParams();
+
+        var context = Context.NAMED_FUNC;
+        if ((methodFlags & ClassFile.ACC_STATIC) != 0) {
+          context = Context.ANON_FUNC;
+        }
+        var exprGenerator = new ExpressionGenerator(cob, context, funcName, params).initParams();
         var returnExpr = function.expression();
         if (returnExpr != null) {
           exprGenerator.generateExpr(returnExpr);
