@@ -9,7 +9,6 @@ import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
-import com.pentlander.sasquach.ast.UnqualifiedStructName;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
@@ -22,6 +21,7 @@ import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaratio
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Module;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Singleton;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStructConstructor;
+import com.pentlander.sasquach.name.NameResolutionData.NamedStructId;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TNamedFunction;
@@ -96,9 +96,8 @@ public class ModuleScopedTypeResolver {
               fieldTypes.put(singleton.id().name(), sumType);
             }
             case VariantTypeNode.Struct strct -> {
-              // do something
-              // need to somehow replace the SumType in NameResolutionResult's namedStructTypes with
-              // the named resolved one here
+              // TODO need to somehow replace the SumType in NameResolutionResult's namedStructTypes
+              // with the named resolved one here
             }
           }
         }
@@ -163,6 +162,7 @@ public class ModuleScopedTypeResolver {
 
   public class ResolverModuleScopedTypes implements ModuleScopedTypes {
 
+    @Override
     public FuncCallType getFunctionCallType(LocalFunctionCall funcCall) {
       var callTarget = nameResolutionResult.getLocalFunctionCallTarget(funcCall);
       return switch (callTarget) {
@@ -174,6 +174,7 @@ public class ModuleScopedTypeResolver {
       };
     }
 
+    @Override
     public VarRefType getVarReferenceType(VarReference varRef) {
       return switch (nameResolutionResult.getVarReference(varRef)) {
         case Local local -> new VarRefType.LocalVar(local.localVariable());
@@ -184,18 +185,22 @@ public class ModuleScopedTypeResolver {
           var params = typeParams(type.typeParameters(),
               param -> new TypeVariable(param.typeName() + "_" + varRef.id().hashCode()));
           var resolvedType = namedTypeResolver.resolveNames(type, params, singletonNode.range());
-          yield new VarRefType.Singleton((SumType) resolvedType, singletonNode.type());
+          yield new VarRefType.Singleton(resolvedType, singletonNode.type());
         }
       };
     }
 
-    public SumType getSumType(Id id) {
-      return (SumType) Objects.requireNonNull(idTypes.get(id));
-    }
+    @Override
+    public VariantTypeWithSum getVariantType(NamedStruct namedStruct) {
+      var namedStructType = nameResolutionResult.getNamedStructType(namedStruct);
 
-    public SumType getSumType(NamedStruct namedStruct) {
-      var sumTypeId = nameResolutionResult.getNamedStructType(namedStruct);
-      return (SumType) Objects.requireNonNull(idTypes.get(sumTypeId));
+      switch (namedStructType) {
+        case NamedStructId.Variant(var sumTypeId, var type) -> {
+          var variantType = (StructType) Objects.requireNonNull(idTypes.get(type));
+          var sumType = (SumType) Objects.requireNonNull(idTypes.get(sumTypeId));
+          return new VariantTypeWithSum(sumType, variantType);
+        }
+      }
     }
   }
 }

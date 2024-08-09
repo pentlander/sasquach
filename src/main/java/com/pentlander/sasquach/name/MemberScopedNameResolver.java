@@ -1,7 +1,5 @@
 package com.pentlander.sasquach.name;
 
-import static java.util.function.Predicate.*;
-
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
@@ -38,6 +36,8 @@ import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
+import com.pentlander.sasquach.name.NameResolutionData.NamedStructId;
+import com.pentlander.sasquach.name.NameResolutionData.NamedStructId.Variant;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -133,7 +133,9 @@ public class MemberScopedNameResolver {
       case ModuleStruct moduleStruct -> moduleStruct.useList().forEach(this::resolve);
       case NamedStruct namedStruct ->
           moduleScopedNameResolver.resolveVariantTypeNode(namedStruct.name().toString())
-              .ifPresent(typeNode -> nameData.addNamedStructTypes(namedStruct, typeNode.aliasId()));
+              .ifPresent(typeNode -> nameData.addNamedStructTypes(
+                  namedStruct,
+                  new Variant(typeNode.aliasId(),  typeNode.id())));
       case LiteralStruct literalStruct -> literalStruct.spreads().forEach(this::resolve);
     }
     struct.functions().forEach(function -> resolveNestedFunc(function.function()));
@@ -193,7 +195,9 @@ public class MemberScopedNameResolver {
 
               var alias = moduleScopedNameResolver.resolveTypeAlias(typeNode.aliasId().name())
                   .orElseThrow();
-              nameData.addNamedStructTypes(variantTuple, alias.id());
+              nameData.addNamedStructTypes(
+                  variantTuple,
+                  new NamedStructId.Variant(alias.id(),  id));
             }, () -> errors.add(new NameNotFoundError(localFunctionCall.functionId(), "function")));
       }
     }

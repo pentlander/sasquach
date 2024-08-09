@@ -98,7 +98,6 @@ import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType.Module;
 import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType.Singleton;
 import com.pentlander.sasquach.type.TypeUnifier.UnificationException;
 import java.lang.constant.ClassDesc;
-import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Executable;
 import java.lang.reflect.GenericDeclaration;
@@ -159,16 +158,14 @@ public class MemberScopedTypeResolver {
     return errors.build().concat(namedTypeResolver.errors());
   }
 
-  FunctionType convertUniversals(FunctionType type, Range range) {
-    var typeParams = typeParams(type.typeParameters(),
+  private Map<String, Type> typeParamToVar(List<TypeParameter> typeParams) {
+    return typeParams(
+        typeParams,
         param -> new TypeVariable(param.typeName() + typeVarNum.getAndIncrement()));
-    return (FunctionType) namedTypeResolver.resolveNames(type, typeParams, range);
   }
-
-  SumType convertUniversals(SumType type, Range range) {
-    var typeParams = typeParams(type.typeParameters(),
-        param -> new TypeVariable(param.typeName() + typeVarNum.getAndIncrement()));
-    return (SumType) namedTypeResolver.resolveNames(type, typeParams, range);
+  FunctionType convertUniversals(FunctionType type, Range range) {
+    var typeParamToVar = typeParamToVar(type.typeParameters());
+    return namedTypeResolver.resolveNames(type, typeParamToVar, range);
   }
 
   private static Type builtinOrClassType(Class<?> clazz, List<Type> typeArgs) {
@@ -427,30 +424,37 @@ public class MemberScopedTypeResolver {
       // Named structs need to have their field types checked against their type definition, similar
       // to functions.
       case NamedStruct s -> {
-        var sumType = moduleScopedTypes.getSumType(nameResolutionResult.getNamedStructType(s));
-        var convertedSumType = convertUniversals(sumType, s.range());
-        // TODO This is dumb. The captureName resolution step already determines what variant this
-        //  particular struct actually is. Pipe it through instead of this hack.
-        var variant = convertedSumType.types()
-            .stream()
-            .filter(t -> t.typeName().endsWith(s.name().toString()))
-            .findFirst()
-            .map(StructType.class::cast)
-            .orElseThrow();
+        var variantTypeWithSum = moduleScopedTypes.getVariantType(s);
+
+        // Need to convert the universal types in both the parent sum type and the actual variant
+        // into type variables so they can be unified
+        var sumType = variantTypeWithSum.sumType();
+        var typeParamToVar = typeParamToVar(sumType.typeParameters());
+        SumType resolvedSumType = namedTypeResolver.resolveNames(
+            sumType,
+            typeParamToVar,
+            s.range());
+        var variantType = namedTypeResolver.resolveNames(
+            variantTypeWithSum.type(),
+            typeParamToVar,
+            s.range());
+
         var typedFields = new ArrayList<TField>();
         struct.fields().forEach(field -> {
-          var typedExpr = check(field.value(), variant.fieldType(field.name()));
+          var typedExpr = check(field.value(), variantType.fieldType(field.name()));
           typedFields.add(new TField(field.id(), typedExpr));
         });
+        // Functions are treated as fields in named types because their functions don't have an
+        // actual implementation until assigned a func when they are initialized
         struct.functions().forEach(func -> {
-          var tFunc = (TFunction) check(func.function(), variant.fieldType(func.name()));
+          var tFunc = (TFunction) check(func.function(), variantType.fieldType(func.name()));
           typedFields.add(new TField(func.id(), tFunc));
         });
 
-        var constructorParams = List.copyOf(variant.fieldTypes().values());
-        var type = (SumType) typeUnifier.resolve(convertedSumType);
+        var constructorParams = List.copyOf(variantType.fieldTypes().values());
+        var type = (SumType) typeUnifier.resolve(resolvedSumType);
         yield TVariantStructBuilder.builder()
-            .name(sumType.moduleName().qualifyInner(s.name()))
+            .name(resolvedSumType.moduleName().qualifyInner(s.name()))
             .fields(typedFields)
             .functions(List.of())
             .constructorParams(constructorParams)

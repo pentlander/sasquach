@@ -15,9 +15,7 @@ import com.pentlander.sasquach.runtime.FuncBootstrap;
 import com.pentlander.sasquach.runtime.StructDispatch;
 import com.pentlander.sasquach.runtime.SwitchBootstraps;
 import com.pentlander.sasquach.tast.TFunctionParameter;
-import com.pentlander.sasquach.tast.TPattern.TSingleton;
-import com.pentlander.sasquach.tast.TPattern.TVariantStruct;
-import com.pentlander.sasquach.tast.TPattern.TVariantTuple;
+import com.pentlander.sasquach.tast.TPattern;
 import com.pentlander.sasquach.tast.TypedNode;
 import com.pentlander.sasquach.tast.expression.TApplyOperator;
 import com.pentlander.sasquach.tast.expression.TArrayValue;
@@ -46,6 +44,7 @@ import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Loca
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Module;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Singleton;
 import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
+import com.pentlander.sasquach.tast.expression.TVariantStruct;
 import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
@@ -68,9 +67,6 @@ import java.lang.constant.DirectMethodHandleDesc.Kind;
 import java.lang.constant.DynamicCallSiteDesc;
 import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
-import java.lang.invoke.CallSite;
-import java.lang.invoke.MethodHandles.Lookup;
-import java.lang.invoke.MethodType;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -85,12 +81,7 @@ import jdk.dynalink.StandardOperation;
 import jdk.dynalink.linker.support.TypeUtilities;
 import org.jspecify.annotations.Nullable;
 
-class ExpressionGenerator {
-  private static final MethodTypeDesc DISPATCH_BOOTSTRAP_DESC = MethodType.methodType(CallSite.class,
-      List.of(Lookup.class, String.class, MethodType.class)).describeConstable().orElseThrow();
-  private static final MethodTypeDesc MATCH_BOOTSTRAP_DESC = MethodType.methodType(CallSite.class,
-          List.of(Lookup.class, String.class, MethodType.class, Object[].class))
-      .describeConstable().orElseThrow();
+final class ExpressionGenerator {
   private final Map<String, byte[]> generatedClasses = new HashMap<>();
   private final Deque<Label> loopLabels = new ArrayDeque<>();
   private final AnonFunctions anonFunctions;
@@ -461,8 +452,8 @@ class ExpressionGenerator {
           var branch = branches.get(i);
           switch (branch.pattern()) {
             // No-op, don't need to load any vars
-            case TSingleton _ -> {}
-            case TVariantTuple variantTuple -> {
+            case TPattern.TSingleton _ -> {}
+            case TPattern.TVariantTuple variantTuple -> {
               var variantType = variantTuple.type();
               var tupleFieldTypes = variantType.sortedFields();
               var bindings = variantTuple.bindings();
@@ -483,7 +474,7 @@ class ExpressionGenerator {
                 generateStoreVar(cob, bindType, idx);
               }
             }
-            case TVariantStruct variantStruct -> {
+            case TPattern.TVariantStruct variantStruct -> {
               var variantType = variantStruct.type();
               for (var binding : variantStruct.bindings()) {
                 generateLoadVar(cob, variantType, exprVarIdx);
@@ -570,7 +561,7 @@ class ExpressionGenerator {
     fields.forEach(field -> generateExpr(field.expr()));
     var paramDescs = switch (struct) {
       // TODO Remove this hack. The constructor type params should be derived from the type def
-      case com.pentlander.sasquach.tast.expression.TVariantStruct variantStruct ->
+      case TVariantStruct variantStruct ->
           variantStruct.constructorParams().stream().map(type -> switch (type) {
             case TypeVariable _ -> ConstantDescs.CD_Object;
             default -> type.classDesc();

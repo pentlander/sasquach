@@ -44,6 +44,7 @@ public class NamedTypeResolver {
   // Create a more general transform API for Types so e.g. can turn a FunctionType populated with
   // universal types into a FunctionType populated with type variables
 
+  @SuppressWarnings({"unchecked", "RedundantSuppression"})
   public <T extends TypeNode> T resolveTypeNode(T typeNode, Map<String, Type> typeArgs) {
     return (T) switch (typeNode) {
       case BasicTypeNode<?>(var type, var range) ->
@@ -164,17 +165,14 @@ public class NamedTypeResolver {
     };
   }
 
-  public Type resolveNames(Type type, Range range) {
-    return resolveNames(type, Map.of(), range);
-  }
-
-  public Type resolveNames(Type type, Map<String, Type> typeArgs, Range range) {
+  @SuppressWarnings("unchecked")
+  public <T extends Type> T resolveNames(T type, Map<String, Type> typeArgs, Range range) {
     if (type instanceof NamedType namedType) {
-      return resolveNamedType(namedType, typeArgs, range);
+      return (T) resolveNamedType(namedType, typeArgs, range);
     }
 
     if (type instanceof ParameterizedType parameterizedType) {
-      return resolveParameterizedType(parameterizedType, typeArgs, range);
+      return (T) resolveParameterizedType(parameterizedType, typeArgs, range);
     }
 
     return type;

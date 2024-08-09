@@ -32,7 +32,7 @@ public class StdlibTest {
     return compileClass(Source.fromString("main", source), false);
   }
 
-  private Class<?> compileClassDebug(String source)
+  private Class<?> compileSourceDebug(String source)
       throws ClassNotFoundException, CompilationException {
     return compileClass(Source.fromString("main", source), true);
   }

@@ -28,7 +28,7 @@ public record NameResolutionData(
     Map<Id, ForeignFunctions> foreignFunctions,
     Map<Id, FunctionCallTarget> localFunctionCalls,
     Map<VarReference, ReferenceDeclaration> varReferences,
-    Map<NamedStruct, Id> namedStructTypes,
+    Map<NamedStruct, NamedStructId> namedStructTypes,
     Map<Recur, RecurPoint> recurPoints,
     Map<Match, List<TypeNode>> matchTypeNodes,
     Map<Function, SequencedSet<LocalVariable>> funcCaptures
@@ -51,5 +51,9 @@ public record NameResolutionData(
     var map = new HashMap<>(mapA);
     map.putAll(mapB);
     return map;
+  }
+
+  public sealed interface NamedStructId {
+    record Variant(Id sumTypeId, Id variantStructId) implements NamedStructId {}
   }
 }

@@ -3,7 +3,6 @@ package com.pentlander.sasquach.name;
 import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.RangedErrorList;
-import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -18,6 +17,7 @@ import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.FunctionCallTarget;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
+import com.pentlander.sasquach.name.NameResolutionData.NamedStructId;
 import com.pentlander.sasquach.type.Type;
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -73,7 +73,7 @@ public class NameResolutionResult {
     return Optional.ofNullable(typeNameAliases.get(type));
   }
 
-  public Id getNamedStructType(NamedStruct namedStruct) {
+  public NamedStructId getNamedStructType(NamedStruct namedStruct) {
     return requireNonNull(nameData.namedStructTypes().get(namedStruct));
   }
 
