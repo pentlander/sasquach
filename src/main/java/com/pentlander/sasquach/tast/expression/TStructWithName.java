@@ -11,7 +11,6 @@ public sealed interface TStructWithName extends TStruct permits TModuleStruct, T
 
   default StructType structType() {
     var fieldTypes = new LinkedHashMap<String, Type>();
-    functions().forEach(func -> fieldTypes.put(func.name(), func.type()));
     fields().forEach(field -> fieldTypes.put(field.name(), field.type()));
     return new StructType(name(), fieldTypes);
   }

@@ -8,18 +8,29 @@ import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.tast.TNamedFunction;
+import com.pentlander.sasquach.type.StructType;
+import com.pentlander.sasquach.type.Type;
 import io.soabase.recordbuilder.core.RecordBuilder;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 @RecordBuilder
 public record TModuleStruct(QualifiedModuleName name, List<Use> useList, List<TypeAlias> typeAliases,
                             List<TField> fields, List<TNamedFunction> functions, Range range) implements TStructWithName {
   public TModuleStruct {
-    name = requireNonNull(name);
+    requireNonNull(name);
     useList = requireNonNullElse(useList, List.of());
     typeAliases = requireNonNullElse(typeAliases, List.of());
     requireNonNull(fields, "fields");
     requireNonNull(functions, "functions");
     requireNonNull(range, "range");
+  }
+
+  @Override
+  public StructType structType() {
+    var fieldTypes = new LinkedHashMap<String, Type>();
+    functions().forEach(func -> fieldTypes.put(func.name(), func.type()));
+    fields().forEach(field -> fieldTypes.put(field.name(), field.type()));
+    return new StructType(name(), fieldTypes);
   }
 }

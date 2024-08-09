@@ -15,6 +15,7 @@ import static com.pentlander.sasquach.Fixtures.stringValue;
 import static com.pentlander.sasquach.Fixtures.tfunc;
 import static com.pentlander.sasquach.TestUtils.invokeFirst;
 import static com.pentlander.sasquach.TestUtils.invokeName;
+import static com.pentlander.sasquach.Util.seqMap;
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator.AND;
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator.OR;
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator.fromString;
@@ -289,7 +290,9 @@ class BytecodeGeneratorTest {
     var returnType = BuiltinType.STRING;
     var funcType = new FunctionType(List.of(), List.of(), returnType);
     var structFunc = tfunc("member", List.of(), returnType, stringValue("string"));
-    var struct = literalStructBuilder().functions(List.of(structFunc)).build();
+    var struct = literalStructBuilder().addFields(new TField(
+        structFunc.id(),
+        structFunc.function())).build();
     var memberFuncCall = new TMemberFunctionCall(struct,
         id("member"),
         funcType,
@@ -309,7 +312,7 @@ class BytecodeGeneratorTest {
     @Test
     void singleGenericClass() throws Exception {
       // Struct called "box" with a single field called "value" of type T
-      var boxParam = tparam("box", new StructType(Map.of("value", new UniversalType("T", 0))));
+      var boxParam = tparam("box", new StructType(seqMap("value", new UniversalType("T", 0))));
       //  A value of type "U"
       var boxValueParam = tparam("boxValue", new UniversalType("U", 0));
       // Create a box struct with the field "value" set to the value of the "boxValue" param
@@ -343,7 +346,7 @@ class BytecodeGeneratorTest {
           NR);
       var callerFunc = tfunc("baz",
           List.of(),
-          new StructType(Map.of("value", BuiltinType.STRING)),
+          new StructType(seqMap("value", BuiltinType.STRING)),
           funcCall);
 
       var compUnit = compUnit(List.of(), List.of(), List.of(callerFunc, parameterizedFunc));
@@ -513,7 +516,6 @@ class BytecodeGeneratorTest {
   private TLiteralStructBuilder literalStructBuilder() {
     return TLiteralStructBuilder.builder()
         .fields(List.of())
-        .functions(List.of())
         .range(NR);
   }
 

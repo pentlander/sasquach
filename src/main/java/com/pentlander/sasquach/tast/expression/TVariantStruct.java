@@ -13,13 +13,12 @@ import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 
 @RecordBuilder
-public record TVariantStruct(QualifiedStructName name, List<TField> fields, List<TNamedFunction> functions,
+public record TVariantStruct(QualifiedStructName name, List<TField> fields,
                              List<Type> constructorParams, SumType type, Range range) implements
     TStructWithName {
   public TVariantStruct {
     requireNonNull(name);
     requireNonNull(fields, "fields");
-    requireNonNull(functions, "functions");
     requireNonNull(range, "range");
   }
 }

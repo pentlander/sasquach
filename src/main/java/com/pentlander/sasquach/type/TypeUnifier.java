@@ -100,7 +100,7 @@ public class TypeUnifier {
           throw new UnificationException(destType, sourceType);
         }
       }
-      case UniversalType universalType when sourceType instanceof ClassType classType -> {
+      case UniversalType _ when sourceType instanceof ClassType classType -> {
         if (!classType.typeClass().equals(Object.class)) {
           throw new UnificationException(destType, sourceType);
         }

@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.type;
 
+import static com.pentlander.sasquach.Util.toSeqMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.Objects.requireNonNullElse;
 import static java.util.stream.Collectors.toMap;
@@ -186,7 +187,7 @@ public class NamedTypeResolver {
           structType.fieldTypes()
               .entrySet()
               .stream()
-              .collect(toMap(Entry::getKey, e -> resolveNames(e.getValue(), typeArgs, range))),
+              .collect(toSeqMap(Entry::getKey, e -> resolveNames(e.getValue(), typeArgs, range))),
           switch (structType.rowModifier()) {
             case RowModifier.NamedRow(var type) -> new RowModifier.NamedRow(resolveNames(type, typeArgs, range));
             case UnnamedRow unnamedRow -> unnamedRow;

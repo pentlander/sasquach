@@ -10,6 +10,7 @@ import static com.pentlander.sasquach.Fixtures.qualId;
 import static com.pentlander.sasquach.Fixtures.range;
 import static com.pentlander.sasquach.Fixtures.stringValue;
 import static com.pentlander.sasquach.Fixtures.typeNode;
+import static com.pentlander.sasquach.Util.seqMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -379,7 +380,7 @@ class MemberScopedTypeResolverTest {
       var struct = literalStruct(argFields, List.of());
       var argType = resolveExpr(struct);
 
-      var paramType = new StructType(Map.of("foo", BuiltinType.STRING, "bar", BuiltinType.INT));
+      var paramType = new StructType(seqMap("foo", BuiltinType.STRING, "bar", BuiltinType.INT));
 
       assertThat(paramType.isAssignableFrom(argType)).isFalse();
     }
@@ -392,7 +393,7 @@ class MemberScopedTypeResolverTest {
       var struct = literalStruct(argFields, List.of());
       var argType = resolveExpr(struct);
 
-      var paramType = new StructType(Map.of("foo", BuiltinType.STRING, "bar", BuiltinType.INT),
+      var paramType = new StructType(seqMap("foo", BuiltinType.STRING, "bar", BuiltinType.INT),
           RowModifier.unnamedRow());
 
       assertThat(paramType.isAssignableFrom(argType)).isTrue();

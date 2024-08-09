@@ -23,6 +23,7 @@ import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TFunctionSignature;
 import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.tast.expression.TFunction;
+import com.pentlander.sasquach.tast.expression.TStruct.TField;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.FunctionType;
@@ -73,6 +74,10 @@ public class Fixtures {
         .map(TFunctionParameter::type)
         .toList(), List.of(), returnType);
     return tfunc(name, functionParameters, List.of(), funcType, expression);
+  }
+
+  public static TField tfield(String name, TypedExpression expression) {
+    return new TField(id(name), expression);
   }
 
   public static TypeNode typeNode(Type type) {

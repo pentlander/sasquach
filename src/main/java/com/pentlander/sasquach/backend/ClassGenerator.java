@@ -1,13 +1,10 @@
 package com.pentlander.sasquach.backend;
 
 import static com.pentlander.sasquach.Util.seqMap;
-import static com.pentlander.sasquach.Util.unsafeSeqMap;
 import static com.pentlander.sasquach.backend.GeneratorUtil.internalClassDesc;
-import static com.pentlander.sasquach.type.TypeUtils.asFunctionType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
 import static java.lang.classfile.Signature.ClassTypeSig;
 import static java.lang.classfile.Signature.TypeVarSig;
-import static java.util.stream.Collectors.*;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.SumTypeNode;
@@ -18,7 +15,6 @@ import com.pentlander.sasquach.backend.ExpressionGenerator.Context;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
-import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.tast.TypedNode;
 import com.pentlander.sasquach.tast.expression.TFunction;
 import com.pentlander.sasquach.tast.expression.TModuleStruct;
@@ -38,7 +34,6 @@ import java.lang.classfile.MethodSignature;
 import java.lang.classfile.Signature;
 import java.lang.classfile.Signature.BaseTypeSig;
 import java.lang.classfile.Signature.TypeParam;
-import java.lang.classfile.TypeAnnotation;
 import java.lang.classfile.TypeKind;
 import java.lang.classfile.attribute.PermittedSubclassesAttribute;
 import java.lang.classfile.attribute.SignatureAttribute;
@@ -52,16 +47,11 @@ import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.AccessFlag;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.NavigableMap;
 import java.util.SequencedMap;
-import java.util.SequencedSet;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
@@ -81,12 +71,13 @@ class ClassGenerator {
     return generatedClasses;
   }
 
-  private void setContext(TypedNode node) {
-    contextNode = node;
+  public Map<String, byte[]> generate(TStruct struct) {
+    generateStruct(struct);
+    return generatedClasses;
   }
 
-  static ClassDesc[] fieldParamDescs(List<? extends TypedNode> fields) {
-    return fields.stream().map(TypedNode::type).map(Type::classDesc).toArray(ClassDesc[]::new);
+  private void setContext(TypedNode node) {
+    contextNode = node;
   }
 
   private void generateStructStart(ClassBuilder clb, ClassDesc structDesc, Range range,
@@ -134,7 +125,7 @@ class ClassGenerator {
         });
   }
 
-  void generateSumType(SumType sumType) {
+  private void generateSumType(SumType sumType) {
     buildAddClass(sumType, cob -> generateSumType(cob, sumType));
   }
 
@@ -163,7 +154,7 @@ class ClassGenerator {
   }
 
   // Generate an interface to act as the parent to the sum type variants
-  void generateSumType(ClassBuilder clb, SumType sumType) {
+  private void generateSumType(ClassBuilder clb, SumType sumType) {
     var permittedSubclassDescs = sumType.types()
         .stream()
         .map(GeneratorUtil::internalClassDesc)
@@ -174,11 +165,11 @@ class ClassGenerator {
     resolver.addSumType(internalClassDesc(sumType));
   }
 
-  void generateSingleton(SingletonType singleton, SumType sumType, Range range) {
+  private void generateSingleton(SingletonType singleton, SumType sumType, Range range) {
     buildAddClass(singleton, clb -> generateSingleton(clb, singleton, sumType, range));
   }
 
-  void generateSingleton(ClassBuilder clb, SingletonType singleton, SumType sumType, Range range) {
+  private void generateSingleton(ClassBuilder clb, SingletonType singleton, SumType sumType, Range range) {
     var structDesc = internalClassDesc(singleton);
     generateStructStart(clb, structDesc, range, seqMap(), internalClassDesc(sumType));
 
@@ -192,81 +183,70 @@ class ClassGenerator {
         });
   }
 
-  void generateVariantStruct(StructType structType, SumType sumType, Range range) {
+  private void generateVariantStruct(StructType structType, SumType sumType, Range range) {
     buildAddClass(structType, clb -> generateVariantStruct(clb, structType, sumType, range));
   }
 
-  void generateVariantStruct(ClassBuilder clb, StructType structType, SumType sumType, Range range) {
+  private void generateVariantStruct(ClassBuilder clb, StructType structType, SumType sumType, Range range) {
     generateStructStart(
         clb,
         internalClassDesc(structType),
         range,
-        unsafeSeqMap(structType.fieldTypes()),
+        structType.fieldTypes(),
         internalClassDesc(sumType));
   }
 
-  void generateStruct(TStruct struct) {
+  private void generateStruct(TStruct struct) {
     buildAddClass(struct.type(), clb -> generateStruct(clb, struct));
   }
 
-  void generateStruct(ClassBuilder clb, TStruct struct) {
+  /** Generate classes for the named structs defined in the type aliases. */
+  private void generateNamedTypes(List<TypeAlias> typeAliases) {
+    for (var typeAlias : typeAliases) {
+      if (typeAlias.typeNode() instanceof SumTypeNode sumTypeNode) {
+          var sumType = sumTypeNode.type();
+          generateSumType(sumType);
+          sumTypeNode.variantTypeNodes().forEach(variantTypeNode -> {
+            switch (variantTypeNode.type()) {
+              case StructType variantStructType ->
+                  generateVariantStruct(variantStructType, sumType, variantTypeNode.range());
+              case SingletonType singletonType ->
+                  generateSingleton(singletonType, sumType, variantTypeNode.range());
+            }
+          });
+      }
+    }
+  }
+
+  private void generateStruct(ClassBuilder clb, TStruct struct) {
     setContext(struct);
     // Generate class header
     var structType = struct.structType();
     var structDesc = internalClassDesc(structType);
 
-    var funcNames = struct.functions().stream().map(TNamedFunction::name).collect(toSet());
     var fieldTypes = new LinkedHashMap<String, Type>();
-    structType.fieldTypes().forEach((name, type) -> {
-      if (!funcNames.contains(name)) {
-        fieldTypes.put(name, type);
-      }
-    });
+    struct.fields().forEach(field -> fieldTypes.put(field.name(), field.type()));
 
     generateStructStart(clb, structDesc, struct.range(), fieldTypes);
 
     // Add a static INSTANCE field of the struct to make a singleton class.
     if (struct instanceof TModuleStruct moduleStruct) {
-      moduleStruct.typeAliases()
-          .stream()
-          .map(TypeAlias::typeNode)
-          .flatMap(type -> type instanceof SumTypeNode sumTypeNode ? Stream.of(sumTypeNode)
-              : Stream.empty())
-          .forEach(sumTypeNode -> {
-            var sumType = sumTypeNode.type();
-            var sumTypeGenerator = new ClassGenerator();
-            sumTypeGenerator.generateSumType(sumType);
-            generatedClasses.putAll(sumTypeGenerator.getGeneratedClasses());
-            sumTypeNode.variantTypeNodes().forEach(variantTypeNode -> {
-              var variantGenerator = new ClassGenerator();
-              switch (variantTypeNode.type()) {
-                case StructType variantStructType -> variantGenerator.generateVariantStruct(
-                    variantStructType,
-                    sumType,
-                    variantTypeNode.range());
-                case SingletonType singletonType ->
-                    variantGenerator.generateSingleton(singletonType,
-                        sumType,
-                        variantTypeNode.range());
-              }
-              generatedClasses.putAll(variantGenerator.getGeneratedClasses());
-            });
-          });
-
+      generateNamedTypes(moduleStruct.typeAliases());
       generateStaticInstance(clb, structType.classDesc(),
           internalClassDesc(structType),
           cob -> new ExpressionGenerator(cob, Context.INIT, "modInit", List.of()).generateStructInit(
               struct));
+
+      // Generate methods
+      for (var function : moduleStruct.functions()) {
+        setContext(function);
+        generateFunction(clb, function.name(), function.function());
+      }
     }
 
-    // Generate methods
-    for (var function : struct.functions()) {
-      setContext(function);
-      generateFunction(clb, function.name(), function.function());
-    }
   }
 
-  void generateStaticInstance(ClassBuilder clb, ClassDesc fieldClassDesc, ClassDesc ownerClassDesc,
+  private void generateStaticInstance(ClassBuilder clb, ClassDesc fieldClassDesc, ClassDesc ownerClassDesc,
       Consumer<CodeBuilder> structInitGenerator) {
     // Generate INSTANCE field
     clb.withField(INSTANCE_FIELD,
@@ -353,9 +333,5 @@ class ClassGenerator {
         func.name(),
         func.function(),
         ClassFile.ACC_PUBLIC + ClassFile.ACC_STATIC + ClassFile.ACC_SYNTHETIC));
-  }
-
-  public Map<String, byte[]> getGeneratedClasses() {
-    return generatedClasses;
   }
 }

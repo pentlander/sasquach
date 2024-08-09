@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.type;
 
+import static com.pentlander.sasquach.Util.seqMap;
 import static java.util.stream.Collectors.joining;
 
 import com.pentlander.sasquach.ast.StructName;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.SequencedMap;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -22,25 +24,25 @@ import org.jspecify.annotations.Nullable;
  * @param fieldTypes Map of field names to types. Field types include any value type, as well as
  *                   functions.
  */
-public record StructType(StructName structName, Map<String, Type> fieldTypes, RowModifier rowModifier) implements
+public record StructType(StructName structName, SequencedMap<String, Type> fieldTypes, RowModifier rowModifier) implements
     ParameterizedType, VariantType {
   private static final String PREFIX = "Struct";
 
   public StructType {
-    fieldTypes = Objects.requireNonNullElse(fieldTypes, Map.of());
+    fieldTypes = Objects.requireNonNullElse(fieldTypes, seqMap());
     fieldTypes.values().forEach(value -> Objects.requireNonNull(value, toString()));
     structName = Objects.requireNonNullElse(structName, new UnqualifiedStructName(PREFIX + hashFieldTypes(fieldTypes)));
   }
 
-  public StructType(@Nullable StructName name, Map<String, Type> fieldTypes) {
+  public StructType(@Nullable StructName name, SequencedMap<String, Type> fieldTypes) {
     this(name, fieldTypes, RowModifier.none());
   }
 
-  public StructType(Map<String, Type> fieldTypes, RowModifier rowModifier) {
+  public StructType(SequencedMap<String, Type> fieldTypes, RowModifier rowModifier) {
     this(null, fieldTypes, rowModifier);
   }
 
-  public StructType(Map<String, Type> fieldTypes) {
+  public StructType(SequencedMap<String, Type> fieldTypes) {
     this(null, fieldTypes, RowModifier.none());
   }
 

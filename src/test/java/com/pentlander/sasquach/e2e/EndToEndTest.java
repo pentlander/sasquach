@@ -136,18 +136,33 @@ public class EndToEndTest {
     assertThat(sum).isEqualTo(15);
   }
 
-  @Test @Disabled
+  @Test
   void literalStructFunc_withCapture() throws Exception {
-    var clazz = compileClass( """
+    /*
+     * So the TFunction properly has a capture associated with it, which means the func gets created
+     * with a type sig that includes the capture var. However, the methodhandle with the capture
+     * never gets created. So in reality, the static func needs to be created on the struct and then
+     * a field need to be initialized with the captured method handle. This leaves us with three
+     * options:
+     * 1. Take the capture var in the constructor and add a synthetic field for the captured variable.
+     * Then generate the function normally without captures in the parameters
+     * 2. Take the capture var in the constructor and init a field of type Func from a static method
+     * within the struct and the capture var.
+     * 3. Initialize the Func object before constructor and then take in that Func object in the
+     * constructor.
+     *
+     *
+     */
+    var clazz = compileClassDebug( """
         Main {
-          plus = (): Int -> {
+          main = (): Int -> {
             let capture = 5
             let adder = { addFive = (a: Int): Int -> a + capture, }
             adder.addFive(1)
           }
         }
         """);
-    int sum = invokeName(clazz, "plus");
+    int sum = invokeMain(clazz);
 
     assertThat(sum).isEqualTo(6);
   }
@@ -292,11 +307,9 @@ public class EndToEndTest {
   }
 
   @Test
-    // Need to generate an interface for the sum type or more likely generate a class that takes a
-    // function object in the constructor
-  void sumTypeWithFunc() throws Exception {
+  void sumType_withFunc() throws Exception {
     // let none = identity(None)
-    var clazz = compileClass( """
+    var clazz = compileClassDebug( """
         Main {
           type Option = | Test { foo: (bar: Int) -> String },
           
@@ -305,6 +318,47 @@ public class EndToEndTest {
             let some = Test { foo = (bar: Int): String -> "fox" }
             match some {
               Test { foo } -> foo(10),
+            }
+          },
+        }
+        """);
+    String sum = invokeMain(clazz);
+
+    assertThat(sum).isEqualTo("fox");
+  }
+
+  @Test
+  void sumType_withFuncCapture() throws Exception {
+    var clazz = compileClassDebug( """
+        Main {
+          type Test = | Foo { foo: (bar: Int) -> String },
+          
+          
+          main = (): String -> {
+            let capture = "fox"
+            let some = Foo { foo = (bar: Int): String -> capture }
+            match some {
+              Foo { foo } -> foo(10),
+            }
+          },
+        }
+        """);
+    String sum = invokeMain(clazz);
+
+    assertThat(sum).isEqualTo("fox");
+  }
+
+  @Test @Disabled
+  void sumType_withFunc_referToField() throws Exception {
+    var clazz = compileClassDebug( """
+        Main {
+          type Test = | Foo { foo: (bar: Int) -> String, bar: String },
+          
+          
+          main = (): String -> {
+            let some = Foo { foo = (): String -> bar, bar = "fox" }
+            match some {
+              Foo { foo } -> foo(),
             }
           },
         }

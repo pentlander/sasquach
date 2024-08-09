@@ -7,14 +7,17 @@ import com.pentlander.sasquach.tast.TypedMember;
 import com.pentlander.sasquach.tast.TypedNode;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
+import java.lang.constant.ClassDesc;
 import java.util.List;
 
 public sealed interface TStruct extends TypedExpression permits TLiteralStruct, TStructWithName {
   List<TField> fields();
 
-  List<TNamedFunction> functions();
-
   StructType structType();
+
+  default List<Type> constructorParams() {
+    return fields().stream().map(TField::type).toList();
+  }
 
   @Override
   default Type type() {

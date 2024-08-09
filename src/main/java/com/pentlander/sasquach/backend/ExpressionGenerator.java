@@ -324,8 +324,7 @@ final class ExpressionGenerator {
       case TStruct struct -> {
         if (struct instanceof TLiteralStruct) {
           var classGen = new ClassGenerator();
-          classGen.generateStruct(struct);
-          generatedClasses.putAll(classGen.getGeneratedClasses());
+          generatedClasses.putAll(classGen.generate(struct));
         }
 
         generateStructInit(struct);
@@ -559,15 +558,10 @@ final class ExpressionGenerator {
     }
     generateNewDup(structClassDesc);
     fields.forEach(field -> generateExpr(field.expr()));
-    var paramDescs = switch (struct) {
-      // TODO Remove this hack. The constructor type params should be derived from the type def
-      case TVariantStruct variantStruct ->
-          variantStruct.constructorParams().stream().map(type -> switch (type) {
-            case TypeVariable _ -> ConstantDescs.CD_Object;
-            default -> type.classDesc();
-          }).toArray(ClassDesc[]::new);
-      default -> ClassGenerator.fieldParamDescs(struct.fields());
-    };
+    var paramDescs = struct.constructorParams()
+        .stream()
+        .map(Type::classDesc)
+        .toArray(ClassDesc[]::new);
     generate(MethodHandleDesc.ofConstructor(structClassDesc, paramDescs));
   }
 

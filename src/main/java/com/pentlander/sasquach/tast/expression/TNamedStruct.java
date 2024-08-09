@@ -9,12 +9,11 @@ import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 
 @RecordBuilder
-public record TNamedStruct(QualifiedStructName name, List<TField> fields, List<TNamedFunction> functions,
+public record TNamedStruct(QualifiedStructName name, List<TField> fields,
                            Range range) implements TStructWithName {
   public TNamedStruct {
     requireNonNull(name);
     requireNonNull(fields, "fields");
-    requireNonNull(functions, "functions");
     requireNonNull(range, "range");
   }
 }
