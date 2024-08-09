@@ -1,66 +1,11 @@
-package com.pentlander.sasquach;
-
-import static com.pentlander.sasquach.SasquachParser.ApplicationContext;
-import static com.pentlander.sasquach.SasquachParser.BinaryOperationContext;
-import static com.pentlander.sasquach.SasquachParser.BlockContext;
-import static com.pentlander.sasquach.SasquachParser.ClassTypeContext;
-import static com.pentlander.sasquach.SasquachParser.CompilationUnitContext;
-import static com.pentlander.sasquach.SasquachParser.ForeignMemberAccessExpressionContext;
-import static com.pentlander.sasquach.SasquachParser.FunctionArgumentContext;
-import static com.pentlander.sasquach.SasquachParser.FunctionCallContext;
-import static com.pentlander.sasquach.SasquachParser.FunctionContext;
-import static com.pentlander.sasquach.SasquachParser.FunctionDeclarationContext;
-import static com.pentlander.sasquach.SasquachParser.FunctionParameterListContext;
-import static com.pentlander.sasquach.SasquachParser.FunctionTypeContext;
-import static com.pentlander.sasquach.SasquachParser.IdentifierStatementContext;
-import static com.pentlander.sasquach.SasquachParser.IfExpressionContext;
-import static com.pentlander.sasquach.SasquachParser.IntLiteralContext;
-import static com.pentlander.sasquach.SasquachParser.MemberAccessExpressionContext;
-import static com.pentlander.sasquach.SasquachParser.ModuleDeclarationContext;
-import static com.pentlander.sasquach.SasquachParser.ParenExpressionContext;
-import static com.pentlander.sasquach.SasquachParser.PrimitiveTypeContext;
-import static com.pentlander.sasquach.SasquachParser.PrintStatementContext;
-import static com.pentlander.sasquach.SasquachParser.StringLiteralContext;
-import static com.pentlander.sasquach.SasquachParser.StructContext;
-import static com.pentlander.sasquach.SasquachParser.StructTypeContext;
-import static com.pentlander.sasquach.SasquachParser.UseStatementContext;
-import static com.pentlander.sasquach.SasquachParser.VarReferenceContext;
-import static com.pentlander.sasquach.SasquachParser.VariableDeclarationContext;
+package com.pentlander.sasquach.parser;
 import static com.pentlander.sasquach.ast.expression.Struct.StructKind;
 import static java.util.Objects.requireNonNullElse;
 
-import com.pentlander.sasquach.SasquachParser.ApplyExpressionContext;
-import com.pentlander.sasquach.SasquachParser.BooleanExpressionContext;
-import com.pentlander.sasquach.SasquachParser.BooleanLiteralContext;
-import com.pentlander.sasquach.SasquachParser.CompareExpressionContext;
-import com.pentlander.sasquach.SasquachParser.ExpressionContext;
-import com.pentlander.sasquach.SasquachParser.ForeignMemberApplicationExpressionContext;
-import com.pentlander.sasquach.SasquachParser.ForeignNameContext;
-import com.pentlander.sasquach.SasquachParser.LocalNamedTypeContext;
-import com.pentlander.sasquach.SasquachParser.LoopExpressionContext;
-import com.pentlander.sasquach.SasquachParser.MatchExpressionContext;
-import com.pentlander.sasquach.SasquachParser.MemberApplicationContext;
-import com.pentlander.sasquach.SasquachParser.MemberApplicationExpressionContext;
-import com.pentlander.sasquach.SasquachParser.ModuleNamedTypeContext;
-import com.pentlander.sasquach.SasquachParser.MultiTupleTypeContext;
-import com.pentlander.sasquach.SasquachParser.MultiTupleVariantPatternContext;
-import com.pentlander.sasquach.SasquachParser.NamedStructContext;
-import com.pentlander.sasquach.SasquachParser.NotExpressionContext;
-import com.pentlander.sasquach.SasquachParser.SingleTupleTypeContext;
-import com.pentlander.sasquach.SasquachParser.SingleTupleVariantPatternContext;
-import com.pentlander.sasquach.SasquachParser.SingletonPatternContext;
-import com.pentlander.sasquach.SasquachParser.SingletonTypeContext;
-import com.pentlander.sasquach.SasquachParser.SpreadStatementContext;
-import com.pentlander.sasquach.SasquachParser.StructSumTypeContext;
-import com.pentlander.sasquach.SasquachParser.StructVariantPatternContext;
-import com.pentlander.sasquach.SasquachParser.SumTypeContext;
-import com.pentlander.sasquach.SasquachParser.TupleExpressionContext;
-import com.pentlander.sasquach.SasquachParser.TupleTypeContext;
-import com.pentlander.sasquach.SasquachParser.TypeAliasStatementContext;
-import com.pentlander.sasquach.SasquachParser.TypeArgumentListContext;
-import com.pentlander.sasquach.SasquachParser.TypeContext;
-import com.pentlander.sasquach.SasquachParser.TypeParameterListContext;
-import com.pentlander.sasquach.SasquachParser.VariantTypeContext;
+import com.pentlander.sasquach.PackageName;
+import com.pentlander.sasquach.Position;
+import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.SourcePath;
 import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.Branch;
 import com.pentlander.sasquach.ast.CompilationUnit;
@@ -111,6 +56,64 @@ import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
+import com.pentlander.sasquach.parser.SasquachParser.ApplicationContext;
+import com.pentlander.sasquach.parser.SasquachParser.ApplyExpressionContext;
+import com.pentlander.sasquach.parser.SasquachParser.BinaryOperationContext;
+import com.pentlander.sasquach.parser.SasquachParser.BlockContext;
+import com.pentlander.sasquach.parser.SasquachParser.BooleanExpressionContext;
+import com.pentlander.sasquach.parser.SasquachParser.BooleanLiteralContext;
+import com.pentlander.sasquach.parser.SasquachParser.ClassTypeContext;
+import com.pentlander.sasquach.parser.SasquachParser.CompareExpressionContext;
+import com.pentlander.sasquach.parser.SasquachParser.CompilationUnitContext;
+import com.pentlander.sasquach.parser.SasquachParser.ExpressionContext;
+import com.pentlander.sasquach.parser.SasquachParser.ForeignMemberAccessExpressionContext;
+import com.pentlander.sasquach.parser.SasquachParser.ForeignMemberApplicationExpressionContext;
+import com.pentlander.sasquach.parser.SasquachParser.ForeignNameContext;
+import com.pentlander.sasquach.parser.SasquachParser.FunctionArgumentContext;
+import com.pentlander.sasquach.parser.SasquachParser.FunctionCallContext;
+import com.pentlander.sasquach.parser.SasquachParser.FunctionContext;
+import com.pentlander.sasquach.parser.SasquachParser.FunctionDeclarationContext;
+import com.pentlander.sasquach.parser.SasquachParser.FunctionParameterListContext;
+import com.pentlander.sasquach.parser.SasquachParser.FunctionTypeContext;
+import com.pentlander.sasquach.parser.SasquachParser.IdentifierStatementContext;
+import com.pentlander.sasquach.parser.SasquachParser.IfExpressionContext;
+import com.pentlander.sasquach.parser.SasquachParser.IntLiteralContext;
+import com.pentlander.sasquach.parser.SasquachParser.LocalNamedTypeContext;
+import com.pentlander.sasquach.parser.SasquachParser.LoopExpressionContext;
+import com.pentlander.sasquach.parser.SasquachParser.MatchExpressionContext;
+import com.pentlander.sasquach.parser.SasquachParser.MemberAccessExpressionContext;
+import com.pentlander.sasquach.parser.SasquachParser.MemberApplicationContext;
+import com.pentlander.sasquach.parser.SasquachParser.MemberApplicationExpressionContext;
+import com.pentlander.sasquach.parser.SasquachParser.ModuleDeclarationContext;
+import com.pentlander.sasquach.parser.SasquachParser.ModuleNamedTypeContext;
+import com.pentlander.sasquach.parser.SasquachParser.MultiTupleTypeContext;
+import com.pentlander.sasquach.parser.SasquachParser.MultiTupleVariantPatternContext;
+import com.pentlander.sasquach.parser.SasquachParser.NamedStructContext;
+import com.pentlander.sasquach.parser.SasquachParser.NotExpressionContext;
+import com.pentlander.sasquach.parser.SasquachParser.ParenExpressionContext;
+import com.pentlander.sasquach.parser.SasquachParser.PrimitiveTypeContext;
+import com.pentlander.sasquach.parser.SasquachParser.PrintStatementContext;
+import com.pentlander.sasquach.parser.SasquachParser.SingleTupleTypeContext;
+import com.pentlander.sasquach.parser.SasquachParser.SingleTupleVariantPatternContext;
+import com.pentlander.sasquach.parser.SasquachParser.SingletonPatternContext;
+import com.pentlander.sasquach.parser.SasquachParser.SingletonTypeContext;
+import com.pentlander.sasquach.parser.SasquachParser.SpreadStatementContext;
+import com.pentlander.sasquach.parser.SasquachParser.StringLiteralContext;
+import com.pentlander.sasquach.parser.SasquachParser.StructContext;
+import com.pentlander.sasquach.parser.SasquachParser.StructSumTypeContext;
+import com.pentlander.sasquach.parser.SasquachParser.StructTypeContext;
+import com.pentlander.sasquach.parser.SasquachParser.StructVariantPatternContext;
+import com.pentlander.sasquach.parser.SasquachParser.SumTypeContext;
+import com.pentlander.sasquach.parser.SasquachParser.TupleExpressionContext;
+import com.pentlander.sasquach.parser.SasquachParser.TupleTypeContext;
+import com.pentlander.sasquach.parser.SasquachParser.TypeAliasStatementContext;
+import com.pentlander.sasquach.parser.SasquachParser.TypeArgumentListContext;
+import com.pentlander.sasquach.parser.SasquachParser.TypeContext;
+import com.pentlander.sasquach.parser.SasquachParser.TypeParameterListContext;
+import com.pentlander.sasquach.parser.SasquachParser.UseStatementContext;
+import com.pentlander.sasquach.parser.SasquachParser.VarReferenceContext;
+import com.pentlander.sasquach.parser.SasquachParser.VariableDeclarationContext;
+import com.pentlander.sasquach.parser.SasquachParser.VariantTypeContext;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
 import com.pentlander.sasquach.type.LocalNamedType;
@@ -162,11 +165,12 @@ public class Visitor {
     return rangeFrom(node.getSymbol());
   }
 
-  CompilationUnitVisitor compilationUnitVisitor() {
+  public CompilationUnitVisitor compilationUnitVisitor() {
     return new CompilationUnitVisitor();
   }
 
-  class CompilationUnitVisitor extends SasquachBaseVisitor<CompilationUnit> {
+  public class CompilationUnitVisitor extends
+      com.pentlander.sasquach.parser.SasquachBaseVisitor<CompilationUnit> {
     @Override
     public CompilationUnit visitCompilationUnit(CompilationUnitContext ctx) {
       var modules = ctx.moduleDeclaration()
@@ -177,7 +181,7 @@ public class Visitor {
     }
   }
 
-  class ModuleVisitor extends SasquachBaseVisitor<ModuleDeclaration> {
+  class ModuleVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<ModuleDeclaration> {
     private final String packageName;
 
     ModuleVisitor(String packageName) {
@@ -196,7 +200,7 @@ public class Visitor {
     }
   }
 
-  class FunctionVisitor extends SasquachBaseVisitor<Function> {
+  class FunctionVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Function> {
     @Override
     public Function visitFunction(FunctionContext ctx) {
       FunctionSignature funcSignature = functionDeclaration(ctx.functionDeclaration());
@@ -217,7 +221,7 @@ public class Visitor {
     }
   }
 
-  class ExpressionVisitor extends SasquachBaseVisitor<Expression> {
+  class ExpressionVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Expression> {
     @Override
     public Expression visitVarReference(VarReferenceContext ctx) {
       var name = ctx.getText();
@@ -240,7 +244,8 @@ public class Visitor {
       var visitor = new ExpressionVisitor();
       var leftExpr = ctx.left.accept(visitor);
       var rightExpr = ctx.right.accept(visitor);
-      return new BinaryExpression.MathExpression(MathOperator.fromString(operatorString),
+      return new BinaryExpression.MathExpression(
+          MathOperator.fromString(operatorString),
           leftExpr,
           rightExpr,
           rangeFrom(ctx));
@@ -261,7 +266,8 @@ public class Visitor {
     public Expression visitCompareExpression(CompareExpressionContext ctx) {
       var leftExpr = ctx.left.accept(this);
       var rightExpr = ctx.right.accept(this);
-      return new CompareExpression(CompareOperator.fromString(ctx.operator.getText()),
+      return new CompareExpression(
+          CompareOperator.fromString(ctx.operator.getText()),
           leftExpr,
           rightExpr,
           rangeFrom(ctx));
@@ -271,7 +277,8 @@ public class Visitor {
     public Expression visitBooleanExpression(BooleanExpressionContext ctx) {
       var leftExpr = ctx.left.accept(this);
       var rightExpr = ctx.right.accept(this);
-      return new BooleanExpression(BooleanOperator.fromString(ctx.operator.getText()),
+      return new BooleanExpression(
+          BooleanOperator.fromString(ctx.operator.getText()),
           leftExpr,
           rightExpr,
           rangeFrom(ctx));
@@ -457,7 +464,7 @@ public class Visitor {
     }
   }
 
-  class TypeVisitor extends SasquachBaseVisitor<TypeNode> {
+  class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<TypeNode> {
     @Override
     public TypeNode visitPrimitiveType(PrimitiveTypeContext ctx) {
       return new BasicTypeNode<>(BuiltinType.fromString(ctx.getText()), rangeFrom(ctx));
@@ -535,7 +542,7 @@ public class Visitor {
     return new StructVisitor(new UnqualifiedStructName(name), StructKind.NAMED);
   }
 
-  public class StructVisitor extends SasquachBaseVisitor<Struct> {
+  public class StructVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Struct> {
     private final StructName structName;
     private final StructKind structKind;
     private final ExpressionVisitor expressionVisitor;

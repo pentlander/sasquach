@@ -51,5 +51,5 @@ tasks.getByName<Test>("test") {
 }
 
 tasks.generateGrammarSource {
-    arguments = arguments + listOf("-package", "com.pentlander.sasquach", "-visitor")
+    arguments = arguments + listOf("-package", "com.pentlander.sasquach.parser", "-visitor")
 }

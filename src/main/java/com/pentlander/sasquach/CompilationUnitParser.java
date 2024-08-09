@@ -2,6 +2,9 @@ package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.Range.Single;
 import com.pentlander.sasquach.ast.CompilationUnit;
+import com.pentlander.sasquach.parser.SasquachLexer;
+import com.pentlander.sasquach.parser.SasquachParser;
+import com.pentlander.sasquach.parser.Visitor;
 import java.util.ArrayList;
 import java.util.List;
 import org.antlr.v4.runtime.BaseErrorListener;
