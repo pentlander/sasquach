@@ -47,7 +47,7 @@ public sealed interface Struct extends Expression permits LiteralStruct,
 
   @Override
   default String toPrettyString() {
-    return "{" + fields().stream()
+    return "{ " + fields().stream()
         .map(Field::toPrettyString)
         .collect(Collectors.joining(", ", "", " ")) + functions().stream()
         .map(NamedFunction::toPrettyString)

@@ -376,16 +376,19 @@ public class MemberScopedTypeResolver {
     };
   }
 
-  private TStruct resolveStruct(Struct struct) {
-    var typedFunctions = struct.functions().stream().map(func -> {
+  private List<TNamedFunction> typedFuncs(Struct struct) {
+    return struct.functions().stream().map(func -> {
       var typedFunc = infer(func.function());
       return new TNamedFunction(func.id(), (TFunction) typedFunc);
     }).toList();
+  }
 
+  private TStruct resolveStruct(Struct struct) {
     return switch (struct) {
       // Literal structs have all of their fields inferred since they're not "based" on any
       // pre-existing type
       case LiteralStruct s -> {
+        var typedFunctions = typedFuncs(struct);
         var typedFields = struct.fields()
             .stream()
             .map(field -> new TField(field.id(), infer(field.value())))
@@ -409,6 +412,7 @@ public class MemberScopedTypeResolver {
             .build();
       }
       case ModuleStruct s -> {
+        var typedFunctions = typedFuncs(struct);
         var typedFields = struct.fields()
             .stream()
             .map(field -> new TField(field.id(), infer(field.value())))
@@ -433,17 +437,22 @@ public class MemberScopedTypeResolver {
             .findFirst()
             .map(StructType.class::cast)
             .orElseThrow();
-        var typedFields = struct.fields().stream().map(field -> {
+        var typedFields = new ArrayList<TField>();
+        struct.fields().forEach(field -> {
           var typedExpr = check(field.value(), variant.fieldType(field.name()));
-          return new TField(field.id(), typedExpr);
-        }).toList();
+          typedFields.add(new TField(field.id(), typedExpr));
+        });
+        struct.functions().forEach(func -> {
+          var tFunc = (TFunction) check(func.function(), variant.fieldType(func.name()));
+          typedFields.add(new TField(func.id(), tFunc));
+        });
 
         var constructorParams = List.copyOf(variant.fieldTypes().values());
         var type = (SumType) typeUnifier.resolve(convertedSumType);
         yield TVariantStructBuilder.builder()
             .name(sumType.moduleName().qualifyInner(s.name()))
             .fields(typedFields)
-            .functions(typedFunctions)
+            .functions(List.of())
             .constructorParams(constructorParams)
             .type(type)
             .range(s.range())

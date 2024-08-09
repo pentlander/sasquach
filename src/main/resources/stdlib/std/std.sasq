@@ -16,7 +16,7 @@ Exception {
 Eq {
   type T[A] = { equals: (val1: A, val2: A) -> Boolean, .. },
 
-  equals = [A](eq: T[A], val1: A, val2: A): Boolean -> eq.equals(val1, val2)
+  equals = [A](eq: T[A], val1: A, val2: A): Boolean -> eq.equals(val1, val2),
 }
 
 Option {
@@ -201,6 +201,10 @@ List {
 
 Hash {
   type T[A] = { hashCode: (key: A) -> Int, .. },
+
+  new = [A, W](fn: (value: A) -> Int, witness: W): T[A] -> {
+    hashCode = fn,
+  }
 }
 
 Map {

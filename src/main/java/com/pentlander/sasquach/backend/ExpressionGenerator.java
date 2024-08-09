@@ -79,6 +79,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import jdk.dynalink.Namespace;
 import jdk.dynalink.StandardNamespace;
 import jdk.dynalink.StandardOperation;
 import jdk.dynalink.linker.support.TypeUtilities;
@@ -509,8 +510,10 @@ class ExpressionGenerator {
 
   private void generateFieldAccess(String fieldName, Type fieldType) {
     var isFunc = TypeUtils.asFunctionType(fieldType).isPresent();
-    var operation = StandardOperation.GET.withNamespaces(
-            isFunc ? StandardNamespace.METHOD : StandardNamespace.PROPERTY)
+    var namespaces = isFunc ? new Namespace[]{StandardNamespace.METHOD, StandardNamespace.PROPERTY}
+        : new Namespace[]{StandardNamespace.PROPERTY};
+    var operation = StandardOperation.GET
+        .withNamespaces(namespaces)
         .named(fieldName)
         .toString();
     var typeDesc = MethodTypeDesc.of(fieldType.classDesc(), CD_STRUCT_BASE);

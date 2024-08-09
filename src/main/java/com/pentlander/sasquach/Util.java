@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.SequencedMap;
 import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -31,6 +34,21 @@ public final class Util {
     return Collectors.toMap(keyMapper, valueMapper, (a, b) -> {
       throw new IllegalStateException();
     }, LinkedHashMap::new);
+  }
+
+  public static <K, V> SequencedMap<K, V> seqMap() {
+    return Collections.unmodifiableSequencedMap(new LinkedHashMap<>());
+  }
+
+  public static <K, V> SequencedMap<K, V> seqMap(K key, V value) {
+    var map = new LinkedHashMap<K, V>();
+    map.put(key, value);
+    return Collections.unmodifiableSequencedMap(map);
+  }
+
+  public static <K, V> SequencedMap<K, V> unsafeSeqMap(Map<K, V> baseMap) {
+    var map = new LinkedHashMap<>(baseMap);
+    return Collections.unmodifiableSequencedMap(map);
   }
 
 //  public static String toStr(Record record) throws IllegalAccessException {

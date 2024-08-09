@@ -2,6 +2,7 @@ package com.pentlander.sasquach;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -21,6 +22,19 @@ public final class TestUtils {
   }
   public static void dumpGeneratedClasses(Path path, Map<String, byte[]> generatedClasses) {
     try {
+      if (Files.isDirectory(path)) {
+        try (var paths = Files.walk(path)) {
+          paths.forEach(childPath -> {
+            try {
+              if (Files.isRegularFile(childPath)) {
+                Files.delete(childPath);
+              }
+            } catch (IOException e) {
+              throw new UncheckedIOException(e);
+            }
+          });
+        }
+      }
       for (Map.Entry<String, byte[]> entry : generatedClasses.entrySet()) {
         String name = entry.getKey();
         byte[] bytecode = entry.getValue();

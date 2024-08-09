@@ -4,7 +4,7 @@
 * Avoid generation of duplicate struct classes
 
 ## Right Now
-* Handle variable captures in functions in anon functions
+* Handle variable captures in literal structs
 * Figure out how to automatically derive a small set of functions for a struct at compile time
   * Keep the set small to make it simpler
   * toString, serialize/deserialize, hash, equals, compare

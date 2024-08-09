@@ -12,7 +12,6 @@ import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.TestUtils;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
 import java.nio.file.Path;
-import jdk.dynalink.beans.BeansLinker;
 import org.assertj.core.util.Files;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -139,7 +138,7 @@ public class EndToEndTest {
 
   @Test @Disabled
   void literalStructFunc_withCapture() throws Exception {
-    var clazz = compileClassDebug( """
+    var clazz = compileClass( """
         Main {
           plus = (): Int -> {
             let capture = 5
@@ -153,12 +152,12 @@ public class EndToEndTest {
     assertThat(sum).isEqualTo(6);
   }
 
-  @Test @Disabled
+  @Test
   void higherOrderFunc_inStruct() throws Exception {
-    var clazz = compileClassDebug("""
+    var clazz = compileClass("""
         Main {
           wrapFn = (fn: (s: String) -> String): { fn: (s: String) -> String } -> {
-            fn = fn
+            fn = fn,
           },
           
           main = (): String -> {
@@ -293,24 +292,24 @@ public class EndToEndTest {
   }
 
   @Test
-  @Disabled
     // Need to generate an interface for the sum type or more likely generate a class that takes a
     // function object in the constructor
   void sumTypeWithFunc() throws Exception {
     // let none = identity(None)
     var clazz = compileClass( """
         Main {
-          type Option[T] = | Test { foo: (bar: Int) -> String },
+          type Option = | Test { foo: (bar: Int) -> String },
           
-          identity = [T](option: Option[T]): Option[T] -> option,
           
-          foo = (): String -> {
+          main = (): String -> {
             let some = Test { foo = (bar: Int): String -> "fox" }
-            some.foo("foo")
+            match some {
+              Test { foo } -> foo(10),
+            }
           },
         }
         """);
-    String sum = invokeName(clazz, "foo");
+    String sum = invokeMain(clazz);
 
     assertThat(sum).isEqualTo("fox");
   }
@@ -540,7 +539,7 @@ public class EndToEndTest {
 
   @Test
   void complexParameterizedExpression_multiModule() throws Exception {
-    var clazz = compileClassDebug( """
+    var clazz = compileClass( """
         Box {
           type T[A] = { value: A },
           
@@ -639,6 +638,7 @@ public class EndToEndTest {
     assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
   }
 
+  /** Returns the class {@code main.Main} */
   private Class<?> compileClass(String source) throws ClassNotFoundException, CompilationException {
     return compileClass(Source.fromString("main", source), false);
   }

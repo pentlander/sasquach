@@ -1,10 +1,13 @@
 package com.pentlander.sasquach.backend;
 
+import static com.pentlander.sasquach.Util.seqMap;
+import static com.pentlander.sasquach.Util.unsafeSeqMap;
 import static com.pentlander.sasquach.backend.GeneratorUtil.internalClassDesc;
 import static com.pentlander.sasquach.type.TypeUtils.asFunctionType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
 import static java.lang.classfile.Signature.ClassTypeSig;
 import static java.lang.classfile.Signature.TypeVarSig;
+import static java.util.stream.Collectors.*;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.SumTypeNode;
@@ -15,6 +18,7 @@ import com.pentlander.sasquach.backend.ExpressionGenerator.Context;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
+import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.tast.TypedNode;
 import com.pentlander.sasquach.tast.expression.TFunction;
 import com.pentlander.sasquach.tast.expression.TModuleStruct;
@@ -34,6 +38,7 @@ import java.lang.classfile.MethodSignature;
 import java.lang.classfile.Signature;
 import java.lang.classfile.Signature.BaseTypeSig;
 import java.lang.classfile.Signature.TypeParam;
+import java.lang.classfile.TypeAnnotation;
 import java.lang.classfile.TypeKind;
 import java.lang.classfile.attribute.PermittedSubclassesAttribute;
 import java.lang.classfile.attribute.SignatureAttribute;
@@ -46,10 +51,17 @@ import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.AccessFlag;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.NavigableMap;
+import java.util.SequencedMap;
+import java.util.SequencedSet;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
@@ -78,20 +90,12 @@ class ClassGenerator {
   }
 
   private void generateStructStart(ClassBuilder clb, ClassDesc structDesc, Range range,
-      Map<String, Type> fields) {
-    generateStructStart(clb, structDesc, range, fields, List.of());
-  }
+      SequencedMap<String, Type> fields, ClassDesc... interfaceDescs) {
+    var entries = List.copyOf(fields.entrySet());
 
-  private void generateStructStart(ClassBuilder clb, ClassDesc structDesc, Range range,
-      Map<String, Type> fields, List<ClassDesc> interfaceDescs) {
-    var entries = fields.entrySet()
-        .stream()
-        .filter(entry -> asFunctionType(entry.getValue()).isEmpty())
-        .toList();
-
-    var allInterfaces = new ArrayList<ClassDesc>(interfaceDescs.size() + 1);
+    var allInterfaces = new ArrayList<ClassDesc>(interfaceDescs.length + 1);
     allInterfaces.add(CD_STRUCT_BASE);
-    allInterfaces.addAll(interfaceDescs);
+    allInterfaces.addAll(Arrays.asList(interfaceDescs));
 
     var sourcePath = range.sourcePath().filepath();
     clb.withFlags(AccessFlag.PUBLIC, AccessFlag.FINAL)
@@ -176,7 +180,7 @@ class ClassGenerator {
 
   void generateSingleton(ClassBuilder clb, SingletonType singleton, SumType sumType, Range range) {
     var structDesc = internalClassDesc(singleton);
-    generateStructStart(clb, structDesc, range, Map.of(), List.of(internalClassDesc(sumType)));
+    generateStructStart(clb, structDesc, range, seqMap(), internalClassDesc(sumType));
 
     generateStaticInstance(clb, singleton.classDesc(),
         structDesc,
@@ -193,11 +197,12 @@ class ClassGenerator {
   }
 
   void generateVariantStruct(ClassBuilder clb, StructType structType, SumType sumType, Range range) {
-    generateStructStart(clb,
+    generateStructStart(
+        clb,
         internalClassDesc(structType),
         range,
-        structType.fieldTypes(),
-        List.of(internalClassDesc(sumType)));
+        unsafeSeqMap(structType.fieldTypes()),
+        internalClassDesc(sumType));
   }
 
   void generateStruct(TStruct struct) {
@@ -209,7 +214,16 @@ class ClassGenerator {
     // Generate class header
     var structType = struct.structType();
     var structDesc = internalClassDesc(structType);
-    generateStructStart(clb, structDesc, struct.range(), structType.fieldTypes());
+
+    var funcNames = struct.functions().stream().map(TNamedFunction::name).collect(toSet());
+    var fieldTypes = new LinkedHashMap<String, Type>();
+    structType.fieldTypes().forEach((name, type) -> {
+      if (!funcNames.contains(name)) {
+        fieldTypes.put(name, type);
+      }
+    });
+
+    generateStructStart(clb, structDesc, struct.range(), fieldTypes);
 
     // Add a static INSTANCE field of the struct to make a singleton class.
     if (struct instanceof TModuleStruct moduleStruct) {

@@ -6,6 +6,7 @@ import java.lang.constant.ClassDesc;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
+import java.lang.invoke.MethodHandles.Lookup.ClassOption;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -199,7 +200,10 @@ final class StructLinker implements GuardingDynamicLinker, GuardingTypeConverter
           var callSiteLookup = callSiteDescriptor.getLookup();
           var packageName = callSiteLookup.lookupClass().getPackageName();
           var classFileBytes = StructGenerator.generateDelegateStruct(packageName, fieldTypes);
-          var delegateStruct = callSiteLookup.defineHiddenClass(classFileBytes, true).lookupClass();
+          var delegateStruct = callSiteLookup.defineHiddenClass(
+              classFileBytes,
+              true,
+              ClassOption.NESTMATE).lookupClass();
 
           // Create a method handle that invokes the constructor of the returned struct
           var handle = spreadHandle(MethodType.methodType(
