@@ -4,9 +4,13 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.Identifier;
+import java.util.Arrays;
 import java.util.List;
 
 record NameNotFoundError(Identifier id, String nodeType, List<String> suggestions) implements RangedError {
+  public NameNotFoundError {
+    Arrays.asList(Thread.currentThread().getStackTrace()).forEach(System.err::println);
+  }
   public NameNotFoundError(Identifier id, String nodeType) {
     this(id, nodeType, List.of());
   }

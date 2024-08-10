@@ -20,9 +20,9 @@ Eq {
 }
 
 Option {
-  use std/std/Eq,
-  use std/std/Result,
-  use std/std/Exception,
+  use std/Eq,
+  use std/Result,
+  use std/Exception,
   use foreign java/util/Objects,
   use foreign java/util/Optional,
 
@@ -81,7 +81,7 @@ Option {
 }
 
 Result {
-  use std/std/Option,
+  use std/Option,
   type T[A, B] = | Ok(A) | Err(B),
 
   ok = [A, B](value: A): T[A, B] -> Ok(value),
@@ -124,7 +124,7 @@ Result {
 }
 
 List {
-  use std/std/Eq,
+  use std/Eq,
   use foreign java/util/ArrayList,
   use foreign java/util/Iterator,
 
@@ -200,7 +200,7 @@ List {
 }
 
 Hash {
-  type T[A] = { hashCode: (key: A) -> Int, .. },
+  type T[A] = { hashCode: (value: A) -> Int, .. },
 
   new = [A, W](fn: (value: A) -> Int, witness: W): T[A] -> {
     hashCode = fn,
@@ -212,7 +212,7 @@ Map {
   use foreign java/util/Set,
   use foreign java/util/Iterator,
   use foreign java/util/Map$Entry,
-  use std/std/Hash,
+  use std/Hash,
 
   type T[A, B] = {
     hasher: Hash.T[A],

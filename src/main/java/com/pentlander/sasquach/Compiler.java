@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.atteo.classindex.ClassIndex;
@@ -50,9 +51,7 @@ public class Compiler {
           }
 
           var relPath = sourcePath.relativize(filePath);
-          var packageName = Stream.of(
-              relPath.getParent() != null ? relPath.getParent().toString() : "",
-              strippedFileName(relPath)).filter(s -> !s.isBlank()).collect(Collectors.joining("/"));
+          var packageName = simplifyPackageName(relPath);
           var source = new Source(SourcePath.fromPath(filePath),
               packageName,
               Files.readAllLines(filePath));
@@ -62,11 +61,32 @@ public class Compiler {
       });
       return Sources.fromMap(sources);
     } else {
+      if (sourcePath.isAbsolute()) {
+        throw new IOException("File source must be a relative path: " + sourcePath);
+      }
+
       var source = new Source(SourcePath.fromPath(sourcePath),
-          strippedFileName(sourcePath),
+          simplifyPackageName(sourcePath),
           Files.readAllLines(sourcePath));
       return Sources.single(source);
     }
+  }
+
+  private static String simplifyPackageName(Path relPath) {
+    // Need to collapse the package name, i.e. foo/std/std/Foo -> foo/std/Foo
+    var parentPath = relPath.getParent();
+    var strippedFileName = strippedFileName(relPath);
+    return switch (parentPath) {
+      case null -> strippedFileName;
+      default -> {
+        var parentName = parentPath.getFileName().toString();
+        if (parentName.equals(strippedFileName)) {
+          yield parentPath.toString();
+        } else {
+          yield String.join("/", parentPath.toString(), strippedFileName);
+        }
+      }
+    };
   }
 
   public static String strippedFileName(Path path) {

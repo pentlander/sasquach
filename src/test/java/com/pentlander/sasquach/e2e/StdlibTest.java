@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.e2e;
 
+import static com.pentlander.sasquach.TestUtils.invokeMain;
 import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.CompilationException;
@@ -13,6 +14,7 @@ import com.pentlander.sasquach.backend.BytecodeResult;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Paths;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 public class StdlibTest {
@@ -25,7 +27,6 @@ public class StdlibTest {
         """);
 
   }
-
 
   private Class<?> compileSource(String source)
       throws ClassNotFoundException, CompilationException {
