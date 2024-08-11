@@ -36,7 +36,7 @@ public record FunctionSignature(List<FunctionParameter> parameters,
   @Override
   public String toPrettyString() {
     var typeParams = !typeParameters.isEmpty() ? typeParameters.stream()
-        .map(TypeNode::toPrettyString)
+        .map(Node::toPrettyString)
         .collect(joining(", ", "[", "]")) : "";
     return typeParams + parameters().stream()
         .map(param -> param.name() + ": " + param.type().toPrettyString())

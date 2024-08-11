@@ -21,7 +21,7 @@ public record TypeAlias(TypeId id, List<TypeParameter> typeParameters, TypeNode 
   @Override
   public String toPrettyString() {
     var typeParams =
-        !typeParameters.isEmpty() ? typeParameters.stream().map(TypeNode::toPrettyString)
+        !typeParameters.isEmpty() ? typeParameters.stream().map(Node::toPrettyString)
             .collect(Collectors.joining(", ", "[", "]")) : "";
     return "type %s%s = %s".formatted(id.name(), typeParams, typeNode.toPrettyString());
   }

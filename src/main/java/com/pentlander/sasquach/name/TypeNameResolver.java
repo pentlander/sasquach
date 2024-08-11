@@ -72,7 +72,6 @@ public class TypeNameResolver {
         mergeResult(result);
       }
       case TupleTypeNode tupleTypeNode -> tupleTypeNode.fields().forEach(this::resolveTypeNode);
-      case TypeParameter ignored -> {}
       case SumTypeNode sumTypeNode -> sumTypeNode.variantTypeNodes().forEach(this::resolveTypeNode);
       case VariantTypeNode variantTypeNode -> {
         variantNodes.put(variantTypeNode.id().name(), variantTypeNode);
@@ -103,7 +102,7 @@ public class TypeNameResolver {
       // Check if the named type matches a type parameter
       var name = localNamedType.typeName();
       var typeParam = contextTypeParams.stream()
-          .filter(param -> param.typeNameStr().equals(name.toString()))
+          .filter(param -> param.name().equals(name.toString()))
           .findFirst();
       // Check if the named type matches a local type alias
       var typeAlias = moduleScopedNameResolver.resolveTypeAlias(name);

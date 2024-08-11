@@ -13,13 +13,15 @@ import org.jspecify.annotations.Nullable;
  */
 public final class TypeVariable implements Type, ParameterizedType {
   private final String name;
+  private final int level;
   private InnerType inner = new InnerType();
 
   /**
    * @param name captureName of the type variable.
    */
-  public TypeVariable(String name) {
+  public TypeVariable(String name, int level) {
     this.name = name;
+    this.level = level;
   }
 
   public Optional<Type> resolvedType() {
@@ -78,18 +80,20 @@ public final class TypeVariable implements Type, ParameterizedType {
 
   @Override
   public boolean equals(Object obj) {
-    return obj == this || obj instanceof TypeVariable other && Objects.equals(name, other.name)
-        && Objects.equals(inner, other.inner);
+    return obj == this || obj instanceof TypeVariable other
+        && name.equals(other.name)
+        && level == other.level
+        && inner.equals(other.inner);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(name, inner);
+    return Objects.hash(name, level, inner);
   }
 
   @Override
   public String toString() {
-    return "TypeVariable[" + "captureName=" + name + ", inner=" + inner + ']';
+    return "TypeVariable[" + "name=" + name + level + ", inner=" + inner + ']';
   }
 
   private static class InnerType {

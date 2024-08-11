@@ -53,7 +53,7 @@ public class NamedTypeResolver {
       case FunctionSignature(var parameters, var typeParameters, var returnType, var range) -> {
         var newTypeArgs = new HashMap<>(typeArgs);
         newTypeArgs.putAll(MemberScopedTypeResolver.typeParams(typeParameters,
-            param -> new UniversalType(param.typeNameStr(), 0)));
+            param -> param.toUniversal(0)));
         var resolvedParameters = parameters.stream()
             .map(p -> new FunctionParameter(p.id(), resolveTypeNode(p.typeNode(), newTypeArgs)))
             .toList();
@@ -89,10 +89,9 @@ public class NamedTypeResolver {
       case TypeAlias(var id, var typeParameters, var aliasTypeNode, var range) -> {
         var newTypeArgs = new HashMap<>(typeArgs);
         newTypeArgs.putAll(MemberScopedTypeResolver.typeParams(typeParameters,
-            param -> new UniversalType(param.typeNameStr(), 0)));
+            param -> param.toUniversal(0)));
         yield new TypeAlias(id, typeParameters, resolveTypeNode(aliasTypeNode, newTypeArgs), range);
       }
-      case TypeParameter typeParameter -> typeParameter;
       case Singleton(var moduleName, var aliasId, var id) ->
           new Singleton(moduleName, aliasId, id);
       case Tuple(var moduleName, var aliasId, var id, var tupleTypeNode) ->
@@ -123,7 +122,7 @@ public class NamedTypeResolver {
 
     return switch (typeDefNode) {
       case TypeParameter typeParameter ->
-          typeArgs.getOrDefault(typeParameter.typeNameStr(), namedType);
+          typeArgs.getOrDefault(typeParameter.name(), namedType);
       case TypeAlias typeAlias -> {
         if (typeAlias.typeParameters().size() != namedType.typeArguments().size()) {
           yield addError(new TypeMismatchError(
@@ -137,7 +136,7 @@ public class NamedTypeResolver {
         for (int i = 0; i < typeAlias.typeParameters().size(); i++) {
           var typeParam = typeAlias.typeParameters().get(i);
           var typeArg = resolveNames(namedType.typeArguments().get(i), typeArgs, range);
-          newTypeArgs.put(typeParam.typeNameStr(), typeArg);
+          newTypeArgs.put(typeParam.name(), typeArg);
           resolvedTypeArgs.add(typeArg);
         }
 

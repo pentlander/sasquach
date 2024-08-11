@@ -165,7 +165,7 @@ public class MemberScopedTypeResolver {
   private Map<String, Type> typeParamToVar(List<TypeParameter> typeParams) {
     return typeParams(
         typeParams,
-        param -> new TypeVariable(param.typeNameStr() + typeVarNum.getAndIncrement()));
+        param -> param.toTypeVariable(typeVarNum.getAndIncrement()));
   }
   FunctionType convertUniversals(FunctionType type, Range range) {
     var typeParamToVar = typeParamToVar(type.typeParameters());
@@ -185,7 +185,7 @@ public class MemberScopedTypeResolver {
 
   static Map<String, Type> typeParams(Collection<TypeParameter> typeParams,
       java.util.function.Function<TypeParameter, Type> paramFunc) {
-    return typeParams.stream().collect(toMap(TypeParameter::typeNameStr, paramFunc));
+    return typeParams.stream().collect(toMap(TypeParameter::name, paramFunc));
   }
 
   public TypedExpression check(Expression expr, Type type) {
@@ -310,7 +310,7 @@ public class MemberScopedTypeResolver {
                 recur.range());
             yield new TRecur(typedVarDecls,
                 typedExprs,
-                typeUnifier.resolve(new TypeVariable("Loop" + typeVarNum.getAndIncrement())),
+                typeUnifier.resolve(new TypeVariable("Loop", typeVarNum.getAndIncrement())),
                 recur.range());
           }
         };
@@ -328,7 +328,7 @@ public class MemberScopedTypeResolver {
       case Function func -> {
         var lvl = typeVarNum.getAndIncrement();
         var paramTypes = func.parameters().stream().map(param -> {
-          var paramType = new TypeVariable(param.name().toString() + lvl);
+          var paramType = new TypeVariable(param.name().toString(), lvl);
           var typedParam = new TFunctionParameter(param.id(), paramType, param.range());
           putLocalVarType(param, typedParam);
           return typedParam;
@@ -717,7 +717,7 @@ public class MemberScopedTypeResolver {
       }
       case java.lang.reflect.TypeVariable<?> typeVariable ->
           typeVariables.getOrDefault(typeVariable.getName(),
-              new TypeVariable(typeVariable.getName() + typeVarNum.getAndIncrement()));
+              new TypeVariable(typeVariable.getName(), typeVarNum.getAndIncrement()));
       case ParameterizedType paramType -> {
         var typeArgs = Arrays.stream(paramType.getActualTypeArguments())
             .map(t -> javaTypeToType(t, typeVariables))
@@ -748,7 +748,7 @@ public class MemberScopedTypeResolver {
     var lvl = typeVarNum.getAndIncrement();
     return Stream.concat(Arrays.stream(executable.getTypeParameters()), receiverTypeParams)
         .collect(toMap(java.lang.reflect.TypeVariable::getName,
-            t -> new TypeVariable(t.getName() + lvl)));
+            t -> new TypeVariable(t.getName(), lvl)));
   }
 
   private List<Type> executableParamTypes(Executable executable,

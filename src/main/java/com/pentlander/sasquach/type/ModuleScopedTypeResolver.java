@@ -160,7 +160,7 @@ public class ModuleScopedTypeResolver {
 
   FunctionSignature resolveFuncSignatureType(FunctionSignature funcSignature) {
     var typeParams = typeParams(funcSignature.typeParameters(),
-        param -> new UniversalType(param.typeNameStr(), 0));
+        param -> param.toUniversal(0));
     return namedTypeResolver.resolveTypeNode(funcSignature, typeParams);
   }
 
@@ -187,7 +187,7 @@ public class ModuleScopedTypeResolver {
         case Singleton(var singletonNode) -> {
           var type = (SumType) idTypes.get(singletonNode.aliasId());
           var params = typeParams(type.typeParameters(),
-              param -> new TypeVariable(param.typeNameStr() + "_" + varRef.id().hashCode()));
+              param -> param.toTypeVariable(varRef.id().hashCode()));
           var resolvedType = namedTypeResolver.resolveNames(type, params, singletonNode.range());
           yield new VarRefType.Singleton(resolvedType, singletonNode.type());
         }

@@ -54,7 +54,7 @@ public record FunctionType(List<Type> parameterTypes, List<TypeParameter> typePa
   @Override
   public String toPrettyString() {
     var typeParams = !typeParameters.isEmpty() ? typeParameters.stream()
-        .map(TypeParameter::typeNameStr)
+        .map(TypeParameter::name)
         .collect(joining(", ", "[", "]")) : "";
     return typeParams + parameterTypes().stream()
         .map(Type::toPrettyString)

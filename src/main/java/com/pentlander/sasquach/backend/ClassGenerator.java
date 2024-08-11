@@ -283,7 +283,7 @@ class ClassGenerator {
     if (!funcType.typeParameters().isEmpty()) {
       var typeParams = funcType.typeParameters()
           .stream()
-          .map(typeParam -> TypeParam.of(typeParam.typeNameStr(),
+          .map(typeParam -> TypeParam.of(typeParam.name(),
               ClassTypeSig.of(ConstantDescs.CD_Object)))
           .toList();
       var paramTypeSigs = funcType.parameterTypes()

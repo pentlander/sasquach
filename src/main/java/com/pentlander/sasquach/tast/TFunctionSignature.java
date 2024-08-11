@@ -2,8 +2,8 @@ package com.pentlander.sasquach.tast;
 
 import static java.util.stream.Collectors.joining;
 
+import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
@@ -27,7 +27,7 @@ public record TFunctionSignature(List<TFunctionParameter> parameters,
   @Override
   public String toPrettyString() {
     var typeParams = !typeParameters.isEmpty() ? typeParameters.stream()
-        .map(TypeNode::toPrettyString)
+        .map(Node::toPrettyString)
         .collect(joining(", ", "[", "]")) : "";
     return typeParams + parameters().stream()
         .map(param -> param.name() + ": " + param.type().toPrettyString())
