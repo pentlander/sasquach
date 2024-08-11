@@ -2,6 +2,7 @@ package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
+import com.pentlander.sasquach.ast.QualifiedModuleName;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -12,7 +13,7 @@ import java.util.stream.Stream;
 
 public class ModuleResolver {
   // Map of qualified module captureName to resolver
-  private final ConcurrentMap<String, ResolutionTask> moduleScopedResolverTasks =
+  private final ConcurrentMap<QualifiedModuleName, ResolutionTask> moduleScopedResolverTasks =
       new ConcurrentHashMap<>();
 
   public NameResolutionResult resolveCompilationUnits(Collection<CompilationUnit> compilationUnits) {
@@ -44,16 +45,16 @@ public class ModuleResolver {
     return resolveCompilationUnit(compilationUnit.modules());
   }
 
-  public ModuleScopedNameResolver resolveModule(String qualifiedModuleName) {
+  public ModuleScopedNameResolver resolveModule(QualifiedModuleName qualifiedModuleName) {
     var task = moduleScopedResolverTasks.get(qualifiedModuleName);
     return task != null ? task.moduleScopedNameResolver : null;
   }
 
   private class ResolutionTask extends RecursiveTask<NameResolutionResult> {
-    private final String moduleName;
+    private final QualifiedModuleName moduleName;
     private final ModuleScopedNameResolver moduleScopedNameResolver;
 
-    private ResolutionTask(String moduleName, ModuleDeclaration module) {
+    private ResolutionTask(QualifiedModuleName moduleName, ModuleDeclaration module) {
       this.moduleName = moduleName;
       this.moduleScopedNameResolver = new ModuleScopedNameResolver(module, ModuleResolver.this);
     }

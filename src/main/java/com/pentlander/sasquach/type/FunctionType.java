@@ -22,9 +22,9 @@ public record FunctionType(List<Type> parameterTypes, List<TypeParameter> typePa
   }
 
   @Override
-  public String typeName() {
-    return parameterTypes.stream().map(Type::typeName).collect(joining(", ", "(", "): "))
-        + returnType.typeName();
+  public String typeNameStr() {
+    return parameterTypes.stream().map(Type::typeNameStr).collect(joining(", ", "(", "): "))
+        + returnType.typeNameStr();
   }
 
   @Override
@@ -54,7 +54,7 @@ public record FunctionType(List<Type> parameterTypes, List<TypeParameter> typePa
   @Override
   public String toPrettyString() {
     var typeParams = !typeParameters.isEmpty() ? typeParameters.stream()
-        .map(TypeParameter::typeName)
+        .map(TypeParameter::typeNameStr)
         .collect(joining(", ", "[", "]")) : "";
     return typeParams + parameterTypes().stream()
         .map(Type::toPrettyString)

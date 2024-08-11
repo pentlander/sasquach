@@ -18,7 +18,7 @@ public class ForeignClassResolver {
   public Optional<ForeignFunctions> resolveFuncCall(ForeignFunctionCall foreignFunctionCall, Class<?> clazz) {
       var matchingForeignFunctions = new ArrayList<ForeignFunctionHandle>();
       var funcName = foreignFunctionCall.name();
-      var isConstructor = funcName.equals("new");
+      var isConstructor = funcName.toString().equals("new");
       if (isConstructor) {
         for (var constructor : clazz.getConstructors()) {
           var paramClassDescs = Arrays.stream(constructor.getParameterTypes())
@@ -29,7 +29,7 @@ public class ForeignClassResolver {
         }
       } else {
         for (var method : clazz.getMethods()) {
-          if (method.getName().equals(funcName)) {
+          if (method.getName().equals(funcName.toString())) {
             boolean isStatic = Modifier.isStatic(method.getModifiers());
             boolean isInterface = method.getDeclaringClass().isInterface();
             var kind = Kind.valueOf(
@@ -41,7 +41,7 @@ public class ForeignClassResolver {
             var paramClassDescs = Arrays.stream(method.getParameterTypes()).map(TypeUtils::classDesc).toArray(ClassDesc[]::new);
             var methodTypeDesc = MethodTypeDesc.of(classDesc(method.getReturnType()), paramClassDescs);
             var ownerDesc = classDesc(clazz);
-            var methodHandleDesc = MethodHandleDesc.ofMethod(kind, ownerDesc, funcName,  methodTypeDesc);
+            var methodHandleDesc = MethodHandleDesc.ofMethod(kind, ownerDesc, funcName.toString(),  methodTypeDesc);
             matchingForeignFunctions.add(new ForeignFunctionHandle(methodHandleDesc, method));
           }
         }

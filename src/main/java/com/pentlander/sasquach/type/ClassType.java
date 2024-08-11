@@ -28,7 +28,7 @@ public record ClassType(Class<?> typeClass, List<Type> typeArguments) implements
   }
 
   @Override
-  public String typeName() {
+  public String typeNameStr() {
     return typeClass.getName();
   }
 
@@ -39,7 +39,7 @@ public record ClassType(Class<?> typeClass, List<Type> typeArguments) implements
 
   @Override
   public String internalName() {
-    return typeName().replace(".", "/");
+    return typeNameStr().replace(".", "/");
   }
 
   @Override
@@ -79,6 +79,6 @@ public record ClassType(Class<?> typeClass, List<Type> typeArguments) implements
     var typeArgs = !typeArguments.isEmpty() ? typeArguments.stream()
         .map(Type::toPrettyString)
         .collect(Collectors.joining(", ", "[", "]")) : "";
-    return typeName() + typeArgs;
+    return typeNameStr() + typeArgs;
   }
 }

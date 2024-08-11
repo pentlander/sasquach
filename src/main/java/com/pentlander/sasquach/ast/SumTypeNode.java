@@ -9,7 +9,7 @@ import com.pentlander.sasquach.type.VariantType;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public record SumTypeNode(QualifiedModuleName moduleName, Id id,
+public record SumTypeNode(QualifiedModuleName moduleName, TypeId id,
                           List<TypeParameter> typeParameters,
                           List<VariantTypeNode> variantTypeNodes, Range range) implements TypeNode {
   public SumTypeNode {
@@ -21,20 +21,19 @@ public record SumTypeNode(QualifiedModuleName moduleName, Id id,
   @Override
   public SumType type() {
     return new SumType(
-        moduleName,
-        id.name(),
+        moduleName.qualifyInner(id.name()),
         typeParameters,
         variantTypeNodes.stream().map(VariantTypeNode::type).toList());
   }
 
   @Override
-  public String typeName() {
-    return id.name();
+  public String typeNameStr() {
+    return id.name().toString();
   }
 
   @Override
   public String toPrettyString() {
-    return typeName() + variantTypeNodes.stream()
+    return typeNameStr() + variantTypeNodes.stream()
         .map(VariantTypeNode::toPrettyString)
         .collect(Collectors.joining());
   }
@@ -42,13 +41,13 @@ public record SumTypeNode(QualifiedModuleName moduleName, Id id,
   public sealed interface VariantTypeNode extends TypeNode {
     QualifiedModuleName moduleName();
 
-    Id aliasId();
+    TypeId aliasId();
 
-    Id id();
+    TypeId id();
 
     VariantType type();
 
-    record Singleton(QualifiedModuleName moduleName, Id aliasId, Id id) implements
+    record Singleton(QualifiedModuleName moduleName, TypeId aliasId, TypeId id) implements
         VariantTypeNode {
       @Override
       public Range range() {
@@ -57,11 +56,11 @@ public record SumTypeNode(QualifiedModuleName moduleName, Id id,
 
       @Override
       public SingletonType type() {
-        return new SingletonType(moduleName(), id().name());
+        return new SingletonType(moduleName().qualifyInner(id().name()));
       }
     }
 
-    record Tuple(QualifiedModuleName moduleName, Id aliasId, Id id,
+    record Tuple(QualifiedModuleName moduleName, TypeId aliasId, TypeId id,
                  TupleTypeNode typeNode) implements VariantTypeNode {
       @Override
       public Range range() {
@@ -74,7 +73,7 @@ public record SumTypeNode(QualifiedModuleName moduleName, Id id,
       }
     }
 
-    record Struct(QualifiedModuleName moduleName, Id aliasId, Id id,
+    record Struct(QualifiedModuleName moduleName, TypeId aliasId, TypeId id,
                   StructTypeNode typeNode) implements VariantTypeNode {
       @Override
       public Range range() {

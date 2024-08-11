@@ -12,7 +12,7 @@ public record ResolvedLocalNamedType(String name, List<Type> typeArgs, Type type
   }
 
   @Override
-  public String typeName() {
+  public String typeNameStr() {
     return name;
   }
 

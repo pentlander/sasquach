@@ -4,11 +4,13 @@ import static com.pentlander.sasquach.type.MemberScopedTypeResolver.typeParams;
 
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.FunctionSignature;
-import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.Identifier;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
+import com.pentlander.sasquach.ast.TypeId;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
@@ -46,9 +48,9 @@ public class ModuleScopedTypeResolver {
 
   private final List<NamedFunction> nameResolvedFunctions = new ArrayList<>();
   private final TModuleStructBuilder typedStructBuilder = TModuleStructBuilder.builder();
-  private final Map<Id, FunctionType> variantConstructorTypes = new HashMap<>();
+  private final Map<TypeId, FunctionType> variantConstructorTypes = new HashMap<>();
 
-  private final Map<Id, Type> idTypes = new HashMap<>();
+  private final Map<Identifier, Type> idTypes = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
 
@@ -62,7 +64,7 @@ public class ModuleScopedTypeResolver {
 
   public StructType resolveModuleType() {
     var struct = (ModuleStruct) moduleDecl.struct();
-    var fieldTypes = new LinkedHashMap<String, Type>();
+    var fieldTypes = new LinkedHashMap<UnqualifiedName, Type>();
     var typedFields = new ArrayList<TField>();
 
     struct.typeAliases().forEach(typeAlias -> {
@@ -80,20 +82,22 @@ public class ModuleScopedTypeResolver {
               var tupleFieldTypes = tuple.type().fieldTypes();
               var paramTypes = tupleFieldTypes.values()
                   .stream()
-                  .sorted(Comparator.comparing(Type::typeName))
+                  .sorted(Comparator.comparing(Type::typeNameStr))
                   .toList();
               var variantConstructorType = new FunctionType(paramTypes,
                   sumType.typeParameters(),
                   sumType);
-              variantConstructorTypes.put(tuple.id(), variantConstructorType);
-              fieldTypes.put(tuple.id().name(), variantConstructorType);
+              var typeId = tuple.id();
+              variantConstructorTypes.put(typeId, variantConstructorType);
+              fieldTypes.put(typeId.toId().name(), variantConstructorType);
             }
             case VariantTypeNode.Singleton singleton -> {
-              typedFields.add(new TField(singleton.id(),
-                  new TVarReference(singleton.id(),
+              var id = singleton.id().toId();
+              typedFields.add(new TField(id,
+                  new TVarReference(id,
                       new RefDeclaration.Singleton(singleton.type()),
                       sumType)));
-              fieldTypes.put(singleton.id().name(), sumType);
+              fieldTypes.put(id.name(), sumType);
             }
             case VariantTypeNode.Struct strct -> {
               // TODO need to somehow replace the SumType in NameResolutionResult's namedStructTypes
@@ -156,7 +160,7 @@ public class ModuleScopedTypeResolver {
 
   FunctionSignature resolveFuncSignatureType(FunctionSignature funcSignature) {
     var typeParams = typeParams(funcSignature.typeParameters(),
-        param -> new UniversalType(param.typeName(), 0));
+        param -> new UniversalType(param.typeNameStr(), 0));
     return namedTypeResolver.resolveTypeNode(funcSignature, typeParams);
   }
 
@@ -183,7 +187,7 @@ public class ModuleScopedTypeResolver {
         case Singleton(var singletonNode) -> {
           var type = (SumType) idTypes.get(singletonNode.aliasId());
           var params = typeParams(type.typeParameters(),
-              param -> new TypeVariable(param.typeName() + "_" + varRef.id().hashCode()));
+              param -> new TypeVariable(param.typeNameStr() + "_" + varRef.id().hashCode()));
           var resolvedType = namedTypeResolver.resolveNames(type, params, singletonNode.range());
           yield new VarRefType.Singleton(resolvedType, singletonNode.type());
         }

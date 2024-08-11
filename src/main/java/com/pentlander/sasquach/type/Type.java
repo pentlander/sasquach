@@ -12,7 +12,7 @@ public sealed interface Type permits ArrayType, BuiltinType, ClassType, Universa
   /**
    * Name of the type.
    */
-  String typeName();
+  String typeNameStr();
 
   /**
    * Internal captureName for a class.
@@ -35,6 +35,6 @@ public sealed interface Type permits ArrayType, BuiltinType, ClassType, Universa
    * Returns a prettified string that matches the type in source code.
    */
   default String toPrettyString() {
-    return typeName();
+    return typeNameStr();
   }
 }

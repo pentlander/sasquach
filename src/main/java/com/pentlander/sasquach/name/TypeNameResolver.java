@@ -13,6 +13,7 @@ import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.type.LocalNamedType;
 import com.pentlander.sasquach.type.ModuleNamedType;
 import com.pentlander.sasquach.type.TypeParameter;
@@ -26,7 +27,7 @@ public class TypeNameResolver {
   private final ModuleScopedNameResolver moduleScopedNameResolver;
   // Map of named types to the captureName declaration, e.g. type alias or type parameter
   private final Map<TypeNode, NamedTypeDefinition> namedTypes = new HashMap<>();
-  private final Map<String, VariantTypeNode> variantNodes = new HashMap<>();
+  private final Map<UnqualifiedTypeName, VariantTypeNode> variantNodes = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
   public TypeNameResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
@@ -101,7 +102,8 @@ public class TypeNameResolver {
       localNamedType.typeArgumentNodes().forEach(this::resolveNamedType);
       // Check if the named type matches a type parameter
       var name = localNamedType.typeName();
-      var typeParam = contextTypeParams.stream().filter(param -> param.typeName().equals(name))
+      var typeParam = contextTypeParams.stream()
+          .filter(param -> param.typeNameStr().equals(name.toString()))
           .findFirst();
       // Check if the named type matches a local type alias
       var typeAlias = moduleScopedNameResolver.resolveTypeAlias(name);
@@ -131,5 +133,5 @@ public class TypeNameResolver {
   }
 
   public record Result(Map<TypeNode, NamedTypeDefinition> namedTypes,
-                       Map<String, VariantTypeNode> variantTypes, RangedErrorList errors) {}
+                       Map<UnqualifiedTypeName, VariantTypeNode> variantTypes, RangedErrorList errors) {}
 }

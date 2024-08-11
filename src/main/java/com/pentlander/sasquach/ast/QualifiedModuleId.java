@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.ast;
 
+import com.pentlander.sasquach.PackageName;
 import com.pentlander.sasquach.Range;
 import java.lang.constant.ClassDesc;
 
@@ -9,7 +10,7 @@ import java.lang.constant.ClassDesc;
  */
 public record QualifiedModuleId(QualifiedModuleName moduleName, Range.Single range) implements Node,
     Identifier {
-  public QualifiedModuleId(String packageName, String moduleName, Range.Single range) {
+  public QualifiedModuleId(PackageName packageName, String moduleName, Range.Single range) {
     this(new QualifiedModuleName(packageName, moduleName), range);
   }
 
@@ -17,11 +18,11 @@ public record QualifiedModuleId(QualifiedModuleName moduleName, Range.Single ran
     return new QualifiedModuleId(QualifiedModuleName.fromString(name), range);
   }
 
-  public String name() {
-    return moduleName.toString();
+  public QualifiedModuleName name() {
+    return moduleName;
   }
 
   public ClassDesc classDesc() {
-    return ClassDesc.ofInternalName(name());
+    return ClassDesc.ofInternalName(name().toString());
   }
 }

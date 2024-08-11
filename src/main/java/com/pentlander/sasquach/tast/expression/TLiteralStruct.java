@@ -4,6 +4,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.Objects.requireNonNullElse;
 
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
@@ -25,7 +26,7 @@ public record TLiteralStruct(List<TField> fields,
 
   @Override
   public StructType structType() {
-    var fieldTypes = new LinkedHashMap<String, Type>();
+    var fieldTypes = new LinkedHashMap<UnqualifiedName, Type>();
     fields.forEach(field -> fieldTypes.put(field.name(), field.type()));
     spreads.forEach(varRef -> {
       var structType = TypeUtils.asStructType(varRef.type()).orElseThrow();

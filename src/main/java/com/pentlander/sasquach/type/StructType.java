@@ -4,7 +4,8 @@ import static com.pentlander.sasquach.Util.seqMap;
 import static java.util.stream.Collectors.joining;
 
 import com.pentlander.sasquach.ast.StructName;
-import com.pentlander.sasquach.ast.UnqualifiedStructName;
+import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.type.StructType.RowModifier.NamedRow;
 import com.pentlander.sasquach.type.StructType.RowModifier.None;
@@ -24,34 +25,34 @@ import org.jspecify.annotations.Nullable;
  * @param fieldTypes Map of field names to types. Field types include any value type, as well as
  *                   functions.
  */
-public record StructType(StructName structName, SequencedMap<String, Type> fieldTypes, RowModifier rowModifier) implements
+public record StructType(StructName structName, SequencedMap<UnqualifiedName, Type> fieldTypes, RowModifier rowModifier) implements
     ParameterizedType, VariantType {
   private static final String PREFIX = "Struct";
 
   public StructType {
     fieldTypes = Objects.requireNonNullElse(fieldTypes, seqMap());
     fieldTypes.values().forEach(value -> Objects.requireNonNull(value, toString()));
-    structName = Objects.requireNonNullElse(structName, new UnqualifiedStructName(PREFIX + hashFieldTypes(fieldTypes)));
+    structName = Objects.requireNonNullElse(structName, new UnqualifiedTypeName(PREFIX + hashFieldTypes(fieldTypes)));
   }
 
-  public StructType(@Nullable StructName name, SequencedMap<String, Type> fieldTypes) {
+  public StructType(@Nullable StructName name, SequencedMap<UnqualifiedName, Type> fieldTypes) {
     this(name, fieldTypes, RowModifier.none());
   }
 
-  public StructType(SequencedMap<String, Type> fieldTypes, RowModifier rowModifier) {
+  public StructType(SequencedMap<UnqualifiedName, Type> fieldTypes, RowModifier rowModifier) {
     this(null, fieldTypes, rowModifier);
   }
 
-  public StructType(SequencedMap<String, Type> fieldTypes) {
+  public StructType(SequencedMap<UnqualifiedName, Type> fieldTypes) {
     this(null, fieldTypes, RowModifier.none());
   }
 
   @Override
-  public String typeName() {
+  public String typeNameStr() {
     return structName.toString();
   }
 
-  private static String hashFieldTypes(Map<String, Type> fieldTypes) {
+  private static String hashFieldTypes(Map<UnqualifiedName, Type> fieldTypes) {
     return Integer.toHexString(fieldTypes.entrySet()
         .stream()
         .sorted(Entry.comparingByKey())
@@ -59,7 +60,7 @@ public record StructType(StructName structName, SequencedMap<String, Type> field
         .hashCode());
   }
 
-  public Type fieldType(String fieldName) {
+  public Type fieldType(UnqualifiedName fieldName) {
     return fieldTypes().get(fieldName);
   }
 
@@ -71,7 +72,7 @@ public record StructType(StructName structName, SequencedMap<String, Type> field
         .toList();
   }
 
-  public List<Entry<String, Type>> sortedFields() {
+  public List<Entry<UnqualifiedName, Type>> sortedFields() {
     return fieldTypes().entrySet().stream().sorted(Entry.comparingByKey()).toList();
   }
 
@@ -82,7 +83,7 @@ public record StructType(StructName structName, SequencedMap<String, Type> field
 
   @Override
   public String internalName() {
-    return typeName().replace(".", "/");
+    return typeNameStr().replace(".", "/");
   }
 
   @Override
@@ -106,10 +107,10 @@ public record StructType(StructName structName, SequencedMap<String, Type> field
 
   @Override
   public String toPrettyString() {
-    return typeName().startsWith(PREFIX) ? fieldTypes().entrySet()
+    return typeNameStr().startsWith(PREFIX) ? fieldTypes().entrySet()
         .stream()
         .map(e -> e.getKey() + ": " + e.getValue().toPrettyString())
-        .collect(joining(", ", "{ ", " }")) : typeName();
+        .collect(joining(", ", "{ ", " }")) : typeNameStr();
   }
 
   public boolean isRow() {

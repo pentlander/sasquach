@@ -6,9 +6,11 @@ import static com.pentlander.sasquach.Fixtures.foreignMethods;
 import static com.pentlander.sasquach.Fixtures.id;
 import static com.pentlander.sasquach.Fixtures.intValue;
 import static com.pentlander.sasquach.Fixtures.literalStruct;
+import static com.pentlander.sasquach.Fixtures.name;
 import static com.pentlander.sasquach.Fixtures.qualId;
 import static com.pentlander.sasquach.Fixtures.range;
 import static com.pentlander.sasquach.Fixtures.stringValue;
+import static com.pentlander.sasquach.Fixtures.typeId;
 import static com.pentlander.sasquach.Fixtures.typeNode;
 import static com.pentlander.sasquach.Util.seqMap;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,6 +18,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.pentlander.sasquach.PackageName;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Id;
@@ -167,7 +170,7 @@ class MemberScopedTypeResolverTest {
     @Test
     void constructor() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignConstructors(File.class));
-      var call = new ForeignFunctionCall(id("File"),
+      var call = new ForeignFunctionCall(typeId("File"),
           id("new"),
           List.of(stringValue("foo.txt")),
           range());
@@ -180,7 +183,7 @@ class MemberScopedTypeResolverTest {
     @Test
     void staticFunc() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class));
-      var call = new ForeignFunctionCall(id("Paths"),
+      var call = new ForeignFunctionCall(typeId("Paths"),
           id("get"),
           List.of(stringValue("foo.txt"),
               ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())),
@@ -195,7 +198,7 @@ class MemberScopedTypeResolverTest {
     void virtualFunc() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(String.class,
           m -> m.getName().equals("concat")));
-      var call = new ForeignFunctionCall(id("String"),
+      var call = new ForeignFunctionCall(typeId("String"),
           id("concat"),
           List.of(stringValue("foo"), stringValue("bar")),
           range());
@@ -208,7 +211,7 @@ class MemberScopedTypeResolverTest {
     @Test
     void constructorNotFound() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignConstructors(File.class));
-      var call = new ForeignFunctionCall(id("File"),
+      var call = new ForeignFunctionCall(typeId("File"),
           id("new"),
           List.of(intValue("45"), intValue("10")),
           range());
@@ -222,7 +225,7 @@ class MemberScopedTypeResolverTest {
     void staticFuncNotFound() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class,
           m -> m.getParameterCount() == 2));
-      var call = new ForeignFunctionCall(id("Paths"),
+      var call = new ForeignFunctionCall(typeId("Paths"),
           id("get"),
           List.of(intValue("10"), ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())),
           range());
@@ -314,11 +317,12 @@ class MemberScopedTypeResolverTest {
 
     @Nested
     class StructCall {
+      private final PackageName packageName = new PackageName("base");
       private final List<Expression> args = List.of(stringValue("test"), intValue(1));
 
       @Test
       void call() {
-        var qualifiedName = new QualifiedModuleName("base", "MyMod");
+        var qualifiedName = new QualifiedModuleName(packageName, "MyMod");
         var struct = Struct.moduleStructBuilder(qualifiedName)
             .functions(List.of(func))
             .range(range())
@@ -356,7 +360,7 @@ class MemberScopedTypeResolverTest {
 
       @Test
       void callNoField() {
-        var qualifiedName = new QualifiedModuleName("base", "MyMod");
+        var qualifiedName = new QualifiedModuleName(packageName, "MyMod");
         var struct = Struct.moduleStructBuilder(qualifiedName)
             .functions(List.of(func))
             .range(range())
@@ -380,7 +384,7 @@ class MemberScopedTypeResolverTest {
       var struct = literalStruct(argFields, List.of());
       var argType = resolveExpr(struct);
 
-      var paramType = new StructType(seqMap("foo", BuiltinType.STRING, "bar", BuiltinType.INT));
+      var paramType = new StructType(seqMap(name("foo"), BuiltinType.STRING, name("bar"), BuiltinType.INT));
 
       assertThat(paramType.isAssignableFrom(argType)).isFalse();
     }
@@ -393,7 +397,7 @@ class MemberScopedTypeResolverTest {
       var struct = literalStruct(argFields, List.of());
       var argType = resolveExpr(struct);
 
-      var paramType = new StructType(seqMap("foo", BuiltinType.STRING, "bar", BuiltinType.INT),
+      var paramType = new StructType(seqMap(name("foo"), BuiltinType.STRING, name("bar"), BuiltinType.INT),
           RowModifier.unnamedRow());
 
       assertThat(paramType.isAssignableFrom(argType)).isTrue();

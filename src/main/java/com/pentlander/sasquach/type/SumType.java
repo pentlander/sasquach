@@ -1,16 +1,17 @@
 package com.pentlander.sasquach.type;
 
 import com.pentlander.sasquach.ast.QualifiedModuleName;
+import com.pentlander.sasquach.ast.QualifiedTypeName;
 import com.pentlander.sasquach.runtime.StructBase;
 import java.lang.constant.ClassDesc;
 import java.util.List;
 
-public record SumType(QualifiedModuleName moduleName, String name,
+public record SumType(QualifiedTypeName qualifiedTypeName,
                       List<TypeParameter> typeParameters, List<VariantType> types) implements Type,
     ParameterizedType {
   @Override
-  public String typeName() {
-    return name;
+  public String typeNameStr() {
+    return qualifiedTypeName.name().toString();
   }
 
   @Override
@@ -20,7 +21,7 @@ public record SumType(QualifiedModuleName moduleName, String name,
 
   @Override
   public String internalName() {
-    return moduleName.qualifyInner(typeName()).toString().replace(".", "/");
+    return qualifiedTypeName.toString().replace(".", "/");
   }
 
   @Override

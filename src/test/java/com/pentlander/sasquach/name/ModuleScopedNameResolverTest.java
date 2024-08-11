@@ -1,9 +1,11 @@
 package com.pentlander.sasquach.name;
 
 import static com.pentlander.sasquach.Fixtures.id;
+import static com.pentlander.sasquach.Fixtures.name;
 import static com.pentlander.sasquach.Fixtures.qualId;
 import static com.pentlander.sasquach.Fixtures.range;
 import static com.pentlander.sasquach.Fixtures.stringValue;
+import static com.pentlander.sasquach.Fixtures.typeName;
 import static com.pentlander.sasquach.Fixtures.voidFunc;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -41,7 +43,7 @@ class ModuleScopedNameResolverTest {
     resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
     resolver.resolve();
 
-    assertThat(resolver.resolveForeignClass("System").get()).isEqualTo(System.class);
+    assertThat(resolver.resolveForeignClass(typeName("System")).get()).isEqualTo(System.class);
   }
 
   @Test
@@ -54,7 +56,7 @@ class ModuleScopedNameResolverTest {
     resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
     resolver.resolve();
 
-    var resolvedField = resolver.resolveField("foo").get();
+    var resolvedField = resolver.resolveField(name("foo")).get();
     assertThat(resolvedField).isEqualTo(field);
     assertThat(resolver.getResolver(resolvedField)).isNotNull();
   }
@@ -73,7 +75,7 @@ class ModuleScopedNameResolverTest {
     resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
     resolver.resolve();
 
-    var resolvedFunction = resolver.resolveFunction("foo").get();
+    var resolvedFunction = resolver.resolveFunction(name("foo")).get();
     assertThat(resolvedFunction).isEqualTo(function);
     assertThat(resolver.getResolver(resolvedFunction.function())).isNotNull();
   }

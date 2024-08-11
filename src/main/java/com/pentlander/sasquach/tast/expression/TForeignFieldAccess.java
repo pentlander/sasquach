@@ -2,12 +2,14 @@ package com.pentlander.sasquach.tast.expression;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.TypeId;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.type.ForeignFieldType;
 
-public record TForeignFieldAccess(Id classAlias, Id id,
+public record TForeignFieldAccess(TypeId classAlias, Id id,
                                   ForeignFieldType type) implements TypedExpression {
 
-  public String fieldName() {
+  public UnqualifiedName fieldName() {
     return id.name();
   }
 

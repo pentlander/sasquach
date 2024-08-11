@@ -1,22 +1,24 @@
 package com.pentlander.sasquach.ast;
 
-public record QualifiedModuleName(String packageName, String moduleName) implements StructName, QualifiedName {
+import com.pentlander.sasquach.PackageName;
+
+public record QualifiedModuleName(PackageName packageName, String moduleName) implements StructName, QualifiedName {
   public static QualifiedModuleName fromString(String qualifiedModuleName) {
     var lastSlash = qualifiedModuleName.lastIndexOf("/");
     if (lastSlash == -1 || lastSlash == qualifiedModuleName.length() - 1) {
-      throw new IllegalStateException("Invalid qualified module captureName: " + qualifiedModuleName);
+      throw new IllegalStateException("Invalid qualified module name: " + qualifiedModuleName);
     }
     return new QualifiedModuleName(
-        qualifiedModuleName.substring(0, lastSlash),
+        new PackageName(qualifiedModuleName.substring(0, lastSlash)),
         qualifiedModuleName.substring(lastSlash + 1));
   }
 
-  public QualifiedStructName qualifyInner(String name) {
-    return qualifyInner(new UnqualifiedStructName(name));
+  public QualifiedTypeName qualifyInner(UnqualifiedTypeName name) {
+    return new QualifiedTypeName(this, name);
   }
 
-  public QualifiedStructName qualifyInner(UnqualifiedStructName name) {
-    return new QualifiedStructName(this, name);
+  public QualifiedTypeName qualifyInner(UnqualifiedName name) {
+    return new QualifiedTypeName(this, new UnqualifiedTypeName(name.value()));
   }
 
   public String javaName() {

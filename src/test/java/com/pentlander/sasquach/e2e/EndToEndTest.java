@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.pentlander.sasquach.CompilationException;
 import com.pentlander.sasquach.Compiler;
+import com.pentlander.sasquach.PackageName;
 import com.pentlander.sasquach.SasquachClassloader;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.TestUtils;
@@ -206,7 +207,7 @@ public class EndToEndTest {
 
   @Test
   void matchSumType() throws Exception {
-    var clazz = compileClass("""
+    var clazz = compileClassDebug("""
         Main {
           type Option[T] = | Some(T) | None,
           
@@ -711,6 +712,6 @@ public class EndToEndTest {
       TestUtils.dumpGeneratedClasses(path, bytecode.generatedBytecode());
     }
     bytecode.generatedBytecode().forEach(cl::addClass);
-    return cl.loadModule(new QualifiedModuleName("main", "Main"));
+    return cl.loadModule(new QualifiedModuleName(new PackageName("main"), "Main"));
   }
 }

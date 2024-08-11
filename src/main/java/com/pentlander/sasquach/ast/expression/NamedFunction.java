@@ -4,11 +4,12 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.type.Type;
 import java.util.List;
 
 public record NamedFunction(Id id, Function function) implements Node {
-  public String name() {
+  public UnqualifiedName name() {
     return id().name();
   }
 

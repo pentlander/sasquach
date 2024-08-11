@@ -3,13 +3,14 @@ package com.pentlander.sasquach.tast.expression;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.type.SingletonType;
 import com.pentlander.sasquach.type.Type;
 
 public record TVarReference(Id id, RefDeclaration refDeclaration, Type type) implements
     TypedExpression {
 
-  public String name() {
+  public UnqualifiedName name() {
     return id.name();
   }
 
@@ -20,7 +21,7 @@ public record TVarReference(Id id, RefDeclaration refDeclaration, Type type) imp
 
   @Override
   public String toPrettyString() {
-    return id().name();
+    return id().name().toString();
   }
 
   public sealed interface RefDeclaration {

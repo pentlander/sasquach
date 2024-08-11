@@ -9,8 +9,8 @@ public sealed interface TypeNode extends Node permits BasicTypeNode, FunctionSig
     TypeParameter {
   Type type();
 
-  default String typeName() {
-    return type().typeName();
+  default String typeNameStr() {
+    return type().typeNameStr();
   }
 
   @Override

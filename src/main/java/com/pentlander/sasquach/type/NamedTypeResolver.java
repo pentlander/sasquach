@@ -53,7 +53,7 @@ public class NamedTypeResolver {
       case FunctionSignature(var parameters, var typeParameters, var returnType, var range) -> {
         var newTypeArgs = new HashMap<>(typeArgs);
         newTypeArgs.putAll(MemberScopedTypeResolver.typeParams(typeParameters,
-            param -> new UniversalType(param.typeName(), 0)));
+            param -> new UniversalType(param.typeNameStr(), 0)));
         var resolvedParameters = parameters.stream()
             .map(p -> new FunctionParameter(p.id(), resolveTypeNode(p.typeNode(), newTypeArgs)))
             .toList();
@@ -89,7 +89,7 @@ public class NamedTypeResolver {
       case TypeAlias(var id, var typeParameters, var aliasTypeNode, var range) -> {
         var newTypeArgs = new HashMap<>(typeArgs);
         newTypeArgs.putAll(MemberScopedTypeResolver.typeParams(typeParameters,
-            param -> new UniversalType(param.typeName(), 0)));
+            param -> new UniversalType(param.typeNameStr(), 0)));
         yield new TypeAlias(id, typeParameters, resolveTypeNode(aliasTypeNode, newTypeArgs), range);
       }
       case TypeParameter typeParameter -> typeParameter;
@@ -123,7 +123,7 @@ public class NamedTypeResolver {
 
     return switch (typeDefNode) {
       case TypeParameter typeParameter ->
-          typeArgs.getOrDefault(typeParameter.typeName(), namedType);
+          typeArgs.getOrDefault(typeParameter.typeNameStr(), namedType);
       case TypeAlias typeAlias -> {
         if (typeAlias.typeParameters().size() != namedType.typeArguments().size()) {
           yield addError(new TypeMismatchError(
@@ -137,7 +137,7 @@ public class NamedTypeResolver {
         for (int i = 0; i < typeAlias.typeParameters().size(); i++) {
           var typeParam = typeAlias.typeParameters().get(i);
           var typeArg = resolveNames(namedType.typeArguments().get(i), typeArgs, range);
-          newTypeArgs.put(typeParam.typeName(), typeArg);
+          newTypeArgs.put(typeParam.typeNameStr(), typeArg);
           resolvedTypeArgs.add(typeArg);
         }
 
@@ -148,7 +148,7 @@ public class NamedTypeResolver {
                   resolvedTypeArgs,
                   resolveNames(typeAlias.type(), newTypeArgs, range));
           case LocalNamedType localNamedType ->
-              new ResolvedLocalNamedType(localNamedType.typeName(),
+              new ResolvedLocalNamedType(localNamedType.typeNameStr(),
                   resolvedTypeArgs,
                   resolveNames(typeAlias.type(), newTypeArgs, range));
         };
@@ -200,10 +200,10 @@ public class NamedTypeResolver {
             resolveNames(funcType.returnType(), newTypeArgs, range));
       }
       case UniversalType universalType ->
-          typeArgs.getOrDefault(universalType.typeName(), universalType);
+          typeArgs.getOrDefault(universalType.typeNameStr(), universalType);
       case TypeVariable typeVariable -> typeVariable;
-      case SumType sumType -> new SumType(sumType.moduleName(),
-          sumType.name(),
+      case SumType sumType -> new SumType(
+          sumType.qualifiedTypeName(),
           sumType.typeParameters(),
           sumType.types()
               .stream()

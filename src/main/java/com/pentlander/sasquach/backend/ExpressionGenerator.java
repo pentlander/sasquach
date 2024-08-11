@@ -6,6 +6,7 @@ import static com.pentlander.sasquach.backend.GeneratorUtil.internalClassDesc;
 import static com.pentlander.sasquach.type.TypeUtils.asStructType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
 
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
@@ -44,7 +45,6 @@ import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Loca
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Module;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Singleton;
 import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
-import com.pentlander.sasquach.tast.expression.TVariantStruct;
 import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
@@ -140,7 +140,7 @@ final class ExpressionGenerator {
     var localVar = varMeta.localVar();
     cob.with(LocalVariable.of(
         varMeta.idx(),
-        localVar.name(),
+        localVar.name().toString(),
         localVar.variableType().classDesc(),
         cob.newBoundLabel(),
         cob.endLabel()));
@@ -235,7 +235,7 @@ final class ExpressionGenerator {
             cob.aload(cob.receiverSlot());
             generateArgs(funcCall.arguments(), funcType.parameterTypes());
             cob.invokevirtual(qualifiedFunc.ownerId().classDesc(),
-                funcCall.name(),
+                funcCall.name().toString(),
                 funcType.functionTypeDesc());
           }
           case TargetKind.LocalVariable(var localVar) -> {
@@ -257,7 +257,7 @@ final class ExpressionGenerator {
             var methodDesc = MethodHandleDesc.ofMethod(
                 Kind.CONSTRUCTOR,
                 structDesc,
-                funcCall.name(),
+                funcCall.name().toString(),
                 funcType.functionTypeDesc().changeReturnType(ConstantDescs.CD_void));
             generate(methodDesc);
           }
@@ -344,7 +344,7 @@ final class ExpressionGenerator {
         cob.fieldInstruction(
             opCode,
             fieldType.ownerType().classDesc(),
-            fieldAccess.fieldName(),
+            fieldAccess.fieldName().toString(),
             fieldType.classDesc());
       }
       case TForeignFunctionCall foreignFuncCall -> {
@@ -498,7 +498,7 @@ final class ExpressionGenerator {
     }
   }
 
-  private void generateFieldAccess(String fieldName, Type fieldType) {
+  private void generateFieldAccess(UnqualifiedName fieldName, Type fieldType) {
     var isFunc = TypeUtils.asFunctionType(fieldType).isPresent();
     var namespaces = isFunc ? new Namespace[]{StandardNamespace.METHOD, StandardNamespace.PROPERTY}
         : new Namespace[]{StandardNamespace.PROPERTY};
@@ -532,7 +532,7 @@ final class ExpressionGenerator {
       var fieldNames = new ConstantDesc[struct.fields().size()];
       for (int i = 0; i < fields.size(); i++) {
         TField tField = fields.get(i);
-        fieldNames[i] = tField.name();
+        fieldNames[i] = tField.name().toString();
         generateExpr(tField.expr());
       }
       literalStruct.spreads().forEach(spread -> {

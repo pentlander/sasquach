@@ -8,7 +8,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /** Declaration of a type alias, with optional type parameters. */
-public record TypeAlias(Id id, List<TypeParameter> typeParameters, TypeNode typeNode,
+public record TypeAlias(TypeId id, List<TypeParameter> typeParameters, TypeNode typeNode,
                         Range range) implements TypeNode, NamedTypeDefinition {
   public TypeAlias {
     typeParameters = Objects.requireNonNullElse(typeParameters, List.of());

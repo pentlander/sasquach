@@ -1,6 +1,7 @@
 package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.CompilationUnit;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
@@ -34,7 +35,7 @@ public class AstValidator {
     var errors = new ArrayList<Error>();
     for (var module : compilationUnit.modules()) {
       var functions = module.struct().functions();
-      var functionNames = new HashMap<String, NamedFunction>();
+      var functionNames = new HashMap<UnqualifiedName, NamedFunction>();
 
       for (var function : functions) {
         var existingFunction = functionNames.put(function.name(), function);
@@ -80,7 +81,7 @@ public class AstValidator {
 
   private List<Error> validateBlock(Block block) {
     var errors = new ArrayList<Error>();
-    var variables = new HashMap<String, List<VariableDeclaration>>();
+    var variables = new HashMap<UnqualifiedName, List<VariableDeclaration>>();
     for (var expr : block.expressions()) {
       if (expr instanceof VariableDeclaration varDecl) {
         variables.computeIfAbsent(varDecl.name(), k -> new ArrayList<>()).add(varDecl);
@@ -105,7 +106,7 @@ public class AstValidator {
     }
   }
 
-  private List<Error> validateFunctionParameters(String funcName,
+  private List<Error> validateFunctionParameters(UnqualifiedName funcName,
       List<FunctionParameter> funcParameters) {
     var paramNames = funcParameters.stream()
         .collect(Collectors.groupingBy(FunctionParameter::name));

@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.CompilationException;
 import com.pentlander.sasquach.Compiler;
+import com.pentlander.sasquach.PackageName;
 import com.pentlander.sasquach.SasquachClassloader;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.Sources;
@@ -14,6 +15,7 @@ import com.pentlander.sasquach.backend.BytecodeResult;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Paths;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +28,25 @@ public class StdlibTest {
         }
         """);
 
+  }
+
+  @Nested
+  class MapTest {
+    @Test @Disabled
+    void assocAndGet() throws Exception {
+      var clazz = compileSource("""
+        Main {
+          use std/Map,
+        
+          main = (): String -> {
+            Map.new()
+            ""
+          },
+        }
+        """);
+
+      invokeMain(clazz);
+    }
   }
 
   private Class<?> compileSource(String source)
@@ -57,6 +78,6 @@ public class StdlibTest {
       TestUtils.dumpGeneratedClasses(bytecode.generatedBytecode());
     }
     bytecode.generatedBytecode().forEach(cl::addClass);
-    return cl.loadModule(new QualifiedModuleName("main", "Main"));
+    return cl.loadModule(new QualifiedModuleName(new PackageName("main"), "Main"));
   }
 }

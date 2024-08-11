@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.*;
 
+import com.pentlander.sasquach.AbstractRangedError;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
@@ -16,6 +17,8 @@ import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.Pattern.VariantStruct;
 import com.pentlander.sasquach.ast.Pattern.VariantTuple;
+import com.pentlander.sasquach.ast.QualifiedTypeName;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
@@ -112,11 +115,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collector;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
 public class MemberScopedTypeResolver {
+  private static final UnqualifiedName NAME_RECUR = new UnqualifiedName("recur");
   private final Map<Id, TLocalVariable> localVariables = new HashMap<>();
   private final Map<Expression, TypedExpression> typedExprs = new HashMap<>();
   private final TypeUnifier typeUnifier = new TypeUnifier();
@@ -162,7 +165,7 @@ public class MemberScopedTypeResolver {
   private Map<String, Type> typeParamToVar(List<TypeParameter> typeParams) {
     return typeParams(
         typeParams,
-        param -> new TypeVariable(param.typeName() + typeVarNum.getAndIncrement()));
+        param -> new TypeVariable(param.typeNameStr() + typeVarNum.getAndIncrement()));
   }
   FunctionType convertUniversals(FunctionType type, Range range) {
     var typeParamToVar = typeParamToVar(type.typeParameters());
@@ -182,7 +185,7 @@ public class MemberScopedTypeResolver {
 
   static Map<String, Type> typeParams(Collection<TypeParameter> typeParams,
       java.util.function.Function<TypeParameter, Type> paramFunc) {
-    return typeParams.stream().collect(toMap(TypeParameter::typeName, paramFunc));
+    return typeParams.stream().collect(toMap(TypeParameter::typeNameStr, paramFunc));
   }
 
   public TypedExpression check(Expression expr, Type type) {
@@ -226,7 +229,7 @@ public class MemberScopedTypeResolver {
                     e.sourceType().toPrettyString()))
                 .orElseGet(() -> "Type should be '%s', but found '%s'".formatted(e.sourceType()
                     .toPrettyString(), e.destType().toPrettyString()));
-            yield addError(expr, new TypeMismatchError(msg, expr.range()));
+            yield addError(expr, new TypeMismatchError(msg, expr.range(), e));
           }
         }
       };
@@ -286,7 +289,7 @@ public class MemberScopedTypeResolver {
         yield switch (recurPoint) {
           case Function func -> {
             var funcType = convertUniversals((FunctionType) infer(func).type(), func.range());
-            var typedExprs = checkFuncArgs("recur",
+            var typedExprs = checkFuncArgs(NAME_RECUR,
                 recur.arguments(),
                 funcType.parameterTypes(),
                 recur.range());
@@ -301,7 +304,7 @@ public class MemberScopedTypeResolver {
                 .stream()
                 .map(variableDeclaration -> (TVariableDeclaration) infer(variableDeclaration))
                 .toList();
-            var typedExprs = checkFuncArgs("recur",
+            var typedExprs = checkFuncArgs(NAME_RECUR,
                 recur.arguments(),
                 typedVarDecls.stream().map(TVariableDeclaration::variableType).toList(),
                 recur.range());
@@ -325,7 +328,7 @@ public class MemberScopedTypeResolver {
       case Function func -> {
         var lvl = typeVarNum.getAndIncrement();
         var paramTypes = func.parameters().stream().map(param -> {
-          var paramType = new TypeVariable(param.name() + lvl);
+          var paramType = new TypeVariable(param.name().toString() + lvl);
           var typedParam = new TFunctionParameter(param.id(), paramType, param.range());
           putLocalVarType(param, typedParam);
           return typedParam;
@@ -461,7 +464,7 @@ public class MemberScopedTypeResolver {
         var constructorParams = List.copyOf(variantType.fieldTypes().values());
         var type = (SumType) typeUnifier.resolve(resolvedSumType);
         yield TVariantStructBuilder.builder()
-            .name(resolvedSumType.moduleName().qualifyInner(s.name()))
+            .name((QualifiedTypeName) resolvedVariantType.structName())
             .fields(typedFields)
             .constructorParams(constructorParams)
             .type(type)
@@ -493,7 +496,7 @@ public class MemberScopedTypeResolver {
     if (reify(typedExpr.type()) instanceof SumType sumType) {
 //      var convertedSumType = convertUniversals(sumType, match.range());
       // All the variants of the sum type with any type parameters already filled in
-      var exprVariantTypes = sumType.types().stream().collect(toMap(Type::typeName, identity()));
+      var exprVariantTypes = sumType.types().stream().collect(toMap(Type::typeNameStr, identity()));
       var matchTypeNodes = nameResolutionResult.getMatchTypeNodes(match);
       List<Branch> branches = match.branches();
       var typedBranches = new ArrayList<TBranch>();
@@ -501,7 +504,7 @@ public class MemberScopedTypeResolver {
       for (int i = 0; i < branches.size(); i++) {
         var branch = branches.get(i);
         var typeNode = matchTypeNodes.get(i);
-        var branchVariantTypeName = typeNode.typeName();
+        var branchVariantTypeName = typeNode.typeNameStr();
         var variantType = requireNonNull(exprVariantTypes.remove(branchVariantTypeName));
         var typedPattern = switch (branch.pattern()) {
           case Pattern.Singleton singleton ->
@@ -575,7 +578,7 @@ public class MemberScopedTypeResolver {
       } else {
         return addError(fieldAccess,
             new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(structType.get()
-                .typeName(), fieldAccess.fieldName()), fieldAccess.range()));
+                .typeNameStr(), fieldAccess.fieldName()), fieldAccess.range()));
       }
     }
 
@@ -584,7 +587,7 @@ public class MemberScopedTypeResolver {
         fieldAccess.range()));
   }
 
-  private List<TypedExpression> checkFuncArgs(String name, List<Expression> args,
+  private List<TypedExpression> checkFuncArgs(UnqualifiedName name, List<Expression> args,
       List<Type> paramTypes, Range range) {
     // Handle mismatch between arg count and parameter count
     if (args.size() != paramTypes.size()) {
@@ -796,16 +799,15 @@ public class MemberScopedTypeResolver {
         .collect(joining("," + " ", "(", ")"));
     return addError(funcCall,
         new TypeLookupError("No method '%s' found on class '%s'".formatted(methodSignature,
-            classType.typeName()), funcCall.range()));
+            classType.typeNameStr()), funcCall.range()));
   }
 
   private void addError(RangedError error) {
     errors.add(error);
-    new UnknownType();
   }
 
   private TypedExpression addError(Expression expr, RangedError error) {
-    errors.add(error);
+    addError(error);
     return new TypedExprWrapper(expr, new UnknownType());
   }
 
@@ -835,15 +837,23 @@ public class MemberScopedTypeResolver {
     return Optional.ofNullable(localVariables.get(localVar.id()));
   }
 
-  record TypeMismatchError(String message, Range range) implements RangedError {
-    @Override
-    public String toPrettyString(Source source) {
-      return """
-          %s
-          %s
-          """.formatted(message, source.highlight(range));
+  static final class TypeMismatchError extends AbstractRangedError implements RangedError {
+    TypeMismatchError(String message, Range range, Throwable cause) {
+      super(message, range, cause);
     }
-  }
+
+    TypeMismatchError(String message, Range range) {
+      this(message, range, null);
+    }
+
+    @Override
+      public String toPrettyString(Source source) {
+        return """
+            %s
+            %s
+            """.formatted(getMessage(), source.highlight(range));
+      }
+    }
 
   record TypeLookupError(String message, Range range) implements RangedError {
     @Override
@@ -873,7 +883,7 @@ public class MemberScopedTypeResolver {
     }
 
     @Override
-    public String typeName() {
+    public String typeNameStr() {
       throw exception;
     }
 

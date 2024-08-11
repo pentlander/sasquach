@@ -13,7 +13,7 @@ public record ForeignFunctionType(DirectMethodHandleDesc methodHandleDesc, @Null
   }
 
   @Override
-  public String typeName() {
+  public String typeNameStr() {
     return methodHandleDesc.invocationType().toString();
   }
 

@@ -5,10 +5,8 @@ import com.pentlander.sasquach.Range.Single;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
-import com.pentlander.sasquach.ast.StructName;
-import com.pentlander.sasquach.ast.TypeAlias;
-import com.pentlander.sasquach.ast.UnqualifiedStructName;
-import com.pentlander.sasquach.ast.Use;
+import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -19,7 +17,7 @@ public sealed interface Struct extends Expression permits LiteralStruct,
     return new LiteralStruct(fields, functions, spreads, range);
   }
 
-  static Struct variantLiteralStruct(UnqualifiedStructName name, List<Field> fields, List<NamedFunction> functions,
+  static Struct variantLiteralStruct(UnqualifiedTypeName name, List<Field> fields, List<NamedFunction> functions,
       Range range) {
     return new NamedStruct(name, fields, functions, range);
   }
@@ -41,7 +39,7 @@ public sealed interface Struct extends Expression permits LiteralStruct,
     return new LiteralStruct(tupleFields(expressions), List.of(), List.of(), range);
   }
 
-  static NamedStruct variantTupleStruct(UnqualifiedStructName name, List<Expression> expressions, Range range) {
+  static NamedStruct variantTupleStruct(UnqualifiedTypeName name, List<Expression> expressions, Range range) {
     return new NamedStruct(name, tupleFields(expressions), List.of(), range);
   }
 
@@ -65,7 +63,7 @@ public sealed interface Struct extends Expression permits LiteralStruct,
   }
 
   record Field(Id id, Expression value) implements Node {
-    public String name() {
+    public UnqualifiedName name() {
       return id.name();
     }
 

@@ -9,6 +9,7 @@ import static java.lang.classfile.Signature.TypeVarSig;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.backend.ExpressionGenerator.Context;
@@ -81,7 +82,7 @@ class ClassGenerator {
   }
 
   private void generateStructStart(ClassBuilder clb, ClassDesc structDesc, Range range,
-      SequencedMap<String, Type> fields, ClassDesc... interfaceDescs) {
+      SequencedMap<UnqualifiedName, Type> fields, ClassDesc... interfaceDescs) {
     var entries = List.copyOf(fields.entrySet());
 
     var allInterfaces = new ArrayList<ClassDesc>(interfaceDescs.length + 1);
@@ -96,7 +97,7 @@ class ClassGenerator {
     // Generate fields
     var fieldClasses = new ArrayList<ClassDesc>();
     for (var entry : entries) {
-      var name = entry.getKey();
+      var name = entry.getKey().toString();
       var classDesc = entry.getValue().classDesc();
       clb.withField(name, classDesc, ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL);
       fieldClasses.add(classDesc);
@@ -115,7 +116,7 @@ class ClassGenerator {
 
           int slot = 1;
           for (var entry : entries) {
-            var fieldName = entry.getKey();
+            var fieldName = entry.getKey().toString();
             var fieldType = entry.getValue().classDesc();
             cob.aload(0)
                 .loadInstruction(TypeKind.from(fieldType), slot++)
@@ -224,7 +225,7 @@ class ClassGenerator {
     var structType = struct.structType();
     var structDesc = internalClassDesc(structType);
 
-    var fieldTypes = new LinkedHashMap<String, Type>();
+    var fieldTypes = new LinkedHashMap<UnqualifiedName, Type>();
     struct.fields().forEach(field -> fieldTypes.put(field.name(), field.type()));
 
     generateStructStart(clb, structDesc, struct.range(), fieldTypes);
@@ -240,7 +241,7 @@ class ClassGenerator {
       // Generate methods
       for (var function : moduleStruct.functions()) {
         setContext(function);
-        generateFunction(clb, function.name(), function.function());
+        generateFunction(clb, function.name().toString(), function.function());
       }
     }
 
@@ -282,7 +283,7 @@ class ClassGenerator {
     if (!funcType.typeParameters().isEmpty()) {
       var typeParams = funcType.typeParameters()
           .stream()
-          .map(typeParam -> TypeParam.of(typeParam.typeName(),
+          .map(typeParam -> TypeParam.of(typeParam.typeNameStr(),
               ClassTypeSig.of(ConstantDescs.CD_Object)))
           .toList();
       var paramTypeSigs = funcType.parameterTypes()

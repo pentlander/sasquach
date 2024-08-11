@@ -3,13 +3,12 @@ package com.pentlander.sasquach.tast.expression;
 import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.QualifiedStructName;
-import com.pentlander.sasquach.tast.TNamedFunction;
+import com.pentlander.sasquach.ast.QualifiedTypeName;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 
 @RecordBuilder
-public record TNamedStruct(QualifiedStructName name, List<TField> fields,
+public record TNamedStruct(QualifiedTypeName name, List<TField> fields,
                            Range range) implements TStructWithName {
   public TNamedStruct {
     requireNonNull(name);

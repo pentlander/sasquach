@@ -3,10 +3,10 @@ package com.pentlander.sasquach.ast;
 import com.pentlander.sasquach.Range.Single;
 
 /** Identifier that is qualified by a module captureName. */
-public record ModuleScopedId(Id moduleId, Id id) implements Identifier {
+public record ModuleScopedTypeId(Id moduleId, TypeId id) implements Identifier {
   @Override
-  public String name() {
-    return moduleId.name() + "." + id.name();
+  public ModuleScopedTypeName name() {
+    return new ModuleScopedTypeName(moduleId.name(), id.name());
   }
 
   @Override

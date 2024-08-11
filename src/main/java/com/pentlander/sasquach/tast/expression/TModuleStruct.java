@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNullElse;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.ast.TypeAlias;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.type.StructType;
@@ -28,7 +29,7 @@ public record TModuleStruct(QualifiedModuleName name, List<Use> useList, List<Ty
 
   @Override
   public StructType structType() {
-    var fieldTypes = new LinkedHashMap<String, Type>();
+    var fieldTypes = new LinkedHashMap<UnqualifiedName, Type>();
     functions().forEach(func -> fieldTypes.put(func.name(), func.type()));
     fields().forEach(field -> fieldTypes.put(field.name(), field.type()));
     return new StructType(name(), fieldTypes);

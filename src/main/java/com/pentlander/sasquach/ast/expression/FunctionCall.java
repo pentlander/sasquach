@@ -3,6 +3,7 @@ package com.pentlander.sasquach.ast.expression;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -10,7 +11,7 @@ public sealed interface FunctionCall extends Expression permits ForeignFunctionC
     LocalFunctionCall, MemberFunctionCall {
   Id functionId();
 
-  default String name() {
+  default UnqualifiedName name() {
     return functionId().name();
   }
 

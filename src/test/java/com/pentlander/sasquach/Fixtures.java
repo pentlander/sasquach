@@ -9,7 +9,10 @@ import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier;
+import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
@@ -44,7 +47,7 @@ public class Fixtures {
   private static final Lookup LOOKUP = new Lookup(MethodHandles.lookup());
   private static final AtomicInteger RANGE_COUNTER = new AtomicInteger();
   public static final SourcePath SOURCE_PATH = new SourcePath("test.sasq");
-  public static final String PACKAGE_NAME = "test";
+  public static final PackageName PACKAGE_NAME = new PackageName("test");
   public static final QualifiedModuleName QUAL_MOD_NAME = new QualifiedModuleName(PACKAGE_NAME,
       "Test");
   public static final QualifiedModuleId QUAL_MOD_ID = new QualifiedModuleId(QUAL_MOD_NAME, range());
@@ -57,6 +60,22 @@ public class Fixtures {
 
   public static Id id(String name) {
     return new Id(name, range());
+  }
+
+  public static Id id(UnqualifiedName name) {
+    return new Id(name, range());
+  }
+
+  public static TypeId typeId(String name) {
+    return new TypeId(name, range());
+  }
+
+  public static UnqualifiedName name(String name) {
+    return new UnqualifiedName(name);
+  }
+
+  public static UnqualifiedTypeName typeName(String name) {
+    return new UnqualifiedTypeName(name);
   }
 
   public static QualifiedModuleId qualId(String name) {

@@ -2,9 +2,10 @@ package com.pentlander.sasquach.ast.expression;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 
 public record VariableDeclaration(Id id, Expression expression, Range range) implements Expression, LocalVariable {
-  public String name() {
+  public UnqualifiedName name() {
     return id.name();
   }
 

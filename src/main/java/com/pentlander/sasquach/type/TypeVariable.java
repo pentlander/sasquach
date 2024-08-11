@@ -53,7 +53,7 @@ public final class TypeVariable implements Type, ParameterizedType {
   }
 
   @Override
-  public String typeName() {
+  public String typeNameStr() {
     return name;
   }
 

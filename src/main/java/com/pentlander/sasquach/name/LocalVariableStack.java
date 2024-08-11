@@ -2,6 +2,7 @@ package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.InternalCompilerException;
 import com.pentlander.sasquach.RangedError;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.VarReference;
@@ -17,7 +18,7 @@ import java.util.function.Consumer;
 import org.jspecify.annotations.Nullable;
 
 public class LocalVariableStack {
-  private final Deque<Map<String, LocalVariable>> localVariableStacks = new ArrayDeque<>();
+  private final Deque<Map<UnqualifiedName, LocalVariable>> localVariableStacks = new ArrayDeque<>();
   private final SequencedSet<LocalVariable> captures = new LinkedHashSet<>();
   @Nullable private final LocalVariableStack parentStack;
   private final Consumer<RangedError> errorConsumer;
@@ -44,7 +45,7 @@ public class LocalVariableStack {
     return resolveLocalVar(localFunctionCall.name());
   }
 
-  private Optional<LocalVariable> resolveCurrentFrame(String localVarName) {
+  private Optional<LocalVariable> resolveCurrentFrame(UnqualifiedName localVarName) {
     for (var localVars : localVariableStacks) {
       var localVar = localVars.get(localVarName);
       if (localVar != null) {
@@ -54,7 +55,7 @@ public class LocalVariableStack {
     return Optional.empty();
   }
 
-  private Optional<LocalVariable> resolveLocalVar(String localVarName) {
+  private Optional<LocalVariable> resolveLocalVar(UnqualifiedName localVarName) {
     var currentFrameVar = resolveCurrentFrame(localVarName);
     if (currentFrameVar.isPresent()) {
       return currentFrameVar;

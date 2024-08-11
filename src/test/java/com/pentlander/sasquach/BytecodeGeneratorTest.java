@@ -9,10 +9,12 @@ import static com.pentlander.sasquach.Fixtures.SOURCE_PATH;
 import static com.pentlander.sasquach.Fixtures.boolValue;
 import static com.pentlander.sasquach.Fixtures.id;
 import static com.pentlander.sasquach.Fixtures.intValue;
+import static com.pentlander.sasquach.Fixtures.name;
 import static com.pentlander.sasquach.Fixtures.qualId;
 import static com.pentlander.sasquach.Fixtures.range;
 import static com.pentlander.sasquach.Fixtures.stringValue;
 import static com.pentlander.sasquach.Fixtures.tfunc;
+import static com.pentlander.sasquach.Fixtures.typeId;
 import static com.pentlander.sasquach.TestUtils.invokeFirst;
 import static com.pentlander.sasquach.TestUtils.invokeName;
 import static com.pentlander.sasquach.Util.seqMap;
@@ -180,7 +182,7 @@ class BytecodeGeneratorTest {
       var type = new ClassType(className);
       var funcType = new ForeignFunctionType(declaredConstuctor(StringBuilder.class, String.class),
           null);
-      var call = new TForeignFunctionCall(id(alias),
+      var call = new TForeignFunctionCall(typeId(alias),
           id("new"),
           funcType,
           List.of(stringValue("hi")),
@@ -204,7 +206,7 @@ class BytecodeGeneratorTest {
           "get",
           String.class,
           String[].class), null);
-      var call = new TForeignFunctionCall(id("Paths"), id("get"), funcType, args, type, NR);
+      var call = new TForeignFunctionCall(typeId("Paths"), id("get"), funcType, args, type, NR);
       var func = tfunc("baz", List.of(), type, call);
 
       var use = new Use.Foreign(qualId("java/nio/file/Paths"), id("Paths"), range());
@@ -219,7 +221,7 @@ class BytecodeGeneratorTest {
       List<TypedExpression> args = List.of(stringValue("he"), stringValue("llo"));
       var funcType = new ForeignFunctionType(declaredMethod(String.class, "concat", String.class),
           null);
-      var call = new TForeignFunctionCall(id("String"),
+      var call = new TForeignFunctionCall(typeId("String"),
           id("concat"),
           funcType,
           args,
@@ -244,7 +246,7 @@ class BytecodeGeneratorTest {
       var type = new ForeignFieldType(new ClassType(PrintStream.class),
           new ClassType(System.class),
           FieldAccessKind.STATIC);
-      var fieldAccess = new TForeignFieldAccess(id("System"), id("out"), type);
+      var fieldAccess = new TForeignFieldAccess(typeId("System"), id("out"), type);
       var func = tfunc("foo", List.of(), new ClassType(PrintStream.class), fieldAccess);
 
       var clazz = genClass(compUnit(use, func));
@@ -312,7 +314,7 @@ class BytecodeGeneratorTest {
     @Test
     void singleGenericClass() throws Exception {
       // Struct called "box" with a single field called "value" of type T
-      var boxParam = tparam("box", new StructType(seqMap("value", new UniversalType("T", 0))));
+      var boxParam = tparam("box", new StructType(seqMap(name("value"), new UniversalType("T", 0))));
       //  A value of type "U"
       var boxValueParam = tparam("boxValue", new UniversalType("U", 0));
       // Create a box struct with the field "value" set to the value of the "boxValue" param
@@ -346,7 +348,7 @@ class BytecodeGeneratorTest {
           NR);
       var callerFunc = tfunc("baz",
           List.of(),
-          new StructType(seqMap("value", BuiltinType.STRING)),
+          new StructType(seqMap(name("value"), BuiltinType.STRING)),
           funcCall);
 
       var compUnit = compUnit(List.of(), List.of(), List.of(callerFunc, parameterizedFunc));

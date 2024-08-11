@@ -252,7 +252,7 @@ Map {
     loop (let iter = Set#iterator(entrySet)) ->
       if Iterator#hasNext(iter) {
         let entry = Iterator#next(iter)
-        HashMap#put(newMap, Map$Entry#getKey(entry), Map$Entry#getValue(entry))
+        HashMap#put(newMap, Entry#getKey(entry), Entry#getValue(entry))
         recur(iter)
       } else {
         { hasher = map.hasher, map = newMap }

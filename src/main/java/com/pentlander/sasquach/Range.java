@@ -44,7 +44,17 @@ public sealed interface Range {
   /**
    * Range that starts on one line and ends on another.
    */
-  record Multi(SourcePath sourcePath, Position start, Position end) implements Range {}
+  record Multi(SourcePath sourcePath, Position start, Position end) implements Range {
+    @Override
+    public String toString() {
+      return "%s:%s:%s-%s:%s".formatted(
+          sourcePath.toString(),
+          start.line(),
+          start.column(),
+          end.line(),
+          end.column());
+    }
+  }
 
   /**
    * Range that starts and ends on the same line.

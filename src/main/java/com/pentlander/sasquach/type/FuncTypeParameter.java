@@ -2,7 +2,7 @@ package com.pentlander.sasquach.type;
 
 import java.lang.constant.ClassDesc;
 
-public record FuncTypeParameter(String typeName) implements Type {
+public record FuncTypeParameter(String typeNameStr) implements Type {
 
   @Override
   public ClassDesc classDesc() {

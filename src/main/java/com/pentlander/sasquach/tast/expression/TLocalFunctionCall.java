@@ -3,6 +3,7 @@ package com.pentlander.sasquach.tast.expression;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.Type;
 import java.util.List;
@@ -11,7 +12,7 @@ public record TLocalFunctionCall(Id functionId, TargetKind targetKind,
                                  List<TypedExpression> arguments, FunctionType functionType,
                                  Type returnType, Range range) implements TFunctionCall {
 
-  public String name() {
+  public UnqualifiedName name() {
     return functionId.name();
   }
 

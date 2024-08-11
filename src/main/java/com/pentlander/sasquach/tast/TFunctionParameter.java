@@ -2,6 +2,7 @@ package com.pentlander.sasquach.tast;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.tast.expression.TLocalVariable;
 import com.pentlander.sasquach.type.Type;
 
@@ -12,7 +13,7 @@ public record TFunctionParameter(Id id, Type type, Range range) implements TLoca
   /**
    * Name of the parameter variable.
    */
-  public String name() {
+  public UnqualifiedName name() {
     return id.name();
   }
 

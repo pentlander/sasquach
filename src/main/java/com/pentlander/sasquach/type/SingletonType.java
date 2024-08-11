@@ -1,13 +1,14 @@
 package com.pentlander.sasquach.type;
 
 import com.pentlander.sasquach.ast.QualifiedModuleName;
+import com.pentlander.sasquach.ast.QualifiedTypeName;
 import com.pentlander.sasquach.runtime.StructBase;
 import java.lang.constant.ClassDesc;
 
-public record SingletonType(QualifiedModuleName moduleName, String name) implements VariantType {
+public record SingletonType(QualifiedTypeName qualifiedTypeName) implements VariantType {
   @Override
-  public String typeName() {
-    return name;
+  public String typeNameStr() {
+    return qualifiedTypeName.name().toString();
   }
 
   @Override
@@ -17,6 +18,7 @@ public record SingletonType(QualifiedModuleName moduleName, String name) impleme
 
   @Override
   public String internalName() {
-    return moduleName.qualifyInner(name).toString();
+    return qualifiedTypeName.toString();
   }
+
 }

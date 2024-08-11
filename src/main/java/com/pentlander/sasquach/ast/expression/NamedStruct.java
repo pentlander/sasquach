@@ -4,13 +4,12 @@ import static java.util.Objects.requireNonNull;
 import static java.util.Objects.requireNonNullElse;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.StructName;
-import com.pentlander.sasquach.ast.UnqualifiedStructName;
+import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 
 @RecordBuilder
-public record NamedStruct(UnqualifiedStructName name, List<Field> fields, List<NamedFunction> functions,
+public record NamedStruct(UnqualifiedTypeName name, List<Field> fields, List<NamedFunction> functions,
                           Range range) implements StructWithName {
 
   public NamedStruct {

@@ -13,7 +13,7 @@ import com.pentlander.sasquach.ast.TypeNode;
 public record TypeParameter(Identifier id) implements TypeNode, NamedTypeDefinition {
   @Override
   public Type type() {
-    return new TypeVariable(id.name());
+    return new TypeVariable(id.name().toString());
   }
 
   @Override

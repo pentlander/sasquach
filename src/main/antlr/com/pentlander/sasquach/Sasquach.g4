@@ -22,7 +22,7 @@ functionParameterList : '(' (functionArgument)? (',' functionArgument)* ')' ;
 type : primitiveType | classType | structType | localNamedType | functionType | moduleNamedType | tupleType ;
 primitiveType : 'Boolean' | 'String' ('[' ']')* | 'Char' | 'Byte' | 'Int' | 'Long' | 'Float' | 'Double' | 'Void' ;
 classType : qualifiedName ;
-structTypeField : NL* ID ':' NL* type | SPREAD ID? ;
+structTypeField : NL* ID ':' NL* type | SPREAD typeIdentifier? ;
 structType : '{' structTypeField (',' structTypeField)* ','? NL* '}' ;
 functionType : functionParameterList '->' type ;
 typeArgumentList : ('[' type (',' type)* ']') ;

@@ -2,12 +2,13 @@ package com.pentlander.sasquach.tast.expression;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.Type;
 
 public record TVariableDeclaration(Id id, TypedExpression expression,
                                    Range range) implements TypedExpression, TLocalVariable {
-  public String name() {
+  public UnqualifiedName name() {
     return id.name();
   }
 

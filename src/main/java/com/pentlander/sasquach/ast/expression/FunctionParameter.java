@@ -3,6 +3,7 @@ package com.pentlander.sasquach.ast.expression;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.tast.expression.TLocalVariable;
 import com.pentlander.sasquach.type.Type;
 
@@ -14,7 +15,7 @@ public record FunctionParameter(Id id, TypeNode typeNode) implements LocalVariab
   /**
    * Name of the parameter variable.
    */
-  public String name() {
+  public UnqualifiedName name() {
     return id.name();
   }
 

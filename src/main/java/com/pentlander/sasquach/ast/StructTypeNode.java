@@ -14,10 +14,10 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /** Type node for a struct that contains type nodes for all of its fields. */
-public record StructTypeNode(@Nullable UnqualifiedStructName name, Map<String, TypeNode> fieldTypeNodes, RowModifier rowModifier,
+public record StructTypeNode(@Nullable UnqualifiedTypeName name, Map<UnqualifiedName, TypeNode> fieldTypeNodes, RowModifier rowModifier,
                              Range range) implements TypeNode {
 
-  public StructTypeNode(Map<String, TypeNode> fieldTypeNodes, RowModifier rowModifier, Range range) {
+  public StructTypeNode(Map<UnqualifiedName, TypeNode> fieldTypeNodes, RowModifier rowModifier, Range range) {
     this(null, fieldTypeNodes, rowModifier, range);
   }
 
@@ -27,25 +27,25 @@ public record StructTypeNode(@Nullable UnqualifiedStructName name, Map<String, T
         .collect(toLinkedMap(Entry::getKey, entry -> entry.getValue().type()));
     var rowModifier = switch (rowModifier()) {
       case NamedRow namedRow -> new StructType.RowModifier.NamedRow(namedRow.typeNode().type());
-      case None none -> StructType.RowModifier.none();
-      case UnnamedRow unnamedRow -> StructType.RowModifier.unnamedRow();
+      case None _ -> StructType.RowModifier.none();
+      case UnnamedRow _ -> StructType.RowModifier.unnamedRow();
     };
     return new StructType(name, fieldTypes, rowModifier);
   }
 
   @Override
-  public String typeName() {
+  public String typeNameStr() {
     return Objects.requireNonNullElse(name, type().structName()).toString();
   }
 
   public sealed interface RowModifier {
     record NamedRow(BasicTypeNode<LocalNamedType> typeNode) implements RowModifier {
       public String name() {
-        return typeNode.typeName();
+        return typeNode.typeNameStr();
       }
     }
 
-    static NamedRow namedRow(Id id, Range range) {
+    static NamedRow namedRow(TypeId id, Range range) {
       return new NamedRow(new BasicTypeNode<>(new LocalNamedType(id), range));
     }
 

@@ -8,7 +8,7 @@ import java.lang.constant.ClassDesc;
 // would generate a function where `bar: String` instead of `Object`
 public record UniversalType(String name, int level) implements Type, ParameterizedType {
   @Override
-  public String typeName() {
+  public String typeNameStr() {
     return name();
   }
 

@@ -40,7 +40,7 @@ public enum BuiltinType implements Type {
   }
 
   @Override
-  public String typeName() {
+  public String typeNameStr() {
     return name;
   }
 

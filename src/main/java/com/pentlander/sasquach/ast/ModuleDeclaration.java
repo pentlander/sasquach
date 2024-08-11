@@ -10,7 +10,7 @@ public record ModuleDeclaration(QualifiedModuleId id, Struct struct, Range range
   /**
    * Module captureName.
    */
-  public String name() {
+  public QualifiedModuleName name() {
     return id.name();
   }
 

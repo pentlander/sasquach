@@ -2,13 +2,11 @@ package com.pentlander.sasquach.ast.expression;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 
 public record VarReference(Id id) implements Expression {
-  public static VarReference of(String name, Range.Single range) {
-    return new VarReference(new Id(name, range));
-  }
 
-  public String name() {
+  public UnqualifiedName name() {
     return id.name();
   }
 
@@ -19,6 +17,6 @@ public record VarReference(Id id) implements Expression {
 
   @Override
   public String toPrettyString() {
-    return id().name();
+    return id().name().toString();
   }
 }

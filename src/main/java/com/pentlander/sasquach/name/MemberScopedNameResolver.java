@@ -7,8 +7,9 @@ import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
+import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.TypeNode;
-import com.pentlander.sasquach.ast.UnqualifiedStructName;
+import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
@@ -119,7 +120,7 @@ public class MemberScopedNameResolver {
     localVarStack.popScope();
   }
 
-  private Optional<Class<?>> getForeign(Id id) {
+  private Optional<Class<?>> getForeign(TypeId id) {
     return moduleScopedNameResolver.resolveForeignClass(id.name());
   }
 
@@ -132,7 +133,7 @@ public class MemberScopedNameResolver {
     switch (struct) {
       case ModuleStruct moduleStruct -> moduleStruct.useList().forEach(this::resolve);
       case NamedStruct namedStruct ->
-          moduleScopedNameResolver.resolveVariantTypeNode(namedStruct.name().toString())
+          moduleScopedNameResolver.resolveVariantTypeNode(namedStruct.name())
               .ifPresent(typeNode -> nameData.addNamedStructTypes(
                   namedStruct,
                   new Variant(typeNode.aliasId(),  typeNode.id())));
@@ -182,10 +183,10 @@ public class MemberScopedNameResolver {
         nameData.addLocalFunctionCalls(funcId, localVar.get());
       } else {
         // Resolve as a variant constructor
-        moduleScopedNameResolver.resolveVariantTypeNode(localFunctionCall.name())
+        moduleScopedNameResolver.resolveVariantTypeNode(localFunctionCall.name().toTypeName())
             .ifPresentOrElse(typeNode -> {
               var id = typeNode.id();
-              var variantTuple = Struct.variantTupleStruct(new UnqualifiedStructName(id.name()),
+              var variantTuple = Struct.variantTupleStruct(id.name(),
                   localFunctionCall.arguments(),
                   localFunctionCall.range());
 
@@ -248,7 +249,7 @@ public class MemberScopedNameResolver {
       if (module.isPresent()) {
         nameData.addVarReferences(varReference, new ReferenceDeclaration.Module(module.get()));
       } else {
-        var variantNode = moduleScopedNameResolver.resolveVariantTypeNode(varReference.name());
+        var variantNode = moduleScopedNameResolver.resolveVariantTypeNode(varReference.name().toTypeName());
         if (variantNode.isPresent()) {
           nameData.addVarReferences(varReference,
               new ReferenceDeclaration.Singleton((VariantTypeNode.Singleton) variantNode.get()));
@@ -286,10 +287,10 @@ public class MemberScopedNameResolver {
     for (var branch : match.branches()) {
       pushScope();
       switch (branch.pattern()) {
-        case Pattern.Singleton singleton -> {
-          var nodeType = moduleScopedNameResolver.resolveVariantTypeNode(singleton.id().name());
+        case Pattern.Singleton(var id) -> {
+          var nodeType = moduleScopedNameResolver.resolveVariantTypeNode(id.name());
           nodeType.ifPresentOrElse(branchTypeNodes::add,
-              () -> errors.add(new NameNotFoundError(singleton.id(), "singleton variant")));
+              () -> errors.add(new NameNotFoundError(id, "singleton variant")));
         }
         case Pattern.VariantTuple tuple -> {
           var nodeType = moduleScopedNameResolver.resolveVariantTypeNode(tuple.id().name());
@@ -399,7 +400,7 @@ public class MemberScopedNameResolver {
   /**
    * A named tuple variant may be invoked like a function, e.g. Foo("bar").
    **/
-  public record VariantStructConstructor(Id id, Struct struct) implements FunctionCallTarget {}
+  public record VariantStructConstructor(TypeId id, Struct struct) implements FunctionCallTarget {}
 
   public record QualifiedFunction(QualifiedModuleId ownerId, Id id, Function function) implements
       FunctionCallTarget {}

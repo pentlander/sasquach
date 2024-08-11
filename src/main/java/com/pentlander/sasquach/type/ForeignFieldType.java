@@ -8,8 +8,8 @@ import java.lang.constant.ClassDesc;
 public record ForeignFieldType(Type type, Type ownerType, FieldAccessKind accessKind) implements
     Type {
   @Override
-  public String typeName() {
-    return type.typeName();
+  public String typeNameStr() {
+    return type.typeNameStr();
   }
 
   @Override

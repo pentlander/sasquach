@@ -1,7 +1,8 @@
 package com.pentlander.sasquach.type;
 
-import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import java.lang.constant.ClassDesc;
 import java.util.List;
 import java.util.Objects;
@@ -9,17 +10,22 @@ import java.util.Objects;
 /**
  * Unqualified named type. It can refer to a local type alias or a type parameter.
  */
-public record LocalNamedType(Id id, List<TypeNode> typeArgumentNodes) implements NamedType {
+public record LocalNamedType(TypeId id, List<TypeNode> typeArgumentNodes) implements NamedType {
   public LocalNamedType {
     Objects.requireNonNull(typeArgumentNodes);
   }
 
-  public LocalNamedType(Id id) {
+  public LocalNamedType(TypeId id) {
     this(id, List.of());
   }
 
   @Override
-  public String typeName() {
+  public String typeNameStr() {
+    return id.name().toString();
+  }
+
+  @Override
+  public UnqualifiedTypeName typeName() {
     return id.name();
   }
 

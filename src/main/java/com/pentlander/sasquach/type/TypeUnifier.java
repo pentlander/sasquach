@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.type;
 
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.type.StructType.RowModifier;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,7 +25,7 @@ public class TypeUnifier {
           yield new FunctionType(paramTypes, List.of(), returnType);
         }
         case StructType structType -> {
-          var fieldTypes = new LinkedHashMap<String, Type>();
+          var fieldTypes = new LinkedHashMap<UnqualifiedName, Type>();
           structType.fieldTypes()
               .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType)));
 
@@ -46,8 +47,8 @@ public class TypeUnifier {
             resolve(namedType.type()));
         case ClassType classType ->
             new ClassType(classType.typeClass(), resolve(classType.typeArguments()));
-        case SumType sumType -> new SumType(sumType.moduleName(),
-            sumType.name(),
+        case SumType sumType -> new SumType(
+            sumType.qualifiedTypeName(),
             sumType.typeParameters(),
             sumType.types().stream().map(this::resolve).map(VariantType.class::cast).toList());
       };
@@ -144,7 +145,7 @@ public class TypeUnifier {
         }
       }
       case SumType destSumType when sourceType instanceof SumType sourceSumType
-          && destSumType.typeName().equals(sourceSumType.typeName()) -> {
+          && destSumType.typeNameStr().equals(sourceSumType.typeNameStr()) -> {
         for (int i = 0; i < destSumType.types().size(); i++) {
           var destVariantType = destSumType.types().get(i);
           var sourceVariantType = sourceSumType.types().get(i);

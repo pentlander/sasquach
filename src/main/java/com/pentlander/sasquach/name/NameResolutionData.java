@@ -3,6 +3,7 @@ package com.pentlander.sasquach.name;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.RecurPoint;
+import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.Function;
@@ -54,6 +55,6 @@ public record NameResolutionData(
   }
 
   public sealed interface NamedStructId {
-    record Variant(Id sumTypeId, Id variantStructId) implements NamedStructId {}
+    record Variant(TypeId sumTypeId, TypeId variantStructId) implements NamedStructId {}
   }
 }

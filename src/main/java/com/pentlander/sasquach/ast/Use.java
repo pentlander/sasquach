@@ -13,13 +13,6 @@ public sealed interface Use extends Node {
   QualifiedModuleId id();
 
   /**
-   * Fully qualified captureName of the import.
-   */
-  default String qualifiedName() {
-    return id().name();
-  }
-
-  /**
    * Alias for the qualified module or class.
    */
   Id alias();

@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.tast.expression;
 
 import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TPatternVariable;
@@ -14,7 +15,7 @@ public sealed interface TLocalVariable extends TypedNode permits FunctionParamet
     return type();
   }
 
-  default String name() {
+  default UnqualifiedName name() {
     return id().name();
   }
 }

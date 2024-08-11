@@ -6,6 +6,8 @@ import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.Expression;
@@ -21,14 +23,14 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class ModuleScopedNameResolver {
-  private final Map<String, ModuleScopedNameResolver> moduleImports = new HashMap<>();
-  private final Map<String, Class<?>> foreignClasses = new HashMap<>();
-  private final Map<String, TypeAlias> typeAliasNames = new HashMap<>();
+  private final Map<UnqualifiedName, ModuleScopedNameResolver> moduleImports = new HashMap<>();
+  private final Map<UnqualifiedTypeName, Class<?>> foreignClasses = new HashMap<>();
+  private final Map<UnqualifiedTypeName, TypeAlias> typeAliasNames = new HashMap<>();
   private final Map<TypeNode, NamedTypeDefinition> namedTypes = new HashMap<>();
-  private final Map<String, VariantTypeNode> variantTypes = new HashMap<>();
-  private final Map<String, LiteralStruct.Field> fields = new HashMap<>();
+  private final Map<UnqualifiedTypeName, VariantTypeNode> variantTypes = new HashMap<>();
+  private final Map<UnqualifiedName, LiteralStruct.Field> fields = new HashMap<>();
   private final Map<LiteralStruct.Field, NameResolutionResult> fieldResults = new HashMap<>();
-  private final Map<String, NamedFunction> functions = new HashMap<>();
+  private final Map<UnqualifiedName, NamedFunction> functions = new HashMap<>();
   private final Map<Function, NameResolutionResult> functionResults = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
@@ -79,9 +81,9 @@ public class ModuleScopedNameResolver {
 
   public void resolve(Use.Foreign use) {
     try {
-      var qualifiedName = use.id().name().replace('/', '.');
+      var qualifiedName = use.id().name().javaName();
       var clazz = MethodHandles.lookup().findClass(qualifiedName);
-      foreignClasses.put(use.alias().name(), clazz);
+      foreignClasses.put(use.alias().name().toTypeName(), clazz);
     } catch (ClassNotFoundException | IllegalAccessException e) {
       errors.add(new NameNotFoundError(use.alias(), "foreign class"));
     }
@@ -143,32 +145,32 @@ public class ModuleScopedNameResolver {
     }
   }
 
-  Optional<Class<?>> resolveForeignClass(String classAlias) {
+  Optional<Class<?>> resolveForeignClass(UnqualifiedTypeName classAlias) {
     return Optional.ofNullable(foreignClasses.get(classAlias));
   }
 
-  Optional<ModuleDeclaration> resolveModule(String moduleAlias) {
+  Optional<ModuleDeclaration> resolveModule(UnqualifiedName moduleAlias) {
     return Optional.ofNullable(moduleImports.get(moduleAlias))
         .map(ModuleScopedNameResolver::moduleDeclaration);
   }
 
-  Optional<ModuleScopedNameResolver> resolveModuleResolver(String moduleAlias) {
+  Optional<ModuleScopedNameResolver> resolveModuleResolver(UnqualifiedName moduleAlias) {
     return Optional.ofNullable(moduleImports.get(moduleAlias));
   }
 
-  Optional<NamedFunction> resolveFunction(String functionName) {
+  Optional<NamedFunction> resolveFunction(UnqualifiedName functionName) {
     return Optional.ofNullable(functions.get(functionName));
   }
 
-  Optional<LiteralStruct.Field> resolveField(String fieldName) {
+  Optional<LiteralStruct.Field> resolveField(UnqualifiedName fieldName) {
     return Optional.ofNullable(fields.get(fieldName));
   }
 
-  Optional<TypeAlias> resolveTypeAlias(String typeAlias) {
+  Optional<TypeAlias> resolveTypeAlias(UnqualifiedTypeName typeAlias) {
     return Optional.ofNullable(typeAliasNames.get(typeAlias));
   }
 
-  Optional<VariantTypeNode> resolveVariantTypeNode(String variantName) {
+  Optional<VariantTypeNode> resolveVariantTypeNode(UnqualifiedTypeName variantName) {
     return Optional.ofNullable(variantTypes.get(variantName));
   }
 }

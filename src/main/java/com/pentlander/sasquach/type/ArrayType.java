@@ -7,8 +7,8 @@ import java.lang.constant.ClassDesc;
  */
 public record ArrayType(Type elementType) implements Type {
   @Override
-  public String typeName() {
-    return elementType.typeName() + "[]";
+  public String typeNameStr() {
+    return elementType.typeNameStr() + "[]";
   }
 
   @Override
