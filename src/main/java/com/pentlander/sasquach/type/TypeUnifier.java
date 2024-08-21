@@ -15,14 +15,14 @@ public class TypeUnifier {
    * Resolves the type by replacing any type variables in a parameterized type with a concrete one.
    */
   public Type resolve(Type type) {
-    if (type instanceof ParameterizedType paramType) {
+    if (type instanceof TypeNester paramType) {
       return switch (paramType) {
         case UniversalType universalType -> universalType;
         case TypeVariable typeVariable -> typeVariable.resolvedType().orElse(typeVariable);
         case FunctionType funcType -> {
           var paramTypes = resolve(funcType.parameterTypes());
           var returnType = resolve(funcType.returnType());
-          yield new FunctionType(paramTypes, List.of(), returnType);
+          yield new FunctionType(paramTypes, funcType.typeParameters(), returnType);
         }
         case StructType structType -> {
           var fieldTypes = new LinkedHashMap<UnqualifiedName, Type>();
@@ -35,7 +35,12 @@ public class TypeUnifier {
             rowStruct.ifPresent(value -> value.fieldTypes()
                 .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType))));
           }
-          yield new StructType(structType.structName(), fieldTypes, rowModifier);
+          yield new StructType(
+              structType.structName(),
+              structType.typeParameters(),
+              fieldTypes,
+              structType.namedStructTypes(),
+              rowModifier);
         }
         case ResolvedModuleNamedType namedType ->
             new ResolvedModuleNamedType(namedType.moduleName(),
@@ -76,9 +81,9 @@ public class TypeUnifier {
       sourceType = foreignFieldType.type();
     }
 
-    if (destType instanceof ParameterizedType destParamType) {
+    if (destType instanceof TypeNester destParamType) {
       unify(destParamType, resolve(sourceType));
-    } else if (sourceType instanceof ParameterizedType sourceParamType) {
+    } else if (sourceType instanceof TypeNester sourceParamType) {
       unify(sourceParamType, resolve(destType));
     }
 
@@ -94,7 +99,7 @@ public class TypeUnifier {
     }
   }
 
-  private void unify(ParameterizedType destType, Type sourceType) {
+  private void unify(TypeNester destType, Type sourceType) {
     switch (destType) {
       case UniversalType universalType when sourceType instanceof UniversalType -> {
         if (!universalType.isAssignableFrom(sourceType)) {
@@ -124,23 +129,24 @@ public class TypeUnifier {
         var sourceFieldTypes = new LinkedHashMap<>(sourceStructType.fieldTypes());
         var destFieldTypes = new LinkedHashMap<>(destStructType.fieldTypes());
         destStructType.fieldTypes().forEach((fieldName, destFieldType) -> {
-          destFieldTypes.remove(fieldName);
           var sourceFieldType = sourceFieldTypes.remove(fieldName);
           if (!sourceStructType.isRow() && sourceFieldType == null) {
             throw new UnificationException(destType, sourceType);
-          } else if (!sourceStructType.isRow()) {
+//          } else if (!sourceStructType.isRow()) {
+          } else if (sourceFieldType != null) {
+            destFieldTypes.remove(fieldName);
             unify(destFieldType, sourceFieldType);
           }
         });
 
         if (!sourceFieldTypes.isEmpty() && destStructType.rowModifier() instanceof StructType.RowModifier.NamedRow namedRow) {
           var typeVar = (TypeVariable) namedRow.type();
-          var structType = new StructType(sourceFieldTypes);
+          var structType = StructType.unnamed(sourceFieldTypes);
           unifyTypeVariable(typeVar, structType);
         }
         if (!destFieldTypes.isEmpty() && sourceStructType.rowModifier() instanceof StructType.RowModifier.NamedRow namedRow) {
           var typeVar = (TypeVariable) namedRow.type();
-          var structType = new StructType(destFieldTypes);
+          var structType = StructType.unnamed(destFieldTypes);
           unifyTypeVariable(typeVar, structType);
         }
       }

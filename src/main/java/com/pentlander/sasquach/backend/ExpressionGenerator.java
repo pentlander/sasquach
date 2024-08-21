@@ -6,6 +6,8 @@ import static com.pentlander.sasquach.backend.GeneratorUtil.internalClassDesc;
 import static com.pentlander.sasquach.type.TypeUtils.asStructType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
 
+import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.QualifiedTypeName;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
@@ -23,6 +25,7 @@ import com.pentlander.sasquach.tast.expression.TArrayValue;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TBooleanExpression;
 import com.pentlander.sasquach.tast.expression.TBlock;
+import com.pentlander.sasquach.tast.expression.TConstructorCall;
 import com.pentlander.sasquach.tast.expression.TFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
@@ -48,6 +51,7 @@ import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
 import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
+import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeUtils;
 import com.pentlander.sasquach.type.TypeVariable;
@@ -250,15 +254,13 @@ final class ExpressionGenerator {
                 StandardOperation.CALL.toString(),
                 funcTypeDesc));
           }
-          case TargetKind.VariantStructConstructor(var struct) -> {
-            var structDesc = ClassDesc.ofInternalName(struct.name().toString());
+          case TargetKind.VariantStructConstructor(var name) -> {
+            var structDesc = ClassDesc.ofInternalName(name.toString());
             generateNewDup(structDesc);
             generateArgs(funcCall.arguments(), funcType.parameterTypes());
-            var methodDesc = MethodHandleDesc.ofMethod(
-                Kind.CONSTRUCTOR,
+            var methodDesc = MethodHandleDesc.ofConstructor(
                 structDesc,
-                funcCall.name().toString(),
-                funcType.functionTypeDesc().changeReturnType(ConstantDescs.CD_void));
+                funcType.parameterTypes().stream().map(Type::classDesc).toArray(ClassDesc[]::new));
             generate(methodDesc);
           }
         }
@@ -377,6 +379,30 @@ final class ExpressionGenerator {
             funcTypeDesc));
         var funcCallType = type(structFuncCall);
         tryUnbox(funcCallType, funcType.returnType());
+      }
+      case TConstructorCall(
+          var name, var argIndexes, var arguments, var funcType, _, _
+      ) -> {
+        var structDesc = ClassDesc.ofInternalName(name.toString());
+        generateNewDup(structDesc);
+
+        Integer argStartIdx = null;
+        for (var expr : arguments) {
+          generate(expr);
+          int idx = localVarMeta.pushHidden();
+          if (argStartIdx == null) argStartIdx = idx;
+          generateStoreVar(cob, type(expr), idx);
+        }
+
+        for (int i = 0; i < argIndexes.size(); i++) {
+          var argIndex = argIndexes.get(i);
+          var arg = arguments.get(argIndex);
+          generateLoadVar(cob, type(arg), argStartIdx + argIndex);
+          tryBox(type(arg), funcType.parameterTypes().get(i));
+        }
+        var methodDesc = MethodHandleDesc.ofConstructor(structDesc,
+            funcType.parameterTypes().stream().map(Type::classDesc).toArray(ClassDesc[]::new));
+        generate(methodDesc);
       }
       case TLoop loop -> {
         loop.varDeclarations().forEach(this::generate);

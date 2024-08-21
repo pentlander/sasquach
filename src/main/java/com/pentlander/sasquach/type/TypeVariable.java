@@ -5,23 +5,35 @@ import static java.util.Objects.requireNonNull;
 import java.lang.constant.ClassDesc;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Represents a type parameter that hasn't been resolved yet. It is essentially a placeholder that
  * gets replaced by the {@link TypeUnifier}.
  */
-public final class TypeVariable implements Type, ParameterizedType {
+public final class TypeVariable implements Type, TypeNester {
   private final String name;
   private final int level;
+  private final @Nullable Object context;
+  private final UUID uuid;
   private InnerType inner = new InnerType();
+
+  private StackTraceElement[] stackTrace;
 
   /**
    * @param name captureName of the type variable.
    */
-  public TypeVariable(String name, int level) {
+  public TypeVariable(String name, int level, @Nullable Object context) {
     this.name = name;
     this.level = level;
+    this.context = context;
+    stackTrace = Thread.currentThread().getStackTrace();
+    uuid = UUID.nameUUIDFromBytes((name + level + context).getBytes());
+  }
+
+  public TypeVariable(String name, int level) {
+    this(name, level, null);
   }
 
   public Optional<Type> resolvedType() {
@@ -41,6 +53,7 @@ public final class TypeVariable implements Type, ParameterizedType {
         typeVar.inner = inner;
       } else {
         inner = typeVar.inner;
+        stackTrace = Thread.currentThread().getStackTrace();
       }
       return true;
     } else if (inner.type != null && !inner.type.isAssignableFrom(type)) {
@@ -50,6 +63,7 @@ public final class TypeVariable implements Type, ParameterizedType {
       // resolved.
     } else {
       inner.type = type;
+      stackTrace = Thread.currentThread().getStackTrace();
       return true;
     }
   }
@@ -74,10 +88,6 @@ public final class TypeVariable implements Type, ParameterizedType {
     return resolvedType().map(type -> type.isAssignableFrom(other)).orElse(true);
   }
 
-  public String name() {
-    return name;
-  }
-
   @Override
   public boolean equals(Object obj) {
     return obj == this || obj instanceof TypeVariable other
@@ -94,6 +104,12 @@ public final class TypeVariable implements Type, ParameterizedType {
   @Override
   public String toString() {
     return "TypeVariable[" + "name=" + name + level + ", inner=" + inner + ']';
+  }
+
+  @Override
+  public String toPrettyString() {
+    var innerStr = inner.type != null ? inner.type.toPrettyString() : "null";
+    return name + level + "[" + innerStr + "]";
   }
 
   private static class InnerType {

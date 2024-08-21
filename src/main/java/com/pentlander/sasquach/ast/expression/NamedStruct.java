@@ -8,19 +8,17 @@ import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 
-@RecordBuilder
-public record NamedStruct(UnqualifiedTypeName name, List<Field> fields, List<NamedFunction> functions,
-                          Range range) implements StructWithName {
+public record NamedStruct(UnqualifiedTypeName name, List<Field> fields, Range range) implements
+    StructWithName {
 
   public NamedStruct {
     requireNonNull(name);
     fields = requireNonNullElse(fields, List.of());
-    functions = requireNonNullElse(functions, List.of());
     requireNonNull(range);
   }
 
   @Override
-  public StructKind structKind() {
-    return StructKind.NAMED;
+  public List<NamedFunction> functions() {
+    return List.of();
   }
 }

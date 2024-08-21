@@ -581,7 +581,11 @@ public class Visitor {
             fields.add(new Field(id, expr));
           } else if (funcCtx != null) {
             var func = funcCtx.accept(new FunctionVisitor());
-            functions.add(new NamedFunction(id, func));
+            if (structKind != StructKind.NAMED) {
+              functions.add(new NamedFunction(id, func));
+            } else {
+              fields.add(new Field(id, func));
+            }
           }
         } else if (structStatementCtx instanceof UseStatementContext useStatementCtx) {
           var useCtx = useStatementCtx.use();
@@ -621,7 +625,8 @@ public class Visitor {
             .functions(functions)
             .range(rangeFrom(ctx))
             .build();
-        case NAMED -> Struct.variantLiteralStruct((UnqualifiedTypeName) structName, fields, functions, rangeFrom(ctx));
+        case NAMED -> Struct.variantStructConstructor((UnqualifiedTypeName) structName, fields,
+            rangeFrom(ctx));
       };
     }
   }

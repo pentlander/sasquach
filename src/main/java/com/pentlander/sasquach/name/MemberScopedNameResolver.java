@@ -6,9 +6,11 @@ import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
+import com.pentlander.sasquach.ast.QualifiedTypeName;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.expression.ApplyOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
@@ -37,7 +39,6 @@ import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
-import com.pentlander.sasquach.name.NameResolutionData.NamedStructId;
 import com.pentlander.sasquach.name.NameResolutionData.NamedStructId.Variant;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.ArrayDeque;
@@ -186,19 +187,19 @@ public class MemberScopedNameResolver {
         moduleScopedNameResolver.resolveVariantTypeNode(localFunctionCall.name().toTypeName())
             .ifPresentOrElse(typeNode -> {
               var id = typeNode.id();
-              var variantTuple = Struct.variantTupleStruct(id.name(),
-                  localFunctionCall.arguments(),
-                  localFunctionCall.range());
+              var qualifiedName = moduleScopedNameResolver.moduleDeclaration()
+                  .name()
+                  .qualifyInner(id.name());
+              nameData.addLocalFunctionCalls(funcId, new VariantStructConstructor(qualifiedName, id));
 
-              nameData.addLocalFunctionCalls(
-                  funcId,
-                  new VariantStructConstructor(id, variantTuple));
-
+//              var variantTuple = Struct.variantTupleStruct(id.name(),
+//                  localFunctionCall.arguments(),
+//                  localFunctionCall.range());
               var alias = moduleScopedNameResolver.resolveTypeAlias(typeNode.aliasId().name())
                   .orElseThrow();
-              nameData.addNamedStructTypes(
-                  variantTuple,
-                  new NamedStructId.Variant(alias.id(),  id));
+//              nameData.addNamedStructTypes(
+//                  variantTuple,
+//                  new NamedStructId.Variant(alias.id(),  id));
             }, () -> errors.add(new NameNotFoundError(localFunctionCall.functionId(), "function")));
       }
     }
@@ -400,7 +401,7 @@ public class MemberScopedNameResolver {
   /**
    * A named tuple variant may be invoked like a function, e.g. Foo("bar").
    **/
-  public record VariantStructConstructor(TypeId id, Struct struct) implements FunctionCallTarget {}
+  public record VariantStructConstructor(QualifiedTypeName qualifiedName, TypeId id) implements FunctionCallTarget {}
 
   public record QualifiedFunction(QualifiedModuleId ownerId, Id id, Function function) implements
       FunctionCallTarget {}

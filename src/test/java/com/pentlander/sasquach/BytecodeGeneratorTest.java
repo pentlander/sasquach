@@ -183,7 +183,7 @@ class BytecodeGeneratorTest {
       var funcType = new ForeignFunctionType(declaredConstuctor(StringBuilder.class, String.class),
           null);
       var call = new TForeignFunctionCall(typeId(alias),
-          id("new"),
+          name("new"),
           funcType,
           List.of(stringValue("hi")),
           type,
@@ -206,7 +206,7 @@ class BytecodeGeneratorTest {
           "get",
           String.class,
           String[].class), null);
-      var call = new TForeignFunctionCall(typeId("Paths"), id("get"), funcType, args, type, NR);
+      var call = new TForeignFunctionCall(typeId("Paths"), name("get"), funcType, args, type, NR);
       var func = tfunc("baz", List.of(), type, call);
 
       var use = new Use.Foreign(qualId("java/nio/file/Paths"), id("Paths"), range());
@@ -222,7 +222,7 @@ class BytecodeGeneratorTest {
       var funcType = new ForeignFunctionType(declaredMethod(String.class, "concat", String.class),
           null);
       var call = new TForeignFunctionCall(typeId("String"),
-          id("concat"),
+          name("concat"),
           funcType,
           args,
           BuiltinType.STRING,
@@ -260,7 +260,7 @@ class BytecodeGeneratorTest {
   void functionCall() throws Exception {
     var calleeFunc = tfunc("foo", List.of(), BuiltinType.INT, intValue("5"));
     var funcType = calleeFunc.type();
-    var callerFunc = tfunc("baz", List.of(), BuiltinType.INT, new TLocalFunctionCall(id("foo"),
+    var callerFunc = tfunc("baz", List.of(), BuiltinType.INT, new TLocalFunctionCall(name("foo"),
         new TargetKind.QualifiedFunction(QUAL_MOD_ID),
         List.of(),
         funcType,
@@ -296,7 +296,7 @@ class BytecodeGeneratorTest {
         structFunc.id(),
         structFunc.function())).build();
     var memberFuncCall = new TMemberFunctionCall(struct,
-        id("member"),
+        name("member"),
         funcType,
         List.of(),
         returnType,
@@ -314,7 +314,7 @@ class BytecodeGeneratorTest {
     @Test
     void singleGenericClass() throws Exception {
       // Struct called "box" with a single field called "value" of type T
-      var boxParam = tparam("box", new StructType(seqMap(name("value"), new UniversalType("T", 0))));
+      var boxParam = tparam("box", StructType.unnamed(seqMap(name("value"), new UniversalType("T", 0))));
       //  A value of type "U"
       var boxValueParam = tparam("boxValue", new UniversalType("U", 0));
       // Create a box struct with the field "value" set to the value of the "boxValue" param
@@ -338,7 +338,7 @@ class BytecodeGeneratorTest {
       var callReturnType = (StructType) new NamedTypeResolver(NameResolutionResult.empty()).resolveNames(boxParam.type(),
           Map.of("T", BuiltinType.STRING),
           NR);
-      var funcCall = new TLocalFunctionCall(id("foo"),
+      var funcCall = new TLocalFunctionCall(name("foo"),
           new TargetKind.QualifiedFunction(QUAL_MOD_ID),
           List.of(
               literalStructBuilder().fields(List.of(new TField(id("value"), intValue(10)))).build(),
@@ -348,7 +348,7 @@ class BytecodeGeneratorTest {
           NR);
       var callerFunc = tfunc("baz",
           List.of(),
-          new StructType(seqMap(name("value"), BuiltinType.STRING)),
+          StructType.unnamed(seqMap(name("value"), BuiltinType.STRING)),
           funcCall);
 
       var compUnit = compUnit(List.of(), List.of(), List.of(callerFunc, parameterizedFunc));

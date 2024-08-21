@@ -118,8 +118,8 @@ Result {
   },
 
   toOption = [A, B](result: T[A, B]): Option.T[A] -> match result {
-    Err(_) -> Option.None,
     Ok(value) -> Option.Some(value),
+    Err(_) -> Option.None,
   },
 }
 
@@ -202,7 +202,7 @@ List {
 Hash {
   type T[A] = { hashCode: (value: A) -> Int, .. },
 
-  new = [A, W](fn: (value: A) -> Int, witness: W): T[A] -> {
+  new = [A](fn: (value: A) -> Int): T[A] -> {
     hashCode = fn,
   }
 }
@@ -212,6 +212,9 @@ Map {
   use foreign java/util/Set,
   use foreign java/util/Iterator,
   use foreign java/util/Map$Entry,
+  use foreign java/util/Objects,
+
+  use std/Option,
   use std/Hash,
 
   type T[A, B] = {
@@ -230,7 +233,14 @@ Map {
     map
   },
 
-  get = [A, B](map: T[A, B], key: A): B -> HashMap#get(map.map, key),
+  get = [A, B](map: T[A, B], key: A): Option.T[B] -> {
+    let value = HashMap#get(map.map, key)
+    if Objects#nonNull(value) {
+      Option.Some(value)
+    } else {
+      Option.None
+    }
+  },
 
   size = [A, B](map: T[A, B]): Int -> HashMap#size(map.map),
 

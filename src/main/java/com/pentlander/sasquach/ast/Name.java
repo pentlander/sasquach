@@ -3,6 +3,10 @@ package com.pentlander.sasquach.ast;
 public interface Name {
   String toString();
 
+  default String toPrettyString() {
+    return toString();
+  }
+
   static void requireUnqualified(String name) {
     if (name.contains("/") || name.contains("$")) {
       throw new IllegalStateException(

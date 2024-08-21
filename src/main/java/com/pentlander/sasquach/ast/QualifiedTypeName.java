@@ -6,4 +6,9 @@ public record QualifiedTypeName(QualifiedModuleName qualifiedModuleName, Unquali
   public String toString() {
     return qualifiedModuleName.toString() + "$" + name;
   }
+
+  @Override
+  public String toPrettyString() {
+    return qualifiedModuleName.toString() + "." + name;
+  }
 }

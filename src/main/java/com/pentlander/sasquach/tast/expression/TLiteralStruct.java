@@ -32,6 +32,6 @@ public record TLiteralStruct(List<TField> fields,
       var structType = TypeUtils.asStructType(varRef.type()).orElseThrow();
       fieldTypes.putAll(structType.fieldTypes());
     });
-    return new StructType(fieldTypes);
+    return StructType.unnamed(fieldTypes);
   }
 }

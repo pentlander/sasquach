@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNullElse;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
-import com.pentlander.sasquach.ast.StructName;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.Use;
 import io.soabase.recordbuilder.core.RecordBuilder;
@@ -24,11 +23,6 @@ public record ModuleStruct(QualifiedModuleName name, List<Use> useList, List<Typ
     fields = requireNonNullElse(fields, List.of());
     functions = requireNonNullElse(functions, List.of());
     requireNonNull(range);
-  }
-
-  @Override
-  public StructKind structKind() {
-    return StructKind.MODULE;
   }
 
   @Override

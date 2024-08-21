@@ -2,7 +2,9 @@ package com.pentlander.sasquach.e2e;
 
 import static com.pentlander.sasquach.TestUtils.invokeMain;
 import static java.util.Objects.requireNonNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import com.pentlander.sasquach.BaseTest;
 import com.pentlander.sasquach.CompilationException;
 import com.pentlander.sasquach.Compiler;
 import com.pentlander.sasquach.PackageName;
@@ -15,14 +17,16 @@ import com.pentlander.sasquach.backend.BytecodeResult;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Paths;
+import java.util.Objects;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-public class StdlibTest {
+public class StdlibTest extends BaseTest {
+
   @Test
   void test() throws Exception {
-    var clazz = compileSource("""
+    var clazz = compile("""
         Main {
            main = (): Int -> 1
         }
@@ -31,53 +35,37 @@ public class StdlibTest {
   }
 
   @Nested
-  class MapTest {
-    @Test @Disabled
+  class MapTest extends BaseStdTest {
+    @Test
     void assocAndGet() throws Exception {
-      var clazz = compileSource("""
+      var clazz = compile("""
         Main {
+          use std/Hash,
           use std/Map,
+          use std/Option,
         
-          main = (): String -> {
-            Map.new()
-            ""
-          },
+          main = (): Int -> {
+            let hash = Hash.new((value: String): Int -> 0)
+            let map = Map.new(hash)
+            
+            let mapWithKey = map |> Map.assoc("foo", 1)
+            
+            mapWithKey
+              |> Map.get("foo")
+              |> Option.unwrap()
+          }
         }
         """);
 
-      invokeMain(clazz);
+      int value = invokeMain(clazz);
+      assertThat(value).isEqualTo(1);
     }
   }
 
-  private Class<?> compileSource(String source)
-      throws ClassNotFoundException, CompilationException {
-    return compileClass(Source.fromString("main", source), false);
-  }
-
-  private Class<?> compileSourceDebug(String source)
-      throws ClassNotFoundException, CompilationException {
-    return compileClass(Source.fromString("main", source), true);
-  }
-
-  private Class<?> compileClass(Source source, boolean dumpClasses)
-      throws ClassNotFoundException, CompilationException {
-
-    var url = requireNonNull(getClass().getResource("/stdlib"));
-    BytecodeResult bytecode;
-    try {
-      var path = Paths.get(url.toURI());
-      var compiler = new Compiler();
-      var sources = compiler.findFiles(path).merge(Sources.single(source));
-      bytecode = compiler.compile(sources);
-    } catch (URISyntaxException | IOException e) {
-      throw new RuntimeException(e);
+  private static class BaseStdTest extends BaseTest {
+    @Override
+    protected int defaultOpts() {
+      return INCLUDE_STD;
     }
-
-    var cl = new SasquachClassloader();
-    if (dumpClasses) {
-      TestUtils.dumpGeneratedClasses(bytecode.generatedBytecode());
-    }
-    bytecode.generatedBytecode().forEach(cl::addClass);
-    return cl.loadModule(new QualifiedModuleName(new PackageName("main"), "Main"));
   }
 }

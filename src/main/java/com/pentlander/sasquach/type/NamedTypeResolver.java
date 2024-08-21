@@ -167,26 +167,24 @@ public class NamedTypeResolver {
 
   @SuppressWarnings("unchecked")
   public <T extends Type> T resolveNames(T type, Map<String, Type> typeArgs, Range range) {
-    if (type instanceof NamedType namedType) {
-      return (T) resolveNamedType(namedType, typeArgs, range);
-    }
-
-    if (type instanceof ParameterizedType parameterizedType) {
-      return (T) resolveParameterizedType(parameterizedType, typeArgs, range);
-    }
-
-    return type;
+    return switch (type) {
+      case NamedType namedType -> (T) resolveNamedType(namedType, typeArgs, range);
+      case TypeNester typeNester -> (T) resolveNestedTypes(typeNester, typeArgs, range);
+      case null, default -> type;
+    };
   }
 
   // For any parameterized type, you must recursively resolve any nested named types.
-  private Type resolveParameterizedType(ParameterizedType parameterizedType,
+  private Type resolveNestedTypes(TypeNester typeNester,
       Map<String, Type> typeArgs, Range range) {
-    return switch (parameterizedType) {
+    return switch (typeNester) {
       case StructType structType -> new StructType(structType.structName(),
+          structType.typeParameters(),
           structType.fieldTypes()
               .entrySet()
               .stream()
               .collect(toSeqMap(Entry::getKey, e -> resolveNames(e.getValue(), typeArgs, range))),
+          structType.namedStructTypes(),
           switch (structType.rowModifier()) {
             case RowModifier.NamedRow(var type) -> new RowModifier.NamedRow(resolveNames(type, typeArgs, range));
             case UnnamedRow unnamedRow -> unnamedRow;

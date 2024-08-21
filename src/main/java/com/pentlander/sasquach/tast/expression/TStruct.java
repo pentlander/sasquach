@@ -1,6 +1,8 @@
 package com.pentlander.sasquach.tast.expression;
 
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.Range.Single;
+import com.pentlander.sasquach.Util;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.tast.TypedMember;
@@ -21,6 +23,12 @@ public sealed interface TStruct extends TypedExpression permits TLiteralStruct, 
   @Override
   default Type type() {
     return structType();
+  }
+
+  static List<TField> tupleFields(List<TypedExpression> expressions) {
+    return Util.tupleFields(
+        expressions,
+        (name, expr) -> new TField(new Id(name, (Single) expr.range()), expr));
   }
 
   record TField(Id id, TypedExpression expr) implements TypedNode, TypedMember {

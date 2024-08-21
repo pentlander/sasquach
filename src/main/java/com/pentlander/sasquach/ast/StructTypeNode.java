@@ -8,6 +8,7 @@ import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.None;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.UnnamedRow;
 import com.pentlander.sasquach.type.LocalNamedType;
 import com.pentlander.sasquach.type.StructType;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -30,7 +31,7 @@ public record StructTypeNode(@Nullable UnqualifiedTypeName name, Map<Unqualified
       case None _ -> StructType.RowModifier.none();
       case UnnamedRow _ -> StructType.RowModifier.unnamedRow();
     };
-    return new StructType(name, fieldTypes, rowModifier);
+    return new StructType(name, List.of(), fieldTypes, Map.of(), rowModifier);
   }
 
   @Override

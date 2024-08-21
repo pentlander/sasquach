@@ -21,7 +21,7 @@ public record TVarReference(Id id, RefDeclaration refDeclaration, Type type) imp
 
   @Override
   public String toPrettyString() {
-    return id().name().toString();
+    return "%s: %s".formatted(id().name(), type.toPrettyString());
   }
 
   public sealed interface RefDeclaration {

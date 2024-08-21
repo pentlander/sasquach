@@ -18,8 +18,4 @@ public record LiteralStruct(List<Field> fields, List<NamedFunction> functions, L
     requireNonNull(range);
   }
 
-  @Override
-  public StructKind structKind() {
-    return StructKind.LITERAL;
-  }
 }

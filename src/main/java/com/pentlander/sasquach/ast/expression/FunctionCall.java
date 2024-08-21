@@ -17,10 +17,6 @@ public sealed interface FunctionCall extends Expression permits ForeignFunctionC
 
   List<Expression> arguments();
 
-  default int argumentCount() {
-    return arguments().size();
-  }
-
   Range range();
 
   default String argumentsToPrettyString() {

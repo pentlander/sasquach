@@ -54,6 +54,13 @@ public final class TypeUtils {
     return typeName + typeArgString;
   }
 
+  public static String typeWithParamsToString(String typeName, Collection<TypeParameter> typeParams) {
+    var typeArgString = !typeParams.isEmpty() ? typeParams.stream()
+        .map(TypeParameter::toPrettyString)
+        .collect(Collectors.joining(", ", "[", "]")) : "";
+    return typeName + typeArgString;
+  }
+
   public static Type reify(@Nullable Type type) {
     return switch (type) {
       case ResolvedNamedType resolvedNamedType -> reify(resolvedNamedType.type());

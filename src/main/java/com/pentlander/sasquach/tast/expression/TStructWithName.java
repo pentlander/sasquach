@@ -6,8 +6,7 @@ import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import java.util.LinkedHashMap;
 
-public sealed interface TStructWithName extends TStruct permits TModuleStruct, TNamedStruct,
-    TVariantStruct {
+public sealed interface TStructWithName extends TStruct permits TModuleStruct {
   StructName name();
 
   default StructType structType() {

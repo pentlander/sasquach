@@ -5,6 +5,7 @@ import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TypedNode;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 public class BytecodeGenerator {
@@ -28,7 +29,11 @@ public class BytecodeGenerator {
     }
 
     CodeGenerationException(@Nullable TypedNode node, Exception cause) {
-      super(node != null ? node.toPrettyString() : null, cause);
+      super(node != null ? limitString(node.toPrettyString(), 100) : null, cause);
+    }
+
+    private static String limitString(String str, int maxLength) {
+      return str.length() < maxLength ? str : str.substring(0, maxLength) + "...";
     }
   }
 }

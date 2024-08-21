@@ -1,12 +1,15 @@
 package com.pentlander.sasquach.type;
 
 import static com.pentlander.sasquach.type.MemberScopedTypeResolver.typeParams;
+import static java.util.Objects.requireNonNull;
+import static java.util.function.Function.identity;
+import static java.util.stream.Collectors.toMap;
 
+import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.FunctionSignature;
-import com.pentlander.sasquach.ast.Identifier;
+import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
-import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeId;
@@ -33,12 +36,12 @@ import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType.LocalVar;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 public class ModuleScopedTypeResolver {
   private final NameResolutionResult nameResolutionResult;
@@ -50,7 +53,8 @@ public class ModuleScopedTypeResolver {
   private final TModuleStructBuilder typedStructBuilder = TModuleStructBuilder.builder();
   private final Map<TypeId, FunctionType> variantConstructorTypes = new HashMap<>();
 
-  private final Map<Identifier, Type> idTypes = new HashMap<>();
+  private final Map<TypeId, Type> namedTypeIdToType = new HashMap<>();
+  private final Map<Id, FunctionType> funcIdToType = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
 
@@ -72,32 +76,26 @@ public class ModuleScopedTypeResolver {
       var resolvedAlias = namedTypeResolver.resolveTypeNode(typeAlias, Map.of());
       if (resolvedAlias.typeNode() instanceof SumTypeNode sumTypeNode) {
         var sumType = sumTypeNode.type();
-        idTypes.put(sumTypeNode.id(), sumType);
+        namedTypeIdToType.put(sumTypeNode.id(), sumType);
         for (int i = 0; i < sumTypeNode.variantTypeNodes().size(); i++) {
           var variantTypeNode = sumTypeNode.variantTypeNodes().get(i);
-          idTypes.put(variantTypeNode.id(), variantTypeNode.type());
+          namedTypeIdToType.put(variantTypeNode.id(), variantTypeNode.type());
 
           switch (variantTypeNode) {
             case VariantTypeNode.Tuple tuple -> {
-              var tupleFieldTypes = tuple.type().fieldTypes();
-              var paramTypes = tupleFieldTypes.values()
-                  .stream()
-                  .sorted(Comparator.comparing(Type::typeNameStr))
-                  .toList();
+              var paramTypes = tuple.type().sortedFieldTypes();
               var variantConstructorType = new FunctionType(paramTypes,
                   sumType.typeParameters(),
                   sumType);
               var typeId = tuple.id();
               variantConstructorTypes.put(typeId, variantConstructorType);
-              fieldTypes.put(typeId.toId().name(), variantConstructorType);
+//              fieldTypes.put(typeId.toId().name(), variantConstructorType);
             }
             case VariantTypeNode.Singleton singleton -> {
               var id = singleton.id().toId();
               typedFields.add(new TField(id,
-                  new TVarReference(id,
-                      new RefDeclaration.Singleton(singleton.type()),
-                      sumType)));
-              fieldTypes.put(id.name(), sumType);
+                  new TVarReference(id, new RefDeclaration.Singleton(singleton.type()), sumType)));
+//              fieldTypes.put(id.name(), sumType);
             }
             case VariantTypeNode.Struct strct -> {
               // TODO need to somehow replace the SumType in NameResolutionResult's namedStructTypes
@@ -111,41 +109,40 @@ public class ModuleScopedTypeResolver {
       var funcSig = resolveFuncSignatureType(func.functionSignature());
       var type = funcSig.type();
       fieldTypes.put(func.name(), type);
-      idTypes.put(func.id(), type);
+      funcIdToType.put(func.id(), type);
       nameResolvedFunctions.add(new NamedFunction(func.id(),
           new Function(funcSig, func.expression())));
     });
 
     var modScopedTypes = new ResolverModuleScopedTypes();
     struct.fields().forEach(field -> {
-      var resolver = new MemberScopedTypeResolver(nameResolutionResult,
-          moduleTypeProvider,
-          modScopedTypes);
+      var resolver = new MemberScopedTypeResolver(nameResolutionResult, modScopedTypes);
       var result = resolver.checkField(field);
       typedFields.add((TField) result.getTypedMember());
       errors.addAll(result.errors());
     });
 
+    var typeAliases = namedTypeResolver.mapResolveTypeNode(struct.typeAliases());
+
     typedStructBuilder.name(struct.name())
         .useList(struct.useList())
-        .typeAliases(namedTypeResolver.mapResolveTypeNode(struct.typeAliases()))
+        .typeAliases(typeAliases)
         .fields(typedFields)
         .range(struct.range());
 
-    return new StructType(struct.name(), fieldTypes);
-  }
+    var namedStructTypes = typeAliases.stream()
+        .flatMap(alias -> alias.type() instanceof SumType sumType ? Stream.of(sumType)
+            : Stream.empty())
+        .collect(toMap(sumType -> sumType.qualifiedTypeName().name(), identity()));
 
-  interface ModuleTypeProvider {
-    StructType getModuleType(QualifiedModuleId qualifiedModuleId);
+    return new StructType(struct.name(), fieldTypes, namedStructTypes);
   }
 
   public TypeResolutionResult resolveFunctions() {
     var modScopedTypes = new ResolverModuleScopedTypes();
     var typedFunctions = new ArrayList<TNamedFunction>();
     var mergedResult = nameResolvedFunctions.stream().map(func -> {
-      var result = new MemberScopedTypeResolver(nameResolutionResult,
-          moduleTypeProvider,
-          modScopedTypes).checkType(func);
+      var result = new MemberScopedTypeResolver(nameResolutionResult, modScopedTypes).checkType(func);
       typedFunctions.add((TNamedFunction) result.getTypedMember());
       return result;
     }).reduce(TypeResolutionResult.EMPTY, TypeResolutionResult::merge);
@@ -164,6 +161,15 @@ public class ModuleScopedTypeResolver {
     return namedTypeResolver.resolveTypeNode(funcSignature, typeParams);
   }
 
+  private SumType convertUniversals(SumType type, Id id, Range range) {
+    var params = typeParamToVar(type.typeParameters(), id.hashCode());
+    return namedTypeResolver.resolveNames(type, params, range);
+  }
+
+  private static Map<String, Type> typeParamToVar(List<TypeParameter> typeParams, int level) {
+    return typeParams(typeParams, param -> param.toTypeVariable(level));
+  }
+
   public class ResolverModuleScopedTypes implements ModuleScopedTypes {
 
     @Override
@@ -171,7 +177,7 @@ public class ModuleScopedTypeResolver {
       var callTarget = nameResolutionResult.getLocalFunctionCallTarget(funcCall);
       return switch (callTarget) {
         case QualifiedFunction func ->
-            new FuncCallType.Module((FunctionType) idTypes.get(func.id()));
+            new FuncCallType.Module(funcIdToType.get(func.id()));
         case VariantStructConstructor constructor ->
             new FuncCallType.Module(variantConstructorTypes.get(constructor.id()));
         case LocalVariable localVar -> new LocalVar(localVar);
@@ -185,24 +191,31 @@ public class ModuleScopedTypeResolver {
         case Module(var modDecl) ->
             new VarRefType.Module(modDecl.id(), moduleTypeProvider.getModuleType(modDecl.id()));
         case Singleton(var singletonNode) -> {
-          var type = (SumType) idTypes.get(singletonNode.aliasId());
-          var params = typeParams(type.typeParameters(),
-              param -> param.toTypeVariable(varRef.id().hashCode()));
-          var resolvedType = namedTypeResolver.resolveNames(type, params, singletonNode.range());
+          var type = (SumType) namedTypeIdToType.get(singletonNode.aliasId());
+          var resolvedType = convertUniversals(type, varRef.id(), singletonNode.range());
           yield new VarRefType.Singleton(resolvedType, singletonNode.type());
         }
       };
     }
 
     @Override
-    public VariantTypeWithSum getVariantType(NamedStruct namedStruct) {
+    public SumWithVariantIdx getVariantType(NamedStruct namedStruct) {
       var namedStructType = nameResolutionResult.getNamedStructType(namedStruct);
 
       switch (namedStructType) {
-        case NamedStructId.Variant(var sumTypeId, var type) -> {
-          var variantType = (StructType) Objects.requireNonNull(idTypes.get(type));
-          var sumType = (SumType) Objects.requireNonNull(idTypes.get(sumTypeId));
-          return new VariantTypeWithSum(sumType, variantType);
+        case NamedStructId.Variant(var sumTypeId, var variantId) -> {
+          var sumType = (SumType) requireNonNull(namedTypeIdToType.get(sumTypeId));
+
+          Integer variantIdx = null;
+          for (int i = 0; i < sumType.types().size(); i++) {
+            var type = sumType.types().get(i);
+            if (type.typeNameStr().endsWith(variantId.name().toString())) {
+              variantIdx = i;
+              break;
+            }
+          }
+
+          return new SumWithVariantIdx(sumType, requireNonNull(variantIdx));
         }
       }
     }

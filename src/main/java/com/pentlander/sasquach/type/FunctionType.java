@@ -15,7 +15,7 @@ import java.util.Optional;
  * Type of a function, including the parameter types, the type parameters, and return type.
  */
 public record FunctionType(List<Type> parameterTypes, List<TypeParameter> typeParameters,
-                           Type returnType) implements ParameterizedType {
+                           Type returnType) implements ParameterizedType, TypeNester {
   public FunctionType {
     parameterTypes = requireNonNullElse(parameterTypes, List.of());
     typeParameters = requireNonNullElse(typeParameters, List.of());

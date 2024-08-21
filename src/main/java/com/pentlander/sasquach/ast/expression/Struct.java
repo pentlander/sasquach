@@ -2,6 +2,7 @@ package com.pentlander.sasquach.ast.expression;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.Range.Single;
+import com.pentlander.sasquach.Util;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
@@ -17,9 +18,8 @@ public sealed interface Struct extends Expression permits LiteralStruct,
     return new LiteralStruct(fields, functions, spreads, range);
   }
 
-  static Struct variantLiteralStruct(UnqualifiedTypeName name, List<Field> fields, List<NamedFunction> functions,
-      Range range) {
-    return new NamedStruct(name, fields, functions, range);
+  static Struct variantStructConstructor(UnqualifiedTypeName name, List<Field> fields, Range range) {
+    return new NamedStruct(name, fields, range);
   }
 
   static ModuleStructBuilder moduleStructBuilder(QualifiedModuleName name) {
@@ -27,20 +27,13 @@ public sealed interface Struct extends Expression permits LiteralStruct,
   }
 
   private static List<Field> tupleFields(List<Expression> expressions) {
-    var fields = new ArrayList<Field>();
-    for (int i = 0; i < expressions.size(); i++) {
-      var expr = expressions.get(i);
-      fields.add(new Field(new Id("_" + i, (Single) expr.range()), expr));
-    }
-    return fields;
+    return Util.tupleFields(
+        expressions,
+        (name, expr) -> new Field(new Id(name, (Single) expr.range()), expr));
   }
 
   static Struct tupleStruct(List<Expression> expressions, Range range) {
     return new LiteralStruct(tupleFields(expressions), List.of(), List.of(), range);
-  }
-
-  static NamedStruct variantTupleStruct(UnqualifiedTypeName name, List<Expression> expressions, Range range) {
-    return new NamedStruct(name, tupleFields(expressions), List.of(), range);
   }
 
   @Override
@@ -55,8 +48,6 @@ public sealed interface Struct extends Expression permits LiteralStruct,
   List<Field> fields();
 
   List<NamedFunction> functions();
-
-  StructKind structKind();
 
   enum StructKind {
     LITERAL, MODULE, NAMED,

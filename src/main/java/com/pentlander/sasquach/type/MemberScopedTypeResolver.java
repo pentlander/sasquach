@@ -15,8 +15,6 @@ import com.pentlander.sasquach.ast.Branch;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
-import com.pentlander.sasquach.ast.Pattern.VariantStruct;
-import com.pentlander.sasquach.ast.Pattern.VariantTuple;
 import com.pentlander.sasquach.ast.QualifiedTypeName;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.ApplyOperator;
@@ -57,8 +55,7 @@ import com.pentlander.sasquach.tast.TBranch;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TFunctionSignature;
 import com.pentlander.sasquach.tast.TNamedFunction;
-import com.pentlander.sasquach.tast.TPattern.TSingleton;
-import com.pentlander.sasquach.tast.TPattern.TVariantStruct;
+import com.pentlander.sasquach.tast.TPattern;
 import com.pentlander.sasquach.tast.TPattern.TVariantTuple;
 import com.pentlander.sasquach.tast.TPatternVariable;
 import com.pentlander.sasquach.tast.expression.TApplyOperator;
@@ -67,6 +64,7 @@ import com.pentlander.sasquach.tast.expression.TBinaryExpression.TBooleanExpress
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TCompareExpression;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TMathExpression;
 import com.pentlander.sasquach.tast.expression.TBlock;
+import com.pentlander.sasquach.tast.expression.TConstructorCall;
 import com.pentlander.sasquach.tast.expression.TFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
@@ -84,17 +82,13 @@ import com.pentlander.sasquach.tast.expression.TModuleStructBuilder;
 import com.pentlander.sasquach.tast.expression.TNot;
 import com.pentlander.sasquach.tast.expression.TPrintStatement;
 import com.pentlander.sasquach.tast.expression.TRecur;
-import com.pentlander.sasquach.tast.expression.TStruct;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
-import com.pentlander.sasquach.tast.expression.TStructWithName;
 import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Local;
 import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
-import com.pentlander.sasquach.tast.expression.TVariantStructBuilder;
 import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
-import com.pentlander.sasquach.type.ModuleScopedTypeResolver.ModuleTypeProvider;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType;
 import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType.LocalVar;
 import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType.Module;
@@ -105,35 +99,37 @@ import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Executable;
 import java.lang.reflect.GenericDeclaration;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.WildcardType;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
 public class MemberScopedTypeResolver {
+  private static final boolean DEBUG = true;
   private static final UnqualifiedName NAME_RECUR = new UnqualifiedName("recur");
   private final Map<Id, TLocalVariable> localVariables = new HashMap<>();
   private final Map<Expression, TypedExpression> typedExprs = new HashMap<>();
   private final TypeUnifier typeUnifier = new TypeUnifier();
   private final Builder errors = RangedErrorList.builder();
   private final AtomicInteger typeVarNum = new AtomicInteger();
-
   private final NameResolutionResult nameResolutionResult;
   private final NamedTypeResolver namedTypeResolver;
   private final ModuleScopedTypes moduleScopedTypes;
+
   @Nullable private Node nodeResolving = null;
   @Nullable private Node currentNode = null;
 
   public MemberScopedTypeResolver(NameResolutionResult nameResolutionResult,
-      ModuleTypeProvider moduleTypeProvider, ModuleScopedTypes moduleScopedTypes) {
+      ModuleScopedTypes moduleScopedTypes) {
     this.nameResolutionResult = nameResolutionResult;
     this.namedTypeResolver = new NamedTypeResolver(nameResolutionResult);
     this.moduleScopedTypes = moduleScopedTypes;
@@ -163,11 +159,12 @@ public class MemberScopedTypeResolver {
   }
 
   private Map<String, Type> typeParamToVar(List<TypeParameter> typeParams) {
-    return typeParams(
-        typeParams,
-        param -> param.toTypeVariable(typeVarNum.getAndIncrement()));
+    return typeParams(typeParams, param -> {
+      var typeVar = param.toTypeVariable(typeVarNum.getAndIncrement());
+      return typeVar;
+    });
   }
-  FunctionType convertUniversals(FunctionType type, Range range) {
+  private <T extends ParameterizedType> T convertUniversals(T type, Range range) {
     var typeParamToVar = typeParamToVar(type.typeParameters());
     return namedTypeResolver.resolveNames(type, typeParamToVar, range);
   }
@@ -195,8 +192,9 @@ public class MemberScopedTypeResolver {
         List<TFunctionParameter> funcParams = new ArrayList<>();
         for (int i = 0; i < func.parameters().size(); i++) {
           var param = func.parameters().get(i);
-          var paramType = funcType.parameterTypes().get(i);
-          var typedVar = new TFunctionParameter(param.id(), paramType, param.range());
+          var expectedParamType = funcType.parameterTypes().get(i);
+          typeUnifier.unify(param.type(), expectedParamType);
+          var typedVar = new TFunctionParameter(param.id(), expectedParamType, param.range());
           funcParams.add(typedVar);
           putLocalVarType(param, typedVar);
         }
@@ -276,7 +274,9 @@ public class MemberScopedTypeResolver {
         yield new TArrayValue(arrayVal.type(), typedExprs, arrayVal.range());
       }
       case Block block ->
-          new TBlock(block.expressions().stream().map(this::infer).toList(), block.range());
+          new TBlock(block.expressions().stream().map(
+              expr1 -> infer(expr1)
+          ).toList(), block.range());
       case FieldAccess fieldAccess -> resolveFieldAccess(fieldAccess);
       case ForeignFieldAccess foreignFieldAccess -> resolveForeignFieldAccess(foreignFieldAccess);
       case ForeignFunctionCall foreignFuncCall -> resolveForeignFunctionCall(foreignFuncCall);
@@ -372,8 +372,9 @@ public class MemberScopedTypeResolver {
             new Local(typedLocalVar),
             typedLocalVar.variableType());
       }
-      case Singleton(var sumType, var singletonType) ->
-          new TVarReference(varRef.id(), new RefDeclaration.Singleton(singletonType), sumType);
+      case Singleton(var sumType, var singletonType) -> new TVarReference(varRef.id(),
+          new RefDeclaration.Singleton(singletonType),
+          convertUniversals(sumType, varRef.range()));
     };
   }
 
@@ -384,7 +385,7 @@ public class MemberScopedTypeResolver {
     }).toList();
   }
 
-  private TStruct resolveStruct(Struct struct) {
+  private TypedExpression resolveStruct(Struct struct) {
     return switch (struct) {
       case ModuleStruct s -> {
         var typedFunctions = typedFuncs(struct);
@@ -428,48 +429,40 @@ public class MemberScopedTypeResolver {
       // Named structs need to have their field types checked against their type definition, similar
       // to functions.
       case NamedStruct s -> {
-        var variantTypeWithSum = moduleScopedTypes.getVariantType(s);
+        var sumWithVariantIdx = moduleScopedTypes.getVariantType(s);
 
         // Need to convert the universal types in both the parent sum type and the actual variant
         // into type variables so they can be unified
-        var sumType = variantTypeWithSum.sumType();
-        var typeParamToVar = typeParamToVar(sumType.typeParameters());
-        SumType resolvedSumType = namedTypeResolver.resolveNames(
-            sumType,
-            typeParamToVar,
-            s.range());
-        var variantType = variantTypeWithSum.type();
-        var resolvedVariantType = namedTypeResolver.resolveNames(
-            variantTypeWithSum.type(),
-            typeParamToVar,
-            s.range());
+        record IdxExpr(int idx, Expression expr) {}
+        var structFields = new LinkedHashMap<UnqualifiedName, IdxExpr>();
+        for (int i = 0; i < s.fields().size(); i++) {
+          var field = s.fields().get(i);
+          structFields.put(field.name(), new IdxExpr(i, field.value()));
+        }
 
-        var typedFields = new ArrayList<TField>();
-        // For both fields and functions, the types need to be checked rather than inferred because
-        // the types are already declared
-        struct.fields().forEach(field -> {
-          var typedExpr = check(field.value(), resolvedVariantType.fieldType(field.name()));
-          typedFields.add(new TField(field.id(), typedExpr));
-        });
-        // Functions are treated as fields in named types because their functions don't have an
-        // actual implementation until assigned a func when they are initialized
-        struct.functions().forEach(func -> {
-          var tFunc = (TFunction) check(func.function(), resolvedVariantType.fieldType(func.name()));
-          typedFields.add(new TField(func.id(), tFunc));
+        var sumType = sumWithVariantIdx.sumType();
+        var convertedSumType = convertUniversals(sumType, s.range());
+        var convertedVariantType = (StructType) convertedSumType.types().get(sumWithVariantIdx.variantIdx());
+
+        var argIndexes = new ArrayList<Integer>(convertedVariantType.fieldTypes().size());
+        var typedExprs = new TypedExpression[convertedVariantType.fieldTypes().size()];
+        convertedVariantType.fieldTypes().forEach((fieldName, fieldType) -> {
+          var idExpr = requireNonNull(structFields.get(fieldName));
+          argIndexes.add(idExpr.idx());
+          typedExprs[idExpr.idx()] = check(idExpr.expr(), fieldType);
         });
 
-        // The resolved variant already has type variables substituted, thus will not match the
-        // generated constructor for variants with generic types. Use the unresolved type instead
-        // which contains UniversalTypes that are converted to Objects in the constructor
-        var constructorParams = List.copyOf(variantType.fieldTypes().values());
-        var type = (SumType) typeUnifier.resolve(resolvedSumType);
-        yield TVariantStructBuilder.builder()
-            .name((QualifiedTypeName) resolvedVariantType.structName())
-            .fields(typedFields)
-            .constructorParams(constructorParams)
-            .type(type)
-            .range(s.range())
-            .build();
+        var variantType = (StructType) sumWithVariantIdx.type();
+        var paramTypes = List.copyOf(variantType.fieldTypes().sequencedValues());
+        var funcType = new FunctionType(paramTypes, sumType.typeParameters(), sumType);
+
+        yield new TConstructorCall(
+            (QualifiedTypeName) convertedVariantType.structName(),
+            argIndexes,
+            List.of(typedExprs),
+            funcType,
+            typeUnifier.resolve(convertedSumType),
+            s.range());
       }
     };
   }
@@ -508,8 +501,8 @@ public class MemberScopedTypeResolver {
         var variantType = requireNonNull(exprVariantTypes.remove(branchVariantTypeName));
         var typedPattern = switch (branch.pattern()) {
           case Pattern.Singleton singleton ->
-              new TSingleton(singleton.id(), (SingletonType) variantType);
-          case VariantTuple tuple -> {
+              new TPattern.TSingleton(singleton.id(), (SingletonType) variantType);
+          case Pattern.VariantTuple tuple -> {
             var tupleType = TypeUtils.asStructType(variantType).orElseThrow();
             // The fields types are stored in a hashmap, but we sort them to bind the variables
             // in a // consistent order. This works because the fields are named by number,
@@ -528,7 +521,7 @@ public class MemberScopedTypeResolver {
                 typedPatternVars,
                 tuple.range());
           }
-          case VariantStruct struct -> {
+          case Pattern.VariantStruct struct -> {
             var structType = TypeUtils.asStructType(variantType).orElseThrow();
             var typedPatternVars = new ArrayList<TPatternVariable>();
             for (var binding : struct.bindings()) {
@@ -537,7 +530,7 @@ public class MemberScopedTypeResolver {
               putLocalVarType(binding, typedVar);
               typedPatternVars.add(typedVar);
             }
-            yield new TVariantStruct(struct.id(),
+            yield new TPattern.TVariantStruct(struct.id(),
                 structType,
                 typedPatternVars,
                 struct.range());
@@ -570,12 +563,20 @@ public class MemberScopedTypeResolver {
   private TypedExpression resolveFieldAccess(FieldAccess fieldAccess) {
     var typedStructExpr = infer(fieldAccess.expr());
     var structType = TypeUtils.asStructType(typedStructExpr.type());
+    var fieldName = fieldAccess.fieldName();
 
     if (structType.isPresent()) {
-      var fieldType = structType.get().fieldType(fieldAccess.fieldName());
+      var fieldType = structType.get().fieldType(fieldName);
       if (fieldType != null) {
         return new TFieldAccess(typedStructExpr, fieldAccess.id(), fieldType);
       } else {
+        var variantWithSum = structType.get().constructableType(fieldName.toTypeName());
+        if (variantWithSum != null) {
+          var sumType = variantWithSum.sumType();
+          return new TVarReference(fieldAccess.id(),
+              new RefDeclaration.Singleton((SingletonType) variantWithSum.type()),
+              convertUniversals(sumType, fieldAccess.range()));
+        }
         return addError(fieldAccess,
             new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(structType.get()
                 .typeNameStr(), fieldAccess.fieldName()), fieldAccess.range()));
@@ -629,14 +630,15 @@ public class MemberScopedTypeResolver {
           // the literal struct type, not the struct type that's defined in the module. This
           // means that the actual constructor with possible generic parameters is not found and
           // it fails at runtime.
-          case VariantStructConstructor variantConstructor ->
-              new TargetKind.VariantStructConstructor((TStructWithName) infer(variantConstructor.struct()));
+          case VariantStructConstructor(var variantName, _) ->
+              new TargetKind.VariantStructConstructor(variantName);
           case LocalVariable localVar ->
               new TargetKind.LocalVariable(getLocalVar(localVar).orElseThrow());
         };
         var resolvedFuncType = convertUniversals(funcType, range);
         var typedExprs = checkFuncArgs(name, args, resolvedFuncType.parameterTypes(), range);
-        typedFuncCall = new TLocalFunctionCall(localFuncCall.functionId(),
+        typedFuncCall = new TLocalFunctionCall(
+            localFuncCall.functionId().name(),
             targetKind,
             typedExprs,
             funcType,
@@ -651,16 +653,33 @@ public class MemberScopedTypeResolver {
         if (structType.isPresent()) {
           // need to replace existential types with actual types here
           var fieldType = structType.get().fieldType(name);
-          if (reify(fieldType) instanceof FunctionType fieldFuncType) {
+          if (fieldType instanceof FunctionType fieldFuncType) {
             var funcType = convertUniversals(fieldFuncType, range);
             var typedFuncArgs = checkFuncArgs(name, args, funcType.parameterTypes(), range);
             typedFuncCall = new TMemberFunctionCall(typedExpr,
-                structFuncCall.functionId(),
-                funcType,
+                structFuncCall.functionId().name(),
+                funcType, // TODO I think this needs to be the unconverted type. Add a test
                 typedFuncArgs,
                 typeUnifier.resolve(funcType.returnType()),
                 range);
           } else if (fieldType == null) {
+            var variantWithSum = structType.get().constructableType(name.toTypeName());
+            if (variantWithSum != null) {
+              var sumType = variantWithSum.sumType();
+              var variantStructType = (StructType) variantWithSum.type();
+              var paramTypes = variantStructType.sortedFieldTypes();
+
+              var funcType = new FunctionType(paramTypes, sumType.typeParameters(), sumType);
+              var convertedFuncType = convertUniversals(funcType, range);
+              var typedFuncArgs = checkFuncArgs(name, args, convertedFuncType.parameterTypes(), range);
+              return new TConstructorCall((QualifiedTypeName) variantStructType.structName(),
+                  IntStream.range(0, args.size()).boxed().toList(),
+                  typedFuncArgs,
+                  funcType,
+                  typeUnifier.resolve(convertedFuncType.returnType()),
+                  range);
+            }
+
             return addError(funcCall,
                 new TypeMismatchError(("Struct of type '%s' has no field "
                     + "named '%s'").formatted(structType.get().toPrettyString(), name), range));
@@ -718,7 +737,7 @@ public class MemberScopedTypeResolver {
       case java.lang.reflect.TypeVariable<?> typeVariable ->
           typeVariables.getOrDefault(typeVariable.getName(),
               new TypeVariable(typeVariable.getName(), typeVarNum.getAndIncrement()));
-      case ParameterizedType paramType -> {
+      case java.lang.reflect.ParameterizedType paramType -> {
         var typeArgs = Arrays.stream(paramType.getActualTypeArguments())
             .map(t -> javaTypeToType(t, typeVariables))
             .toList();
@@ -733,7 +752,7 @@ public class MemberScopedTypeResolver {
       java.lang.reflect.Type type) {
     return switch (type) {
       case Class<?> clazz -> Arrays.stream(clazz.getTypeParameters()).toList();
-      case ParameterizedType paramType -> Arrays.stream(paramType.getActualTypeArguments())
+      case java.lang.reflect.ParameterizedType paramType -> Arrays.stream(paramType.getActualTypeArguments())
           .flatMap(t -> t instanceof java.lang.reflect.TypeVariable<?> typeVar ? Stream.of(typeVar)
               : Stream.empty())
           .toList();
@@ -786,7 +805,7 @@ public class MemberScopedTypeResolver {
             foreignFuncHandle.methodHandleDesc(),
             castType);
         return new TForeignFunctionCall(funcCall.classAlias(),
-            funcCall.functionId(),
+            funcCall.functionId().name(),
             foreignFuncType,
             typedExprs,
             resolvedReturnType,

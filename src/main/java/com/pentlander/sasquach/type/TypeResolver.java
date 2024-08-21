@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.concurrent.RecursiveTask;
 import java.util.stream.Stream;
 
-public class TypeResolver {
+public class TypeResolver implements ModuleTypeProvider {
   private final Map<QualifiedModuleId, ModuleTask> moduleTasks = new HashMap<>();
   private final Map<QualifiedModuleId, FunctionsTask> functionsTasks = new HashMap<>();
 
@@ -38,9 +38,7 @@ public class TypeResolver {
     // Ensure that all modules are loaded into the map to avoid a race with the resolution
     // inside the fork
     modules.forEach(module -> {
-      var resolver = new ModuleScopedTypeResolver(nameResolutionResult,
-          module,
-          this::getModuleType);
+      var resolver = new ModuleScopedTypeResolver(nameResolutionResult, module, this);
       moduleTasks.put(module.id(), new ModuleTask(module, resolver));
       functionsTasks.put(module.id(), new FunctionsTask(resolver));
     });

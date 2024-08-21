@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -57,6 +58,15 @@ public final class Util {
   public static <T, K, U> Collector<T, ?, SequencedMap<K, U>> toSeqMap(
       Function<T, K> keyMapper, Function<T, U> valueMapper) {
     return Collectors.toMap(keyMapper, valueMapper, (val1, _) -> val1, LinkedHashMap::new);
+  }
+
+  public static <T, U> List<U> tupleFields(List<T> expressions, BiFunction<String, T, U> mapper) {
+    var fields = new ArrayList<U>();
+    for (int i = 0; i < expressions.size(); i++) {
+      var expr = expressions.get(i);
+      fields.add(mapper.apply("_" + i, expr));
+    }
+    return fields;
   }
 }
 

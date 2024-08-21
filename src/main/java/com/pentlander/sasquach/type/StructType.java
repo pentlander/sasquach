@@ -1,12 +1,15 @@
 package com.pentlander.sasquach.type;
 
 import static com.pentlander.sasquach.Util.seqMap;
+import static java.util.Objects.requireNonNullElse;
 import static java.util.stream.Collectors.joining;
 
 import com.pentlander.sasquach.ast.StructName;
+import com.pentlander.sasquach.ast.StructTypeNode.RowModifier;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.runtime.StructBase;
+import com.pentlander.sasquach.type.ModuleScopedTypes.SumWithVariantIdx;
 import com.pentlander.sasquach.type.StructType.RowModifier.NamedRow;
 import com.pentlander.sasquach.type.StructType.RowModifier.None;
 import com.pentlander.sasquach.type.StructType.RowModifier.UnnamedRow;
@@ -17,6 +20,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.SequencedMap;
+import java.util.StringJoiner;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -25,31 +29,42 @@ import org.jspecify.annotations.Nullable;
  * @param fieldTypes Map of field names to types. Field types include any value type, as well as
  *                   functions.
  */
-public record StructType(StructName structName, SequencedMap<UnqualifiedName, Type> fieldTypes, RowModifier rowModifier) implements
-    ParameterizedType, VariantType {
+public record StructType(StructName structName, List<TypeParameter> typeParameters, SequencedMap<UnqualifiedName, Type> fieldTypes, Map<UnqualifiedTypeName, SumType> namedStructTypes, RowModifier rowModifier) implements
+    ParameterizedType, VariantType, TypeNester {
   private static final String PREFIX = "Struct";
 
   public StructType {
-    fieldTypes = Objects.requireNonNullElse(fieldTypes, seqMap());
+    fieldTypes = requireNonNullElse(fieldTypes, seqMap());
     fieldTypes.values().forEach(value -> Objects.requireNonNull(value, toString()));
-    structName = Objects.requireNonNullElse(structName, new UnqualifiedTypeName(PREFIX + hashFieldTypes(fieldTypes)));
+    structName = requireNonNullElse(structName, new UnqualifiedTypeName(PREFIX + hashFieldTypes(fieldTypes)));
+    typeParameters = requireNonNullElse(typeParameters, List.of());
+    namedStructTypes = requireNonNullElse(namedStructTypes, Map.of());
+  }
+
+  public StructType(@Nullable StructName name, SequencedMap<UnqualifiedName, Type> fieldTypes, Map<UnqualifiedTypeName, SumType> namedStructTypes) {
+    this(name, List.of(), fieldTypes, namedStructTypes, RowModifier.none());
   }
 
   public StructType(@Nullable StructName name, SequencedMap<UnqualifiedName, Type> fieldTypes) {
-    this(name, fieldTypes, RowModifier.none());
+    this(name, fieldTypes, Map.of());
   }
 
-  public StructType(SequencedMap<UnqualifiedName, Type> fieldTypes, RowModifier rowModifier) {
-    this(null, fieldTypes, rowModifier);
+  public static StructType unnamed(SequencedMap<UnqualifiedName, Type> fieldTypes, RowModifier rowModifier) {
+    return new StructType(null, List.of(), fieldTypes, Map.of(), rowModifier);
   }
 
-  public StructType(SequencedMap<UnqualifiedName, Type> fieldTypes) {
-    this(null, fieldTypes, RowModifier.none());
+  public static StructType unnamed(SequencedMap<UnqualifiedName, Type> fieldTypes) {
+    return new StructType(null, List.of(), fieldTypes, Map.of(), RowModifier.none());
   }
 
   @Override
   public String typeNameStr() {
     return structName.toString();
+  }
+
+  public FunctionType constructorType() {
+    var paramTypes = List.copyOf(fieldTypes().sequencedValues());
+    return new FunctionType(paramTypes, typeParameters, this);
   }
 
   private static String hashFieldTypes(Map<UnqualifiedName, Type> fieldTypes) {
@@ -60,8 +75,21 @@ public record StructType(StructName structName, SequencedMap<UnqualifiedName, Ty
         .hashCode());
   }
 
-  public Type fieldType(UnqualifiedName fieldName) {
-    return fieldTypes().get(fieldName);
+  public @Nullable Type fieldType(UnqualifiedName fieldName) {
+    return fieldTypes.get(fieldName);
+  }
+
+  public @Nullable SumWithVariantIdx constructableType(UnqualifiedTypeName typeName) {
+    for (var namedStructTypeEntry : namedStructTypes.entrySet()) {
+      var namedStructType = namedStructTypeEntry.getValue();
+      for (int i = 0; i < namedStructType.types().size(); i++) {
+        var variant = namedStructType.types().get(i);
+        if (variant.typeNameStr().endsWith(typeName.toString())) {
+          return new SumWithVariantIdx(namedStructType, i);
+        }
+      }
+    }
+    return null;
   }
 
   public List<Type> sortedFieldTypes() {
@@ -107,17 +135,30 @@ public record StructType(StructName structName, SequencedMap<UnqualifiedName, Ty
 
   @Override
   public String toPrettyString() {
-    return typeNameStr().startsWith(PREFIX) ? fieldTypes().entrySet()
-        .stream()
-        .map(e -> e.getKey() + ": " + e.getValue().toPrettyString())
-        .collect(joining(", ", "{ ", " }")) : typeNameStr();
+    if (typeNameStr().startsWith(PREFIX)) {
+      var joiner = new StringJoiner(", ", "{ ", "}");
+      var fieldTypesStr = fieldTypes().entrySet()
+          .stream()
+          .map(e -> e.getKey() + ": " + e.getValue().toPrettyString())
+          .collect(joining(", "));
+      if (!fieldTypesStr.isBlank()) joiner.add(fieldTypesStr);
+
+      var rowStr = switch (rowModifier) {
+        case NamedRow(var type) -> ".." + type.toPrettyString() + " ";
+        case UnnamedRow _ -> ".. ";
+        case None _ -> " ";
+      };
+      if (!rowStr.isBlank()) joiner.add(rowStr);
+
+      return joiner.toString();
+    }
+    return typeNameStr();
   }
 
   public boolean isRow() {
     return switch (rowModifier) {
-      case NamedRow namedRow -> true;
-      case UnnamedRow unnamedRow -> true;
-      case None none -> false;
+      case NamedRow _, UnnamedRow _ -> true;
+      case None _ -> false;
     };
   }
 

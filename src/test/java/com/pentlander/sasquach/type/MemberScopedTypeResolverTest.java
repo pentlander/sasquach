@@ -50,7 +50,6 @@ import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -67,9 +66,7 @@ class MemberScopedTypeResolverTest {
   void setUp() {
     moduleScopedTypes = mock(ModuleScopedTypes.class);
     nameResolutionResult = mock(NameResolutionResult.class);
-    memberScopedTypeResolver = new MemberScopedTypeResolver(nameResolutionResult,
-        a -> null,
-        moduleScopedTypes);
+    memberScopedTypeResolver = new MemberScopedTypeResolver(nameResolutionResult, moduleScopedTypes);
     shouldAssertErrorsEmpty = true;
   }
 
@@ -384,7 +381,7 @@ class MemberScopedTypeResolverTest {
       var struct = literalStruct(argFields, List.of());
       var argType = resolveExpr(struct);
 
-      var paramType = new StructType(seqMap(name("foo"), BuiltinType.STRING, name("bar"), BuiltinType.INT));
+      var paramType = StructType.unnamed(seqMap(name("foo"), BuiltinType.STRING, name("bar"), BuiltinType.INT));
 
       assertThat(paramType.isAssignableFrom(argType)).isFalse();
     }
@@ -397,7 +394,7 @@ class MemberScopedTypeResolverTest {
       var struct = literalStruct(argFields, List.of());
       var argType = resolveExpr(struct);
 
-      var paramType = new StructType(seqMap(name("foo"), BuiltinType.STRING, name("bar"), BuiltinType.INT),
+      var paramType = StructType.unnamed(seqMap(name("foo"), BuiltinType.STRING, name("bar"), BuiltinType.INT),
           RowModifier.unnamedRow());
 
       assertThat(paramType.isAssignableFrom(argType)).isTrue();

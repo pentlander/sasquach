@@ -9,8 +9,7 @@ import java.util.stream.Collectors;
  * Type of a class.
  * <p>This type is used to represent foreign class types.</p>
  */
-public record ClassType(Class<?> typeClass, List<Type> typeArguments) implements Type,
-    ParameterizedType {
+public record ClassType(Class<?> typeClass, List<Type> typeArguments) implements Type, TypeNester {
   public ClassType(Class<?> typeClass) {
     this(typeClass, List.of());
   }

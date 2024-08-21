@@ -1,14 +1,15 @@
 package com.pentlander.sasquach.type;
 
-import com.pentlander.sasquach.ast.QualifiedModuleName;
+import static com.pentlander.sasquach.type.TypeUtils.typeWithParamsToString;
+
 import com.pentlander.sasquach.ast.QualifiedTypeName;
 import com.pentlander.sasquach.runtime.StructBase;
 import java.lang.constant.ClassDesc;
 import java.util.List;
 
 public record SumType(QualifiedTypeName qualifiedTypeName,
-                      List<TypeParameter> typeParameters, List<VariantType> types) implements Type,
-    ParameterizedType {
+                      List<TypeParameter> typeParameters, List<VariantType> types) implements ParameterizedType,
+    TypeNester {
   @Override
   public String typeNameStr() {
     return qualifiedTypeName.name().toString();
@@ -37,5 +38,10 @@ public record SumType(QualifiedTypeName qualifiedTypeName,
       return true;
     }
     return types.stream().anyMatch(type -> type.isAssignableFrom(other));
+  }
+
+  @Override
+  public String toPrettyString() {
+    return typeWithParamsToString(qualifiedTypeName().toPrettyString(), typeParameters);
   }
 }

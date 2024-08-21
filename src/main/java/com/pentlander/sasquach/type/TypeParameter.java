@@ -19,7 +19,7 @@ public record TypeParameter(Identifier id) implements Node, NamedTypeDefinition 
   }
 
   public TypeVariable toTypeVariable(int level) {
-    return new TypeVariable(id.name().toString(), level);
+    return new TypeVariable(id.name().toString(), level, id);
   }
 
   @Override

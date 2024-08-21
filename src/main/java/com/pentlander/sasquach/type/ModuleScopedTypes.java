@@ -12,7 +12,7 @@ public interface ModuleScopedTypes {
 
   VarRefType getVarReferenceType(VarReference varRef);
 
-  VariantTypeWithSum getVariantType(NamedStruct namedStruct);
+  SumWithVariantIdx getVariantType(NamedStruct namedStruct);
 
   sealed interface FuncCallType {
     record Module(FunctionType type) implements FuncCallType {}
@@ -28,5 +28,9 @@ public interface ModuleScopedTypes {
     record LocalVar(LocalVariable localVariable) implements VarRefType {}
   }
 
-  record VariantTypeWithSum(SumType sumType, StructType type) {}
+  record SumWithVariantIdx(SumType sumType, int variantIdx) {
+    VariantType type() {
+      return sumType.types().get(variantIdx);
+    }
+  }
 }
