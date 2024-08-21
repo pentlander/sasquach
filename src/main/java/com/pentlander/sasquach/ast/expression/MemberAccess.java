@@ -4,9 +4,9 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 
-public record FieldAccess(Expression expr, Id id) implements Expression {
-  public static FieldAccess of(Expression expr, String fieldName, Range.Single range) {
-    return new FieldAccess(expr, new Id(fieldName, range));
+public record MemberAccess(Expression expr, Id id) implements Expression {
+  public static MemberAccess of(Expression expr, String fieldName, Range.Single range) {
+    return new MemberAccess(expr, new Id(fieldName, range));
   }
 
   public UnqualifiedName fieldName() {

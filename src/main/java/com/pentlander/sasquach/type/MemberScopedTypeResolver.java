@@ -17,7 +17,7 @@ import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.QualifiedTypeName;
 import com.pentlander.sasquach.ast.UnqualifiedName;
-import com.pentlander.sasquach.ast.expression.ApplyOperator;
+import com.pentlander.sasquach.ast.expression.PipeOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
@@ -25,7 +25,7 @@ import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathExpression;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
-import com.pentlander.sasquach.ast.expression.FieldAccess;
+import com.pentlander.sasquach.ast.expression.MemberAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
@@ -277,7 +277,7 @@ public class MemberScopedTypeResolver {
           new TBlock(block.expressions().stream().map(
               expr1 -> infer(expr1)
           ).toList(), block.range());
-      case FieldAccess fieldAccess -> resolveFieldAccess(fieldAccess);
+      case MemberAccess fieldAccess -> resolveFieldAccess(fieldAccess);
       case ForeignFieldAccess foreignFieldAccess -> resolveForeignFieldAccess(foreignFieldAccess);
       case ForeignFunctionCall foreignFuncCall -> resolveForeignFunctionCall(foreignFuncCall);
       case FunctionCall funcCall -> resolveFunctionCall(funcCall);
@@ -345,7 +345,7 @@ public class MemberScopedTypeResolver {
             .toList();
         yield new TFunction(typedFuncSig, typedBodyExpr, captures);
       }
-      case ApplyOperator applyOperator -> {
+      case PipeOperator applyOperator -> {
         var funcCall = applyOperator.toFunctionCall();
         yield new TApplyOperator(infer(funcCall), funcCall.range());
       }
@@ -560,32 +560,34 @@ public class MemberScopedTypeResolver {
     }
   }
 
-  private TypedExpression resolveFieldAccess(FieldAccess fieldAccess) {
-    var typedStructExpr = infer(fieldAccess.expr());
+  private TypedExpression resolveFieldAccess(MemberAccess memberAccess) {
+    var typedStructExpr = infer(memberAccess.expr());
     var structType = TypeUtils.asStructType(typedStructExpr.type());
-    var fieldName = fieldAccess.fieldName();
+    var fieldName = memberAccess.fieldName();
 
     if (structType.isPresent()) {
       var fieldType = structType.get().fieldType(fieldName);
       if (fieldType != null) {
-        return new TFieldAccess(typedStructExpr, fieldAccess.id(), fieldType);
+        return new TFieldAccess(typedStructExpr, memberAccess.id(), fieldType);
       } else {
         var variantWithSum = structType.get().constructableType(fieldName.toTypeName());
         if (variantWithSum != null) {
           var sumType = variantWithSum.sumType();
-          return new TVarReference(fieldAccess.id(),
+          return new TVarReference(
+              memberAccess.id(),
               new RefDeclaration.Singleton((SingletonType) variantWithSum.type()),
-              convertUniversals(sumType, fieldAccess.range()));
+              convertUniversals(sumType, memberAccess.range()));
         }
-        return addError(fieldAccess,
+        return addError(
+            memberAccess,
             new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(structType.get()
-                .typeNameStr(), fieldAccess.fieldName()), fieldAccess.range()));
+                .typeNameStr(), memberAccess.fieldName()), memberAccess.range()));
       }
     }
 
-    return addError(fieldAccess, new TypeMismatchError(
+    return addError(memberAccess, new TypeMismatchError(
         "Can only access fields on struct types, found type '%s'".formatted(typedStructExpr.toPrettyString()),
-        fieldAccess.range()));
+        memberAccess.range()));
   }
 
   private List<TypedExpression> checkFuncArgs(UnqualifiedName name, List<Expression> args,

@@ -3,8 +3,8 @@ package com.pentlander.sasquach.ast.expression;
 import com.pentlander.sasquach.Range;
 import java.util.ArrayList;
 
-public record ApplyOperator(Expression expression, FunctionCall functionCall,
-                            Range range) implements Expression {
+public record PipeOperator(Expression expression, FunctionCall functionCall,
+                           Range range) implements Expression {
   @Override
   public String toPrettyString() {
     return expression().toPrettyString() + " |> " + functionCall().toPrettyString();

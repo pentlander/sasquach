@@ -1,6 +1,6 @@
 grammar Sasquach;
 
-// parser rules
+// Parser Rules
 compilationUnit : NL* moduleDeclaration+ EOF;
 moduleDeclaration : moduleName struct NL* ;
 
@@ -19,8 +19,7 @@ functionName : ID ;
 functionArgument : ID ':' type ;
 functionParameterList : '(' (functionArgument)? (',' functionArgument)* ')' ;
 
-type : primitiveType | classType | structType | localNamedType | functionType | moduleNamedType | tupleType ;
-primitiveType : 'Boolean' | 'String' ('[' ']')* | 'Char' | 'Byte' | 'Int' | 'Long' | 'Float' | 'Double' | 'Void' ;
+type : classType | structType | localNamedType | functionType | moduleNamedType | tupleType ;
 classType : qualifiedName ;
 structTypeField : NL* ID ':' NL* type | SPREAD typeIdentifier? ;
 structType : '{' structTypeField (',' structTypeField)* ','? NL* '}' ;
@@ -82,7 +81,7 @@ expression :
   | block #blockExpression
   | loop #loopExpression
   | function #functionExpression
-  | expr=expression NL* APPLY NL* (functionCall | memberExpression=expression '.' memberApplication | foreignName '#' memberApplication) #applyExpression
+  | expr=expression NL* PIPE NL* (functionCall | memberExpression=expression '.' memberApplication | foreignName '#' memberApplication) #pipeExpression
   | tuple #tupleExpression
   | match # matchExpression;
 
@@ -135,7 +134,7 @@ LP       : '(' ;
 RP       : ')' ;
 AND      : '&&' ;
 OR       : '||' ;
-APPLY    : '|>' ;
+PIPE    : '|>' ;
 SPREAD   : '..' ;
 
 // Identifiers

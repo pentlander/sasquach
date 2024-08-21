@@ -4,7 +4,6 @@
 * Avoid generation of duplicate struct classes
 
 ## Right Now
-* Handle variable captures in literal structs
 * Figure out how to automatically derive a small set of functions for a struct at compile time
   * Keep the set small to make it simpler
   * toString, serialize/deserialize, hash, equals, compare
@@ -12,3 +11,5 @@
 * Need to sort out how to codegen the constructors of variants from other modules, e.g `Option.Some("foo")`
 * Create a `ConstructorType` and change `SumType::types` to be a list of those
 * Update struct names for literal structs to describe where they're declared
+* Consolidate the TFuncCalls into a `TApply` node
+  * Helps consolidate local and member generation

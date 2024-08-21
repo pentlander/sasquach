@@ -239,7 +239,7 @@ class BytecodeGeneratorTest {
   }
 
   @Nested
-  class ForeignFieldAccessTest {
+  class ForeignMemberAccessTest {
     @Test
     void staticField() throws Exception {
       var use = new Use.Foreign(qualId("java/lang/System"), id("System"), NR);

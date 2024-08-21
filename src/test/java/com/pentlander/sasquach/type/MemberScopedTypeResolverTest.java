@@ -30,7 +30,7 @@ import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathOperator;
 import com.pentlander.sasquach.ast.expression.Expression;
-import com.pentlander.sasquach.ast.expression.FieldAccess;
+import com.pentlander.sasquach.ast.expression.MemberAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
@@ -132,11 +132,11 @@ class MemberScopedTypeResolverTest {
   }
 
   @Nested
-  class FieldAccessExpr {
+  class MemberAccessExpr {
     @Test
     void accessStruct() {
       var struct = literalStruct(List.of(new Field(id("foo"), intValue("10"))), List.of());
-      var type = resolveExpr(new FieldAccess(struct, id("foo")));
+      var type = resolveExpr(new MemberAccess(struct, id("foo")));
 
       assertThat(type).isEqualTo(BuiltinType.INT);
     }
@@ -144,7 +144,7 @@ class MemberScopedTypeResolverTest {
     @Test
     void accessStructWithoutField() {
       var struct = literalStruct(List.of(new Field(id("baz"), intValue("10"))), List.of());
-      var access = new FieldAccess(struct, id("foo"));
+      var access = new MemberAccess(struct, id("foo"));
 
       resolveExpr(access);
 
@@ -153,7 +153,7 @@ class MemberScopedTypeResolverTest {
 
     @Test
     void accessNonStruct() {
-      var access = new FieldAccess(stringValue("bar"), id("foo"));
+      var access = new MemberAccess(stringValue("bar"), id("foo"));
 
       resolveExpr(access);
 

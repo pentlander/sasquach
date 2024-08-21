@@ -29,7 +29,7 @@ import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.Use;
-import com.pentlander.sasquach.ast.expression.ApplyOperator;
+import com.pentlander.sasquach.ast.expression.PipeOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator;
@@ -38,7 +38,7 @@ import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathOperator;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
-import com.pentlander.sasquach.ast.expression.FieldAccess;
+import com.pentlander.sasquach.ast.expression.MemberAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
@@ -59,7 +59,6 @@ import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.parser.SasquachParser.ApplicationContext;
-import com.pentlander.sasquach.parser.SasquachParser.ApplyExpressionContext;
 import com.pentlander.sasquach.parser.SasquachParser.BinaryOperationContext;
 import com.pentlander.sasquach.parser.SasquachParser.BlockContext;
 import com.pentlander.sasquach.parser.SasquachParser.BooleanExpressionContext;
@@ -93,7 +92,7 @@ import com.pentlander.sasquach.parser.SasquachParser.MultiTupleVariantPatternCon
 import com.pentlander.sasquach.parser.SasquachParser.NamedStructContext;
 import com.pentlander.sasquach.parser.SasquachParser.NotExpressionContext;
 import com.pentlander.sasquach.parser.SasquachParser.ParenExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.PrimitiveTypeContext;
+import com.pentlander.sasquach.parser.SasquachParser.PipeExpressionContext;
 import com.pentlander.sasquach.parser.SasquachParser.PrintStatementContext;
 import com.pentlander.sasquach.parser.SasquachParser.SingleTupleTypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.SingleTupleVariantPatternContext;
@@ -121,6 +120,7 @@ import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
 import com.pentlander.sasquach.type.LocalNamedType;
 import com.pentlander.sasquach.type.ModuleNamedType;
+import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -300,7 +300,7 @@ public class Visitor {
     }
 
     @Override
-    public Expression visitApplyExpression(ApplyExpressionContext ctx) {
+    public Expression visitPipeExpression(PipeExpressionContext ctx) {
       var expr = ctx.expr.accept(this);
       FunctionCall funcCall;
       if (ctx.functionCall() != null) {
@@ -312,7 +312,7 @@ public class Visitor {
       } else {
         throw new IllegalStateException();
       }
-      return new ApplyOperator(expr, funcCall, rangeFrom(ctx));
+      return new PipeOperator(expr, funcCall, rangeFrom(ctx));
     }
 
     @Override
@@ -380,7 +380,7 @@ public class Visitor {
     public Expression visitMemberAccessExpression(MemberAccessExpressionContext ctx) {
       var expr = ctx.expression().accept(this);
       var memberId = id(ctx.memberName().ID());
-      return new FieldAccess(expr, memberId);
+      return new MemberAccess(expr, memberId);
     }
 
     @Override
@@ -470,20 +470,22 @@ public class Visitor {
 
   class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<TypeNode> {
     @Override
-    public TypeNode visitPrimitiveType(PrimitiveTypeContext ctx) {
-      return new BasicTypeNode<>(BuiltinType.fromString(ctx.getText()), rangeFrom(ctx));
-    }
-
-    @Override
     public TypeNode visitClassType(ClassTypeContext ctx) {
       return new BasicTypeNode<>(new ClassType(ctx.getText()), rangeFrom(ctx));
     }
 
     @Override
     public TypeNode visitLocalNamedType(LocalNamedTypeContext ctx) {
-      var id = typeId(ctx.typeIdentifier());
-      return new BasicTypeNode<>(new LocalNamedType(id, typeArguments(ctx.typeArgumentList())),
-          rangeFrom(ctx));
+      Type type;
+      var builtin = BuiltinType.fromStringOpt(ctx.getText());
+      if (builtin.isPresent()) {
+        type = builtin.get();
+      } else {
+        var id = typeId(ctx.typeIdentifier());
+        type = new LocalNamedType(id, typeArguments(ctx.typeArgumentList()));
+      }
+
+      return new BasicTypeNode<>(type, rangeFrom(ctx));
     }
 
     @Override

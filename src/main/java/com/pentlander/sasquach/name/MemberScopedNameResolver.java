@@ -10,14 +10,12 @@ import com.pentlander.sasquach.ast.QualifiedTypeName;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.TypeNode;
-import com.pentlander.sasquach.ast.UnqualifiedName;
-import com.pentlander.sasquach.ast.UnqualifiedTypeName;
-import com.pentlander.sasquach.ast.expression.ApplyOperator;
+import com.pentlander.sasquach.ast.expression.PipeOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
-import com.pentlander.sasquach.ast.expression.FieldAccess;
+import com.pentlander.sasquach.ast.expression.MemberAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
@@ -312,9 +310,9 @@ public class MemberScopedNameResolver {
     nameData.addMatchTypeNodes(match, branchTypeNodes);
   }
 
-  private void resolve(ApplyOperator applyOperator) {
-    resolve(applyOperator.expression());
-    resolve(applyOperator.functionCall());
+  private void resolve(PipeOperator pipeOperator) {
+    resolve(pipeOperator.expression());
+    resolve(pipeOperator.functionCall());
   }
 
   void resolve(Node node) {
@@ -326,7 +324,7 @@ public class MemberScopedNameResolver {
       case ArrayValue arrayValue -> arrayValue.expressions().forEach(this::resolve);
       case BinaryExpression binExpr -> resolve(binExpr);
       case Block block -> resolve(block);
-      case FieldAccess fieldAccess -> resolve(fieldAccess.expr());
+      case MemberAccess memberAccess -> resolve(memberAccess.expr());
       case ForeignFieldAccess fieldAccess -> resolve(fieldAccess);
       case FunctionCall funcCall -> resolve(funcCall);
       case Function func -> resolveNestedFunc(func);
@@ -339,7 +337,7 @@ public class MemberScopedNameResolver {
       case VarReference varReference -> resolve(varReference);
       case Recur recur -> resolve(recur);
       case Loop loop -> resolve(loop);
-      case ApplyOperator applyOperator -> resolve(applyOperator);
+      case PipeOperator pipeOperator -> resolve(pipeOperator);
       case Match match -> resolve(match);
       case Not not -> resolve(not.expression());
     }
