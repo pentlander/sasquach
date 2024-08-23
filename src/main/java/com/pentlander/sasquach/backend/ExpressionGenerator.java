@@ -6,8 +6,6 @@ import static com.pentlander.sasquach.backend.GeneratorUtil.internalClassDesc;
 import static com.pentlander.sasquach.type.TypeUtils.asStructType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
 
-import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.QualifiedTypeName;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
@@ -30,19 +28,21 @@ import com.pentlander.sasquach.tast.expression.TFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
 import com.pentlander.sasquach.tast.expression.TFunction;
+import com.pentlander.sasquach.tast.expression.TFunctionCall;
 import com.pentlander.sasquach.tast.expression.TIfExpression;
 import com.pentlander.sasquach.tast.expression.TLiteralStruct;
-import com.pentlander.sasquach.tast.expression.TLocalFunctionCall;
-import com.pentlander.sasquach.tast.expression.TLocalFunctionCall.TargetKind;
+import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TCallTarget.LocalVar;
+import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TCallTarget.Struct;
 import com.pentlander.sasquach.tast.expression.TLocalVariable;
 import com.pentlander.sasquach.tast.expression.TLoop;
 import com.pentlander.sasquach.tast.expression.TMatch;
-import com.pentlander.sasquach.tast.expression.TMemberFunctionCall;
+import com.pentlander.sasquach.tast.expression.TBasicFunctionCall;
 import com.pentlander.sasquach.tast.expression.TNot;
 import com.pentlander.sasquach.tast.expression.TPrintStatement;
 import com.pentlander.sasquach.tast.expression.TRecur;
 import com.pentlander.sasquach.tast.expression.TStruct;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
+import com.pentlander.sasquach.tast.expression.TThisExpr;
 import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Local;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Module;
@@ -51,7 +51,6 @@ import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
 import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
-import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeUtils;
 import com.pentlander.sasquach.type.TypeVariable;
@@ -67,7 +66,6 @@ import java.lang.constant.ClassDesc;
 import java.lang.constant.ConstantDesc;
 import java.lang.constant.ConstantDescs;
 import java.lang.constant.DirectMethodHandleDesc;
-import java.lang.constant.DirectMethodHandleDesc.Kind;
 import java.lang.constant.DynamicCallSiteDesc;
 import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
@@ -232,39 +230,6 @@ final class ExpressionGenerator {
           cob.aastore();
         }
       }
-      case TLocalFunctionCall funcCall -> {
-        var funcType = funcCall.functionType();
-        switch (funcCall.targetKind()) {
-          case TargetKind.QualifiedFunction qualifiedFunc -> {
-            cob.aload(cob.receiverSlot());
-            generateArgs(funcCall.arguments(), funcType.parameterTypes());
-            cob.invokevirtual(qualifiedFunc.ownerId().classDesc(),
-                funcCall.name().toString(),
-                funcType.functionTypeDesc());
-          }
-          case TargetKind.LocalVariable(var localVar) -> {
-            var type = TypeUtils.asFunctionType(type(localVar.variableType())).orElseThrow();
-            generateLoadVar(localVar);
-            cob.aconst_null();
-            generateArgs(funcCall.arguments(), type.parameterTypes());
-
-            var funcTypeDesc = funcType.functionTypeDesc().insertParameterTypes(0, classDesc(Func.class), ConstantDescs.CD_Object);
-            cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
-                StructDispatch.MHD_BOOTSTRAP_MEMBER,
-                StandardOperation.CALL.toString(),
-                funcTypeDesc));
-          }
-          case TargetKind.VariantStructConstructor(var name) -> {
-            var structDesc = ClassDesc.ofInternalName(name.toString());
-            generateNewDup(structDesc);
-            generateArgs(funcCall.arguments(), funcType.parameterTypes());
-            var methodDesc = MethodHandleDesc.ofConstructor(
-                structDesc,
-                funcType.parameterTypes().stream().map(Type::classDesc).toArray(ClassDesc[]::new));
-            generate(methodDesc);
-          }
-        }
-      }
       case TBinaryExpression binExpr -> {
         switch (binExpr) {
           case TBinaryExpression.TMathExpression mathExpr -> {
@@ -349,61 +314,7 @@ final class ExpressionGenerator {
             fieldAccess.fieldName().toString(),
             fieldType.classDesc());
       }
-      case TForeignFunctionCall foreignFuncCall -> {
-        var foreignFuncType = foreignFuncCall.foreignFunctionType();
-        if (foreignFuncType.isConstructor()) {
-          generateNewDup(foreignFuncType.ownerDesc());
-        }
-        foreignFuncCall.arguments().forEach(this::generate);
-
-        generate(foreignFuncType.methodHandleDesc());
-        var castType = foreignFuncType.castType();
-        if (castType != null) {
-          cob.checkcast(castType.classDesc());
-        }
-      }
-      case TMemberFunctionCall structFuncCall -> {
-        generate(structFuncCall.structExpression());
-        cob.dup();
-        var funcType = structFuncCall.functionType();
-        // Consume one of the struct references to create a Func object, making the stack:
-        // Struct -> Func, then swap them since the func call expects the order to be Func -> Struct
-        generateFieldAccess(structFuncCall.name(), funcType);
-        cob.swap();
-
-        generateArgs(structFuncCall.arguments(), funcType.parameterTypes());
-        var funcTypeDesc = funcType.functionTypeDesc().insertParameterTypes(0, classDesc(Func.class), ConstantDescs.CD_Object);
-        cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
-            StructDispatch.MHD_BOOTSTRAP_MEMBER,
-            StandardOperation.CALL.toString(),
-            funcTypeDesc));
-        var funcCallType = type(structFuncCall);
-        tryUnbox(funcCallType, funcType.returnType());
-      }
-      case TConstructorCall(
-          var name, var argIndexes, var arguments, var funcType, _, _
-      ) -> {
-        var structDesc = ClassDesc.ofInternalName(name.toString());
-        generateNewDup(structDesc);
-
-        Integer argStartIdx = null;
-        for (var expr : arguments) {
-          generate(expr);
-          int idx = localVarMeta.pushHidden();
-          if (argStartIdx == null) argStartIdx = idx;
-          generateStoreVar(cob, type(expr), idx);
-        }
-
-        for (int i = 0; i < argIndexes.size(); i++) {
-          var argIndex = argIndexes.get(i);
-          var arg = arguments.get(argIndex);
-          generateLoadVar(cob, type(arg), argStartIdx + argIndex);
-          tryBox(type(arg), funcType.parameterTypes().get(i));
-        }
-        var methodDesc = MethodHandleDesc.ofConstructor(structDesc,
-            funcType.parameterTypes().stream().map(Type::classDesc).toArray(ClassDesc[]::new));
-        generate(methodDesc);
-      }
+      case TFunctionCall functionCall -> generateFunctionCall(functionCall);
       case TLoop loop -> {
         loop.varDeclarations().forEach(this::generate);
         var recurPoint = cob.newBoundLabel();
@@ -521,6 +432,79 @@ final class ExpressionGenerator {
         cob.labelBinding(endLabel);
       }
       case TypedExprWrapper _ -> throw new IllegalStateException("Unrecognized expression: " + expression);
+      case TThisExpr _ -> cob.aload(cob.receiverSlot());
+    }
+  }
+
+  private void generateFunctionCall(TFunctionCall functionCall) {
+    var name = functionCall.name();
+    var args = functionCall.arguments();
+    var returnType = functionCall.returnType();
+
+    switch (functionCall) {
+      case TForeignFunctionCall foreignFuncCall -> {
+        var foreignFuncType = foreignFuncCall.foreignFunctionType();
+        if (foreignFuncType.isConstructor()) {
+          generateNewDup(foreignFuncType.ownerDesc());
+        }
+        foreignFuncCall.arguments().forEach(this::generate);
+
+        generate(foreignFuncType.methodHandleDesc());
+        var castType = foreignFuncType.castType();
+        if (castType != null) {
+          cob.checkcast(castType.classDesc());
+        }
+      }
+      case TBasicFunctionCall structFuncCall -> {
+        var funcType = structFuncCall.functionType();
+        switch (structFuncCall.callTarget()) {
+          case LocalVar(var localVar) -> {
+            generateLoadVar(localVar);
+            cob.aconst_null();
+          }
+          case Struct(var structExpr) -> {
+            generate(structExpr);
+            cob.dup();
+            // Consume one of the struct references to create a Func object, making the stack:
+            // Struct -> Func, then swap them since the func call expects the order to be Func -> Struct
+            generateFieldAccess(name, funcType);
+            cob.swap();
+          }
+        }
+
+        generateArgs(args, funcType.parameterTypes());
+        var funcTypeDesc = funcType.functionTypeDesc().insertParameterTypes(0, classDesc(Func.class), ConstantDescs.CD_Object);
+        cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
+            StructDispatch.MHD_BOOTSTRAP_MEMBER,
+            StandardOperation.CALL.toString(),
+            funcTypeDesc));
+        var funcCallType = type(structFuncCall);
+        tryUnbox(funcCallType, returnType);
+      }
+      case TConstructorCall constrCall -> {
+        var structDesc = ClassDesc.ofInternalName(constrCall.variantName().toString());
+        generateNewDup(structDesc);
+
+        Integer argStartIdx = null;
+        for (var expr : args) {
+          generate(expr);
+          int idx = localVarMeta.pushHidden();
+          if (argStartIdx == null) argStartIdx = idx;
+          generateStoreVar(cob, type(expr), idx);
+        }
+
+        var funcType = constrCall.functionType();
+        var argIndexes = constrCall.argIndexes();
+        for (int i = 0; i < argIndexes.size(); i++) {
+          var argIndex = argIndexes.get(i);
+          var arg = args.get(argIndex);
+          generateLoadVar(cob, type(arg), argStartIdx + argIndex);
+          tryBox(type(arg), funcType.parameterTypes().get(i));
+        }
+        var methodDesc = MethodHandleDesc.ofConstructor(structDesc,
+            funcType.parameterTypes().stream().map(Type::classDesc).toArray(ClassDesc[]::new));
+        generate(methodDesc);
+      }
     }
   }
 

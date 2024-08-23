@@ -48,8 +48,6 @@ import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
-import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
-import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStructConstructor;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.tast.TBranch;
 import com.pentlander.sasquach.tast.TFunctionParameter;
@@ -69,20 +67,19 @@ import com.pentlander.sasquach.tast.expression.TFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
 import com.pentlander.sasquach.tast.expression.TFunction;
-import com.pentlander.sasquach.tast.expression.TFunctionCall;
 import com.pentlander.sasquach.tast.expression.TIfExpression;
 import com.pentlander.sasquach.tast.expression.TLiteralStructBuilder;
-import com.pentlander.sasquach.tast.expression.TLocalFunctionCall;
-import com.pentlander.sasquach.tast.expression.TLocalFunctionCall.TargetKind;
+import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TCallTarget;
 import com.pentlander.sasquach.tast.expression.TLocalVariable;
 import com.pentlander.sasquach.tast.expression.TLoop;
 import com.pentlander.sasquach.tast.expression.TMatch;
-import com.pentlander.sasquach.tast.expression.TMemberFunctionCall;
+import com.pentlander.sasquach.tast.expression.TBasicFunctionCall;
 import com.pentlander.sasquach.tast.expression.TModuleStructBuilder;
 import com.pentlander.sasquach.tast.expression.TNot;
 import com.pentlander.sasquach.tast.expression.TPrintStatement;
 import com.pentlander.sasquach.tast.expression.TRecur;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
+import com.pentlander.sasquach.tast.expression.TThisExpr;
 import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Local;
@@ -611,96 +608,94 @@ public class MemberScopedTypeResolver {
     return typedExprs;
   }
 
+  private TypedExpression resolveMemberFunctionCall(
+      TypedExpression structExpr, FunctionCall structFuncCall
+  ) {
+    var name = structFuncCall.name();
+    var args = structFuncCall.arguments();
+    var range = structFuncCall.range();
+    var structType = TypeUtils.asStructType(structExpr.type());
+
+    if (structType.isPresent()) {
+      // need to replace existential types with actual types here
+      var fieldType = structType.get().fieldType(name);
+      if (fieldType instanceof FunctionType fieldFuncType) {
+        var funcType = convertUniversals(fieldFuncType, range);
+        var typedFuncArgs = checkFuncArgs(name, args, funcType.parameterTypes(), range);
+        return new TBasicFunctionCall(TCallTarget.struct(structExpr),
+            structFuncCall.functionId().name(),
+            funcType, // TODO I think this needs to be the unconverted type. Add a test
+            typedFuncArgs,
+            typeUnifier.resolve(funcType.returnType()),
+            range);
+      } else if (fieldType == null) {
+        var variantWithSum = structType.get().constructableType(name.toTypeName());
+        if (variantWithSum != null) {
+          var sumType = variantWithSum.sumType();
+          var variantStructType = (StructType) variantWithSum.type();
+          var paramTypes = variantStructType.sortedFieldTypes();
+
+          var funcType = new FunctionType(paramTypes, sumType.typeParameters(), sumType);
+          var convertedFuncType = convertUniversals(funcType, range);
+          var typedFuncArgs = checkFuncArgs(name, args, convertedFuncType.parameterTypes(), range);
+          return new TConstructorCall((QualifiedTypeName) variantStructType.structName(),
+              IntStream.range(0, args.size()).boxed().toList(),
+              typedFuncArgs,
+              funcType,
+              typeUnifier.resolve(convertedFuncType.returnType()),
+              range);
+        }
+
+        return addError(structFuncCall,
+            new TypeMismatchError(("Struct of type '%s' has no field "
+                + "named '%s'").formatted(structType.get().toPrettyString(), name), range));
+      } else {
+        return addError(structFuncCall,
+            new TypeMismatchError(("Field '%s' of type '%s' is not a " + "function").formatted(
+                name,
+                fieldType.toPrettyString()), structFuncCall.functionId().range()));
+      }
+    } else {
+      return addError(structFuncCall, new TypeMismatchError(
+          "Expected field access on type struct, found type '%s'".formatted(structExpr.toPrettyString()),
+          structExpr.range()));
+    }
+  }
+
   private TypedExpression resolveFunctionCall(FunctionCall funcCall) {
-    TFunctionCall typedFuncCall;
     var name = funcCall.name();
     var args = funcCall.arguments();
     var range = funcCall.range();
 
     switch (funcCall) {
       case LocalFunctionCall localFuncCall -> {
-        var funcType = switch (moduleScopedTypes.getFunctionCallType(localFuncCall)) {
-          case FuncCallType.Module(var type) -> type;
-          case FuncCallType.LocalVar(var localVar) ->
-              getLocalVarType(localVar).flatMap(TypeUtils::asFunctionType).orElseThrow();
+        return switch (moduleScopedTypes.getFunctionCallType(localFuncCall)) {
+          case FuncCallType.Module() ->
+              resolveMemberFunctionCall(
+              new TThisExpr(moduleScopedTypes.getThisType(), range),
+              localFuncCall);
+          case FuncCallType.LocalVar(var localVar) -> {
+            var tLocalVar = getLocalVar(localVar).orElseThrow();
+            var funcType = TypeUtils.asFunctionType(tLocalVar.variableType()).orElseThrow();
+            var resolvedFuncType = convertUniversals(funcType, range);
+            var typedExprs = checkFuncArgs(name, args, resolvedFuncType.parameterTypes(), range);
+            yield new TBasicFunctionCall(
+                TCallTarget.localVar(tLocalVar),
+                localFuncCall.functionId().name(),
+                funcType,
+                typedExprs,
+                typeUnifier.resolve(resolvedFuncType.returnType()),
+                range);
+          }
         };
-        var callTarget = nameResolutionResult.getLocalFunctionCallTarget(localFuncCall);
-        var targetKind = switch (callTarget) {
-          case QualifiedFunction qualifiedFunction ->
-              new TargetKind.QualifiedFunction(qualifiedFunction.ownerId());
-          // Since we're just inferring the literal struct that's created here, we end up with
-          // the literal struct type, not the struct type that's defined in the module. This
-          // means that the actual constructor with possible generic parameters is not found and
-          // it fails at runtime.
-          case VariantStructConstructor(var variantName, _) ->
-              new TargetKind.VariantStructConstructor(variantName);
-          case LocalVariable localVar ->
-              new TargetKind.LocalVariable(getLocalVar(localVar).orElseThrow());
-        };
-        var resolvedFuncType = convertUniversals(funcType, range);
-        var typedExprs = checkFuncArgs(name, args, resolvedFuncType.parameterTypes(), range);
-        typedFuncCall = new TLocalFunctionCall(
-            localFuncCall.functionId().name(),
-            targetKind,
-            typedExprs,
-            funcType,
-            typeUnifier.resolve(resolvedFuncType.returnType()),
-            range);
       }
       case MemberFunctionCall structFuncCall -> {
         var structExpr = structFuncCall.structExpression();
         var typedExpr = infer(structExpr);
-        var structType = TypeUtils.asStructType(typedExpr.type());
-
-        if (structType.isPresent()) {
-          // need to replace existential types with actual types here
-          var fieldType = structType.get().fieldType(name);
-          if (fieldType instanceof FunctionType fieldFuncType) {
-            var funcType = convertUniversals(fieldFuncType, range);
-            var typedFuncArgs = checkFuncArgs(name, args, funcType.parameterTypes(), range);
-            typedFuncCall = new TMemberFunctionCall(typedExpr,
-                structFuncCall.functionId().name(),
-                funcType, // TODO I think this needs to be the unconverted type. Add a test
-                typedFuncArgs,
-                typeUnifier.resolve(funcType.returnType()),
-                range);
-          } else if (fieldType == null) {
-            var variantWithSum = structType.get().constructableType(name.toTypeName());
-            if (variantWithSum != null) {
-              var sumType = variantWithSum.sumType();
-              var variantStructType = (StructType) variantWithSum.type();
-              var paramTypes = variantStructType.sortedFieldTypes();
-
-              var funcType = new FunctionType(paramTypes, sumType.typeParameters(), sumType);
-              var convertedFuncType = convertUniversals(funcType, range);
-              var typedFuncArgs = checkFuncArgs(name, args, convertedFuncType.parameterTypes(), range);
-              return new TConstructorCall((QualifiedTypeName) variantStructType.structName(),
-                  IntStream.range(0, args.size()).boxed().toList(),
-                  typedFuncArgs,
-                  funcType,
-                  typeUnifier.resolve(convertedFuncType.returnType()),
-                  range);
-            }
-
-            return addError(funcCall,
-                new TypeMismatchError(("Struct of type '%s' has no field "
-                    + "named '%s'").formatted(structType.get().toPrettyString(), name), range));
-          } else {
-            return addError(funcCall,
-                new TypeMismatchError(("Field '%s' of type '%s' is not a " + "function").formatted(
-                    name,
-                    fieldType.toPrettyString()), structFuncCall.functionId().range()));
-          }
-        } else {
-          return addError(funcCall, new TypeMismatchError(
-              "Expected field access on type struct, found type '%s'".formatted(typedExpr.toPrettyString()),
-              structFuncCall.structExpression().range()));
-        }
+        return resolveMemberFunctionCall(typedExpr, structFuncCall);
       }
       case ForeignFunctionCall f -> throw new IllegalStateException(f.toString());
     }
-
-    return typedFuncCall;
   }
 
 

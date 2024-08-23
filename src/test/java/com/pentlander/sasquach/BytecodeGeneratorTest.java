@@ -1,7 +1,6 @@
 package com.pentlander.sasquach;
 
 import static com.pentlander.sasquach.Fixtures.CLASS_NAME;
-import static com.pentlander.sasquach.Fixtures.MOD_NAME;
 import static com.pentlander.sasquach.Fixtures.PACKAGE_NAME;
 import static com.pentlander.sasquach.Fixtures.QUAL_MOD_ID;
 import static com.pentlander.sasquach.Fixtures.QUAL_MOD_NAME;
@@ -16,7 +15,6 @@ import static com.pentlander.sasquach.Fixtures.stringValue;
 import static com.pentlander.sasquach.Fixtures.tfunc;
 import static com.pentlander.sasquach.Fixtures.typeId;
 import static com.pentlander.sasquach.TestUtils.invokeFirst;
-import static com.pentlander.sasquach.TestUtils.invokeName;
 import static com.pentlander.sasquach.Util.seqMap;
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator.AND;
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator.OR;
@@ -25,12 +23,10 @@ import static com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOpe
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.MathOperator;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.Use;
-import com.pentlander.sasquach.ast.expression.Struct.StructKind;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.backend.BytecodeGenerator;
-import com.pentlander.sasquach.name.NameResolutionResult;
-import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.tast.TCompilationUnit;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
@@ -44,9 +40,9 @@ import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
 import com.pentlander.sasquach.tast.expression.TIfExpression;
 import com.pentlander.sasquach.tast.expression.TLiteralStructBuilder;
-import com.pentlander.sasquach.tast.expression.TLocalFunctionCall;
-import com.pentlander.sasquach.tast.expression.TLocalFunctionCall.TargetKind;
-import com.pentlander.sasquach.tast.expression.TMemberFunctionCall;
+import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TCallTarget;
+import com.pentlander.sasquach.tast.expression.TThisExpr;
+import com.pentlander.sasquach.tast.expression.TBasicFunctionCall;
 import com.pentlander.sasquach.tast.expression.TModuleStructBuilder;
 import com.pentlander.sasquach.tast.expression.TNot;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
@@ -61,19 +57,14 @@ import com.pentlander.sasquach.type.FieldAccessKind;
 import com.pentlander.sasquach.type.ForeignFieldType;
 import com.pentlander.sasquach.type.ForeignFunctionType;
 import com.pentlander.sasquach.type.FunctionType;
-import com.pentlander.sasquach.type.NamedTypeResolver;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
-import com.pentlander.sasquach.type.TypeParameter;
-import com.pentlander.sasquach.type.UniversalType;
 import java.io.PrintStream;
 import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.invoke.MethodHandles;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import jdk.dynalink.linker.support.Lookup;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -260,12 +251,20 @@ class BytecodeGeneratorTest {
   void functionCall() throws Exception {
     var calleeFunc = tfunc("foo", List.of(), BuiltinType.INT, intValue("5"));
     var funcType = calleeFunc.type();
-    var callerFunc = tfunc("baz", List.of(), BuiltinType.INT, new TLocalFunctionCall(name("foo"),
-        new TargetKind.QualifiedFunction(QUAL_MOD_ID),
+    var tThis = new TThisExpr(new StructType(
+        QUAL_MOD_NAME,
+        seqMap(calleeFunc.name(), funcType, new UnqualifiedName("baz"), funcType)), range());
+    var callerFunc = tfunc(
+        "baz",
         List.of(),
-        funcType,
-        funcType.returnType(),
-        NR));
+        BuiltinType.INT,
+        new TBasicFunctionCall(
+            TCallTarget.struct(tThis),
+            name("foo"),
+            funcType,
+            List.of(),
+            funcType.returnType(),
+            NR));
 
     var clazz = genClass(compUnit(List.of(), List.of(), List.of(callerFunc, calleeFunc)));
     int result = invokeFirst(clazz);
@@ -295,7 +294,7 @@ class BytecodeGeneratorTest {
     var struct = literalStructBuilder().addFields(new TField(
         structFunc.id(),
         structFunc.function())).build();
-    var memberFuncCall = new TMemberFunctionCall(struct,
+    var memberFuncCall = new TBasicFunctionCall(TCallTarget.struct(struct),
         name("member"),
         funcType,
         List.of(),
@@ -307,60 +306,6 @@ class BytecodeGeneratorTest {
     String result = invokeFirst(clazz);
 
     assertThat(result).isEqualTo("string");
-  }
-
-  @Nested
-  class Parameterized {
-    @Test
-    void singleGenericClass() throws Exception {
-      // Struct called "box" with a single field called "value" of type T
-      var boxParam = tparam("box", StructType.unnamed(seqMap(name("value"), new UniversalType("T", 0))));
-      //  A value of type "U"
-      var boxValueParam = tparam("boxValue", new UniversalType("U", 0));
-      // Create a box struct with the field "value" set to the value of the "boxValue" param
-      var parameterizedFuncExpr = literalStructBuilder().fields(List.of(new TField(id("value"),
-          new TVarReference(id("boxValue"),
-              new Local(boxValueParam),
-              boxValueParam.variableType())))).build();
-
-      var returnType = parameterizedFuncExpr.type();
-      var typeParams = List.of(new TypeParameter(id("T")), new TypeParameter(id("U")));
-      var funcType = new FunctionType(List.of(boxParam.type(), boxValueParam.type()),
-          typeParams,
-          returnType);
-
-      var parameterizedFunc = tfunc("foo",
-          List.of(boxParam, boxValueParam),
-          typeParams,
-          funcType,
-          parameterizedFuncExpr);
-
-      var callReturnType = (StructType) new NamedTypeResolver(NameResolutionResult.empty()).resolveNames(boxParam.type(),
-          Map.of("T", BuiltinType.STRING),
-          NR);
-      var funcCall = new TLocalFunctionCall(name("foo"),
-          new TargetKind.QualifiedFunction(QUAL_MOD_ID),
-          List.of(
-              literalStructBuilder().fields(List.of(new TField(id("value"), intValue(10)))).build(),
-              stringValue("ten")),
-          funcType,
-          callReturnType,
-          NR);
-      var callerFunc = tfunc("baz",
-          List.of(),
-          StructType.unnamed(seqMap(name("value"), BuiltinType.STRING)),
-          funcCall);
-
-      var compUnit = compUnit(List.of(), List.of(), List.of(callerFunc, parameterizedFunc));
-
-      var result = new BytecodeGenerator().generateBytecode(compUnit.modules());
-      result.generatedBytecode().forEach(cl::addClass);
-      var clazz = cl.loadClass(CLASS_NAME);
-      Object box = invokeName(clazz, "baz");
-
-      assertThat(result.generatedBytecode()).hasSize(3);
-      assertThat(box).isInstanceOf(StructBase.class);
-    }
   }
 
 

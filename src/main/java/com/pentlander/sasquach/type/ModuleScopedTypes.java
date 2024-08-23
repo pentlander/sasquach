@@ -8,6 +8,8 @@ import com.pentlander.sasquach.ast.expression.VarReference;
 
 public interface ModuleScopedTypes {
 
+  StructType getThisType();
+
   FuncCallType getFunctionCallType(LocalFunctionCall funcCall);
 
   VarRefType getVarReferenceType(VarReference varRef);
@@ -15,7 +17,7 @@ public interface ModuleScopedTypes {
   SumWithVariantIdx getVariantType(NamedStruct namedStruct);
 
   sealed interface FuncCallType {
-    record Module(FunctionType type) implements FuncCallType {}
+    record Module() implements FuncCallType {}
 
     record LocalVar(LocalVariable localVariable) implements FuncCallType {}
   }

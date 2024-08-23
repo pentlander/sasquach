@@ -18,6 +18,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.pentlander.sasquach.Fixtures;
 import com.pentlander.sasquach.PackageName;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.FunctionSignature;
@@ -50,13 +51,13 @@ import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 class MemberScopedTypeResolverTest {
-  private static final String MOD_NAME = "Test";
   NameResolutionResult nameResolutionResult;
   MemberScopedTypeResolver memberScopedTypeResolver;
   ModuleScopedTypes moduleScopedTypes;
@@ -272,12 +273,13 @@ class MemberScopedTypeResolverTest {
       @BeforeEach
       void setUp() {
         memberScopedTypeResolver.checkType(func);
-        when(moduleScopedTypes.getFunctionCallType(any())).thenReturn(new FuncCallType.Module(func.functionSignature()
-            .type()));
+        when(moduleScopedTypes.getFunctionCallType(any())).thenReturn(new FuncCallType.Module());
+        when(moduleScopedTypes.getThisType()).thenReturn(new StructType(
+            Fixtures.QUAL_MOD_NAME,
+            seqMap(funcId.name(), func.functionSignature().type()),
+            Map.of()));
 
-        when(nameResolutionResult.getLocalFunctionCallTarget(any())).thenReturn(new QualifiedFunction(qualId("foo"),
-            funcId,
-            null));
+        when(nameResolutionResult.getLocalFunctionCallTarget(any())).thenReturn(new QualifiedFunction());
       }
 
       @Test

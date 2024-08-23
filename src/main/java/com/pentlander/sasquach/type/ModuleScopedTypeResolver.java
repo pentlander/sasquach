@@ -57,6 +57,8 @@ public class ModuleScopedTypeResolver {
   private final Map<Id, FunctionType> funcIdToType = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
+  private StructType thisStructType;
+
 
   public ModuleScopedTypeResolver(NameResolutionResult nameResolutionResult,
       ModuleDeclaration moduleDeclaration, ModuleTypeProvider moduleTypeProvider) {
@@ -135,7 +137,8 @@ public class ModuleScopedTypeResolver {
             : Stream.empty())
         .collect(toMap(sumType -> sumType.qualifiedTypeName().name(), identity()));
 
-    return new StructType(struct.name(), fieldTypes, namedStructTypes);
+    thisStructType = new StructType(struct.name(), fieldTypes, namedStructTypes);
+    return thisStructType;
   }
 
   public TypeResolutionResult resolveFunctions() {
@@ -171,15 +174,16 @@ public class ModuleScopedTypeResolver {
   }
 
   public class ResolverModuleScopedTypes implements ModuleScopedTypes {
+    @Override
+    public StructType getThisType() {
+      return Objects.requireNonNull(thisStructType);
+    }
 
     @Override
     public FuncCallType getFunctionCallType(LocalFunctionCall funcCall) {
       var callTarget = nameResolutionResult.getLocalFunctionCallTarget(funcCall);
       return switch (callTarget) {
-        case QualifiedFunction func ->
-            new FuncCallType.Module(funcIdToType.get(func.id()));
-        case VariantStructConstructor constructor ->
-            new FuncCallType.Module(variantConstructorTypes.get(constructor.id()));
+        case QualifiedFunction _, VariantStructConstructor _ -> new FuncCallType.Module();
         case LocalVariable localVar -> new LocalVar(localVar);
       };
     }

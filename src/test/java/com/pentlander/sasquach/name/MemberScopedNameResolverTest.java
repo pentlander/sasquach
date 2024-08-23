@@ -104,9 +104,9 @@ class MemberScopedNameResolverTest {
         .build();
     var memberResolver = new MemberScopedNameResolver(modResolver);
     var result = memberResolver.resolve(new NamedFunction(id("foo"), function));
-    var localFunc = (QualifiedFunction) result.getLocalFunctionCallTarget(funcCall);
+    var localFunc = result.getLocalFunctionCallTarget(funcCall);
 
-    assertThat(localFunc.function()).isEqualTo(func);
+    assertThat(localFunc).isInstanceOf(QualifiedFunction.class);
   }
 
 
