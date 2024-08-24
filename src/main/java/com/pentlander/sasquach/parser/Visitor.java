@@ -29,6 +29,7 @@ import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.Use;
+import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.PipeOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
@@ -195,7 +196,7 @@ public class Visitor {
     @Override
     public ModuleDeclaration visitModuleDeclaration(ModuleDeclarationContext ctx) {
       var name = new QualifiedModuleName(packageName, ctx.moduleName().getText());
-      var struct = ctx.struct().accept(structVisitorForModule(name));
+      var struct = (ModuleStruct) ctx.struct().accept(structVisitorForModule(name));
       return new ModuleDeclaration(new QualifiedModuleId(
           name,
           rangeFrom(ctx.moduleName().ID())),

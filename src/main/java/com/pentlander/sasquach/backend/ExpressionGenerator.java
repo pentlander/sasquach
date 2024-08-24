@@ -575,12 +575,12 @@ final class ExpressionGenerator {
     generate(MethodHandleDesc.ofConstructor(structClassDesc, paramDescs));
   }
 
-  void generateLoadVar(TLocalVariable localVar) {
+  private void generateLoadVar(TLocalVariable localVar) {
     var varMeta = localVarMeta.get(localVar);
     generateLoadVar(cob, varMeta.localVar().variableType(), varMeta.idx());
   }
 
-  static void generateLoadVar(CodeBuilder cob, Type type, int idx) {
+  private static void generateLoadVar(CodeBuilder cob, Type type, int idx) {
     if (idx < 0) {
       return;
     }
@@ -593,7 +593,7 @@ final class ExpressionGenerator {
     }
   }
 
-  static void generateStoreVar(CodeBuilder cob, Type type, int idx) {
+  private static void generateStoreVar(CodeBuilder cob, Type type, int idx) {
     cob.storeInstruction(TypeKind.from(type.classDesc()), idx);
   }
 

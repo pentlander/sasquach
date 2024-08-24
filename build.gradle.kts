@@ -48,6 +48,9 @@ tasks.withType<JavaExec>().configureEach {
 tasks.getByName<Test>("test") {
     useJUnitPlatform()
     jvmArgs("--enable-preview")
+    systemProperty("junit.jupiter.execution.parallel.enabled", true)
+    systemProperty("junit.jupiter.execution.parallel.mode.default", "same_thread")
+    systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "same_thread")
 }
 
 tasks.generateGrammarSource {

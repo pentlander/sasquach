@@ -26,4 +26,9 @@ public sealed interface Use extends Node {
    * Import for a foreign class.
    */
   record Foreign(QualifiedModuleId id, Id alias, Range range) implements Use {}
+
+  @Override
+  default String toPrettyString() {
+    return "use " + id().name().toString();
+  }
 }

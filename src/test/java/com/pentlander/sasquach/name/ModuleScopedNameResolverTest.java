@@ -41,7 +41,7 @@ class ModuleScopedNameResolverTest {
             .build(),
         range());
     resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
-    resolver.resolve();
+    resolveModule();
 
     assertThat(resolver.resolveForeignClass(typeName("System")).get()).isEqualTo(System.class);
   }
@@ -54,7 +54,7 @@ class ModuleScopedNameResolverTest {
         Struct.moduleStructBuilder(id.moduleName()).fields(List.of(field)).range(range()).build(),
         range());
     resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
-    resolver.resolve();
+    resolveModule();
 
     var resolvedField = resolver.resolveField(name("foo")).get();
     assertThat(resolvedField).isEqualTo(field);
@@ -73,10 +73,15 @@ class ModuleScopedNameResolverTest {
             .build(),
         range());
     resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
-    resolver.resolve();
+    resolveModule();
 
     var resolvedFunction = resolver.resolveFunction(name("foo")).get();
     assertThat(resolvedFunction).isEqualTo(function);
     assertThat(resolver.getResolver(resolvedFunction.function())).isNotNull();
+  }
+
+  private void resolveModule() {
+    resolver.resolveTypeDefs();
+    resolver.resolveBody();
   }
 }

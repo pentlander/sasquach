@@ -125,9 +125,9 @@ public class TypeNameResolver {
     } else if (type instanceof ModuleNamedType moduleNamedType) {
       moduleNamedType.typeArgumentNodes().forEach(this::resolveNamedType);
       var moduleScopedResolver = moduleScopedNameResolver.resolveModuleResolver(moduleNamedType.moduleName());
-      moduleScopedResolver.flatMap(m -> m.resolveTypeAlias(moduleNamedType.name()))
-          .ifPresentOrElse(alias -> putNamedType(typeNode, alias),
-              () -> errors.add(new NameNotFoundError(moduleNamedType.id(), "module type")));
+      moduleScopedResolver.flatMap(m -> m.resolveTypeAlias(moduleNamedType.name())).ifPresentOrElse(
+          alias -> putNamedType(typeNode, alias),
+          () -> errors.add(new NameNotFoundError(moduleNamedType.id(), "module type")));
     }
   }
 

@@ -3,7 +3,6 @@ package com.pentlander.sasquach.name;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
-import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeAlias;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -11,13 +10,10 @@ import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.LiteralStruct;
-import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
-import com.pentlander.sasquach.ast.expression.Struct;
 import java.lang.invoke.MethodHandles;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -38,6 +34,7 @@ public class ModuleScopedNameResolver {
   private final ModuleDeclaration module;
   private final ModuleResolver moduleResolver;
   private NameResolutionResult nameResolutionResult = NameResolutionResult.empty();
+  private boolean typeDefsResolved = false;
 
   public ModuleScopedNameResolver(ModuleDeclaration module, ModuleResolver moduleResolver) {
     this.module = module;
@@ -48,9 +45,30 @@ public class ModuleScopedNameResolver {
     return module;
   }
 
-  public NameResolutionResult resolve() {
-    resolve(module);
+  public NameResolutionResult resolveBody() {
+    resolve(module.struct());
     return nameResolutionResult.withNamedTypes(namedTypes).withErrors(errors.build());
+  }
+
+  public void resolveTypeDefs() {
+    var struct = module.struct();
+
+    for (var use : struct.useList()) {
+      switch (use) {
+        case Use.Module useModule -> resolve(useModule);
+        case Use.Foreign useForeign -> resolve(useForeign);
+      }
+    }
+
+    // The loops need to be separated in case there are aliases that refer to other aliases
+    for (var typeAlias : struct.typeAliases()) {
+      var prevAlias = typeAliasNames.put(typeAlias.id().name(), typeAlias);
+      if (prevAlias != null) {
+        errors.add(new DuplicateNameError(typeAlias.id(), prevAlias.id()));
+      }
+    }
+
+    typeDefsResolved = true;
   }
 
   NameResolutionResult getResolver(LiteralStruct.Field field) {
@@ -61,14 +79,7 @@ public class ModuleScopedNameResolver {
     return Objects.requireNonNull(functionResults.get(function));
   }
 
-  public void resolve(TypeAlias typeAlias) {
-    var prevAlias = typeAliasNames.put(typeAlias.id().name(), typeAlias);
-    if (prevAlias != null) {
-      errors.add(new DuplicateNameError(typeAlias.id(), prevAlias.id()));
-    }
-  }
-
-  public void resolve(Use.Module use) {
+  private void resolve(Use.Module use) {
     var moduleScopedResolver = moduleResolver.resolveModule(use.id().name());
     if (moduleScopedResolver == null) {
       errors.add(new NameNotFoundError(use.id(), "module"));
@@ -80,7 +91,7 @@ public class ModuleScopedNameResolver {
     }
   }
 
-  public void resolve(Use.Foreign use) {
+  private void resolve(Use.Foreign use) {
     try {
       var qualifiedName = use.id().name().javaName();
       var clazz = MethodHandles.lookup().findClass(qualifiedName);
@@ -90,59 +101,37 @@ public class ModuleScopedNameResolver {
     }
   }
 
-  private void checkAliases(Collection<TypeAlias> typeAliases) {
-    for (var typeAlias : typeAliases) {
+  public void resolve(ModuleStruct struct) {
+    if (!typeDefsResolved) {
+      throw new IllegalStateException("Must resolve type defs before resolving rest of module");
+    }
+
+    for (var typeAlias : struct.typeAliases()) {
       var resolver = new TypeNameResolver(this);
       var result = resolver.resolveTypeNode(typeAlias);
       namedTypes.putAll(result.namedTypes());
       variantTypes.putAll(result.variantTypes());
       errors.addAll(result.errors());
     }
-  }
 
-  public void resolve(Expression expression) {
-    if (expression instanceof Struct struct) {
-      if (struct instanceof ModuleStruct moduleStruct) {
-        for (var use : moduleStruct.useList()) {
-          resolve(use);
-        }
-
-        for (var typeAlias : moduleStruct.typeAliases()) {
-          resolve(typeAlias);
-        }
-        checkAliases(typeAliasNames.values());
-      }
-
-      for (var field : struct.fields()) {
-        fields.put(field.name(), field);
-      }
-      for (var function : struct.functions()) {
-        functions.put(function.name(), function);
-      }
-
-      for (var field : struct.fields()) {
-        var resolver = new MemberScopedNameResolver(this);
-        var result = resolver.resolve(field);
-        nameResolutionResult = nameResolutionResult.merge(result);
-        fieldResults.put(field, result);
-      }
-      for (var function : struct.functions()) {
-        var resolver = new MemberScopedNameResolver(this);
-        var result = resolver.resolve(function);
-        nameResolutionResult = nameResolutionResult.merge(result);
-        functionResults.put(function.function(), result);
-      }
+    for (var field : struct.fields()) {
+      fields.put(field.name(), field);
     }
-  }
+    for (var function : struct.functions()) {
+      functions.put(function.name(), function);
+    }
 
-  public void resolve(ModuleDeclaration moduleDeclaration) {
-    resolve(moduleDeclaration.struct());
-  }
-
-  public void resolve(Use use) {
-    switch (use) {
-      case Use.Module useModule -> resolve(useModule);
-      case Use.Foreign useForeign -> resolve(useForeign);
+    for (var field : struct.fields()) {
+      var resolver = new MemberScopedNameResolver(this);
+      var result = resolver.resolve(field);
+      nameResolutionResult = nameResolutionResult.merge(result);
+      fieldResults.put(field, result);
+    }
+    for (var function : struct.functions()) {
+      var resolver = new MemberScopedNameResolver(this);
+      var result = resolver.resolve(function);
+      nameResolutionResult = nameResolutionResult.merge(result);
+      functionResults.put(function.function(), result);
     }
   }
 

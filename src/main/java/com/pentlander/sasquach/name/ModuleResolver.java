@@ -5,9 +5,9 @@ import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Phaser;
 import java.util.concurrent.RecursiveTask;
 import java.util.stream.Stream;
 
@@ -21,11 +21,15 @@ public class ModuleResolver {
         .flatMap(List::stream));
   }
 
+  // TODO There's still a race condition here, will probably need to construct a DAG of
+  //      dependencies to solve for good
   private NameResolutionResult resolveCompilationUnits(Stream<ModuleDeclaration> modules) {
     // Ensure that all modules are loaded into the map to avoid a race with the resolution
     // inside the fork
+    var typeDefPhaser = new Phaser();
     modules.forEach(module -> {
-      var resTask = new ResolutionTask(module.name(), module);
+      var moduleNameResolver = new ModuleScopedNameResolver(module, this);
+      var resTask = new ResolutionTask(module.name(), moduleNameResolver, typeDefPhaser);
       moduleScopedResolverTasks.put(module.name(), resTask);
     });
     // Fork all the tasks so they all start running
@@ -47,33 +51,12 @@ public class ModuleResolver {
 
   public ModuleScopedNameResolver resolveModule(QualifiedModuleName qualifiedModuleName) {
     var task = moduleScopedResolverTasks.get(qualifiedModuleName);
-    return task != null ? task.moduleScopedNameResolver : null;
-  }
-
-  private class ResolutionTask extends RecursiveTask<NameResolutionResult> {
-    private final QualifiedModuleName moduleName;
-    private final ModuleScopedNameResolver moduleScopedNameResolver;
-
-    private ResolutionTask(QualifiedModuleName moduleName, ModuleDeclaration module) {
-      this.moduleName = moduleName;
-      this.moduleScopedNameResolver = new ModuleScopedNameResolver(module, ModuleResolver.this);
+    if (task != null) {
+      // Race condition here. Need to resolve all type aliases before fields and func signatures so
+      // any types referred to by the field/func def are already done.
+      return task.moduleScopedNameResolver();
     }
-
-    @Override
-    protected NameResolutionResult compute() {
-       return moduleScopedNameResolver.resolve();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      return o != null && (this == o || (o instanceof ResolutionTask task && Objects.equals(moduleName,
-          task.moduleName)));
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hash(moduleName);
-    }
+    return null;
   }
 
 
