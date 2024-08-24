@@ -68,7 +68,7 @@ public class MemberScopedNameResolver {
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
   private final List<NameResolutionResult> resolutionResults = new ArrayList<>();
 
-  private final List<TypeParameter> typeParameters = new ArrayList<>();
+  private final List<TypeParameter> contextTypeParameters = new ArrayList<>();
 
   private final LocalVariableStack localVarStack;
 
@@ -122,6 +122,9 @@ public class MemberScopedNameResolver {
 
   private void resolve(VariableDeclaration variableDeclaration) {
     addLocalVariable(variableDeclaration);
+    if (variableDeclaration.typeAnnotation() != null) {
+      resolveTypeNames(variableDeclaration.typeAnnotation());
+    }
     resolve(variableDeclaration.expression());
   }
 
@@ -198,20 +201,26 @@ public class MemberScopedNameResolver {
     pushScope();
 
     var funcSignature = function.functionSignature();
-    var resolver = new TypeNameResolver(typeParameters, moduleScopedNameResolver);
-    var result = resolver.resolveTypeNode(funcSignature);
-    nameData.addTypeAliases(result.namedTypes().entrySet());
-    typeParameters.addAll(funcSignature.typeParameters());
-    errors.addAll(result.errors());
+    resolveTypeNames(funcSignature);
+    // Add the type parameters to the contextual type params, so that nested functions can include
+    // them when resolving type names
+    contextTypeParameters.addAll(funcSignature.typeParameters());
     funcSignature.parameters().forEach(MemberScopedNameResolver.this::addLocalVariable);
 
     resolve(function.expression());
     popScope();
   }
 
+  private void resolveTypeNames(TypeNode typeNode) {
+    var resolver = new TypeNameResolver(contextTypeParameters, moduleScopedNameResolver);
+    var result = resolver.resolveTypeNode(typeNode);
+    nameData.addTypeAliases(result.namedTypes().entrySet());
+    errors.addAll(result.errors());
+  }
+
   private void resolveNestedFunc(Function function) {
     var resolver = new MemberScopedNameResolver(moduleScopedNameResolver, localVarStack);
-    resolver.typeParameters.addAll(typeParameters);
+    resolver.contextTypeParameters.addAll(contextTypeParameters);
 
     resolver.resolveFunc(function);
 

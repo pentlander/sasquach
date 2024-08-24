@@ -7,7 +7,6 @@ import static com.pentlander.sasquach.Fixtures.id;
 import static com.pentlander.sasquach.Fixtures.intValue;
 import static com.pentlander.sasquach.Fixtures.literalStruct;
 import static com.pentlander.sasquach.Fixtures.name;
-import static com.pentlander.sasquach.Fixtures.qualId;
 import static com.pentlander.sasquach.Fixtures.range;
 import static com.pentlander.sasquach.Fixtures.stringValue;
 import static com.pentlander.sasquach.Fixtures.typeId;

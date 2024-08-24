@@ -44,6 +44,14 @@ public enum BuiltinType implements Type {
         .findFirst();
   }
 
+  public boolean isIntegerLike() {
+    return this == INT || this == LONG || this == BYTE || this == CHAR;
+  }
+
+  public boolean isDoubleLike() {
+    return this == DOUBLE || this == FLOAT;
+  }
+
   @Override
   public String typeNameStr() {
     return name;

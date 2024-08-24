@@ -14,14 +14,14 @@ function : functionDeclaration expression ;
 typeParameterList : ('[' typeIdentifier (',' typeIdentifier)* ']') ;
 functionDeclaration :
     typeParameterList?
-    functionParameterList ':' type '->' NL* ;
+    functionParameterList typeAnnotation '->' NL* ;
 functionName : ID ;
-functionArgument : ID ':' type ;
-functionParameterList : '(' (functionArgument)? (',' functionArgument)* ')' ;
+functionParameter : ID typeAnnotation ;
+functionParameterList : '(' (functionParameter)? (',' functionParameter)* ')' ;
 
 type : classType | structType | localNamedType | functionType | moduleNamedType | tupleType ;
 classType : qualifiedName ;
-structTypeField : NL* ID ':' NL* type | SPREAD typeIdentifier? ;
+structTypeField : NL* ID typeAnnotation | SPREAD typeIdentifier? ;
 structType : '{' structTypeField (',' structTypeField)* ','? NL* '}' ;
 functionType : functionParameterList '->' type ;
 typeArgumentList : ('[' type (',' type)* ']') ;
@@ -34,10 +34,11 @@ variantType :
   | '(' type ')' #singleTupleType
   | '(' type (',' NL* type)+ ')' #multiTupleType
   | structType #structSumType;
+typeAnnotation : ':' type ;
 
 blockStatement : variableDeclaration | printStatement | expression ;
 
-variableDeclaration : VARIABLE ID EQUALS expression ;
+variableDeclaration : LET ID typeAnnotation? EQUALS expression ;
 typeIdentifier: ID ;
 varReference : ID ;
 memberName : ID ;
@@ -92,7 +93,12 @@ structStatement : use #useStatement
   | memberName EQUALS (function|expression) #identifierStatement
   | SPREAD varReference #spreadStatement ;
 
-value : NUMBER #intLiteral
+decLiteral : DEC_DIGIT (DEC_DIGIT)* ;
+intLiteral : decLiteral ;
+dblLiteral : DEC_DIGIT '.' DEC_DIGIT+ ;
+
+value : intLiteral #integerLiteral
+      | dblLiteral #doubleLiteral
       | STRING #stringLiteral
       | TRUE #booleanLiteral
       | FALSE #booleanLiteral ;
@@ -103,7 +109,7 @@ value : NUMBER #intLiteral
 // Keywords
 IF       : 'if' ;
 ELSE     : 'else' ;
-VARIABLE : 'let' ;
+LET : 'let' ;
 PRINT    : 'print' ;
 FOREIGN : 'foreign' ;
 USE : 'use' ;
@@ -112,7 +118,7 @@ LOOP : 'loop' ;
 MATCH : 'match' ;
 
 // Literals
-NUMBER : '0'|[1-9][0-9]* ;
+DEC_DIGIT : [0-9] ;
 STRING : '"'.*?'"' ;
 TRUE   : 'true';
 FALSE  : 'false';

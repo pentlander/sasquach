@@ -209,6 +209,15 @@ public class MemberScopedTypeResolver {
             .toList();
         yield new TFunction(typedFuncSig, typedExpr, captures);
       }
+      // When checking something that looks like literal Integer annotated with a different int-like
+      // type, convert the literal to be the type it's checking against
+      case Value(var valueType, var value, var range) when valueType == BuiltinType.INT
+          && type instanceof BuiltinType builtinType && builtinType.isIntegerLike() ->
+          new Value(builtinType, value, range);
+      // Same as above but for Double
+      case Value(var valueType, var value, var range) when valueType == BuiltinType.DOUBLE
+          && type instanceof BuiltinType builtinType && builtinType.isDoubleLike() ->
+          new Value(builtinType, value, range);
       default -> switch (type) {
         case ResolvedNamedType resolvedType -> check(expr, resolvedType.type());
         default -> {
@@ -241,8 +250,13 @@ public class MemberScopedTypeResolver {
     TypedExpression typedExpr = switch (expr) {
       case Value value -> value;
       case VariableDeclaration varDecl -> {
-        var exprType = infer(varDecl.expression());
-        var localVar = new TVariableDeclaration(varDecl.id(), exprType, varDecl.range());
+        TypedExpression tExpr;
+        if (varDecl.typeAnnotation() != null) {
+          tExpr = check(varDecl.expression(), varDecl.typeAnnotation().type());
+        } else {
+          tExpr = infer(varDecl.expression());
+        }
+        var localVar = new TVariableDeclaration(varDecl.id(), tExpr, varDecl.range());
         putLocalVarType(varDecl, localVar);
         yield localVar;
       }
@@ -616,50 +630,53 @@ public class MemberScopedTypeResolver {
     var range = structFuncCall.range();
     var structType = TypeUtils.asStructType(structExpr.type());
 
-    if (structType.isPresent()) {
-      // need to replace existential types with actual types here
-      var fieldType = structType.get().fieldType(name);
-      if (fieldType instanceof FunctionType fieldFuncType) {
-        var funcType = convertUniversals(fieldFuncType, range);
-        var typedFuncArgs = checkFuncArgs(name, args, funcType.parameterTypes(), range);
-        return new TBasicFunctionCall(TCallTarget.struct(structExpr),
-            structFuncCall.functionId().name(),
-            funcType, // TODO I think this needs to be the unconverted type. Add a test
-            typedFuncArgs,
-            typeUnifier.resolve(funcType.returnType()),
-            range);
-      } else if (fieldType == null) {
-        var variantWithSum = structType.get().constructableType(name.toTypeName());
-        if (variantWithSum != null) {
-          var sumType = variantWithSum.sumType();
-          var variantStructType = (StructType) variantWithSum.type();
-          var paramTypes = variantStructType.sortedFieldTypes();
-
-          var funcType = new FunctionType(paramTypes, sumType.typeParameters(), sumType);
-          var convertedFuncType = convertUniversals(funcType, range);
-          var typedFuncArgs = checkFuncArgs(name, args, convertedFuncType.parameterTypes(), range);
-          return new TConstructorCall((QualifiedTypeName) variantStructType.structName(),
-              IntStream.range(0, args.size()).boxed().toList(),
-              typedFuncArgs,
-              funcType,
-              typeUnifier.resolve(convertedFuncType.returnType()),
-              range);
-        }
-
-        return addError(structFuncCall,
-            new TypeMismatchError(("Struct of type '%s' has no field "
-                + "named '%s'").formatted(structType.get().toPrettyString(), name), range));
-      } else {
-        return addError(structFuncCall,
-            new TypeMismatchError(("Field '%s' of type '%s' is not a " + "function").formatted(
-                name,
-                fieldType.toPrettyString()), structFuncCall.functionId().range()));
-      }
-    } else {
+    if (structType.isEmpty()) {
       return addError(structFuncCall, new TypeMismatchError(
           "Expected field access on type struct, found type '%s'".formatted(structExpr.toPrettyString()),
           structExpr.range()));
     }
+
+    // need to replace existential types with actual types here
+    var fieldType = structType.get().fieldType(name);
+    if (fieldType instanceof FunctionType fieldFuncType) {
+      var funcType = convertUniversals(fieldFuncType, range);
+      var typedFuncArgs = checkFuncArgs(name, args, funcType.parameterTypes(), range);
+      return new TBasicFunctionCall(TCallTarget.struct(structExpr),
+          structFuncCall.functionId().name(),
+          funcType, // TODO I think this needs to be the unconverted type. Add a test
+          typedFuncArgs,
+          typeUnifier.resolve(funcType.returnType()),
+          range);
+    }
+
+    if (fieldType != null) {
+      return addError(structFuncCall,
+          new TypeMismatchError(("Field '%s' of type '%s' is not a " + "function").formatted(
+              name,
+              fieldType.toPrettyString()), structFuncCall.functionId().range()));
+    }
+
+    var variantWithSum = structType.get().constructableType(name.toTypeName());
+    if (variantWithSum == null) {
+      return addError(structFuncCall,
+          new TypeMismatchError(("Struct of type '%s' has no field "
+              + "named '%s'").formatted(structType.get().toPrettyString(), name), range));
+    }
+
+    var sumType = variantWithSum.sumType();
+    var variantStructType = (StructType) variantWithSum.type();
+    var paramTypes = variantStructType.sortedFieldTypes();
+
+    var funcType = new FunctionType(paramTypes, sumType.typeParameters(), sumType);
+    var convertedFuncType = convertUniversals(funcType, range);
+    var typedFuncArgs = checkFuncArgs(name, args, convertedFuncType.parameterTypes(), range);
+    return new TConstructorCall((QualifiedTypeName) variantStructType.structName(),
+        IntStream.range(0, args.size()).boxed().toList(),
+        typedFuncArgs,
+        funcType,
+        typeUnifier.resolve(convertedFuncType.returnType()),
+        range);
+
   }
 
   private TypedExpression resolveFunctionCall(FunctionCall funcCall) {

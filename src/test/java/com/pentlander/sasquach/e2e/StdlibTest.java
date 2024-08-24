@@ -1,29 +1,15 @@
 package com.pentlander.sasquach.e2e;
 
 import static com.pentlander.sasquach.TestUtils.invokeMain;
-import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.pentlander.sasquach.BaseTest;
-import com.pentlander.sasquach.CompilationException;
-import com.pentlander.sasquach.Compiler;
-import com.pentlander.sasquach.PackageName;
-import com.pentlander.sasquach.SasquachClassloader;
-import com.pentlander.sasquach.Source;
-import com.pentlander.sasquach.Sources;
-import com.pentlander.sasquach.TestUtils;
-import com.pentlander.sasquach.ast.QualifiedModuleName;
-import com.pentlander.sasquach.backend.BytecodeResult;
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.file.Paths;
-import java.util.Objects;
-import org.junit.jupiter.api.Disabled;
+import com.pentlander.sasquach.BaseTest.DefaultOptions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+@DefaultOptions(BaseTest.INCLUDE_STD)
 public class StdlibTest extends BaseTest {
-
   @Test
   void test() throws Exception {
     var clazz = compile("""
@@ -34,8 +20,9 @@ public class StdlibTest extends BaseTest {
 
   }
 
+
   @Nested
-  class MapTest extends BaseStdTest {
+  class MapTest extends BaseTest {
     @Test
     void assocAndGet() throws Exception {
       var clazz = compile("""
@@ -59,13 +46,6 @@ public class StdlibTest extends BaseTest {
 
       int value = invokeMain(clazz);
       assertThat(value).isEqualTo(1);
-    }
-  }
-
-  private static class BaseStdTest extends BaseTest {
-    @Override
-    protected int defaultOpts() {
-      return INCLUDE_STD;
     }
   }
 }

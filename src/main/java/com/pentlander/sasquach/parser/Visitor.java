@@ -67,11 +67,11 @@ import com.pentlander.sasquach.parser.SasquachParser.BooleanLiteralContext;
 import com.pentlander.sasquach.parser.SasquachParser.ClassTypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.CompareExpressionContext;
 import com.pentlander.sasquach.parser.SasquachParser.CompilationUnitContext;
+import com.pentlander.sasquach.parser.SasquachParser.DblLiteralContext;
 import com.pentlander.sasquach.parser.SasquachParser.ExpressionContext;
 import com.pentlander.sasquach.parser.SasquachParser.ForeignMemberAccessExpressionContext;
 import com.pentlander.sasquach.parser.SasquachParser.ForeignMemberApplicationExpressionContext;
 import com.pentlander.sasquach.parser.SasquachParser.ForeignNameContext;
-import com.pentlander.sasquach.parser.SasquachParser.FunctionArgumentContext;
 import com.pentlander.sasquach.parser.SasquachParser.FunctionCallContext;
 import com.pentlander.sasquach.parser.SasquachParser.FunctionContext;
 import com.pentlander.sasquach.parser.SasquachParser.FunctionDeclarationContext;
@@ -109,6 +109,7 @@ import com.pentlander.sasquach.parser.SasquachParser.SumTypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.TupleExpressionContext;
 import com.pentlander.sasquach.parser.SasquachParser.TupleTypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeAliasStatementContext;
+import com.pentlander.sasquach.parser.SasquachParser.TypeAnnotationContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeArgumentListContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeIdentifierContext;
@@ -221,7 +222,7 @@ public class Visitor {
 
       return new FunctionSignature(params,
           typeParams(ctx.typeParameterList()),
-          typeNode(ctx.type(), typeVisitor),
+          typeAnnotation(ctx.typeAnnotation(), typeVisitor),
           rangeFrom(ctx));
     }
   }
@@ -336,8 +337,9 @@ public class Visitor {
 
     @Override
     public Expression visitVariableDeclaration(VariableDeclarationContext ctx) {
-      Expression expr = ctx.expression().accept(new ExpressionVisitor());
-      return new VariableDeclaration(id(ctx.ID()), expr, rangeFrom(ctx));
+      var typeAnnotation = typeAnnotation(ctx.typeAnnotation());
+      var expr = ctx.expression().accept(new ExpressionVisitor());
+      return new VariableDeclaration(id(ctx.ID()), typeAnnotation, expr, rangeFrom(ctx));
     }
 
     @Override
@@ -410,6 +412,11 @@ public class Visitor {
     @Override
     public Expression visitIntLiteral(IntLiteralContext ctx) {
       return new Value(BuiltinType.INT, ctx.getText(), rangeFrom(ctx));
+    }
+
+    @Override
+    public Expression visitDblLiteral(DblLiteralContext ctx) {
+      return new Value(BuiltinType.DOUBLE, ctx.getText(), rangeFrom(ctx));
     }
 
     @Override
@@ -498,7 +505,7 @@ public class Visitor {
         if (fieldCtx.SPREAD() == null) {
           fields.put(
               new UnqualifiedName(id.getText()),
-              typeNode(fieldCtx.type(), new TypeVisitor()));
+              typeAnnotation(fieldCtx.typeAnnotation(), new TypeVisitor()));
         } else if (fieldCtx.typeIdentifier() != null) {
           rowModifier = RowModifier.namedRow(typeId(fieldCtx.typeIdentifier()), rangeFrom(fieldCtx));
         } else {
@@ -660,8 +667,8 @@ public class Visitor {
   private List<FunctionParameter> parameterList(TypeVisitor typeVisitor,
       FunctionParameterListContext ctx) {
     var params = new ArrayList<FunctionParameter>();
-    for (FunctionArgumentContext paramCtx : ctx.functionArgument()) {
-      var type = typeNode(paramCtx.type(), typeVisitor);
+    for (var paramCtx : ctx.functionParameter()) {
+      var type = typeAnnotation(paramCtx.typeAnnotation(), typeVisitor);
       var param = new FunctionParameter(id(paramCtx.ID()), type);
       params.add(param);
     }
@@ -712,6 +719,15 @@ public class Visitor {
       }
       default -> throw new IllegalStateException();
     };
+  }
+
+  private static TypeNode typeAnnotation(TypeAnnotationContext ctx, TypeVisitor visitor) {
+    return typeNode(ctx.type(), visitor);
+  }
+
+  private @Nullable TypeNode typeAnnotation(@Nullable TypeAnnotationContext ctx) {
+    if (ctx == null) return null;
+    return typeNode(ctx.type(), new TypeVisitor());
   }
 
   private static TypeNode typeNode(TypeContext ctx, TypeVisitor visitor) {
