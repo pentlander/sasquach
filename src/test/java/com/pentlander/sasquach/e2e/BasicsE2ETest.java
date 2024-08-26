@@ -1,22 +1,12 @@
 package com.pentlander.sasquach.e2e;
 
-import static com.pentlander.sasquach.Fixtures.id;
-import static com.pentlander.sasquach.Fixtures.tfunc;
-import static com.pentlander.sasquach.TestUtils.invokeFirst;
 import static com.pentlander.sasquach.TestUtils.invokeMain;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.pentlander.sasquach.BaseTest;
-import com.pentlander.sasquach.ast.expression.Value;
-import com.pentlander.sasquach.tast.expression.TBlock;
-import com.pentlander.sasquach.tast.expression.TVarReference;
-import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration;
-import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
-import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
-import com.pentlander.sasquach.type.Type;
-import java.util.List;
-import org.junit.jupiter.api.Disabled;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -85,6 +75,85 @@ public class BasicsE2ETest extends BaseTest {
         }
         """.formatted(typeName, typeName, value));
        return invokeMain(clazz);
+    }
+  }
+
+  @Nested
+  class ForeignFunctionHandleCalls extends BaseTest {
+    @Test
+    void constructor() throws Exception {
+      var clazz = compile( """
+        Main {
+          use foreign java/lang/StringBuilder,
+        
+          main = (): StringBuilder -> StringBuilder#new("hi")
+        }
+        """);
+      StringBuilder result = invokeMain(clazz);
+
+      assertThat(result.toString()).isEqualTo("hi");
+    }
+
+    @Test
+    void staticFunc_varargsNone() throws Exception {
+      var clazz = compile( """
+        Main {
+          use foreign java/nio/file/Path,
+          use foreign java/nio/file/Paths,
+        
+          main = (): Path -> Paths#get("/etc")
+        }
+        """);
+      Path result = invokeMain(clazz);
+
+
+      assertThat(result).isEqualTo(Paths.get("/etc"));
+    }
+
+    @Test
+    void staticFunc_varargsSingle() throws Exception {
+      var clazz = compile( """
+        Main {
+          use foreign java/nio/file/Path,
+          use foreign java/nio/file/Paths,
+        
+          main = (): Path -> Paths#get("/etc", "hi.txt")
+        }
+        """);
+      Path result = invokeMain(clazz);
+
+
+      assertThat(result).isEqualTo(Paths.get("/etc", "hi.txt"));
+    }
+
+    @Test
+    void staticFunc_varargsMultiple() throws Exception {
+      var clazz = compile( """
+        Main {
+          use foreign java/nio/file/Path,
+          use foreign java/nio/file/Paths,
+        
+          main = (): Path -> Paths#get("/etc", "foo", "hi.txt")
+        }
+        """);
+      Path result = invokeMain(clazz);
+
+
+      assertThat(result).isEqualTo(Paths.get("/etc",  "foo", "hi.txt"));
+    }
+
+    @Test
+    void virtualFunc() throws Exception {
+      var clazz = compile( """
+        Main {
+          use foreign java/lang/String,
+        
+          main = (): String -> String#concat("he", "llo")
+        }
+        """);
+      String result = invokeMain(clazz);
+
+      assertThat(result).isEqualTo("hello");
     }
   }
 }

@@ -66,6 +66,7 @@ import com.pentlander.sasquach.tast.expression.TConstructorCall;
 import com.pentlander.sasquach.tast.expression.TFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
+import com.pentlander.sasquach.tast.expression.TForeignFunctionCall.Varargs;
 import com.pentlander.sasquach.tast.expression.TFunction;
 import com.pentlander.sasquach.tast.expression.TIfExpression;
 import com.pentlander.sasquach.tast.expression.TLiteralStructBuilder;
@@ -290,7 +291,6 @@ public class MemberScopedTypeResolver {
           ).toList(), block.range());
       case MemberAccess fieldAccess -> resolveFieldAccess(fieldAccess);
       case ForeignFieldAccess foreignFieldAccess -> resolveForeignFieldAccess(foreignFieldAccess);
-      case ForeignFunctionCall foreignFuncCall -> resolveForeignFunctionCall(foreignFuncCall);
       case FunctionCall funcCall -> resolveFunctionCall(funcCall);
       case IfExpression ifExpr -> resolveIfExpression(ifExpr);
       case PrintStatement(var pExpr, var pRange) -> new TPrintStatement(infer(pExpr), pRange);
@@ -651,7 +651,7 @@ public class MemberScopedTypeResolver {
 
     if (fieldType != null) {
       return addError(structFuncCall,
-          new TypeMismatchError(("Field '%s' of type '%s' is not a " + "function").formatted(
+          new TypeMismatchError(("Field '%s' of type '%s' is not a function").formatted(
               name,
               fieldType.toPrettyString()), structFuncCall.functionId().range()));
     }
@@ -684,35 +684,32 @@ public class MemberScopedTypeResolver {
     var args = funcCall.arguments();
     var range = funcCall.range();
 
-    switch (funcCall) {
-      case LocalFunctionCall localFuncCall -> {
-        return switch (moduleScopedTypes.getFunctionCallType(localFuncCall)) {
-          case FuncCallType.Module() ->
-              resolveMemberFunctionCall(
-              new TThisExpr(moduleScopedTypes.getThisType(), range),
-              localFuncCall);
-          case FuncCallType.LocalVar(var localVar) -> {
-            var tLocalVar = getLocalVar(localVar).orElseThrow();
-            var funcType = TypeUtils.asFunctionType(tLocalVar.variableType()).orElseThrow();
-            var resolvedFuncType = convertUniversals(funcType, range);
-            var typedExprs = checkFuncArgs(name, args, resolvedFuncType.parameterTypes(), range);
-            yield new TBasicFunctionCall(
-                TCallTarget.localVar(tLocalVar),
-                localFuncCall.functionId().name(),
-                funcType,
-                typedExprs,
-                typeUnifier.resolve(resolvedFuncType.returnType()),
-                range);
-          }
-        };
-      }
+    return switch (funcCall) {
+      case LocalFunctionCall localFuncCall ->
+          switch (moduleScopedTypes.getFunctionCallType(localFuncCall)) {
+            case FuncCallType.Module() ->
+                resolveMemberFunctionCall(new TThisExpr(moduleScopedTypes.getThisType(), range),
+                    localFuncCall);
+            case FuncCallType.LocalVar(var localVar) -> {
+              var tLocalVar = getLocalVar(localVar).orElseThrow();
+              var funcType = TypeUtils.asFunctionType(tLocalVar.variableType()).orElseThrow();
+              var resolvedFuncType = convertUniversals(funcType, range);
+              var typedExprs = checkFuncArgs(name, args, resolvedFuncType.parameterTypes(), range);
+              yield new TBasicFunctionCall(TCallTarget.localVar(tLocalVar),
+                  localFuncCall.functionId().name(),
+                  funcType,
+                  typedExprs,
+                  typeUnifier.resolve(resolvedFuncType.returnType()),
+                  range);
+            }
+          };
       case MemberFunctionCall structFuncCall -> {
         var structExpr = structFuncCall.structExpression();
         var typedExpr = infer(structExpr);
-        return resolveMemberFunctionCall(typedExpr, structFuncCall);
+        yield resolveMemberFunctionCall(typedExpr, structFuncCall);
       }
-      case ForeignFunctionCall f -> throw new IllegalStateException(f.toString());
-    }
+      case ForeignFunctionCall foreignFuncCall -> resolveForeignFunctionCall(foreignFuncCall);
+    };
   }
 
 
@@ -727,12 +724,26 @@ public class MemberScopedTypeResolver {
     return new TForeignFieldAccess(fieldAccess.classAlias(), fieldAccess.id(), foreignFieldType);
   }
 
-  private boolean argsMatchParamTypes(List<Type> params, List<Type> args) {
-    if (params.size() != args.size()) {
+  private boolean argsMatchParamTypes(List<Type> params, List<Type> args, boolean isVarArgs) {
+    var numParams = params.size();
+    var numArgs = args.size();
+    // If it's varargs, it doesn't matter if they're not equal
+    if (!isVarArgs && numArgs != numParams) {
+      return false;
+    } else if (isVarArgs && numArgs < numParams - 1) {
       return false;
     }
-    for (int i = 0; i < args.size(); i++) {
-      if (!params.get(i).isAssignableFrom(args.get(i))) {
+
+    for (int i = 0; i < numArgs; i++) {
+      Type paramType;
+      if (isVarArgs && i >= params.size() - 1) {
+        var arrType = (ArrayType) params.getLast();
+        paramType = arrType.elementType();
+      } else {
+        paramType = params.get(i);
+      }
+
+      if (!paramType.isAssignableFrom(args.get(i))) {
         return false;
       }
     }
@@ -806,11 +817,15 @@ public class MemberScopedTypeResolver {
       var executable = foreignFuncHandle.executable();
       var typeParams = executableTypeParams(executable);
       var paramTypes = executableParamTypes(executable, typeParams);
-      if (argsMatchParamTypes(paramTypes, argTypes)) {
+      var isVarArgs = executable.isVarArgs();
+      if (argsMatchParamTypes(paramTypes, argTypes, isVarArgs)) {
+        // Need to alter the parameter types to omit or repeat the vararg parm type. Then in code
+        // generations the extra args need to be collected into an array before passing to the func
+        // (I think? Maybe it'll just work)
         var returnType = javaTypeToType(executable.getAnnotatedReturnType().getType(), typeParams);
         var typedExprs = checkFuncArgs(funcCall.name(),
             funcCall.arguments(),
-            paramTypes,
+            argTypes,
             funcCall.range());
         var resolvedReturnType = typeUnifier.resolve(returnType);
         var castType = returnType instanceof TypeVariable ? resolvedReturnType : null;
@@ -818,10 +833,19 @@ public class MemberScopedTypeResolver {
         var foreignFuncType = new ForeignFunctionType(
             foreignFuncHandle.methodHandleDesc(),
             castType);
-        return new TForeignFunctionCall(funcCall.classAlias(),
+
+        Varargs varargs = Varargs.none();
+        if (isVarArgs) {
+          var varargsIdx = paramTypes.size() - 1;
+          var varargsType = (ArrayType) paramTypes.get(varargsIdx);
+          varargs = Varargs.some(varargsType, varargsIdx);
+        }
+        return new TForeignFunctionCall(
+            funcCall.classAlias(),
             funcCall.functionId().name(),
             foreignFuncType,
             typedExprs,
+            varargs,
             resolvedReturnType,
             funcCall.range());
       }

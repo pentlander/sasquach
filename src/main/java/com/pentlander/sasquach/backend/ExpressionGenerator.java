@@ -27,6 +27,7 @@ import com.pentlander.sasquach.tast.expression.TConstructorCall;
 import com.pentlander.sasquach.tast.expression.TFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
+import com.pentlander.sasquach.tast.expression.TForeignFunctionCall.Varargs;
 import com.pentlander.sasquach.tast.expression.TFunction;
 import com.pentlander.sasquach.tast.expression.TFunctionCall;
 import com.pentlander.sasquach.tast.expression.TIfExpression;
@@ -447,7 +448,32 @@ final class ExpressionGenerator {
         if (foreignFuncType.isConstructor()) {
           generateNewDup(foreignFuncType.ownerDesc());
         }
-        foreignFuncCall.arguments().forEach(this::generate);
+
+        if (foreignFuncCall.varargs() instanceof Varargs.Some(var arrayType, int varargsIdx)
+            && args.size() >= varargsIdx) {
+          for (int i = 0; i < varargsIdx; i++) {
+            generate(args.get(i));
+          }
+
+          // Load array size
+          cob.ldc(args.size() - varargsIdx);
+
+          var elementClassDesc = arrayType.elementType().classDesc();
+          var typeKind = TypeKind.from(elementClassDesc);
+          if (typeKind == TypeKind.ReferenceType) {
+            cob.anewarray(elementClassDesc);
+          } else {
+            cob.newarray(typeKind);
+          }
+          var arrIdx = 0;
+          for (int i = varargsIdx; i < args.size(); i++) {
+            cob.dup().ldc(arrIdx++);
+            generate(args.get(i));
+            cob.arrayStoreInstruction(typeKind);
+          }
+        } else {
+          args.forEach(this::generate);
+        }
 
         generate(foreignFuncType.methodHandleDesc());
         var castType = foreignFuncType.castType();
