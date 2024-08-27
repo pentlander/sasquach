@@ -11,31 +11,6 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class EndToEndTest extends BaseTest {
-
-  @Test
-  void addition() throws Exception {
-    var clazz = compile( """
-        Main {
-          plus = (): Int -> 3 + 4
-        }
-        """);
-    int sum = invokeName(clazz, "plus");
-
-    assertThat(sum).isEqualTo(7);
-  }
-
-  @Test
-  void booleanExpr() throws Exception {
-    var clazz = compile( """
-        Main {
-          foo = (): Boolean -> false && true || true
-        }
-        """);
-    boolean bool = invokeName(clazz, "foo");
-
-    assertThat(bool).isEqualTo(true);
-  }
-
   @Test
   void tuple() throws Exception {
     var clazz = compile( """

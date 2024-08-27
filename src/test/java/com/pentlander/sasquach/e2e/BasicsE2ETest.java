@@ -4,6 +4,7 @@ import static com.pentlander.sasquach.TestUtils.invokeMain;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.pentlander.sasquach.BaseTest;
+import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.type.BuiltinType;
 import java.io.PrintStream;
 import java.nio.file.Path;
@@ -175,9 +176,9 @@ public class BasicsE2ETest extends BaseTest {
           }
         }
         """);
-      int ps = invokeMain(clazz);
+      int result = invokeMain(clazz);
 
-      assertThat(ps).isEqualTo(11);
+      assertThat(result).isEqualTo(11);
     }
 
     @Test
@@ -201,5 +202,155 @@ public class BasicsE2ETest extends BaseTest {
         this.i = i;
       }
     }
+  }
+
+  @Test
+  void functionCall() throws Exception {
+    var clazz = compile( """
+        Main {
+          foo = (): Int -> 5,
+        
+          main = (): Int -> foo()
+        }
+        """);
+    int result = invokeMain(clazz);
+
+    assertThat(result).isEqualTo(5);
+  }
+
+  @Test
+  void structLiteralFields() throws Exception {
+    var clazz = compile( """
+        Main {
+          main = (): { boolField: Boolean, intField: Int, strField: String, dblField: Double} -> {
+            boolField = true,
+            intField = 3,
+            strField = "hi",
+            dblField = 5.0
+          }
+        }
+        """);
+    Object result = invokeMain(clazz);
+
+    assertThat(result).hasFieldOrPropertyWithValue("boolField", true)
+        .hasFieldOrPropertyWithValue("intField", 3)
+        .hasFieldOrPropertyWithValue("strField", "hi")
+        .hasFieldOrPropertyWithValue("dblField", 5.0D);
+  }
+
+  @Test
+  void structLiteralFunctions() throws Exception {
+    var clazz = compile( """
+        Main {
+          main = (): String ->
+            { func = (): String -> "hi" }.func()
+        }
+        """);
+    String result = invokeMain(clazz);
+
+    assertThat(result).isEqualTo("hi");
+  }
+
+  @ParameterizedTest
+  @CsvSource({"true, 10", "false, 5"})
+  void ifExpression(boolean bool, int actualResult) throws Exception {
+    var clazz = compile( """
+        Main {
+          main = (): Int -> if (%s) 10 else 5
+        }
+        """.formatted(bool));
+    int result = invokeMain(clazz);
+
+    assertThat(result).isEqualTo(actualResult);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"true, false", "false, true"})
+  void notExpression(boolean left, boolean right) throws Exception {
+    var clazz = compile( """
+        Main {
+          main = (): Boolean -> !%s
+        }
+        """.formatted(left));
+    boolean result = invokeMain(clazz);
+
+    assertThat(result).isEqualTo(right);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"true, &&, true", "false, ||, true", "true, ||, false"})
+  void booleanExpressionTrue(boolean left, String operator, boolean right) throws Exception {
+    var clazz = compile( """
+        Main {
+          main = (): Boolean -> %s %s %s
+        }
+        """.formatted(left, operator, right));
+    boolean result = invokeMain(clazz);
+
+    assertThat(result).isTrue();
+  }
+
+  @ParameterizedTest
+  @CsvSource({"false, &&, true", "true, &&, false", "false, ||, false"})
+  void booleanExpressionFalse(boolean left, String operator, boolean right) throws Exception {
+    var clazz = compile( """
+        Main {
+          main = (): Boolean -> %s %s %s
+        }
+        """.formatted(left, operator, right));
+    boolean result = invokeMain(clazz);
+
+    assertThat(result).isFalse();
+  }
+
+  @Test
+  void complexBooleanExpression() throws Exception {
+    var clazz = compile( """
+        Main {
+          main = (): Boolean -> true && false || true
+        }
+        """);
+    boolean result = invokeMain(clazz);
+
+    assertThat(result).isTrue();
+  }
+
+  @ParameterizedTest
+  @CsvSource({"==, false", "!=, true", ">=, true", "<=, false", "<, false", ">, true"})
+  void intCompareOperatorNotEquals(String compareOp, boolean actualResult) throws Exception {
+    var clazz = compile( """
+        Main {
+          main = (): Boolean -> 6 %s 3
+        }
+        """.formatted(compareOp));
+    boolean result = invokeMain(clazz);
+
+    assertThat(result).isEqualTo(actualResult);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"==, true", "!=, false", ">=, true", "<=, true", "<, false", ">, false"})
+  void intCompareOperatorEquals(String compareOp, boolean actualResult) throws Exception {
+    var clazz = compile( """
+        Main {
+          main = (): Boolean -> 3 %s 3
+        }
+        """.formatted(compareOp));
+    boolean result = invokeMain(clazz);
+
+    assertThat(result).isEqualTo(actualResult);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"+, 9", "-, 3", "*, 18", "/, 2"})
+  void intMathOperator(String mathOp, int actualResult) throws Exception {
+    var clazz = compile( """
+        Main {
+          main = (): Int -> 6 %s 3
+        }
+        """.formatted(mathOp));
+    int result = invokeMain(clazz);
+
+    assertThat(result).isEqualTo(actualResult);
   }
 }
