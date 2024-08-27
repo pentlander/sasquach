@@ -823,9 +823,10 @@ public class MemberScopedTypeResolver {
         // generations the extra args need to be collected into an array before passing to the func
         // (I think? Maybe it'll just work)
         var returnType = javaTypeToType(executable.getAnnotatedReturnType().getType(), typeParams);
+        var checkParamTypes = isVarArgs ? argTypes : paramTypes;
         var typedExprs = checkFuncArgs(funcCall.name(),
             funcCall.arguments(),
-            argTypes,
+            checkParamTypes,
             funcCall.range());
         var resolvedReturnType = typeUnifier.resolve(returnType);
         var castType = returnType instanceof TypeVariable ? resolvedReturnType : null;

@@ -162,8 +162,8 @@ public class Fixtures {
             .orElseThrow(), m)).toList());
   }
 
-  public static ForeignFunctions foreignMethods(Class<?> clazz) {
-    return foreignMethods(clazz, _ -> true);
+  public static ForeignFunctions foreignMethods(Class<?> clazz, String name) {
+    return foreignMethods(clazz, method -> method.getName().equals(name));
   }
 
   public static ForeignFunctions foreignConstructors(Class<?> clazz) {

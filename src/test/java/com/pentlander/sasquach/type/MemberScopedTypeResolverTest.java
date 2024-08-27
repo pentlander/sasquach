@@ -179,11 +179,10 @@ class MemberScopedTypeResolverTest {
 
     @Test
     void staticFunc() {
-      when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class));
+      when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class, "get"));
       var call = new ForeignFunctionCall(typeId("Paths"),
           id("get"),
-          List.of(stringValue("foo.txt"),
-              ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())),
+          List.of(stringValue("foo.txt")),
           range());
 
       var type = resolveExpr(call);
