@@ -34,6 +34,8 @@ public abstract class BaseTest {
   @SuppressWarnings("unused")
   private String testName;
 
+  protected SasquachClassloader cl = new SasquachClassloader();
+
   /** Returns the class {@code main.Main} */
   protected final Class<?> compile(String source) throws ClassNotFoundException, CompilationException {
     return compileMain(source, NONE);
@@ -64,7 +66,6 @@ public abstract class BaseTest {
       throw new RuntimeException(e);
     }
 
-    var cl = new SasquachClassloader();
     if (hasOpt(options, DUMP_CLASSES)) {
       var path = Path.of(Files.temporaryFolderPath(), testName.replaceAll("[()]", ""));
       TestUtils.dumpGeneratedClasses(path, bytecode.generatedBytecode());

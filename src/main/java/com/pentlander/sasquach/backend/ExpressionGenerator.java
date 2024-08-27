@@ -52,6 +52,7 @@ import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
 import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
+import com.pentlander.sasquach.type.FieldAccessKind;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeUtils;
 import com.pentlander.sasquach.type.TypeVariable;
@@ -303,16 +304,15 @@ final class ExpressionGenerator {
         generateFieldAccess(fieldAccess.fieldName(), structType.fieldType(fieldAccess.fieldName()));
       }
       case TBlock block -> generateBlock(block);
-      case TForeignFieldAccess fieldAccess -> {
-        var fieldType = fieldAccess.type();
-        var opCode = switch (fieldType.accessKind()) {
-          case INSTANCE -> Opcode.GETFIELD;
-          case STATIC -> Opcode.GETSTATIC;
+      case TForeignFieldAccess(_, var id, var ownerType, var fieldType, var accessKind) -> {
+        var opCode = switch (accessKind) {
+          case FieldAccessKind.INSTANCE -> Opcode.GETFIELD;
+          case FieldAccessKind.STATIC -> Opcode.GETSTATIC;
         };
         cob.fieldInstruction(
             opCode,
-            fieldType.ownerType().classDesc(),
-            fieldAccess.fieldName().toString(),
+            ownerType.classDesc(),
+            id.name().toString(),
             fieldType.classDesc());
       }
       case TFunctionCall functionCall -> generateFunctionCall(functionCall);

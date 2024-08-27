@@ -62,8 +62,6 @@ public record ClassType(Class<?> typeClass, List<Type> typeArguments) implements
         }
       }
       return true;
-    } else if (other instanceof ForeignFieldType foreignFieldType) {
-      return isAssignableFrom(foreignFieldType.type());
     } else if (typeClass.equals(Object.class)) {
       if (other instanceof BuiltinType builtinType) {
         return builtinType == BuiltinType.STRING;

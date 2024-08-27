@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.pentlander.sasquach.BaseTest;
 import com.pentlander.sasquach.type.BuiltinType;
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -154,6 +156,50 @@ public class BasicsE2ETest extends BaseTest {
       String result = invokeMain(clazz);
 
       assertThat(result).isEqualTo("hello");
+    }
+  }
+
+  @Nested
+  class ForeignMemberAccessTest extends BaseTest {
+    @Test @Disabled("Is broken and hasn't been needed yet")
+    void field() throws Exception {
+      cl.linkClass(IntBox.class);
+
+      var clazz = compile( """
+        Main {
+          use foreign com/pentlander/sasquach/e2e/BasicsE2ETest$ForeignMemberAccessTest$IntBox,
+        
+          main = (): Int -> {
+            let box = IntBox#new(11)
+            box#i
+          }
+        }
+        """);
+      int ps = invokeMain(clazz);
+
+      assertThat(ps).isEqualTo(11);
+    }
+
+    @Test
+    void staticField() throws Exception {
+      var clazz = compile( """
+        Main {
+          use foreign java/io/PrintStream,
+          use foreign java/lang/System,
+        
+          main = (): PrintStream -> System#out
+        }
+        """);
+      PrintStream ps = invokeMain(clazz);
+
+      assertThat(ps).isEqualTo(System.out);
+    }
+    public static class IntBox {
+      public final int i;
+
+      public IntBox(int i) {
+        this.i = i;
+      }
     }
   }
 }

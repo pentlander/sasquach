@@ -718,10 +718,12 @@ public class MemberScopedTypeResolver {
     var classType = new ClassType(field.getDeclaringClass());
     var accessKind =
         Modifier.isStatic(field.getModifiers()) ? FieldAccessKind.STATIC : FieldAccessKind.INSTANCE;
-    var foreignFieldType = new ForeignFieldType(builtinOrClassType(field.getType(), List.of()),
+    return new TForeignFieldAccess(
+        fieldAccess.classAlias(),
+        fieldAccess.id(),
         classType,
+        builtinOrClassType(field.getType(), List.of()),
         accessKind);
-    return new TForeignFieldAccess(fieldAccess.classAlias(), fieldAccess.id(), foreignFieldType);
   }
 
   private boolean argsMatchParamTypes(List<Type> params, List<Type> args, boolean isVarArgs) {

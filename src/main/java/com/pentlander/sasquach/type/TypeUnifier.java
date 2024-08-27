@@ -71,14 +71,10 @@ public class TypeUnifier {
   public void unify(Type destType, Type sourceType) {
     if (destType instanceof ResolvedNamedType resolvedNamedType) {
       destType = resolvedNamedType.type();
-    } else if (destType instanceof ForeignFieldType foreignFieldType) {
-      destType = foreignFieldType.type();
     }
 
     if (sourceType instanceof ResolvedNamedType resolvedNamedType) {
       sourceType = resolvedNamedType.type();
-    } else if (sourceType instanceof ForeignFieldType foreignFieldType) {
-      sourceType = foreignFieldType.type();
     }
 
     if (destType instanceof TypeNester destParamType) {

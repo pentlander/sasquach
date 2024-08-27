@@ -14,6 +14,10 @@ public class SasquachClassloader extends ClassLoader {
     return defineClass(name, bytecode, 0, bytecode.length);
   }
 
+  public void linkClass(Class<?> clazz) {
+    resolveClass(clazz);
+  }
+
   public Class<?> loadModule(QualifiedModuleName moduleName) throws ClassNotFoundException {
     return loadClass(moduleName.javaName());
   }

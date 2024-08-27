@@ -9,11 +9,9 @@ import static com.pentlander.sasquach.Fixtures.boolValue;
 import static com.pentlander.sasquach.Fixtures.id;
 import static com.pentlander.sasquach.Fixtures.intValue;
 import static com.pentlander.sasquach.Fixtures.name;
-import static com.pentlander.sasquach.Fixtures.qualId;
 import static com.pentlander.sasquach.Fixtures.range;
 import static com.pentlander.sasquach.Fixtures.stringValue;
 import static com.pentlander.sasquach.Fixtures.tfunc;
-import static com.pentlander.sasquach.Fixtures.typeId;
 import static com.pentlander.sasquach.TestUtils.invokeFirst;
 import static com.pentlander.sasquach.Util.seqMap;
 import static com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator.AND;
@@ -25,19 +23,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.Use;
-import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.backend.BytecodeGenerator;
 import com.pentlander.sasquach.tast.TCompilationUnit;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TNamedFunction;
-import com.pentlander.sasquach.tast.expression.TArrayValue;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TBooleanExpression;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TCompareExpression;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TMathExpression;
-import com.pentlander.sasquach.tast.expression.TBlock;
-import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
-import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
 import com.pentlander.sasquach.tast.expression.TIfExpression;
 import com.pentlander.sasquach.tast.expression.TLiteralStructBuilder;
 import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TCallTarget;
@@ -47,27 +40,13 @@ import com.pentlander.sasquach.tast.expression.TModuleStructBuilder;
 import com.pentlander.sasquach.tast.expression.TNot;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
 import com.pentlander.sasquach.tast.expression.TVarReference;
-import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Local;
-import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
-import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
-import com.pentlander.sasquach.type.ClassType;
-import com.pentlander.sasquach.type.FieldAccessKind;
-import com.pentlander.sasquach.type.ForeignFieldType;
-import com.pentlander.sasquach.type.ForeignFunctionType;
 import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
-import java.io.PrintStream;
-import java.lang.constant.DirectMethodHandleDesc;
-import java.lang.invoke.MethodHandles;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
-import jdk.dynalink.linker.support.Lookup;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -80,24 +59,6 @@ class BytecodeGeneratorTest {
   @BeforeEach
   void setUp() {
     cl = new SasquachClassloader();
-  }
-
-  @Nested
-  class ForeignMemberAccessTest {
-    @Test
-    void staticField() throws Exception {
-      var use = new Use.Foreign(qualId("java/lang/System"), id("System"), NR);
-      var type = new ForeignFieldType(new ClassType(PrintStream.class),
-          new ClassType(System.class),
-          FieldAccessKind.STATIC);
-      var fieldAccess = new TForeignFieldAccess(typeId("System"), id("out"), type);
-      var func = tfunc("foo", List.of(), new ClassType(PrintStream.class), fieldAccess);
-
-      var clazz = genClass(compUnit(use, func));
-      PrintStream ps = invokeFirst(clazz);
-
-      assertThat(ps).isEqualTo(System.out);
-    }
   }
 
   @Test
