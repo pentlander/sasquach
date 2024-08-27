@@ -6,11 +6,13 @@ import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.tast.expression.TLocalVariable;
 import com.pentlander.sasquach.type.Type;
+import com.pentlander.sasquach.type.TypeVariable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Function parameter captureName with a type.
  */
-public record FunctionParameter(Id id, TypeNode typeNode) implements LocalVariable,
+public record FunctionParameter(Id id, @Nullable TypeNode typeNode) implements LocalVariable,
     TLocalVariable {
   /**
    * Name of the parameter variable.
@@ -23,12 +25,12 @@ public record FunctionParameter(Id id, TypeNode typeNode) implements LocalVariab
    * Type of the parameter.
    */
   public Type type() {
-    return typeNode.type();
+    return typeNode != null ? typeNode.type() : new TypeVariable(id.name().toString(), 0);
   }
 
   @Override
   public Range range() {
-    return id.range().join(typeNode.range());
+    return typeNode != null ? id.range().join(typeNode.range()) : id.range();
   }
 
   @Override

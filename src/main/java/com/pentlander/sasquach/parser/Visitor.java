@@ -722,6 +722,7 @@ public class Visitor {
   }
 
   private static TypeNode typeAnnotation(TypeAnnotationContext ctx, TypeVisitor visitor) {
+    if (ctx == null) return null;
     return typeNode(ctx.type(), visitor);
   }
 

@@ -55,11 +55,16 @@ public class NamedTypeResolver {
         newTypeArgs.putAll(MemberScopedTypeResolver.typeParams(typeParameters,
             param -> param.toUniversal(0)));
         var resolvedParameters = parameters.stream()
-            .map(p -> new FunctionParameter(p.id(), resolveTypeNode(p.typeNode(), newTypeArgs)))
+            .map(p -> {
+              var paramTypeNode =
+                  p.typeNode() != null ? resolveTypeNode(p.typeNode(), newTypeArgs) : null;
+              return new FunctionParameter(p.id(), paramTypeNode);
+            })
             .toList();
+        var returnTypeNode = returnType != null ? resolveTypeNode(returnType, newTypeArgs) : null;
         yield new FunctionSignature(resolvedParameters,
             typeParameters,
-            resolveTypeNode(returnType, newTypeArgs),
+            returnTypeNode,
             range);
       }
       case StructTypeNode(var name, var fieldTypeNodes, var rowModifier, var range) -> {

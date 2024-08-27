@@ -14,9 +14,9 @@ function : functionDeclaration expression ;
 typeParameterList : ('[' typeIdentifier (',' typeIdentifier)* ']') ;
 functionDeclaration :
     typeParameterList?
-    functionParameterList typeAnnotation '->' NL* ;
+    functionParameterList typeAnnotation? '->' NL* ;
 functionName : ID ;
-functionParameter : ID typeAnnotation ;
+functionParameter : ID typeAnnotation? ;
 functionParameterList : '(' (functionParameter)? (',' functionParameter)* ')' ;
 
 type : classType | structType | localNamedType | functionType | moduleNamedType | tupleType ;

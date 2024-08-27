@@ -59,11 +59,16 @@ public class TypeNameResolver {
         var typeParams = Util.concat(contextTypeParams, functionSignature.typeParameters());
         var resolver = new TypeNameResolver(typeParams, moduleScopedNameResolver);
         functionSignature.parameters().forEach(param -> {
-          var result = resolver.resolveTypeNode(param.typeNode());
-          mergeResult(result);
+          if (param.typeNode() != null) {
+            var result = resolver.resolveTypeNode(param.typeNode());
+            mergeResult(result);
+          }
         });
-        var result = resolver.resolveTypeNode(functionSignature.returnTypeNode());
-        mergeResult(result);
+
+        if (functionSignature.returnTypeNode() != null) {
+          var result = resolver.resolveTypeNode(functionSignature.returnTypeNode());
+          mergeResult(result);
+        }
       }
       case TypeAlias typeAlias -> {
         var typeParams = Util.concat(contextTypeParams, typeAlias.typeParameters());

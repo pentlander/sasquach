@@ -12,6 +12,34 @@ import org.junit.jupiter.api.Test;
 
 public class EndToEndTest extends BaseTest {
   @Test
+  void missingParamType() throws Exception {
+    // Figure out why the local named type isn't being replaced
+    var ex = assertThrows(CompilationException.class, () ->
+        compile("""
+            Main {
+              missingTypes = (str): String -> "foo",
+              
+              main = (): String -> missingTypes("something"),
+            }
+            """));
+    assertThat(ex).hasMessageContaining("Type annotation required for function parameter");
+  }
+
+  @Test
+  void missingReturnType() throws Exception {
+    // Figure out why the local named type isn't being replaced
+    var ex = assertThrows(CompilationException.class, () ->
+        compile("""
+            Main {
+              missingTypes = (str: String) -> "foo",
+              
+              main = (): String -> missingTypes("something"),
+            }
+            """));
+    assertThat(ex).hasMessageContaining("Type annotation required for function return");
+  }
+
+  @Test
   void tuple() throws Exception {
     var clazz = compile( """
         Main {
@@ -52,6 +80,21 @@ public class EndToEndTest extends BaseTest {
         Main {
           plus = (): Int -> {
             let add = (a: Int, b: Int): Int -> a + b
+            add(1, 4)
+          }
+        }
+        """);
+    int sum = invokeName(clazz, "plus");
+
+    assertThat(sum).isEqualTo(5);
+  }
+
+  @Test
+  void higherOrderFunc_noTypeSig() throws Exception {
+    var clazz = compile( """
+        Main {
+          plus = (): Int -> {
+            let add = (a, b) -> a + b
             add(1, 4)
           }
         }

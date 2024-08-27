@@ -21,10 +21,6 @@ public record NamedFunction(Id id, Function function) implements Node {
     return function.functionSignature();
   }
 
-  public Type returnType() {
-    return functionSignature().returnType();
-  }
-
   public List<FunctionParameter> parameters() {
     return function.parameters();
   }

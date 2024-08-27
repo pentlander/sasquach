@@ -5,8 +5,12 @@ import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 
+import com.pentlander.sasquach.AbstractRangedError;
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
+import com.pentlander.sasquach.RangedErrorList.Builder;
+import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
@@ -26,7 +30,7 @@ import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaratio
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Module;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Singleton;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStructConstructor;
-import com.pentlander.sasquach.name.NameResolutionData.NamedStructId;
+import com.pentlander.sasquach.name.NameResolutionData.NamedStructId.Variant;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TNamedFunction;
@@ -40,8 +44,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 
 public class ModuleScopedTypeResolver {
   private final NameResolutionResult nameResolutionResult;
@@ -51,11 +55,9 @@ public class ModuleScopedTypeResolver {
 
   private final List<NamedFunction> nameResolvedFunctions = new ArrayList<>();
   private final TModuleStructBuilder typedStructBuilder = TModuleStructBuilder.builder();
-  private final Map<TypeId, FunctionType> variantConstructorTypes = new HashMap<>();
 
   private final Map<TypeId, Type> namedTypeIdToType = new HashMap<>();
-  private final Map<Id, FunctionType> funcIdToType = new HashMap<>();
-  private final RangedErrorList.Builder errors = RangedErrorList.builder();
+  private final Builder errors = RangedErrorList.builder();
 
   private StructType thisStructType;
 
@@ -84,36 +86,33 @@ public class ModuleScopedTypeResolver {
           namedTypeIdToType.put(variantTypeNode.id(), variantTypeNode.type());
 
           switch (variantTypeNode) {
-            case VariantTypeNode.Tuple tuple -> {
-              var paramTypes = tuple.type().sortedFieldTypes();
-              var variantConstructorType = new FunctionType(paramTypes,
-                  sumType.typeParameters(),
-                  sumType);
-              var typeId = tuple.id();
-              variantConstructorTypes.put(typeId, variantConstructorType);
-//              fieldTypes.put(typeId.toId().name(), variantConstructorType);
-            }
             case VariantTypeNode.Singleton singleton -> {
               var id = singleton.id().toId();
               typedFields.add(new TField(id,
                   new TVarReference(id, new RefDeclaration.Singleton(singleton.type()), sumType)));
-//              fieldTypes.put(id.name(), sumType);
             }
-            case VariantTypeNode.Struct strct -> {
-              // TODO need to somehow replace the SumType in NameResolutionResult's namedStructTypes
-              // with the named resolved one here
-            }
+            default -> {}
           }
         }
       }
     });
     struct.functions().forEach(func -> {
-      var funcSig = resolveFuncSignatureType(func.functionSignature());
-      var type = funcSig.type();
+      // TODO Need to validate the the function signature has type annotations
+      var funcSig = func.functionSignature();
+      funcSig.parameters().forEach(param -> {
+        if (param.typeNode() == null) {
+          errors.add(new TypeAnnotationRequiredError("parameter", param.range()));
+        }
+      });
+      if (funcSig.returnTypeNode() == null) {
+        errors.add(new TypeAnnotationRequiredError("return", funcSig.range()));
+      }
+
+      var resolvedFuncSig = resolveFuncSignatureType(funcSig);
+      var type = resolvedFuncSig.type();
       fieldTypes.put(func.name(), type);
-      funcIdToType.put(func.id(), type);
       nameResolvedFunctions.add(new NamedFunction(func.id(),
-          new Function(funcSig, func.expression())));
+          new Function(resolvedFuncSig, func.expression())));
     });
 
     var modScopedTypes = new ResolverModuleScopedTypes();
@@ -176,7 +175,7 @@ public class ModuleScopedTypeResolver {
   public class ResolverModuleScopedTypes implements ModuleScopedTypes {
     @Override
     public StructType getThisType() {
-      return Objects.requireNonNull(thisStructType);
+      return requireNonNull(thisStructType);
     }
 
     @Override
@@ -207,7 +206,7 @@ public class ModuleScopedTypeResolver {
       var namedStructType = nameResolutionResult.getNamedStructType(namedStruct);
 
       switch (namedStructType) {
-        case NamedStructId.Variant(var sumTypeId, var variantId) -> {
+        case Variant(var sumTypeId, var variantId) -> {
           var sumType = (SumType) requireNonNull(namedTypeIdToType.get(sumTypeId));
 
           Integer variantIdx = null;
@@ -222,6 +221,22 @@ public class ModuleScopedTypeResolver {
           return new SumWithVariantIdx(sumType, requireNonNull(variantIdx));
         }
       }
+    }
+  }
+
+  static class TypeAnnotationRequiredError extends AbstractRangedError {
+    public TypeAnnotationRequiredError(
+        String nodeKind, Range range
+    ) {
+      super("Type annotation required for function " + nodeKind, range, null);
+    }
+
+    @Override
+    public String toPrettyString(Source source) {
+      return """
+          %s
+          %s
+          """.formatted(getMessage(), source.highlight(range));
     }
   }
 }
