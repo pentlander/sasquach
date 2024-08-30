@@ -5,6 +5,7 @@ import static com.pentlander.sasquach.backend.ClassGenerator.CD_STRUCT_BASE;
 import static com.pentlander.sasquach.backend.GeneratorUtil.internalClassDesc;
 import static com.pentlander.sasquach.type.TypeUtils.asStructType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
+import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.Value;
@@ -20,6 +21,7 @@ import com.pentlander.sasquach.tast.TPattern;
 import com.pentlander.sasquach.tast.TypedNode;
 import com.pentlander.sasquach.tast.expression.TApplyOperator;
 import com.pentlander.sasquach.tast.expression.TArrayValue;
+import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TArgs;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TBooleanExpression;
 import com.pentlander.sasquach.tast.expression.TBlock;
@@ -53,6 +55,7 @@ import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.FieldAccessKind;
+import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeUtils;
 import com.pentlander.sasquach.type.TypeVariable;
@@ -498,7 +501,7 @@ final class ExpressionGenerator {
           }
         }
 
-        generateArgs(args, funcType.parameterTypes());
+        generateArgs(structFuncCall.typedArgs(), funcType.parameters());
         var funcTypeDesc = funcType.functionTypeDesc().insertParameterTypes(0, classDesc(Func.class), ConstantDescs.CD_Object);
         cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
             StructDispatch.MHD_BOOTSTRAP_MEMBER,
@@ -552,6 +555,31 @@ final class ExpressionGenerator {
       var expr = arguments.get(i);
       generate(expr);
       tryBox(type(expr), paramTypes.get(i));
+    }
+  }
+
+  private void generateArgs(TArgs typedArgs, List<FunctionType.Param> params) {
+    Integer argStartIdx = null;
+    var args = typedArgs.args();
+    for (var expr : args) {
+      // Generate the expression
+      generate(expr);
+
+      int idx = localVarMeta.pushHidden();
+      if (argStartIdx == null) {
+        argStartIdx = idx;
+      }
+      generateStoreVar(cob, type(expr), idx);
+    }
+
+    var argIndexes = typedArgs.argIndexes();
+    for (int i = 0; i < argIndexes.length; i++) {
+      var argIndex = argIndexes[i];
+      var argType = type(args.get(argIndex));
+      var param = params.get(i);
+
+      generateLoadVar(cob, argType, requireNonNull(argStartIdx) + argIndex);
+      tryBox(argType, param.type());
     }
   }
 

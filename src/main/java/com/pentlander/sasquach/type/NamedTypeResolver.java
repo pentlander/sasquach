@@ -58,7 +58,7 @@ public class NamedTypeResolver {
             .map(p -> {
               var paramTypeNode =
                   p.typeNode() != null ? resolveTypeNode(p.typeNode(), newTypeArgs) : null;
-              return new FunctionParameter(p.id(), paramTypeNode);
+              return new FunctionParameter(p.id(), p.label(), paramTypeNode, p.defaultExpr());
             })
             .toList();
         var returnTypeNode = returnType != null ? resolveTypeNode(returnType, newTypeArgs) : null;
@@ -197,7 +197,12 @@ public class NamedTypeResolver {
           });
       case FunctionType funcType -> {
         var newTypeArgs = new HashMap<>(typeArgs);
-        yield new FunctionType(resolveNamedTypes(funcType.parameterTypes(), newTypeArgs, range),
+        var params = funcType.parameters()
+            .stream()
+            .map(param -> param.mapType(type -> resolveNames(type, newTypeArgs, range)))
+            .toList();
+        yield new FunctionType(
+            params,
             funcType.typeParameters(),
             resolveNames(funcType.returnType(), newTypeArgs, range));
       }

@@ -43,11 +43,12 @@ public class CompilationUnitParser {
     public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line,
         int charPositionInLine, String msg, RecognitionException e) {
       var token = (CommonToken) offendingSymbol;
+      var range = new Single(source.path(),
+          new Position(line, charPositionInLine + 1),
+          token.getText().length());
       System.err.println(msg);
-      System.err.println(source.highlight(new Single(source.path(), new Position(line,
-          charPositionInLine + 1),
-          token.getText().length())));
-      compileErrors.add(new BasicError(msg));
+      System.err.println(source.highlight(range));
+      compileErrors.add(new BasicError(msg, range));
     }
 
     public List<BasicError> getCompileErrors() {

@@ -1,7 +1,9 @@
 package com.pentlander.sasquach;
 
+import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.ast.expression.FunctionCall;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.Expression;
@@ -12,6 +14,7 @@ import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -57,22 +60,37 @@ public class AstValidator {
 
   private List<Error> validateExpression(Expression expression) {
     var errors = new ArrayList<Error>();
-    if (expression instanceof Block block) {
-      errors.addAll(validateBlock(block));
-    } else if (expression instanceof Loop loop) {
-      var expr = loop.expression();
-      if (expr instanceof Block block) {
-        expr = block.returnExpression();
-      }
-
-      if (expr instanceof IfExpression ifExpr) {
-        var hasRecur =
-            ifExpr.trueExpression() instanceof Recur || ifExpr.falseExpression() instanceof Recur;
-        if (!hasRecur) {
-          errors.add(new BasicError("Loop must contain a recur"));
+    switch (expression) {
+      case Block block -> errors.addAll(validateBlock(block));
+      case Loop loop -> {
+        var expr = loop.expression();
+        if (expr instanceof Block block) {
+          expr = block.returnExpression();
         }
-      } else {
-        errors.add(new BasicError("Loop must end in an if expression"));
+
+        if (expr instanceof IfExpression ifExpr) {
+          var hasRecur =
+              ifExpr.trueExpression() instanceof Recur || ifExpr.falseExpression() instanceof Recur;
+          if (!hasRecur) {
+            errors.add(new BasicError("Loop must contain a recur", loop.range()));
+          }
+        } else {
+          errors.add(new BasicError("Loop must end in an if expression", loop.range()));
+        }
+      }
+      case FunctionCall funcCall -> {
+        boolean hasSeenLabel = false;
+        for (var argument : funcCall.arguments()) {
+          if (argument.label() != null) hasSeenLabel = true;
+
+          if (hasSeenLabel && argument.label() == null) {
+            errors.add(new BasicError(
+                "Positional args must come before labeled args",
+                argument.range()));
+          }
+        }
+      }
+      case null, default -> {
       }
     }
 
@@ -108,16 +126,36 @@ public class AstValidator {
 
   private List<Error> validateFunctionParameters(UnqualifiedName funcName,
       List<FunctionParameter> funcParameters) {
-    var paramNames = funcParameters.stream()
-        .collect(Collectors.groupingBy(FunctionParameter::name));
     var errors = new ArrayList<Error>();
-    paramNames.forEach((name, params) -> {
-      if (params.size() > 1) {
-        errors.add(new DuplicationError(
-            "Parameter '%s' already defined in function '%s'".formatted(name, funcName),
-            params.stream().map(param -> param.id().range()).toList()));
+    var hasSeenLabel = false;
+    var labelNamesSeen = new HashMap<UnqualifiedName, FunctionParameter>();
+    var paramNamesSeen = new HashMap<UnqualifiedName, FunctionParameter>();
+    for (var param : funcParameters) {
+      if (param.label() != null) {
+        hasSeenLabel = true;
+
+        // Error if duplicate label names
+        var seenLabel = labelNamesSeen.put(param.label().name(), param);
+        if (seenLabel != null) {
+          errors.add(new DuplicationError("Parameter labeled '%s' already defined in function '%s'".formatted(param.name(),
+              funcName), List.of(seenLabel.id().range())));
+        }
       }
-    });
+
+      // Error if positional parameters appear after labeled ones
+      if (hasSeenLabel && param.label() == null) {
+        errors.add(new BasicError(
+            "Positional parameters must come before labeled parameters",
+            param.range()));
+      }
+
+      // Error if duplicate param names
+      var seenParam = paramNamesSeen.put(param.name(), param);
+      if (seenParam != null) {
+        errors.add(new DuplicationError("Parameter '%s' already defined in function '%s'".formatted(param.name(),
+            funcName), List.of(seenParam.id().range())));
+      }
+    }
 
     return errors;
   }

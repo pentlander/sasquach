@@ -2,6 +2,7 @@ package com.pentlander.sasquach;
 
 import static java.util.stream.Collectors.toMap;
 
+import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Id;
@@ -87,12 +88,13 @@ public class Fixtures {
     return func(name, functionParameters, List.of(), returnType, expression);
   }
 
-  public static TNamedFunction tfunc(String name, List<TFunctionParameter> functionParameters,
+  public static TNamedFunction tfunc(String name, List<TFunctionParameter> funcParams,
       Type returnType, TypedExpression expression) {
-    var funcType = new FunctionType(functionParameters.stream()
-        .map(TFunctionParameter::type)
-        .toList(), List.of(), returnType);
-    return tfunc(name, functionParameters, List.of(), funcType, expression);
+    var paramTypes = funcParams.stream()
+        .map(FunctionType.Param::from)
+        .toList();
+    var funcType = new FunctionType(paramTypes, List.of(), returnType);
+    return tfunc(name, funcParams, List.of(), funcType, expression);
   }
 
   public static TField tfield(String name, TypedExpression expression) {
@@ -172,5 +174,9 @@ public class Fixtures {
             .map(c -> new ForeignFunctionHandle((DirectMethodHandleDesc) LOOKUP.unreflectConstructor(
                 c).describeConstable().orElseThrow(), c))
             .toList());
+  }
+
+  public static List<Argument> args(Expression... exprs) {
+    return Arrays.stream(exprs).map(Argument::new).toList();
   }
 }

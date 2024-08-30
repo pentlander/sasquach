@@ -4,7 +4,11 @@ import static java.util.stream.Collectors.joining;
 
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.tast.TFunctionParameter.Label.None;
+import com.pentlander.sasquach.tast.TFunctionParameter.Label.Some;
+import com.pentlander.sasquach.tast.TFunctionParameter.Label.WithDefault;
 import com.pentlander.sasquach.type.FunctionType;
+import com.pentlander.sasquach.type.FunctionType.Param;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.List;
@@ -19,7 +23,8 @@ public record TFunctionSignature(List<TFunctionParameter> parameters,
 
   @Override
   public FunctionType type() {
-    return new FunctionType(parameters.stream().map(TFunctionParameter::type).toList(),
+    return new FunctionType(
+        parameters.stream().map(Param::from).toList(),
         typeParameters,
         returnType);
   }

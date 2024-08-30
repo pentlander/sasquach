@@ -3,9 +3,13 @@ package com.pentlander.sasquach;
 /**
  * Error message that only contains the message.
  */
-record BasicError(String message) implements Error {
+public record BasicError(String message, Range range) implements RangedError {
+
   @Override
-  public String toPrettyString(Sources source) {
-    return message;
+  public String toPrettyString(Source source) {
+    return """
+        %s
+        %s
+        """.formatted(message, source.highlight(range));
   }
 }

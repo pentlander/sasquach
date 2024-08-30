@@ -7,12 +7,13 @@ import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.tast.expression.TLocalVariable;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeVariable;
+import java.lang.classfile.Label;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Function parameter captureName with a type.
  */
-public record FunctionParameter(Id id, @Nullable TypeNode typeNode) implements LocalVariable,
+public record FunctionParameter(Id id, @Nullable Id label, @Nullable TypeNode typeNode, @Nullable Expression defaultExpr) implements LocalVariable,
     TLocalVariable {
   /**
    * Name of the parameter variable.

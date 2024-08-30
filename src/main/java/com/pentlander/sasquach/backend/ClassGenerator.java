@@ -15,6 +15,7 @@ import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException
 import com.pentlander.sasquach.backend.ExpressionGenerator.Context;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.tast.TFunctionParameter;
+import com.pentlander.sasquach.tast.TFunctionParameter.Label;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TypedNode;
 import com.pentlander.sasquach.tast.expression.TFunction;
@@ -308,7 +309,7 @@ class ClassGenerator {
         var lineNum = function.range().start().line();
         cob.lineNumber(lineNum);
 
-        var captures = function.captures().stream().map(localVar -> new TFunctionParameter(localVar.id(), localVar.variableType(),
+        var captures = function.captures().stream().map(localVar -> new TFunctionParameter(localVar.id(), Label.none(), localVar.variableType(),
             localVar.range()));
         var params = Stream.concat(captures, function.parameters().stream()).toList();
 

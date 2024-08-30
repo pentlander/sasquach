@@ -1,12 +1,16 @@
 package com.pentlander.sasquach.tast.expression;
 
+import static com.pentlander.sasquach.Util.concat;
+import static com.pentlander.sasquach.Util.listOfSize;
 import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TFunctionSignature;
 import com.pentlander.sasquach.tast.TRecurPoint;
 import com.pentlander.sasquach.type.FunctionType;
+import com.pentlander.sasquach.type.FunctionType.Param;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -23,11 +27,13 @@ public record TFunction(TFunctionSignature functionSignature, TypedExpression ex
   }
 
   public FunctionType typeWithCaptures() {
-    var captureTypes = captures.stream().map(TLocalVariable::variableType);
-    var sigParamTypes = functionSignature.parameters().stream().map(TFunctionParameter::type);
-    var paramTypes = Stream.concat(captureTypes, sigParamTypes).toList();
+    var captureTypes = captures.stream().map(TLocalVariable::variableType)
+        .map(Param::new)
+        .toList();
+
+    var funcType = type();
     return new FunctionType(
-        paramTypes,
+        concat(captureTypes, funcType.parameters()),
         functionSignature.typeParameters(),
         functionSignature.returnType());
   }

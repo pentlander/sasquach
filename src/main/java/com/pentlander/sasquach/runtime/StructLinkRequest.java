@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.runtime;
 
+import com.pentlander.sasquach.runtime.StructLinker.StructCallSiteDesc;
 import java.util.Arrays;
 import java.util.List;
 import jdk.dynalink.CallSiteDescriptor;

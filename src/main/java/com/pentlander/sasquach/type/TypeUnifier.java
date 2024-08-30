@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.type;
 
 import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.type.FunctionType.Param;
 import com.pentlander.sasquach.type.StructType.RowModifier;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,9 +21,15 @@ public class TypeUnifier {
         case UniversalType universalType -> universalType;
         case TypeVariable typeVariable -> typeVariable.resolvedType().orElse(typeVariable);
         case FunctionType funcType -> {
-          var paramTypes = resolve(funcType.parameterTypes());
+          var params = funcType.parameters()
+              .stream()
+              .map(param -> param.mapType(this::resolve))
+              .toList();
           var returnType = resolve(funcType.returnType());
-          yield new FunctionType(paramTypes, funcType.typeParameters(), returnType);
+          yield new FunctionType(
+              params,
+              funcType.typeParameters(),
+              returnType);
         }
         case StructType structType -> {
           var fieldTypes = new LinkedHashMap<UnqualifiedName, Type>();

@@ -62,9 +62,13 @@ public record StructType(StructName structName, List<TypeParameter> typeParamete
     return structName.toString();
   }
 
-  public FunctionType constructorType() {
-    var paramTypes = List.copyOf(fieldTypes().sequencedValues());
-    return new FunctionType(paramTypes, typeParameters, this);
+  public FunctionType constructorType(ParameterizedType returnType) {
+    var params = fieldTypes()
+        .entrySet()
+        .stream()
+        .map(entry -> new FunctionType.Param(entry.getValue(), entry.getKey(), false))
+        .toList();
+    return new FunctionType(params, returnType.typeParameters(), returnType);
   }
 
   private static String hashFieldTypes(Map<UnqualifiedName, Type> fieldTypes) {

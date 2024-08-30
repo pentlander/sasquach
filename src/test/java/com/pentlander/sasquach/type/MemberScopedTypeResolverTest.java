@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.type;
 
+import static com.pentlander.sasquach.Fixtures.*;
 import static com.pentlander.sasquach.Fixtures.boolValue;
 import static com.pentlander.sasquach.Fixtures.foreignConstructors;
 import static com.pentlander.sasquach.Fixtures.foreignMethods;
@@ -20,6 +21,7 @@ import static org.mockito.Mockito.when;
 import com.pentlander.sasquach.Fixtures;
 import com.pentlander.sasquach.PackageName;
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
@@ -169,7 +171,7 @@ class MemberScopedTypeResolverTest {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignConstructors(File.class));
       var call = new ForeignFunctionCall(typeId("File"),
           id("new"),
-          List.of(stringValue("foo.txt")),
+          args(stringValue("foo.txt")),
           range());
 
       var type = resolveExpr(call);
@@ -182,7 +184,7 @@ class MemberScopedTypeResolverTest {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class, "get"));
       var call = new ForeignFunctionCall(typeId("Paths"),
           id("get"),
-          List.of(stringValue("foo.txt")),
+          args(stringValue("foo.txt")),
           range());
 
       var type = resolveExpr(call);
@@ -196,7 +198,7 @@ class MemberScopedTypeResolverTest {
           m -> m.getName().equals("concat")));
       var call = new ForeignFunctionCall(typeId("String"),
           id("concat"),
-          List.of(stringValue("foo"), stringValue("bar")),
+          args(stringValue("foo"), stringValue("bar")),
           range());
 
       var type = resolveExpr(call);
@@ -209,7 +211,7 @@ class MemberScopedTypeResolverTest {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignConstructors(File.class));
       var call = new ForeignFunctionCall(typeId("File"),
           id("new"),
-          List.of(intValue("45"), intValue("10")),
+          args(intValue("45"), intValue("10")),
           range());
 
       resolveExpr(call);
@@ -223,7 +225,7 @@ class MemberScopedTypeResolverTest {
           m -> m.getParameterCount() == 2));
       var call = new ForeignFunctionCall(typeId("Paths"),
           id("get"),
-          List.of(intValue("10"), ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())),
+          args(intValue("10"), ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())),
           range());
 
       resolveExpr(call);
@@ -248,7 +250,7 @@ class MemberScopedTypeResolverTest {
     }
 
     private FunctionParameter param(String name, Type type) {
-      return new FunctionParameter(id(name), typeNode(type));
+      return new FunctionParameter(id(name), null, typeNode(type), null);
     }
 
 //    @Test
@@ -273,7 +275,7 @@ class MemberScopedTypeResolverTest {
         memberScopedTypeResolver.checkType(func);
         when(moduleScopedTypes.getFunctionCallType(any())).thenReturn(new FuncCallType.Module());
         when(moduleScopedTypes.getThisType()).thenReturn(new StructType(
-            Fixtures.QUAL_MOD_NAME,
+            QUAL_MOD_NAME,
             seqMap(funcId.name(), func.functionSignature().type()),
             Map.of()));
 
@@ -283,7 +285,7 @@ class MemberScopedTypeResolverTest {
       @Test
       void call() {
         var call = new LocalFunctionCall(id("foo"),
-            List.of(stringValue("test"), intValue(10)),
+            args(stringValue("test"), intValue(10)),
             range());
 
         var type = resolveExpr(call);
@@ -294,7 +296,7 @@ class MemberScopedTypeResolverTest {
       @Test
       void callBadArgCount() {
         var callRange = range();
-        var call = new LocalFunctionCall(id("foo"), List.of(stringValue("test")), callRange);
+        var call = new LocalFunctionCall(id("foo"), args(stringValue("test")), callRange);
 
         resolveExpr(call);
 
@@ -304,7 +306,7 @@ class MemberScopedTypeResolverTest {
       @Test
       void callBadArgType() {
         var badArg = stringValue("other");
-        var call = new LocalFunctionCall(id("foo"), List.of(stringValue("test"), badArg), range());
+        var call = new LocalFunctionCall(id("foo"), args(stringValue("test"), badArg), range());
 
         resolveExpr(call);
 
@@ -315,7 +317,7 @@ class MemberScopedTypeResolverTest {
     @Nested
     class StructCall {
       private final PackageName packageName = new PackageName("base");
-      private final List<Expression> args = List.of(stringValue("test"), intValue(1));
+      private final List<Argument> args = args(stringValue("test"), intValue(1));
 
       @Test
       void call() {

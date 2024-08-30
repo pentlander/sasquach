@@ -4,12 +4,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.SequencedMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
 
 public final class Util {
   private static final SequencedMap<?, ?> EMPTY_SEQ_MAP = Collections.unmodifiableSequencedMap(new LinkedHashMap<>());
@@ -67,6 +67,18 @@ public final class Util {
       fields.add(mapper.apply("_" + i, expr));
     }
     return fields;
+  }
+
+  public static <T, U> @Nullable U mapNonNull(@Nullable T obj, Function<T, U> mapper) {
+    return obj != null ? mapper.apply(obj) : null;
+  }
+
+  public static <T> List<T> listOfSize(int size, Function<Integer, T> init) {
+    var list = new ArrayList<T>(size);
+    for (int i = 0; i < size; i++) {
+      list.add(init.apply(i));
+    }
+    return Collections.unmodifiableList(list);
   }
 }
 

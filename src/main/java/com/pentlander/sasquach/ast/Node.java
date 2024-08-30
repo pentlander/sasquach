@@ -11,8 +11,8 @@ import com.pentlander.sasquach.type.TypeParameter;
  * A node in the abstract syntax tree.
  */
 public sealed interface Node permits Branch, FunctionSignature, Id, ModuleDeclaration, Pattern,
-    QualifiedModuleId, TypeId, TypeNode, Use, Expression, LocalVariable, NamedFunction, Field,
-    TypeParameter {
+    QualifiedModuleId, TypeId, TypeNode, Use, Expression, LocalVariable, Argument, NamedFunction,
+    Field, TypeParameter {
   /**
    * Range in the source code that this node can be found.
    */

@@ -16,7 +16,8 @@ functionDeclaration :
     typeParameterList?
     functionParameterList typeAnnotation? '->' NL* ;
 functionName : ID ;
-functionParameter : ID typeAnnotation? ;
+label: ID ;
+functionParameter : label? ID typeAnnotation? (EQUALS expression)? ;
 functionParameterList : '(' (functionParameter)? (',' functionParameter)* ')' ;
 
 type : classType | structType | localNamedType | functionType | moduleNamedType | tupleType ;
@@ -56,9 +57,10 @@ pattern :
 branch : pattern '->' expression ;
 match : MATCH expression '{' NL* (branch ',' NL*)+ '}' ;
 
-expressionList : expression (',' expression)* ;
-application :  LP expressionList? RP
-  | LP expressionList? {notifyErrorListeners("Missing closing ')'");} ;
+argument : (label EQUALS)? expression ;
+arguments : argument (',' argument)* ;
+application :  LP arguments? RP
+  | LP arguments? {notifyErrorListeners("Missing closing ')'");} ;
 memberApplication : memberName application ;
 tuple : '(' expression ',' ')' | '(' expression (',' expression)+ ')' ;
 

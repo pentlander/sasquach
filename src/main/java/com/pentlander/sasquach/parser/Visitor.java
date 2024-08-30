@@ -1,4 +1,5 @@
 package com.pentlander.sasquach.parser;
+import static com.pentlander.sasquach.Util.mapNonNull;
 import static com.pentlander.sasquach.ast.expression.Struct.StructKind;
 import static java.util.Objects.requireNonNullElse;
 
@@ -29,6 +30,7 @@ import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.Use;
+import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.PipeOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
@@ -80,6 +82,7 @@ import com.pentlander.sasquach.parser.SasquachParser.FunctionTypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.IdentifierStatementContext;
 import com.pentlander.sasquach.parser.SasquachParser.IfExpressionContext;
 import com.pentlander.sasquach.parser.SasquachParser.IntLiteralContext;
+import com.pentlander.sasquach.parser.SasquachParser.LabelContext;
 import com.pentlander.sasquach.parser.SasquachParser.LocalNamedTypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.LoopExpressionContext;
 import com.pentlander.sasquach.parser.SasquachParser.MatchExpressionContext;
@@ -118,6 +121,7 @@ import com.pentlander.sasquach.parser.SasquachParser.UseStatementContext;
 import com.pentlander.sasquach.parser.SasquachParser.VarReferenceContext;
 import com.pentlander.sasquach.parser.SasquachParser.VariableDeclarationContext;
 import com.pentlander.sasquach.parser.SasquachParser.VariantTypeContext;
+import com.pentlander.sasquach.tast.TFunctionParameter.Label;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
 import com.pentlander.sasquach.type.LocalNamedType;
@@ -356,11 +360,15 @@ public class Visitor {
       return ctx.accept(new FunctionVisitor());
     }
 
-    private List<Expression> args(ApplicationContext ctx) {
-      if (ctx.expressionList() == null) {
+    private List<Argument> args(ApplicationContext ctx) {
+      if (ctx.arguments() == null) {
         return List.of();
       }
-      return ctx.expressionList().expression().stream().map(argCtx -> argCtx.accept(this)).toList();
+      return ctx.arguments().argument().stream().map(argCtx -> {
+        var label = label(argCtx.label());
+        var expr = argCtx.expression().accept(this);
+        return new Argument(mapNonNull(label, Id::name), expr, rangeFrom(argCtx));
+      }).toList();
     }
 
     @Override
@@ -669,10 +677,18 @@ public class Visitor {
     var params = new ArrayList<FunctionParameter>();
     for (var paramCtx : ctx.functionParameter()) {
       var type = typeAnnotation(paramCtx.typeAnnotation(), typeVisitor);
-      var param = new FunctionParameter(id(paramCtx.ID()), type);
+      var label = label(paramCtx.label());
+      var defaultExpr =
+          paramCtx.expression() != null ? paramCtx.expression().accept(new ExpressionVisitor())
+              : null;
+      var param = new FunctionParameter(id(paramCtx.ID()), label, type, defaultExpr);
       params.add(param);
     }
     return params;
+  }
+
+  private @Nullable Id label(@Nullable LabelContext labelCtx) {
+    return labelCtx != null ? id(labelCtx.ID()) : null;
   }
 
   private TypeNode sumTypeNode(SumTypeContext ctx, QualifiedModuleName moduleName, TypeId aliasId,

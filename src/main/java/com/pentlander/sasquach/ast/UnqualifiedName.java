@@ -1,6 +1,8 @@
 package com.pentlander.sasquach.ast;
 
 public record UnqualifiedName(String value) implements Name, Comparable<UnqualifiedName> {
+  public static final UnqualifiedName EMPTY = new UnqualifiedName("");
+
   public UnqualifiedName {
     Name.requireUnqualified(value);
   }

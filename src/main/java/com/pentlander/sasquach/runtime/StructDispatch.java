@@ -3,12 +3,11 @@ package com.pentlander.sasquach.runtime;
 import static com.pentlander.sasquach.runtime.Bootstrap.bootstrapMethodTypeDesc;
 import static com.pentlander.sasquach.runtime.Bootstrap.methodHandleDesc;
 
-import com.pentlander.sasquach.runtime.StructLinker.StructInitCallSiteDesc;
+import com.pentlander.sasquach.runtime.StructLinker.StructCallSiteDesc;
 import com.pentlander.sasquach.runtime.StructLinker.StructOperation;
 import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.invoke.CallSite;
-import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.util.Arrays;
@@ -24,7 +23,7 @@ import jdk.dynalink.support.ChainedCallSite;
  * Class that handle dynamic dispatch on structs via invokedynamic.
  */
 public final class StructDispatch {
-  private static final MethodTypeDesc MTD_BOOTSTRAP = Bootstrap.bootstrapMethodTypeDesc();
+  private static final MethodTypeDesc MTD_BOOTSTRAP = Bootstrap.bootstrapMethodTypeDesc(Object[].class);
 
   public static final DirectMethodHandleDesc MHD_BOOTSTRAP_MEMBER = methodHandleDesc(
       StructDispatch.class,
@@ -72,10 +71,11 @@ public final class StructDispatch {
     return op;
   }
 
-  public static CallSite bootstrapMember(Lookup caller, String invokedName, MethodType invokedType) {
-    return DYNAMIC_LINKER.link(new ChainedCallSite(new CallSiteDescriptor(caller,
+  public static CallSite bootstrapMember(Lookup caller, String invokedName, MethodType invokedType, Object... values) {
+    return DYNAMIC_LINKER.link(new ChainedCallSite(new StructCallSiteDesc(caller,
         parseOperation(invokedName),
-        invokedType)));
+        invokedType,
+        values)));
   }
 
   // The invoked type should be (FieldArgType0, FieldArgType1, ..., SpreadStructType0, SpreadStructType1, ...) -> NewStructType
@@ -83,11 +83,10 @@ public final class StructDispatch {
   // the names of the fields in the order they are assigned
   public static CallSite bootstrapSpread(Lookup caller, String invokedName, MethodType invokedType,
       Object... fieldNames) {
-    var fieldNameList = Arrays.stream(fieldNames).map(String.class::cast).toList();
-    return DYNAMIC_LINKER.link(new ChainedCallSite(new StructInitCallSiteDesc(caller,
+    return DYNAMIC_LINKER.link(new ChainedCallSite(new StructCallSiteDesc(caller,
         StructOperation.STRUCT_INIT,
         invokedType,
-        fieldNameList)));
+        fieldNames)));
   }
 
 }

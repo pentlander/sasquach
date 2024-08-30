@@ -1,18 +1,22 @@
 package com.pentlander.sasquach.type;
 
+import static com.pentlander.sasquach.Util.concat;
 import static com.pentlander.sasquach.type.TypeUtils.reify;
 import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.*;
 
 import com.pentlander.sasquach.AbstractRangedError;
+import com.pentlander.sasquach.BasicError;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.RangedErrorList.Builder;
 import com.pentlander.sasquach.Source;
+import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.Branch;
 import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.Labeled;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.QualifiedTypeName;
@@ -51,6 +55,7 @@ import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.tast.TBranch;
 import com.pentlander.sasquach.tast.TFunctionParameter;
+import com.pentlander.sasquach.tast.TFunctionParameter.Label;
 import com.pentlander.sasquach.tast.TFunctionSignature;
 import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.tast.TPattern;
@@ -58,6 +63,7 @@ import com.pentlander.sasquach.tast.TPattern.TVariantTuple;
 import com.pentlander.sasquach.tast.TPatternVariable;
 import com.pentlander.sasquach.tast.expression.TApplyOperator;
 import com.pentlander.sasquach.tast.expression.TArrayValue;
+import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TArgs;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TBooleanExpression;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TCompareExpression;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TMathExpression;
@@ -87,6 +93,7 @@ import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Loca
 import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
 import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
+import com.pentlander.sasquach.type.FunctionType.Param;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType;
 import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType.LocalVar;
 import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType.Module;
@@ -102,10 +109,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -192,7 +201,7 @@ public class MemberScopedTypeResolver {
           var param = func.parameters().get(i);
           var expectedParamType = funcType.parameterTypes().get(i);
           typeUnifier.unify(param.type(), expectedParamType);
-          var typedVar = new TFunctionParameter(param.id(), expectedParamType, param.range());
+          var typedVar = new TFunctionParameter(param.id(), Label.of(param.label(), null),  expectedParamType, param.range());
           funcParams.add(typedVar);
           putLocalVarType(param, typedVar);
         }
@@ -340,7 +349,7 @@ public class MemberScopedTypeResolver {
         var lvl = typeVarNum.getAndIncrement();
         var paramTypes = func.parameters().stream().map(param -> {
           var paramType = new TypeVariable(param.name().toString(), lvl);
-          var typedParam = new TFunctionParameter(param.id(), paramType, param.range());
+          var typedParam = new TFunctionParameter(param.id(), Label.of(param.label(), null), paramType, param.range());
           putLocalVarType(param, typedParam);
           return typedParam;
         }).toList();
@@ -464,8 +473,7 @@ public class MemberScopedTypeResolver {
         });
 
         var variantType = (StructType) sumWithVariantIdx.type();
-        var paramTypes = List.copyOf(variantType.fieldTypes().sequencedValues());
-        var funcType = new FunctionType(paramTypes, sumType.typeParameters(), sumType);
+        var funcType = variantType.constructorType(sumType);
 
         yield new TConstructorCall(
             (QualifiedTypeName) convertedVariantType.structName(),
@@ -601,11 +609,89 @@ public class MemberScopedTypeResolver {
         memberAccess.range()));
   }
 
-  private List<TypedExpression> checkFuncArgs(UnqualifiedName name, List<Expression> args,
+  static class LabeledMap<T extends Labeled> {
+    private record Indexed<T>(int idx, T item) {}
+
+    private final List<T> items = new ArrayList<>();
+    private final HashMap<UnqualifiedName, Indexed<T>> labeledItems = new LinkedHashMap<>();
+
+    static <T extends Labeled> LabeledMap<T> of(Collection<? extends T> items) {
+      var map = new LabeledMap<T>();
+      map.addAll(items);
+      return map;
+    }
+
+    void addAll(Collection<? extends T> items) {
+      int labeledIdx = 0;
+      for (var item : items) {
+        if (item.label() == null) {
+          this.items.add(item);
+        } else {
+          labeledItems.put(item.label(), new Indexed<>(labeledIdx++, item));
+        }
+      }
+    }
+
+    @Nullable Indexed<T> get(UnqualifiedName name) {
+      return labeledItems.get(name);
+    }
+
+    int labeledSize() {
+      return labeledItems.size();
+    }
+
+    List<T> positionalItems() {
+      return items;
+    }
+  }
+
+  private TArgs checkFuncArgs2(UnqualifiedName name, List<Argument> args,
+      List<FunctionType.Param> params, Range range) {
+    var argsMap = LabeledMap.of(args);
+    var posArgs = argsMap.positionalItems();
+
+    var paramsMap = LabeledMap.of(params);
+    var posParamTypes = paramsMap.positionalItems().stream().map(Param::type).toList();
+    var posExprs = checkFuncArgs(name, posArgs, posParamTypes, range);
+    var argIndexes = new int[args.size()];
+    for (int i = 0; i < posExprs.size(); i++) {
+      argIndexes[i] = i;
+    }
+
+    var argSet = argsMap.labeledItems.values()
+        .stream()
+        .map(idxArg -> idxArg.item())
+        .collect(toCollection(HashSet::new));
+    var labeledExprs = new TypedExpression[argsMap.labeledSize()];
+    paramsMap.labeledItems.forEach((paramLabel, idxParam) -> {
+      var param = idxParam.item();
+      var idxArg = argsMap.get(paramLabel);
+      if (idxArg == null && !param.hasDefault()) {
+        errors.add(new BasicError("Missing labeled arg '%s' of type '%s'".formatted(
+            paramLabel,
+            param.type().toPrettyString()), range));
+      } else if (idxArg != null) {
+        var arg = idxArg.item();
+        argSet.remove(arg);
+
+        var tExpr = check(arg.expression(), param.type());
+        labeledExprs[idxArg.idx()] = tExpr;
+        argIndexes[posExprs.size() + idxParam.idx()] = idxArg.idx();
+      }
+    });
+
+    argSet.forEach(arg -> errors.add(new BasicError(
+        "No param labeled '%s' on the function definition".formatted(arg.label()),
+        arg.range())));
+
+    return new TArgs(argIndexes, concat(posExprs, Arrays.asList(labeledExprs)));
+  }
+
+  private List<TypedExpression> checkFuncArgs(UnqualifiedName name, List<Argument> args,
       List<Type> paramTypes, Range range) {
     // Handle mismatch between arg count and parameter count
     if (args.size() != paramTypes.size()) {
-      addError(new TypeMismatchError("Function '%s' expects %s arguments but found %s".formatted(name,
+      addError(new TypeMismatchError("Function '%s' expects %s positional args but found %s".formatted(name,
           paramTypes.size(),
           args.size()), range));
       return List.of();
@@ -616,7 +702,7 @@ public class MemberScopedTypeResolver {
     for (int i = 0; i < args.size(); i++) {
       var arg = args.get(i);
       var paramType = paramTypes.get(i);
-      typedExprs.add(check(arg, paramType));
+      typedExprs.add(check(arg.expression(), paramType));
     }
 
     return typedExprs;
@@ -639,8 +725,10 @@ public class MemberScopedTypeResolver {
     // need to replace existential types with actual types here
     var fieldType = structType.get().fieldType(name);
     if (fieldType instanceof FunctionType fieldFuncType) {
+      // We only have the function type here, not the full function. Need to figure out the right
+      // place to match up labeled args with their parameters
       var funcType = convertUniversals(fieldFuncType, range);
-      var typedFuncArgs = checkFuncArgs(name, args, funcType.parameterTypes(), range);
+      var typedFuncArgs = checkFuncArgs2(name, args, funcType.parameters(), range);
       return new TBasicFunctionCall(TCallTarget.struct(structExpr),
           structFuncCall.functionId().name(),
           funcType, // TODO I think this needs to be the unconverted type. Add a test
@@ -665,9 +753,7 @@ public class MemberScopedTypeResolver {
 
     var sumType = variantWithSum.sumType();
     var variantStructType = (StructType) variantWithSum.type();
-    var paramTypes = variantStructType.sortedFieldTypes();
-
-    var funcType = new FunctionType(paramTypes, sumType.typeParameters(), sumType);
+    var funcType = variantStructType.constructorType(sumType);
     var convertedFuncType = convertUniversals(funcType, range);
     var typedFuncArgs = checkFuncArgs(name, args, convertedFuncType.parameterTypes(), range);
     return new TConstructorCall((QualifiedTypeName) variantStructType.structName(),
@@ -694,7 +780,7 @@ public class MemberScopedTypeResolver {
               var tLocalVar = getLocalVar(localVar).orElseThrow();
               var funcType = TypeUtils.asFunctionType(tLocalVar.variableType()).orElseThrow();
               var resolvedFuncType = convertUniversals(funcType, range);
-              var typedExprs = checkFuncArgs(name, args, resolvedFuncType.parameterTypes(), range);
+              var typedExprs = checkFuncArgs2(name, args, resolvedFuncType.parameters(), range);
               yield new TBasicFunctionCall(TCallTarget.localVar(tLocalVar),
                   localFuncCall.functionId().name(),
                   funcType,
@@ -810,6 +896,7 @@ public class MemberScopedTypeResolver {
     var funcCandidates = nameResolutionResult.getForeignFunction(funcCall);
     var argTypes = funcCall.arguments()
         .stream()
+        .map(Argument::expression)
         .map(this::infer)
         .map(TypedExpression::type)
         .collect(toList());

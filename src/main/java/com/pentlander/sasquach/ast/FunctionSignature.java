@@ -5,7 +5,6 @@ import static java.util.stream.Collectors.joining;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.type.FunctionType;
-import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
 import com.pentlander.sasquach.type.TypeVariable;
 import java.util.List;
@@ -28,7 +27,7 @@ public record FunctionSignature(List<FunctionParameter> parameters,
   public FunctionType type() {
     var returnType = returnTypeNode != null ? returnTypeNode.type() : new TypeVariable("Return", 0);
     return new FunctionType(
-        parameters.stream().map(FunctionParameter::type).toList(),
+        parameters.stream().map(FunctionType.Param::from).toList(),
         typeParameters,
         returnType);
   }

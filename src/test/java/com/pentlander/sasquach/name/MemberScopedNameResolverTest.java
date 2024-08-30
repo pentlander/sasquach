@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.name;
 
+import static com.pentlander.sasquach.Fixtures.args;
 import static com.pentlander.sasquach.Fixtures.foreignMethods;
 import static com.pentlander.sasquach.Fixtures.id;
 import static com.pentlander.sasquach.Fixtures.intValue;
@@ -129,7 +130,7 @@ class MemberScopedNameResolverTest {
 
     var foreignFunctionCall = new ForeignFunctionCall(typeId("String"),
         id("valueOf"),
-        List.of(intValue("5")),
+        args(intValue("5")),
         range());
     var function = voidFunc("main", foreignFunctionCall);
     var memberResolver = new MemberScopedNameResolver(modResolver);

@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.RangedErrorList;
+import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
@@ -202,7 +203,7 @@ public class MemberScopedNameResolver {
 
     var funcSignature = function.functionSignature();
     resolveTypeNames(funcSignature);
-    // Add the type parameters to the contextual type params, so that nested functions can include
+    // Add the type parameters to the contextual type parameters, so that nested functions can include
     // them when resolving type names
     contextTypeParameters.addAll(funcSignature.typeParameters());
     funcSignature.parameters().forEach(MemberScopedNameResolver.this::addLocalVariable);
@@ -338,6 +339,10 @@ public class MemberScopedNameResolver {
   private void resolve(BinaryExpression binaryExpression) {
     resolve(binaryExpression.left());
     resolve(binaryExpression.right());
+  }
+
+  private void resolve(Argument argument) {
+    resolve(argument.expression());
   }
 
   private void resolve(FunctionCall functionCall) {

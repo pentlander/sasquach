@@ -9,7 +9,7 @@ Integer {
 Exception {
   use foreign com/pentlander/sasquach/runtime/Stdlib,
 
-  throwIllegalStateException = [A](msg: String): A ->
+  illegalState = [A](msg: String): A ->
     Stdlib#throwIllegalStateException(msg)
 }
 
@@ -39,7 +39,7 @@ Option {
 
   unwrap = [A](option: T[A]): A -> match option {
     Some(value) -> value,
-    None -> Exception.throwIllegalStateException("options was none"),
+    None -> Exception.illegalState("option is None"),
   },
 
   getOrElse = [A](option: T[A], fn: () -> A): A -> match option {

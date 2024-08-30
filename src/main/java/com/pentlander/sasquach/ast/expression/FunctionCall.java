@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.ast.expression;
 
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.UnqualifiedName;
@@ -15,7 +16,7 @@ public sealed interface FunctionCall extends Expression permits ForeignFunctionC
     return functionId().name();
   }
 
-  List<Expression> arguments();
+  List<Argument> arguments();
 
   Range range();
 

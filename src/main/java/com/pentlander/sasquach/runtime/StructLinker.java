@@ -16,17 +16,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import jdk.dynalink.CallSiteDescriptor;
-import jdk.dynalink.NamedOperation;
-import jdk.dynalink.NamespaceOperation;
 import jdk.dynalink.Operation;
 import jdk.dynalink.StandardOperation;
-import jdk.dynalink.beans.BeansLinker;
 import jdk.dynalink.linker.GuardedInvocation;
 import jdk.dynalink.linker.GuardingDynamicLinker;
 import jdk.dynalink.linker.GuardingTypeConverterFactory;
 import jdk.dynalink.linker.LinkRequest;
 import jdk.dynalink.linker.LinkerServices;
-import jdk.dynalink.linker.support.TypeUtilities;
 
 final class StructLinker implements GuardingDynamicLinker, GuardingTypeConverterFactory {
   private static final jdk.dynalink.linker.support.Lookup LOOKUP = new jdk.dynalink.linker.support.Lookup(
@@ -104,44 +100,35 @@ final class StructLinker implements GuardingDynamicLinker, GuardingTypeConverter
     return MethodHandles.permuteArguments(filteredHandle, invokedType, reorder);
   }
 
-  public static abstract class AbstractCallSiteDescriptor<T extends AbstractCallSiteDescriptor<T>> extends
-      CallSiteDescriptor {
-    public AbstractCallSiteDescriptor(Lookup lookup, Operation operation, MethodType methodType) {
+  public static final class StructCallSiteDesc extends CallSiteDescriptor {
+    private final Object[] values;
+
+    public StructCallSiteDesc(Lookup lookup, Operation operation, MethodType methodType,
+        Object[] values) {
       super(lookup, operation, methodType);
+      this.values = values;
     }
 
-    protected abstract boolean fieldsEquals(T other);
-
-    protected abstract int fieldsHash();
-
-    @SuppressWarnings("unchecked")
     @Override
-    public boolean equals(Object obj) {
-      return super.equals(obj) && fieldsEquals((T) obj);
+    public boolean equals(Object other) {
+      if (!super.equals(other)) {
+        return false;
+      }
+      return other instanceof StructCallSiteDesc o && Arrays.equals(values, o.values);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(super.hashCode(), fieldsHash());
-    }
-  }
-  public static final class StructInitCallSiteDesc extends AbstractCallSiteDescriptor<StructInitCallSiteDesc> {
-    private final List<String> fieldNames;
-
-    public StructInitCallSiteDesc(Lookup lookup, Operation operation, MethodType methodType,
-        List<String> fieldNames) {
-      super(lookup, operation, methodType);
-      this.fieldNames = fieldNames;
+      return Arrays.hashCode(values);
     }
 
     @Override
-    protected boolean fieldsEquals(StructInitCallSiteDesc other) {
-      return fieldNames.equals(other.fieldNames);
+    protected CallSiteDescriptor changeMethodTypeInternal(MethodType newMethodType) {
+      return new StructCallSiteDesc(getLookupPrivileged(), getOperation(), newMethodType, values);
     }
 
-    @Override
-    protected int fieldsHash() {
-      return fieldNames.hashCode();
+    public List<String> fieldNames() {
+      return Arrays.stream(values).map(String.class::cast).toList();
     }
   }
 
@@ -173,8 +160,8 @@ final class StructLinker implements GuardingDynamicLinker, GuardingTypeConverter
       //noinspection SwitchStatementWithTooFewBranches
       switch (structOp) {
         case STRUCT_INIT -> {
-          var callSiteDescriptor = (StructInitCallSiteDesc) structLinkReq.getCallSiteDescriptor();
-          var fieldNames = callSiteDescriptor.fieldNames;
+          var callSiteDescriptor = (StructCallSiteDesc) structLinkReq.getCallSiteDescriptor();
+          var fieldNames = callSiteDescriptor.fieldNames();
 
           // Determine the field types for the returned struct
           var fieldTypes = new LinkedHashMap<String, ClassDesc>();
