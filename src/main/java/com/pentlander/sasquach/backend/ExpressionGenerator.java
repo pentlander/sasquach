@@ -26,7 +26,6 @@ import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TArgs;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TBooleanExpression;
 import com.pentlander.sasquach.tast.expression.TBlock;
-import com.pentlander.sasquach.tast.expression.TConstructorCall;
 import com.pentlander.sasquach.tast.expression.TFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
@@ -509,30 +508,6 @@ final class ExpressionGenerator {
             funcTypeDesc));
         var funcCallType = type(structFuncCall);
         tryUnbox(funcCallType, returnType);
-      }
-      case TConstructorCall constrCall -> {
-        var structDesc = ClassDesc.ofInternalName(constrCall.variantName().toString());
-        generateNewDup(structDesc);
-
-        Integer argStartIdx = null;
-        for (var expr : args) {
-          generate(expr);
-          int idx = localVarMeta.pushHidden();
-          if (argStartIdx == null) argStartIdx = idx;
-          generateStoreVar(cob, type(expr), idx);
-        }
-
-        var funcType = constrCall.functionType();
-        var argIndexes = constrCall.argIndexes();
-        for (int i = 0; i < argIndexes.size(); i++) {
-          var argIndex = argIndexes.get(i);
-          var arg = args.get(argIndex);
-          GeneratorUtil.generateLoadVar(cob, type(arg), argStartIdx + argIndex);
-          tryBox(cob, type(arg), funcType.parameterTypes().get(i));
-        }
-        var methodDesc = MethodHandleDesc.ofConstructor(structDesc,
-            funcType.parameterTypes().stream().map(Type::classDesc).toArray(ClassDesc[]::new));
-        generate(methodDesc);
       }
     }
   }

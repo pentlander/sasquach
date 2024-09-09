@@ -6,6 +6,7 @@ import com.pentlander.sasquach.Util;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
+import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import java.util.ArrayList;

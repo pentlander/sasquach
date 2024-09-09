@@ -19,7 +19,6 @@ import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Labeled;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
-import com.pentlander.sasquach.ast.QualifiedTypeName;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.PipeOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
@@ -68,7 +67,6 @@ import com.pentlander.sasquach.tast.expression.TBinaryExpression.TBooleanExpress
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TCompareExpression;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TMathExpression;
 import com.pentlander.sasquach.tast.expression.TBlock;
-import com.pentlander.sasquach.tast.expression.TConstructorCall;
 import com.pentlander.sasquach.tast.expression.TFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
 import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
@@ -444,41 +442,9 @@ public class MemberScopedTypeResolver {
       }
       // Named structs need to have their field types checked against their type definition, similar
       // to functions.
-      case NamedStruct s -> {
-        var sumWithVariantIdx = moduleScopedTypes.getVariantType(s);
-
-        // Need to convert the universal types in both the parent sum type and the actual variant
-        // into type variables so they can be unified
-        record IdxExpr(int idx, Expression expr) {}
-        var structFields = new LinkedHashMap<UnqualifiedName, IdxExpr>();
-        for (int i = 0; i < s.fields().size(); i++) {
-          var field = s.fields().get(i);
-          structFields.put(field.name(), new IdxExpr(i, field.value()));
-        }
-
-        var sumType = sumWithVariantIdx.sumType();
-        var convertedSumType = convertUniversals(sumType, s.range());
-        var convertedVariantType = (StructType) convertedSumType.types().get(sumWithVariantIdx.variantIdx());
-
-        var argIndexes = new ArrayList<Integer>(convertedVariantType.fieldTypes().size());
-        var typedExprs = new TypedExpression[convertedVariantType.fieldTypes().size()];
-        convertedVariantType.fieldTypes().forEach((fieldName, fieldType) -> {
-          var idExpr = requireNonNull(structFields.get(fieldName));
-          argIndexes.add(idExpr.idx());
-          typedExprs[idExpr.idx()] = check(idExpr.expr(), fieldType);
-        });
-
-        var variantType = (StructType) sumWithVariantIdx.type();
-        var funcType = variantType.constructorType(sumType);
-
-        yield new TConstructorCall(
-            (QualifiedTypeName) convertedVariantType.structName(),
-            argIndexes,
-            List.of(typedExprs),
-            funcType,
-            typeUnifier.resolve(convertedSumType),
-            s.range());
-      }
+      case NamedStruct namedStruct ->
+          resolveMemberFunctionCall(new TThisExpr(moduleScopedTypes.getThisType(),
+              namedStruct.range()), namedStruct.toFunctionCall());
     };
   }
 
