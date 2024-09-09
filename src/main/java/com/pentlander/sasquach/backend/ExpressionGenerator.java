@@ -3,6 +3,7 @@ package com.pentlander.sasquach.backend;
 import static com.pentlander.sasquach.backend.ClassGenerator.INSTANCE_FIELD;
 import static com.pentlander.sasquach.backend.ClassGenerator.CD_STRUCT_BASE;
 import static com.pentlander.sasquach.backend.GeneratorUtil.internalClassDesc;
+import static com.pentlander.sasquach.backend.GeneratorUtil.tryBox;
 import static com.pentlander.sasquach.type.TypeUtils.asStructType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
 import static java.util.Objects.requireNonNull;
@@ -85,7 +86,6 @@ import java.util.stream.Stream;
 import jdk.dynalink.Namespace;
 import jdk.dynalink.StandardNamespace;
 import jdk.dynalink.StandardOperation;
-import jdk.dynalink.linker.support.TypeUtilities;
 import org.jspecify.annotations.Nullable;
 
 final class ExpressionGenerator {
@@ -345,7 +345,7 @@ final class ExpressionGenerator {
           var capture = captures.get(i);
           cob.dup().bipush(i);
           generateLoadVar(capture);
-          box(capture.variableType());
+          GeneratorUtil.box(cob, capture.variableType());
           cob.aastore();
         }
         cob.invokeDynamicInstruction(FuncBootstrap.bootstrapFuncInit(anonFuncName, funcTypeDesc));
@@ -401,7 +401,7 @@ final class ExpressionGenerator {
               // then store the value of the field in the variable
               for (int j = 0; j < bindings.size(); j++) {
                 // Load the value of the field and cast it
-                generateLoadVar(cob, variantType, exprVarIdx);
+                GeneratorUtil.generateLoadVar(cob, variantType, exprVarIdx);
                 cob.checkcast(internalClassDesc(variantType));
 
                 var field = tupleFieldTypes.get(j);
@@ -417,7 +417,7 @@ final class ExpressionGenerator {
             case TPattern.TVariantStruct variantStruct -> {
               var variantType = variantStruct.type();
               for (var binding : variantStruct.bindings()) {
-                generateLoadVar(cob, variantType, exprVarIdx);
+                GeneratorUtil.generateLoadVar(cob, variantType, exprVarIdx);
                 cob.checkcast(internalClassDesc(variantType));
 
                 var fieldType = variantType.fieldType(binding.name());
@@ -527,8 +527,8 @@ final class ExpressionGenerator {
         for (int i = 0; i < argIndexes.size(); i++) {
           var argIndex = argIndexes.get(i);
           var arg = args.get(argIndex);
-          generateLoadVar(cob, type(arg), argStartIdx + argIndex);
-          tryBox(type(arg), funcType.parameterTypes().get(i));
+          GeneratorUtil.generateLoadVar(cob, type(arg), argStartIdx + argIndex);
+          tryBox(cob, type(arg), funcType.parameterTypes().get(i));
         }
         var methodDesc = MethodHandleDesc.ofConstructor(structDesc,
             funcType.parameterTypes().stream().map(Type::classDesc).toArray(ClassDesc[]::new));
@@ -554,7 +554,7 @@ final class ExpressionGenerator {
     for (int i = 0; i < arguments.size(); i++) {
       var expr = arguments.get(i);
       generate(expr);
-      tryBox(type(expr), paramTypes.get(i));
+      tryBox(cob, type(expr), paramTypes.get(i));
     }
   }
 
@@ -578,8 +578,8 @@ final class ExpressionGenerator {
       var argType = type(args.get(argIndex));
       var param = params.get(i);
 
-      generateLoadVar(cob, argType, requireNonNull(argStartIdx) + argIndex);
-      tryBox(argType, param.type());
+      GeneratorUtil.generateLoadVar(cob, argType, requireNonNull(argStartIdx) + argIndex);
+      tryBox(cob, argType, param.type());
     }
   }
 
@@ -603,7 +603,7 @@ final class ExpressionGenerator {
         switch (spread.refDeclaration()) {
           case Local(var localVar) -> {
             var spreadStructType = TypeUtils.asStructType(localVar.variableType()).orElseThrow();
-            generateLoadVar(cob, spreadStructType, localVarMeta.get(localVar).idx());
+            GeneratorUtil.generateLoadVar(cob, spreadStructType, localVarMeta.get(localVar).idx());
           }
           case Module module -> {
             // TODO
@@ -631,20 +631,7 @@ final class ExpressionGenerator {
 
   private void generateLoadVar(TLocalVariable localVar) {
     var varMeta = localVarMeta.get(localVar);
-    generateLoadVar(cob, varMeta.localVar().variableType(), varMeta.idx());
-  }
-
-  private static void generateLoadVar(CodeBuilder cob, Type type, int idx) {
-    if (idx < 0) {
-      return;
-    }
-
-    var typeKind = TypeKind.from(type.classDesc());
-    if (typeKind != TypeKind.VoidType) {
-      cob.loadInstruction(typeKind, idx);
-    } else {
-      cob.aconst_null();
-    }
+    GeneratorUtil.generateLoadVar(cob, varMeta.localVar().variableType(), varMeta.idx());
   }
 
   private static void generateStoreVar(CodeBuilder cob, Type type, int idx) {
@@ -668,35 +655,10 @@ final class ExpressionGenerator {
     }
   }
 
-  private void box(Type type) {
-    if (type instanceof BuiltinType builtinType) {
-      switch (builtinType) {
-        case BOOLEAN, INT, CHAR, BYTE, SHORT, LONG, FLOAT, DOUBLE -> {
-          var wrapperTypeDesc = classDesc(TypeUtilities.getWrapperType(builtinType.typeClass()));
-          var methodTypeDesc = MethodTypeDesc.of(wrapperTypeDesc, builtinType.classDesc());
-          cob.invokestatic(wrapperTypeDesc, "valueOf",  methodTypeDesc);
-        }
-        default -> {}
-      }
-    }
-  }
-
-  /**
-   * Convert a primitive type into its boxed type.
-   * <p>This method should be used when providing a primitive to a function call with type
-   * parameters, as the parameter type is {@link Object}.</p>
-   */
-  private void tryBox(Type actualType, Type expectedType) {
-    var expectedTypeKind = TypeKind.from(expectedType.classDesc());
-    if (expectedTypeKind.equals(TypeKind.ReferenceType)) {
-      box(actualType);
-    }
-  }
-
   /**
    * Convert a boxed type into its primitive type.
    */
-  private void tryUnbox(Type expectedType, Type actualType) {
+  void tryUnbox(Type expectedType, Type actualType) {
     if (expectedType instanceof BuiltinType builtinType && builtinType == BuiltinType.INT
         && (actualType instanceof UniversalType)) {
       cob.checkcast(ConstantDescs.CD_Integer)

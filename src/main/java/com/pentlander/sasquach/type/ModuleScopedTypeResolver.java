@@ -16,6 +16,7 @@ import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
+import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Tuple;
 import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.Function;
@@ -45,7 +46,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-import org.jspecify.annotations.Nullable;
 
 public class ModuleScopedTypeResolver {
   private final NameResolutionResult nameResolutionResult;
@@ -91,7 +91,16 @@ public class ModuleScopedTypeResolver {
               typedFields.add(new TField(id,
                   new TVarReference(id, new RefDeclaration.Singleton(singleton.type()), sumType)));
             }
-            default -> {}
+            case VariantTypeNode.Struct variantStruct  -> {
+              var name = variantStruct.id().name().toName();
+              var funcType = variantStruct.type().constructorType(sumType);
+              fieldTypes.put(name, funcType);
+            }
+            case VariantTypeNode.Tuple tuple -> {
+              var name = tuple.id().name().toName();
+              var funcType = tuple.type().constructorType(sumType);
+              fieldTypes.put(name, funcType);
+            }
           }
         }
       }

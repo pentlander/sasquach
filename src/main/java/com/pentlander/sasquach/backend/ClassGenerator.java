@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.backend;
 
 import static com.pentlander.sasquach.Util.seqMap;
+import static com.pentlander.sasquach.backend.GeneratorUtil.generateLoadVar;
 import static com.pentlander.sasquach.backend.GeneratorUtil.internalClassDesc;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
 import static java.lang.classfile.Signature.ClassTypeSig;
@@ -22,6 +23,7 @@ import com.pentlander.sasquach.tast.expression.TFunction;
 import com.pentlander.sasquach.tast.expression.TModuleStruct;
 import com.pentlander.sasquach.tast.expression.TStruct;
 import com.pentlander.sasquach.type.BuiltinType;
+import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.SingletonType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.SumType;
@@ -202,16 +204,42 @@ class ClassGenerator {
     buildAddClass(struct.type(), clb -> generateStruct(clb, struct));
   }
 
+  private void generateVariantTypeConstructor(ClassBuilder clb, String variantName, StructType variantStructType, SumType sumType) {
+    var funcType = variantStructType.constructorType(sumType);
+    var signature = generateMethodSignature(funcType);
+    var variantClassDesc = internalClassDesc(variantStructType);
+    clb.withMethod(variantName, funcType.functionTypeDesc(), ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL + ClassFile.ACC_SYNTHETIC, mb -> {
+      if (signature != null) {
+        mb.with(SignatureAttribute.of(signature));
+      }
+      mb.withCode(cob -> {
+        cob.new_(variantClassDesc).dup();
+        // Start at 1 since 0 is `this`
+        int idx = 1;
+        for (var type : funcType.parameterTypes()) {
+          generateLoadVar(cob, type, idx++);
+        }
+        var methodDesc = MethodHandleDesc.ofConstructor(variantClassDesc,
+            funcType.parameterTypes().stream().map(Type::classDesc).toArray(ClassDesc[]::new));
+        GeneratorUtil.generate(cob, methodDesc);
+        cob.areturn();
+      });
+    });
+  }
+
   /** Generate classes for the named structs defined in the type aliases. */
-  private void generateNamedTypes(List<TypeAlias> typeAliases) {
+  private void generateNamedTypes(ClassBuilder clb, List<TypeAlias> typeAliases) {
     for (var typeAlias : typeAliases) {
       if (typeAlias.typeNode() instanceof SumTypeNode sumTypeNode) {
           var sumType = sumTypeNode.type();
           generateSumType(sumType);
           sumTypeNode.variantTypeNodes().forEach(variantTypeNode -> {
             switch (variantTypeNode.type()) {
-              case StructType variantStructType ->
-                  generateVariantStruct(variantStructType, sumType, variantTypeNode.range());
+              case StructType variantStructType -> {
+                generateVariantStruct(variantStructType, sumType, variantTypeNode.range());
+                var variantName = variantTypeNode.id().name().toString();
+                generateVariantTypeConstructor(clb, variantName, variantStructType, sumType);
+              }
               case SingletonType singletonType ->
                   generateSingleton(singletonType, sumType, variantTypeNode.range());
             }
@@ -233,7 +261,7 @@ class ClassGenerator {
 
     // Add a static INSTANCE field of the struct to make a singleton class.
     if (struct instanceof TModuleStruct moduleStruct) {
-      generateNamedTypes(moduleStruct.typeAliases());
+      generateNamedTypes(clb, moduleStruct.typeAliases());
       generateStaticInstance(clb, structType.classDesc(),
           internalClassDesc(structType),
           cob -> new ExpressionGenerator(cob, Context.INIT, "modInit", List.of()).generateStructInit(
@@ -268,7 +296,7 @@ class ClassGenerator {
     generateFunction(clb, funcName, function, ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL);
   }
 
-  public Signature typeSignature(Type type) {
+  public static Signature typeSignature(Type type) {
     return switch (type) {
       case UniversalType t -> TypeVarSig.of(t.name());
       case BuiltinType t when t != BuiltinType.STRING && t != BuiltinType.STRING_ARR ->
@@ -277,27 +305,31 @@ class ClassGenerator {
     };
   }
 
+  private static MethodSignature generateMethodSignature(FunctionType funcType) {
+    if (funcType.typeParameters().isEmpty()) {
+      return null;
+    }
+
+    var typeParams = funcType.typeParameters()
+        .stream()
+        .map(typeParam -> TypeParam.of(typeParam.name(),
+            ClassTypeSig.of(ConstantDescs.CD_Object)))
+        .toList();
+    var paramTypeSigs = funcType.parameterTypes()
+        .stream()
+        .map(ClassGenerator::typeSignature)
+        .toArray(Signature[]::new);
+    return MethodSignature.of(typeParams,
+        List.of(),
+        typeSignature(funcType.returnType()),
+        paramTypeSigs);
+
+  }
+
   private void generateFunction(ClassBuilder clb, String funcName, TFunction function,
       int methodFlags) {
     var funcType = function.typeWithCaptures();
-    MethodSignature signature;
-    if (!funcType.typeParameters().isEmpty()) {
-      var typeParams = funcType.typeParameters()
-          .stream()
-          .map(typeParam -> TypeParam.of(typeParam.name(),
-              ClassTypeSig.of(ConstantDescs.CD_Object)))
-          .toList();
-      var paramTypeSigs = funcType.parameterTypes()
-          .stream()
-          .map(this::typeSignature)
-          .toArray(Signature[]::new);
-      signature = MethodSignature.of(typeParams,
-          List.of(),
-          typeSignature(funcType.returnType()),
-          paramTypeSigs);
-    } else {
-      signature = null;
-    }
+    var signature = generateMethodSignature(funcType);
 
     var namedAnonFuncs = new ArrayList<NamedAnonFunc>();
     clb.withMethod(funcName, funcType.functionTypeDesc(), methodFlags, mb -> {

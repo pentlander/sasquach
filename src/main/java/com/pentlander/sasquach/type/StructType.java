@@ -21,6 +21,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.StringJoiner;
+import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -32,6 +33,7 @@ import org.jspecify.annotations.Nullable;
 public record StructType(StructName structName, List<TypeParameter> typeParameters, SequencedMap<UnqualifiedName, Type> fieldTypes, Map<UnqualifiedTypeName, SumType> namedStructTypes, RowModifier rowModifier) implements
     ParameterizedType, VariantType, TypeNester {
   private static final String PREFIX = "Struct";
+  private static final Pattern TUPLE_FIELD_PATTERN = Pattern.compile("^_[0-9]+$");
 
   public StructType {
     fieldTypes = requireNonNullElse(fieldTypes, seqMap());
@@ -62,11 +64,16 @@ public record StructType(StructName structName, List<TypeParameter> typeParamete
     return structName.toString();
   }
 
+  public boolean isTuple() {
+    return fieldTypes.keySet().stream().allMatch(name -> TUPLE_FIELD_PATTERN.matcher(name.toString()).matches());
+  }
+
   public FunctionType constructorType(ParameterizedType returnType) {
+    var isTuple = isTuple();
     var params = fieldTypes()
         .entrySet()
         .stream()
-        .map(entry -> new FunctionType.Param(entry.getValue(), entry.getKey(), false))
+        .map(entry -> new FunctionType.Param(entry.getValue(), !isTuple ? entry.getKey() : null, false))
         .toList();
     return new FunctionType(params, returnType.typeParameters(), returnType);
   }

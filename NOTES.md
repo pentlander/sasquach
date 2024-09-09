@@ -431,3 +431,8 @@ mod Result {
 * https://news.ycombinator.com/item?id=9808317
 * https://elm-lang.org/news/compilers-as-assistants
 * https://git.sr.ht/~awsmith/hudson/tree/master/item/src/prelude/reporting.m
+
+## Labeled and Default Function Parameters
+* https://belkadan.com/blog/2022/04/Default-Arguments-and-Label-based-Overloading/
+* https://faultlore.com/blah/defaults-affect-inference/
+* https://github.com/gleam-lang/gleam/discussions/1122

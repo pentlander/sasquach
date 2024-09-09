@@ -94,6 +94,7 @@ import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
 import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.FunctionType.Param;
+import com.pentlander.sasquach.type.MemberScopedTypeResolver.LabeledMap.Indexed;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType;
 import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType.LocalVar;
 import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType.Module;
@@ -114,9 +115,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
@@ -167,8 +166,7 @@ public class MemberScopedTypeResolver {
 
   private Map<String, Type> typeParamToVar(List<TypeParameter> typeParams) {
     return typeParams(typeParams, param -> {
-      var typeVar = param.toTypeVariable(typeVarNum.getAndIncrement());
-      return typeVar;
+      return param.toTypeVariable(typeVarNum.getAndIncrement());
     });
   }
   private <T extends ParameterizedType> T convertUniversals(T type, Range range) {
@@ -295,9 +293,7 @@ public class MemberScopedTypeResolver {
         yield new TArrayValue(arrayVal.type(), typedExprs, arrayVal.range());
       }
       case Block block ->
-          new TBlock(block.expressions().stream().map(
-              expr1 -> infer(expr1)
-          ).toList(), block.range());
+          new TBlock(block.expressions().stream().map(this::infer).toList(), block.range());
       case MemberAccess fieldAccess -> resolveFieldAccess(fieldAccess);
       case ForeignFieldAccess foreignFieldAccess -> resolveForeignFieldAccess(foreignFieldAccess);
       case FunctionCall funcCall -> resolveFunctionCall(funcCall);
@@ -309,7 +305,7 @@ public class MemberScopedTypeResolver {
         yield switch (recurPoint) {
           case Function func -> {
             var funcType = convertUniversals((FunctionType) infer(func).type(), func.range());
-            var typedExprs = checkFuncArgs(NAME_RECUR,
+            var typedExprs = checkFuncArgTypes(NAME_RECUR,
                 recur.arguments(),
                 funcType.parameterTypes(),
                 recur.range());
@@ -324,7 +320,7 @@ public class MemberScopedTypeResolver {
                 .stream()
                 .map(variableDeclaration -> (TVariableDeclaration) infer(variableDeclaration))
                 .toList();
-            var typedExprs = checkFuncArgs(NAME_RECUR,
+            var typedExprs = checkFuncArgTypes(NAME_RECUR,
                 recur.arguments(),
                 typedVarDecls.stream().map(TVariableDeclaration::variableType).toList(),
                 recur.range());
@@ -610,7 +606,7 @@ public class MemberScopedTypeResolver {
   }
 
   static class LabeledMap<T extends Labeled> {
-    private record Indexed<T>(int idx, T item) {}
+    record Indexed<T>(int idx, T item) {}
 
     private final List<T> items = new ArrayList<>();
     private final HashMap<UnqualifiedName, Indexed<T>> labeledItems = new LinkedHashMap<>();
@@ -645,14 +641,14 @@ public class MemberScopedTypeResolver {
     }
   }
 
-  private TArgs checkFuncArgs2(UnqualifiedName name, List<Argument> args,
+  private TArgs checkFuncArgs(UnqualifiedName name, List<Argument> args,
       List<FunctionType.Param> params, Range range) {
     var argsMap = LabeledMap.of(args);
     var posArgs = argsMap.positionalItems();
 
     var paramsMap = LabeledMap.of(params);
     var posParamTypes = paramsMap.positionalItems().stream().map(Param::type).toList();
-    var posExprs = checkFuncArgs(name, posArgs, posParamTypes, range);
+    var posExprs = checkFuncArgTypes(name, posArgs, posParamTypes, range);
     var argIndexes = new int[args.size()];
     for (int i = 0; i < posExprs.size(); i++) {
       argIndexes[i] = i;
@@ -660,7 +656,7 @@ public class MemberScopedTypeResolver {
 
     var argSet = argsMap.labeledItems.values()
         .stream()
-        .map(idxArg -> idxArg.item())
+        .map(Indexed::item)
         .collect(toCollection(HashSet::new));
     var labeledExprs = new TypedExpression[argsMap.labeledSize()];
     paramsMap.labeledItems.forEach((paramLabel, idxParam) -> {
@@ -687,7 +683,7 @@ public class MemberScopedTypeResolver {
     return new TArgs(argIndexes, concat(posExprs, Arrays.asList(labeledExprs)));
   }
 
-  private List<TypedExpression> checkFuncArgs(UnqualifiedName name, List<Argument> args,
+  private List<TypedExpression> checkFuncArgTypes(UnqualifiedName name, List<Argument> args,
       List<Type> paramTypes, Range range) {
     // Handle mismatch between arg count and parameter count
     if (args.size() != paramTypes.size()) {
@@ -728,7 +724,7 @@ public class MemberScopedTypeResolver {
       // We only have the function type here, not the full function. Need to figure out the right
       // place to match up labeled args with their parameters
       var funcType = convertUniversals(fieldFuncType, range);
-      var typedFuncArgs = checkFuncArgs2(name, args, funcType.parameters(), range);
+      var typedFuncArgs = checkFuncArgs(name, args, funcType.parameters(), range);
       return new TBasicFunctionCall(TCallTarget.struct(structExpr),
           structFuncCall.functionId().name(),
           funcType, // TODO I think this needs to be the unconverted type. Add a test
@@ -744,25 +740,9 @@ public class MemberScopedTypeResolver {
               fieldType.toPrettyString()), structFuncCall.functionId().range()));
     }
 
-    var variantWithSum = structType.get().constructableType(name.toTypeName());
-    if (variantWithSum == null) {
-      return addError(structFuncCall,
-          new TypeMismatchError(("Struct of type '%s' has no field "
-              + "named '%s'").formatted(structType.get().toPrettyString(), name), range));
-    }
-
-    var sumType = variantWithSum.sumType();
-    var variantStructType = (StructType) variantWithSum.type();
-    var funcType = variantStructType.constructorType(sumType);
-    var convertedFuncType = convertUniversals(funcType, range);
-    var typedFuncArgs = checkFuncArgs(name, args, convertedFuncType.parameterTypes(), range);
-    return new TConstructorCall((QualifiedTypeName) variantStructType.structName(),
-        IntStream.range(0, args.size()).boxed().toList(),
-        typedFuncArgs,
-        funcType,
-        typeUnifier.resolve(convertedFuncType.returnType()),
-        range);
-
+    return addError(structFuncCall,
+        new TypeMismatchError(("No function '%s' found on struct of type '%s'").formatted(name,
+            structType.get().toPrettyString()), structFuncCall.range()));
   }
 
   private TypedExpression resolveFunctionCall(FunctionCall funcCall) {
@@ -780,7 +760,7 @@ public class MemberScopedTypeResolver {
               var tLocalVar = getLocalVar(localVar).orElseThrow();
               var funcType = TypeUtils.asFunctionType(tLocalVar.variableType()).orElseThrow();
               var resolvedFuncType = convertUniversals(funcType, range);
-              var typedExprs = checkFuncArgs2(name, args, resolvedFuncType.parameters(), range);
+              var typedExprs = checkFuncArgs(name, args, resolvedFuncType.parameters(), range);
               yield new TBasicFunctionCall(TCallTarget.localVar(tLocalVar),
                   localFuncCall.functionId().name(),
                   funcType,
@@ -913,7 +893,7 @@ public class MemberScopedTypeResolver {
         // (I think? Maybe it'll just work)
         var returnType = javaTypeToType(executable.getAnnotatedReturnType().getType(), typeParams);
         var checkParamTypes = isVarArgs ? argTypes : paramTypes;
-        var typedExprs = checkFuncArgs(funcCall.name(),
+        var typedExprs = checkFuncArgTypes(funcCall.name(),
             funcCall.arguments(),
             checkParamTypes,
             funcCall.range());

@@ -9,4 +9,8 @@ public record UnqualifiedTypeName(String value) implements Name, StructName {
   public String toString() {
     return value;
   }
+
+  public UnqualifiedName toName() {
+    return new UnqualifiedName(value);
+  }
 }

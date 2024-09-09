@@ -413,6 +413,7 @@ class MemberScopedTypeResolverTest {
 
   private void assertErrorRange(Range range) {
     shouldAssertErrorsEmpty = false;
-    assertThat(memberScopedTypeResolver.errors().errors().get(0).range()).isEqualTo(range);
+    var error = memberScopedTypeResolver.errors().errors().get(0);
+    assertThat(error.range()).isEqualTo(range);
   }
 }
