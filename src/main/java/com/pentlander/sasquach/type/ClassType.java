@@ -62,10 +62,9 @@ public record ClassType(Class<?> typeClass, List<Type> typeArguments) implements
         }
       }
       return true;
+    } else if (other instanceof BuiltinType builtinType) {
+      return typeClass.isAssignableFrom(builtinType.typeClass());
     } else if (typeClass.equals(Object.class)) {
-      if (other instanceof BuiltinType builtinType) {
-        return builtinType == BuiltinType.STRING;
-      }
       return true;
     }
     return false;

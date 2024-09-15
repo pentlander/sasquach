@@ -48,12 +48,16 @@ public final class TypeVariable implements Type, TypeNester {
         return inner.type.equals(typeVar.inner.type);
       }
 
-      // If only one or neither is resolved, they need to have the same inner
-      if (inner.type != null) {
-        typeVar.inner = inner;
-      } else {
+      // If only one or neither is resolved, they need to have the same inner. The order matters
+      // here, if the other (which appears later in the code) already has a concrete type and this
+      // does not, then update the inner of this. Otherwise, set the other's inner to the inner of
+      // this regardless of whether it has a value since it was already unified with earlier type
+      // variables.
+      if (typeVar.inner.type != null) {
         inner = typeVar.inner;
         stackTrace = Thread.currentThread().getStackTrace();
+      } else {
+        typeVar.inner = inner;
       }
       return true;
     } else if (inner.type != null && !inner.type.isAssignableFrom(type)) {
@@ -109,7 +113,7 @@ public final class TypeVariable implements Type, TypeNester {
   @Override
   public String toPrettyString() {
     var innerStr = inner.type != null ? inner.type.toPrettyString() : "null";
-    return name + level + "[" + innerStr + "]";
+    return name + "[" + innerStr + "]";
   }
 
   private static class InnerType {

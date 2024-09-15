@@ -8,15 +8,20 @@ import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
+import java.lang.constant.ConstantDescs;
 import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
 import jdk.dynalink.linker.support.TypeUtilities;
 
 public final class GeneratorUtil {
+  static final MethodTypeDesc MTD_EQUALS = MethodTypeDesc.of(ConstantDescs.CD_boolean, ConstantDescs.CD_Object);
+
   private GeneratorUtil() {
   }
 
   public static ClassDesc internalClassDesc(Type type) {
+    if (type instanceof BuiltinType) return type.classDesc();
+
     return ClassDesc.ofInternalName(type.internalName());
   }
 
@@ -88,6 +93,23 @@ public final class GeneratorUtil {
     if (expectedTypeKind.equals(TypeKind.ReferenceType)) {
       box(cob, actualType);
     }
+  }
+
+  static void generateEquals(CodeBuilder cob, TypeKind typeKind) {
+    var falseLabel = cob.newLabel();
+    var endLabel = cob.newLabel();
+    switch (typeKind) {
+      case BooleanType, ByteType, CharType, ShortType, IntType  -> cob.if_icmpne(falseLabel);
+      case LongType -> cob.lcmp().ifne(falseLabel);
+      case FloatType -> cob.fcmpl().ifne(falseLabel);
+      case DoubleType -> cob.dcmpl().ifne(falseLabel);
+      case ReferenceType -> {
+        cob.invokevirtual(ConstantDescs.CD_Object, "equals", MTD_EQUALS);
+        return;
+      }
+      case VoidType -> throw new IllegalStateException();
+    }
+    cob.iconst_1().goto_(endLabel).labelBinding(falseLabel).iconst_0().labelBinding(endLabel);
   }
 
   static void generateLoadVar(CodeBuilder cob, Type type, int idx) {

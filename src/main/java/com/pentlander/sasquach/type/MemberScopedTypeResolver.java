@@ -1,5 +1,7 @@
 package com.pentlander.sasquach.type;
 
+import static com.pentlander.sasquach.Preconditions.checkArgument;
+import static com.pentlander.sasquach.Preconditions.checkNotInstanceOf;
 import static com.pentlander.sasquach.Util.concat;
 import static com.pentlander.sasquach.type.TypeUtils.reify;
 import static java.util.Objects.requireNonNull;
@@ -189,12 +191,16 @@ public class MemberScopedTypeResolver {
   }
 
   public TypedExpression check(Expression expr, Type type) {
+    checkNotInstanceOf(type, LocalNamedType.class, "type must be resolved");
+
     return switch (expr) {
       // Check that the function matches the given type
       case Function func when type instanceof FunctionType funcType -> {
         List<TFunctionParameter> funcParams = new ArrayList<>();
+        // TODO need to include type args from parent if this is a nested func
+        var funcSig = namedTypeResolver.resolveTypeNode(func.functionSignature(), Map.of());
         for (int i = 0; i < func.parameters().size(); i++) {
-          var param = func.parameters().get(i);
+          var param = funcSig.parameters().get(i);
           var expectedParamType = funcType.parameterTypes().get(i);
           typeUnifier.unify(param.type(), expectedParamType);
           var typedVar = new TFunctionParameter(param.id(), Label.of(param.label(), null),  expectedParamType, param.range());
@@ -290,8 +296,14 @@ public class MemberScopedTypeResolver {
             .toList();
         yield new TArrayValue(arrayVal.type(), typedExprs, arrayVal.range());
       }
-      case Block block ->
-          new TBlock(block.expressions().stream().map(this::infer).toList(), block.range());
+      case Block block -> {
+        var tExprs = new ArrayList<TypedExpression>(block.expressions().size());
+        // Loop instead of stream for easier debugger stepping
+        for (var blockExpr : block.expressions()) {
+          tExprs.add(infer(blockExpr));
+        }
+        yield new TBlock(tExprs, block.range());
+      }
       case MemberAccess fieldAccess -> resolveFieldAccess(fieldAccess);
       case ForeignFieldAccess foreignFieldAccess -> resolveForeignFieldAccess(foreignFieldAccess);
       case FunctionCall funcCall -> resolveFunctionCall(funcCall);
@@ -342,7 +354,13 @@ public class MemberScopedTypeResolver {
       case Function func -> {
         var lvl = typeVarNum.getAndIncrement();
         var paramTypes = func.parameters().stream().map(param -> {
-          var paramType = new TypeVariable(param.name().toString(), lvl);
+          Type paramType;
+          var typeNode = param.typeNode();
+          if (typeNode != null) {
+            paramType = namedTypeResolver.resolveNames(typeNode.type(), Map.of(), typeNode.range());
+          } else {
+            paramType = new TypeVariable(param.name().toString(), lvl);
+          }
           var typedParam = new TFunctionParameter(param.id(), Label.of(param.label(), null), paramType, param.range());
           putLocalVarType(param, typedParam);
           return typedParam;

@@ -1,6 +1,8 @@
 package com.pentlander.sasquach.backend;
 
 import static com.pentlander.sasquach.Util.seqMap;
+import static com.pentlander.sasquach.backend.GeneratorUtil.MTD_EQUALS;
+import static com.pentlander.sasquach.backend.GeneratorUtil.box;
 import static com.pentlander.sasquach.backend.GeneratorUtil.generateLoadVar;
 import static com.pentlander.sasquach.backend.GeneratorUtil.internalClassDesc;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
@@ -54,12 +56,15 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
 class ClassGenerator {
+  static final MethodTypeDesc MTD_HASHCODE = MethodTypeDesc.of(ConstantDescs.CD_int);
+  static final MethodTypeDesc MTD_HASH = MethodTypeDesc.of(ConstantDescs.CD_int, ConstantDescs.CD_Object.arrayType());
   static final ClassDesc CD_STRUCT_BASE = classDesc(StructBase.class);
   static final String INSTANCE_FIELD = "INSTANCE";
   private final Map<String, byte[]> generatedClasses = new LinkedHashMap<>();
@@ -248,6 +253,53 @@ class ClassGenerator {
     }
   }
 
+  private static void generateEquals(ClassBuilder clb, TStruct struct) {
+    var structDesc = internalClassDesc(struct.structType());
+
+    clb.withMethodBody("equals", MTD_EQUALS, ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL, cob -> {
+      var falseLabel = cob.newLabel();
+      var thisSlot = cob.receiverSlot();
+      var otherSlot = cob.parameterSlot(0);
+      var castOtherSlot = cob.allocateLocal(TypeKind.ReferenceType);
+      cob.aload(otherSlot).instanceof_(structDesc).ifeq(falseLabel)
+          .aload(otherSlot)
+          .checkcast(structDesc)
+          .astore(castOtherSlot);
+      for (var field : struct.fields()) {
+        var fieldName = field.name().toString();
+        var fieldType = internalClassDesc(field.type());
+        cob.aload(thisSlot)
+            .getfield(structDesc, fieldName, fieldType)
+            .aload(castOtherSlot)
+            .getfield(structDesc, fieldName, fieldType);
+        GeneratorUtil.generateEquals(cob, TypeKind.from(fieldType));
+        cob.ifeq(falseLabel);
+      }
+      var returnLabel = cob.newLabel();
+      cob.iconst_1().goto_(returnLabel).labelBinding(falseLabel).iconst_0().labelBinding(returnLabel).ireturn();
+    });
+  }
+
+  private static void generateHashCode(ClassBuilder clb, TStruct struct) {
+    var structDesc = internalClassDesc(struct.structType());
+
+    clb.withMethodBody("hashCode", MTD_HASHCODE, ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL, cob -> {
+      var thisSlot = cob.receiverSlot();
+      cob.ldc(struct.fields().size());
+      cob.anewarray(ConstantDescs.CD_Object);
+      int i = 0;
+      for (var field : struct.fields()) {
+        var fieldName = field.name().toString();
+        var fieldType = internalClassDesc(field.type());
+        cob.dup().ldc(i++).aload(thisSlot).getfield(structDesc, fieldName, fieldType);
+        box(cob, field.type());
+        cob.aastore();
+      }
+      cob.invokestatic(classDesc(Objects.class), "hash", MTD_HASH)
+          .ireturn();
+    });
+  }
+
   private void generateStruct(ClassBuilder clb, TStruct struct) {
     setContext(struct);
     // Generate class header
@@ -258,6 +310,8 @@ class ClassGenerator {
     struct.fields().forEach(field -> fieldTypes.put(field.name(), field.type()));
 
     generateStructStart(clb, structDesc, struct.range(), fieldTypes);
+    generateEquals(clb, struct);
+    generateHashCode(clb, struct);
 
     // Add a static INSTANCE field of the struct to make a singleton class.
     if (struct instanceof TModuleStruct moduleStruct) {
@@ -273,7 +327,6 @@ class ClassGenerator {
         generateFunction(clb, function.name().toString(), function.function());
       }
     }
-
   }
 
   private void generateStaticInstance(ClassBuilder clb, ClassDesc fieldClassDesc, ClassDesc ownerClassDesc,

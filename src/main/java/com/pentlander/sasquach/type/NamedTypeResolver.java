@@ -116,12 +116,12 @@ public class NamedTypeResolver {
     return typeNodes.stream().map(t -> resolveTypeNode(t, Map.of())).toList();
   }
 
-  <T extends TypeNode> List<T> mapResolveTypeNode(Collection<T> typeNodes,
+  private <T extends TypeNode> List<T> mapResolveTypeNode(Collection<T> typeNodes,
       Map<String, Type> typeArgs) {
     return typeNodes.stream().map(t -> resolveTypeNode(t, typeArgs)).toList();
   }
 
-  Type resolveNamedType(NamedType namedType, Map<String, Type> typeArgs, Range range) {
+  private Type resolveNamedType(NamedType namedType, Map<String, Type> typeArgs, Range range) {
     var typeDefNode = nameResolutionResult.getNamedType(namedType)
         .orElseThrow(() -> new IllegalStateException("Unable to find named type: " + namedType));
 

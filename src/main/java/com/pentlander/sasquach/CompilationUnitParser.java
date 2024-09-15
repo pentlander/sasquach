@@ -1,5 +1,7 @@
 package com.pentlander.sasquach;
 
+import static com.pentlander.sasquach.Util.mapNonNull;
+
 import com.pentlander.sasquach.Range.Single;
 import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.parser.SasquachLexer;
@@ -43,9 +45,10 @@ public class CompilationUnitParser {
     public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line,
         int charPositionInLine, String msg, RecognitionException e) {
       var token = (CommonToken) offendingSymbol;
+      var tokenLen = token != null ? token.getText().length() : 0;
       var range = new Single(source.path(),
           new Position(line, charPositionInLine + 1),
-          token.getText().length());
+          tokenLen);
       System.err.println(msg);
       System.err.println(source.highlight(range));
       compileErrors.add(new BasicError(msg, range));

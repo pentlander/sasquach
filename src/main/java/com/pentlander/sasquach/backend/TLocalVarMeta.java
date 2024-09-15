@@ -4,6 +4,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.tast.expression.TLocalVariable;
+import com.pentlander.sasquach.type.BuiltinType;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
@@ -31,7 +32,15 @@ class TLocalVarMeta {
   }
 
   TVarMeta push(TLocalVariable localVar) {
-    var meta = new TVarMeta(localVar, count++);
+    var meta = new TVarMeta(localVar, count);
+    var slotInc = switch (localVar.type()) {
+      case BuiltinType builtinType -> switch (builtinType) {
+        case LONG, DOUBLE -> 2;
+        default -> 1;
+      };
+      default -> 1;
+    };
+    count += slotInc;
     varMetas.push(meta);
     varToMeta.put(localVar.id(), meta);
     return meta;

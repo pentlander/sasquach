@@ -1,7 +1,8 @@
 package com.pentlander.sasquach.type;
 
+import static com.pentlander.sasquach.Preconditions.checkNotInstanceOf;
+
 import com.pentlander.sasquach.ast.UnqualifiedName;
-import com.pentlander.sasquach.type.FunctionType.Param;
 import com.pentlander.sasquach.type.StructType.RowModifier;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,6 +17,8 @@ public class TypeUnifier {
    * Resolves the type by replacing any type variables in a parameterized type with a concrete one.
    */
   public Type resolve(Type type) {
+    checkNotInstanceOf(type, LocalNamedType.class, "named type must be resolved before unifying");
+
     if (type instanceof TypeNester paramType) {
       return switch (paramType) {
         case UniversalType universalType -> universalType;
@@ -76,6 +79,14 @@ public class TypeUnifier {
    * Unifies a the destination type with the soure type.
    */
   public void unify(Type destType, Type sourceType) {
+    checkNotInstanceOf(
+        destType,
+        LocalNamedType.class,
+        "named destType must be resolved before unifying");
+    checkNotInstanceOf(sourceType,
+        LocalNamedType.class,
+        "named sourceType must be resolved before unifying");
+
     if (destType instanceof ResolvedNamedType resolvedNamedType) {
       destType = resolvedNamedType.type();
     }
@@ -188,6 +199,11 @@ public class TypeUnifier {
           var destArgType = destClassType.typeArguments().get(i);
           var sourceArgType = sourceClassType.typeArguments().get(i);
           unify(destArgType, sourceArgType);
+        }
+      }
+      case ClassType destClassType when sourceType instanceof BuiltinType -> {
+        if (!destClassType.isAssignableFrom(sourceType)) {
+          throw new UnificationException(destType, sourceType);
         }
       }
       case ClassType destClassType when destClassType.typeClass().equals(Object.class) -> {

@@ -1,9 +1,29 @@
-Integer {
+Int {
   use foreign java/lang/Integer,
 
-  toString = (int: Int): String -> Integer#toString(int),
+  equals = (a: Int, b: Int): Boolean -> a == b,
 
-  parse = (str: String): Int -> Integer#parseInt(str)
+  parse = (str: String): Int -> Integer#parseInt(str),
+
+  toString = (int: Int): String -> Integer#toString(int),
+}
+
+String {
+  use foreign java/lang/String,
+
+  equals = (a: String, b: String): Boolean -> String#equals(a, b),
+
+  toString = (val: String): String -> val,
+
+  concat = (str: String, with otherStr: String): String -> String#concat(str, otherStr),
+
+  contains = (str: String, subStr: String): Boolean -> String#contains(str, subStr),
+
+  length = (str: String): Int -> String#length(str),
+}
+
+Into {
+  type T[A, B] = { into: (a: A) -> B, }
 }
 
 Exception {
@@ -256,16 +276,17 @@ Map {
     { hasher = map.hasher, map = newMap }
   },
 
-  map = [A, B, C, D](map: T[A, B], mapper: (entry: (A, B)) -> (C, D)): T[A, B] -> {
+  map = [A, B, C, D](map: T[A, B], hasher: Hash.T[C], mapper: (key: A, value: B) -> (C, D)): T[C, D] -> {
     let newMap = HashMap#new(HashMap#size(map.map))
     let entrySet = HashMap#entrySet(map.map)
     loop (let iter = Set#iterator(entrySet)) ->
       if Iterator#hasNext(iter) {
         let entry = Iterator#next(iter)
-        HashMap#put(newMap, Entry#getKey(entry), Entry#getValue(entry))
+        let mappedEntry = mapper(Entry#getKey(entry), Entry#getValue(entry))
+        HashMap#put(newMap, mappedEntry._0, mappedEntry._1)
         recur(iter)
       } else {
-        { hasher = map.hasher, map = newMap }
+        { hasher = hasher, map = newMap }
       }
   },
 }

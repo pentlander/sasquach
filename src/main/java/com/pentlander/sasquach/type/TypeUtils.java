@@ -19,7 +19,8 @@ public final class TypeUtils {
     return switch (type) {
       case StructType structType -> Optional.of(structType);
       case ResolvedNamedType resolvedNamedType -> asStructType(resolvedNamedType.type());
-      case TypeVariable typeVariable -> asStructType(typeVariable.resolvedType().orElseThrow());
+      case TypeVariable typeVariable ->
+          typeVariable.resolvedType().flatMap(TypeUtils::asStructType);
       default -> Optional.empty();
     };
   }

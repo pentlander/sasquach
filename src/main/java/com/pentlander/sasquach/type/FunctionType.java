@@ -57,7 +57,7 @@ public record FunctionType(List<Param> parameters,
 
   @Override
   public String internalName() {
-    throw new IllegalStateException();
+    return Func.class.getName().replace('.', '/');
   }
 
   @Override
