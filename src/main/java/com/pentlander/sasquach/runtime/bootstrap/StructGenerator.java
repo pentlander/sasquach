@@ -1,5 +1,6 @@
-package com.pentlander.sasquach.runtime;
+package com.pentlander.sasquach.runtime.bootstrap;
 
+import com.pentlander.sasquach.runtime.StructBase;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;

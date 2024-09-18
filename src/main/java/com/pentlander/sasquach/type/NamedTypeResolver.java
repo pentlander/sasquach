@@ -53,7 +53,7 @@ public class NamedTypeResolver {
       case FunctionSignature(var parameters, var typeParameters, var returnType, var range) -> {
         var newTypeArgs = new HashMap<>(typeArgs);
         newTypeArgs.putAll(MemberScopedTypeResolver.typeParams(typeParameters,
-            param -> param.toUniversal(0)));
+            param -> param.toUniversal()));
         var resolvedParameters = parameters.stream()
             .map(p -> {
               var paramTypeNode =
@@ -94,7 +94,7 @@ public class NamedTypeResolver {
       case TypeAlias(var id, var typeParameters, var aliasTypeNode, var range) -> {
         var newTypeArgs = new HashMap<>(typeArgs);
         newTypeArgs.putAll(MemberScopedTypeResolver.typeParams(typeParameters,
-            param -> param.toUniversal(0)));
+            param -> param.toUniversal()));
         yield new TypeAlias(id, typeParameters, resolveTypeNode(aliasTypeNode, newTypeArgs), range);
       }
       case Singleton(var moduleName, var aliasId, var id) ->
@@ -185,7 +185,7 @@ public class NamedTypeResolver {
     return switch (typeNester) {
       case StructType structType -> new StructType(structType.structName(),
           structType.typeParameters(),
-          structType.fieldTypes()
+          structType.memberTypes()
               .entrySet()
               .stream()
               .collect(toSeqMap(Entry::getKey, e -> resolveNames(e.getValue(), typeArgs, range))),

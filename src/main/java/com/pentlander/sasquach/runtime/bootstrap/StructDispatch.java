@@ -1,17 +1,16 @@
-package com.pentlander.sasquach.runtime;
+package com.pentlander.sasquach.runtime.bootstrap;
 
-import static com.pentlander.sasquach.runtime.Bootstrap.bootstrapMethodTypeDesc;
-import static com.pentlander.sasquach.runtime.Bootstrap.methodHandleDesc;
+import static com.pentlander.sasquach.runtime.bootstrap.Bootstrap.bootstrapMethodTypeDesc;
+import static com.pentlander.sasquach.runtime.bootstrap.Bootstrap.methodHandleDesc;
 
-import com.pentlander.sasquach.runtime.StructLinker.StructCallSiteDesc;
-import com.pentlander.sasquach.runtime.StructLinker.StructOperation;
+import com.pentlander.sasquach.runtime.bootstrap.StructLinker.StructCallSiteDesc;
+import com.pentlander.sasquach.runtime.bootstrap.StructLinker.StructOperation;
 import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.util.Arrays;
-import jdk.dynalink.CallSiteDescriptor;
 import jdk.dynalink.DynamicLinker;
 import jdk.dynalink.DynamicLinkerFactory;
 import jdk.dynalink.Operation;

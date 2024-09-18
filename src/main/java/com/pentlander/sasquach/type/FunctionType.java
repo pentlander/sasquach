@@ -8,7 +8,7 @@ import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Labeled;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
-import com.pentlander.sasquach.runtime.Func;
+import com.pentlander.sasquach.runtime.bootstrap.Func;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TFunctionParameter.Label.None;
 import com.pentlander.sasquach.tast.TFunctionParameter.Label.Some;

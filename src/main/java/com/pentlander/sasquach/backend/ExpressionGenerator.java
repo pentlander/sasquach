@@ -13,10 +13,10 @@ import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.backend.TLocalVarMeta.TVarMeta;
-import com.pentlander.sasquach.runtime.Func;
-import com.pentlander.sasquach.runtime.FuncBootstrap;
-import com.pentlander.sasquach.runtime.StructDispatch;
-import com.pentlander.sasquach.runtime.SwitchBootstraps;
+import com.pentlander.sasquach.runtime.bootstrap.Func;
+import com.pentlander.sasquach.runtime.bootstrap.FuncBootstrap;
+import com.pentlander.sasquach.runtime.bootstrap.StructDispatch;
+import com.pentlander.sasquach.runtime.bootstrap.SwitchBootstraps;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TPattern;
 import com.pentlander.sasquach.tast.TypedNode;
@@ -303,7 +303,7 @@ final class ExpressionGenerator {
       case TFieldAccess fieldAccess -> {
         generate(fieldAccess.expr());
         var structType = asStructType(fieldAccess.expr().type()).orElseThrow();
-        generateFieldAccess(fieldAccess.fieldName(), structType.fieldType(fieldAccess.fieldName()));
+        generateFieldAccess(cob, fieldAccess.fieldName(), structType.fieldType(fieldAccess.fieldName()));
       }
       case TBlock block -> generateBlock(block);
       case TForeignFieldAccess(_, var id, var ownerType, var fieldType, var accessKind) -> {
@@ -404,7 +404,7 @@ final class ExpressionGenerator {
                 cob.checkcast(internalClassDesc(variantType));
 
                 var field = tupleFieldTypes.get(j);
-                generateFieldAccess(field.getKey(), field.getValue());
+                generateFieldAccess(cob, field.getKey(), field.getValue());
 
                 // Store the value in the pattern variable
                 var binding = bindings.get(j);
@@ -420,7 +420,7 @@ final class ExpressionGenerator {
                 cob.checkcast(internalClassDesc(variantType));
 
                 var fieldType = variantType.fieldType(binding.name());
-                generateFieldAccess(binding.name(), fieldType);
+                generateFieldAccess(cob, binding.name(), fieldType);
 
                 var bindType = type(binding);
                 int idx = localVarMeta.push(binding).idx();
@@ -495,7 +495,7 @@ final class ExpressionGenerator {
             cob.dup();
             // Consume one of the struct references to create a Func object, making the stack:
             // Struct -> Func, then swap them since the func call expects the order to be Func -> Struct
-            generateFieldAccess(name, funcType);
+            generateFieldAccess(cob, name, funcType);
             cob.swap();
           }
         }
@@ -512,9 +512,13 @@ final class ExpressionGenerator {
     }
   }
 
-  private void generateFieldAccess(UnqualifiedName fieldName, Type fieldType) {
+  private static void generateFieldAccess(
+      CodeBuilder cob,
+      UnqualifiedName fieldName,
+      Type fieldType
+  ) {
     var isFunc = TypeUtils.asFunctionType(fieldType).isPresent();
-    var namespaces = isFunc ? new Namespace[]{StandardNamespace.METHOD, StandardNamespace.PROPERTY}
+    var namespaces = isFunc ? new Namespace[]{StandardNamespace.PROPERTY, StandardNamespace.METHOD}
         : new Namespace[]{StandardNamespace.PROPERTY};
     var operation = StandardOperation.GET
         .withNamespaces(namespaces)
@@ -523,14 +527,6 @@ final class ExpressionGenerator {
     var typeDesc = MethodTypeDesc.of(fieldType.classDesc(), CD_STRUCT_BASE);
 
     cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(StructDispatch.MHD_BOOTSTRAP_MEMBER, operation, typeDesc));
-  }
-
-  private void generateArgs(List<TypedExpression> arguments, List<Type> paramTypes) {
-    for (int i = 0; i < arguments.size(); i++) {
-      var expr = arguments.get(i);
-      generate(expr);
-      tryBox(cob, type(expr), paramTypes.get(i));
-    }
   }
 
   private void generateArgs(TArgs typedArgs, List<FunctionType.Param> params) {

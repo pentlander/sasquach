@@ -1,4 +1,4 @@
-package com.pentlander.sasquach.runtime;
+package com.pentlander.sasquach.runtime.bootstrap;
 
 import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.constant.DirectMethodHandleDesc.Kind;

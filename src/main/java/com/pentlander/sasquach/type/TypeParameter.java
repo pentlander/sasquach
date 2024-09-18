@@ -14,8 +14,8 @@ public record TypeParameter(Identifier id) implements Node, NamedTypeDefinition 
     return id.name().toString();
   }
 
-  public UniversalType toUniversal(int level) {
-    return new UniversalType(id.name().toString(), level);
+  public UniversalType toUniversal() {
+    return new UniversalType(id.name().toString());
   }
 
   public TypeVariable toTypeVariable(int level) {

@@ -5,10 +5,12 @@ import static java.util.Objects.requireNonNull;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.RecurPoint;
+import com.pentlander.sasquach.ast.StructName;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Match;
@@ -105,6 +107,15 @@ public class NameResolutionResult {
     return requireNonNull(nameData.matchTypeNodes().get(match));
   }
 
+  public List<LocalVariable> getFunctionCaptures(Function func) {
+    var captures = nameData.funcCaptures().get(func);
+    return captures != null ? List.copyOf(captures) : List.of();
+  }
+
+  public StructName getLiteralStructName(LiteralStruct struct) {
+    return requireNonNull(nameData.literalStructNames().get(struct), struct.toString());
+  }
+
   public RangedErrorList errors() {
     return errors;
   }
@@ -123,6 +134,7 @@ public class NameResolutionResult {
             .recurPoints(merged(nd.recurPoints(), ond.recurPoints()))
             .matchTypeNodes(merged(nd.matchTypeNodes(), ond.matchTypeNodes()))
             .funcCaptures(merged(nd.funcCaptures(), ond.funcCaptures()))
+            .literalStructNames(merged(nd.literalStructNames(), ond.literalStructNames()))
             .build(),
         errors.concat(other.errors)
      );
@@ -136,10 +148,5 @@ public class NameResolutionResult {
     var map = new HashMap<>(mapA);
     map.putAll(mapB);
     return map;
-  }
-
-  public List<LocalVariable> getFunctionCaptures(Function func) {
-    var captures = nameData.funcCaptures().get(func);
-    return captures != null ? List.copyOf(captures) : List.of();
   }
 }

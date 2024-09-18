@@ -36,13 +36,13 @@ public class TypeUnifier {
         }
         case StructType structType -> {
           var fieldTypes = new LinkedHashMap<UnqualifiedName, Type>();
-          structType.fieldTypes()
+          structType.memberTypes()
               .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType)));
 
           StructType.RowModifier rowModifier = structType.rowModifier();
           if (structType.rowModifier() instanceof RowModifier.NamedRow namedRow && namedRow.type() instanceof TypeVariable typeVar) {
             var rowStruct = typeVar.resolvedType().flatMap(TypeUtils::asStructType);
-            rowStruct.ifPresent(value -> value.fieldTypes()
+            rowStruct.ifPresent(value -> value.memberTypes()
                 .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType))));
           }
           yield new StructType(
@@ -140,9 +140,9 @@ public class TypeUnifier {
         unify(destFuncType.returnType(), sourceFuncType.returnType());
       }
       case StructType destStructType when sourceType instanceof StructType sourceStructType -> {
-        var sourceFieldTypes = new LinkedHashMap<>(sourceStructType.fieldTypes());
-        var destFieldTypes = new LinkedHashMap<>(destStructType.fieldTypes());
-        destStructType.fieldTypes().forEach((fieldName, destFieldType) -> {
+        var sourceFieldTypes = new LinkedHashMap<>(sourceStructType.memberTypes());
+        var destFieldTypes = new LinkedHashMap<>(destStructType.memberTypes());
+        destStructType.memberTypes().forEach((fieldName, destFieldType) -> {
           var sourceFieldType = sourceFieldTypes.remove(fieldName);
           if (!sourceStructType.isRow() && sourceFieldType == null) {
             throw new UnificationException(destType, sourceType);

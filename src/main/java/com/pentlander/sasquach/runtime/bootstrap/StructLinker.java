@@ -1,7 +1,8 @@
-package com.pentlander.sasquach.runtime;
+package com.pentlander.sasquach.runtime.bootstrap;
 
-import com.pentlander.sasquach.runtime.Func.AnonFunc;
-import com.pentlander.sasquach.runtime.Func.NamedFunc;
+import com.pentlander.sasquach.runtime.StructBase;
+import com.pentlander.sasquach.runtime.bootstrap.Func.AnonFunc;
+import com.pentlander.sasquach.runtime.bootstrap.Func.NamedFunc;
 import java.lang.constant.ClassDesc;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -13,7 +14,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Supplier;
 import jdk.dynalink.CallSiteDescriptor;
 import jdk.dynalink.Operation;

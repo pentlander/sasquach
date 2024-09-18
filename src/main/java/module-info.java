@@ -7,4 +7,5 @@ module sasquach.main {
   requires static classindex;
 
   opens com.pentlander.sasquach.runtime;
+  opens com.pentlander.sasquach.runtime.bootstrap;
 }

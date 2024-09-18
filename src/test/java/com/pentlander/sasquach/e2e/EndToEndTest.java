@@ -332,7 +332,7 @@ public class EndToEndTest extends BaseTest {
 
   @Test
   void sumType_withFuncCapture() throws Exception {
-    var clazz = compileDebug( """
+    var clazz = compile( """
         Main {
           type Test = | Foo { foo: (bar: Int) -> String },
           
@@ -506,7 +506,7 @@ public class EndToEndTest extends BaseTest {
 
   @Test
   void typeAliasStructs() throws Exception {
-    var clazz = compile( """
+    var clazz = compile("""
         Main {
           type Point = { x: Int, y: Int },
           newPoint = (x: Int): Point -> { x = x, y = 2 },

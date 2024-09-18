@@ -1,13 +1,17 @@
 package com.pentlander.sasquach.name;
 
+import static java.util.Objects.requireNonNull;
+
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
+import com.pentlander.sasquach.ast.StructName;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.expression.PipeOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
@@ -42,6 +46,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.jspecify.annotations.Nullable;
 
 /*
@@ -70,6 +75,7 @@ public class MemberScopedNameResolver {
   private final List<NameResolutionResult> resolutionResults = new ArrayList<>();
 
   private final List<TypeParameter> contextTypeParameters = new ArrayList<>();
+  private final AtomicInteger anonStructNum = new AtomicInteger();
 
   private final LocalVariableStack localVarStack;
 
@@ -89,7 +95,7 @@ public class MemberScopedNameResolver {
     this.localVarStack = new LocalVariableStack(parentVariableStack, errors::add);
   }
 
-  public NameResolutionResult resolve(LiteralStruct.Field field) {
+  public NameResolutionResult resolve(Struct.Field field) {
     resolve(field.value());
     return resolutionResult();
   }
@@ -137,7 +143,10 @@ public class MemberScopedNameResolver {
               .ifPresent(typeNode -> nameData.addNamedStructTypes(
                   namedStruct,
                   new Variant(typeNode.aliasId(),  typeNode.id())));
-      case LiteralStruct literalStruct -> literalStruct.spreads().forEach(this::resolve);
+      case LiteralStruct literalStruct -> {
+        nameData.addLiteralStructNames(literalStruct, literalStructName());
+        literalStruct.spreads().forEach(this::resolve);
+      }
     }
     struct.functions().forEach(function -> resolveNestedFunc(function.function()));
     struct.fields().forEach(field -> resolve(field.value()));
@@ -360,6 +369,19 @@ public class MemberScopedNameResolver {
     if (ifExpression.falseExpression() != null) {
       resolve(ifExpression.falseExpression());
     }
+  }
+
+
+  // javac numbers its anon classes scoped to the class that they're defined in rather than the
+  // method. We are doing by method to get consistent names if we choose to parallelize the name
+  // resolution within a module.
+  private StructName literalStructName() {
+    var num = anonStructNum.getAndIncrement();
+    var funcName = requireNonNull(namedFunction).name();
+    return moduleScopedNameResolver.moduleDeclaration()
+        .name()
+        .qualifyInner(funcName)
+        .qualify(new UnqualifiedTypeName(Integer.toString(num)));
   }
 
   public sealed interface ReferenceDeclaration {

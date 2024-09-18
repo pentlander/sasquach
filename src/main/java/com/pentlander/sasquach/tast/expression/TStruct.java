@@ -25,12 +25,6 @@ public sealed interface TStruct extends TypedExpression permits TLiteralStruct, 
     return structType();
   }
 
-  static List<TField> tupleFields(List<TypedExpression> expressions) {
-    return Util.tupleFields(
-        expressions,
-        (name, expr) -> new TField(new Id(name, (Single) expr.range()), expr));
-  }
-
   record TField(Id id, TypedExpression expr) implements TypedNode, TypedMember {
     public UnqualifiedName name() {
       return id.name();

@@ -17,8 +17,11 @@ import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.backend.ExpressionGenerator.Context;
 import com.pentlander.sasquach.runtime.StructBase;
+import com.pentlander.sasquach.runtime.bootstrap.Func;
+import com.pentlander.sasquach.runtime.bootstrap.StructDispatch;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TFunctionParameter.Label;
+import com.pentlander.sasquach.tast.TFunctionSignature;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TypedNode;
 import com.pentlander.sasquach.tast.expression.TFunction;
@@ -26,6 +29,7 @@ import com.pentlander.sasquach.tast.expression.TModuleStruct;
 import com.pentlander.sasquach.tast.expression.TStruct;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.FunctionType;
+import com.pentlander.sasquach.type.FunctionType.Param;
 import com.pentlander.sasquach.type.SingletonType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.SumType;
@@ -41,6 +45,7 @@ import java.lang.classfile.Signature;
 import java.lang.classfile.Signature.BaseTypeSig;
 import java.lang.classfile.Signature.TypeParam;
 import java.lang.classfile.TypeKind;
+import java.lang.classfile.attribute.NestMembersAttribute;
 import java.lang.classfile.attribute.PermittedSubclassesAttribute;
 import java.lang.classfile.attribute.SignatureAttribute;
 import java.lang.classfile.attribute.SourceFileAttribute;
@@ -48,6 +53,7 @@ import java.lang.classfile.components.ClassPrinter;
 import java.lang.classfile.components.ClassPrinter.Verbosity;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.ConstantDescs;
+import java.lang.constant.DynamicCallSiteDesc;
 import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.AccessFlag;
@@ -56,10 +62,12 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import jdk.dynalink.StandardOperation;
 import org.jspecify.annotations.Nullable;
 
 class ClassGenerator {
@@ -132,6 +140,13 @@ class ClassGenerator {
           }
           cob.return_();
         });
+
+    // Generate method wrappers for all the Func fields for Java compat
+    fields.forEach((name, type) -> {
+      if (type instanceof FunctionType funcType) {
+        generateFunctionWrapper(clb, structDesc, name, funcType);
+      }
+    });
   }
 
   private void generateSumType(SumType sumType) {
@@ -201,7 +216,7 @@ class ClassGenerator {
         clb,
         internalClassDesc(structType),
         range,
-        structType.fieldTypes(),
+        structType.memberTypes(),
         internalClassDesc(sumType));
   }
 
@@ -306,11 +321,16 @@ class ClassGenerator {
     var structType = struct.structType();
     var structDesc = internalClassDesc(structType);
 
+    // `struct.structType().memberTypes()` includes the named function types, which do not get
+    // included as constructor parameters
     var fieldTypes = new LinkedHashMap<UnqualifiedName, Type>();
     struct.fields().forEach(field -> fieldTypes.put(field.name(), field.type()));
 
     generateStructStart(clb, structDesc, struct.range(), fieldTypes);
+    // TODO: If there's an equals method where the param type matches the struct, change the equals
+    //  impl generated to delegate to that func
     generateEquals(clb, struct);
+    // TODO: Don't generate hashCode method if the struct already has one
     generateHashCode(clb, struct);
 
     // Add a static INSTANCE field of the struct to make a singleton class.
@@ -377,6 +397,31 @@ class ClassGenerator {
         typeSignature(funcType.returnType()),
         paramTypeSigs);
 
+  }
+
+  private void generateFunctionWrapper(ClassBuilder clb, ClassDesc owner, UnqualifiedName fieldName, FunctionType funcType) {
+    var signature = generateMethodSignature(funcType);
+    var fieldNameStr = fieldName.toString();
+
+    clb.withMethod(fieldNameStr, funcType.functionTypeDesc(), ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL, mb -> {
+      if (signature != null) {
+        mb.with(SignatureAttribute.of(signature));
+      }
+      mb.withCode(cob -> {
+        int idx = 0;
+        cob.aload(cob.receiverSlot()).dup().getfield(owner, fieldNameStr, funcType.classDesc()).swap();
+        for (var param : funcType.parameters()) {
+          GeneratorUtil.generateLoadVar(cob, param.type(), cob.parameterSlot(idx++));
+        }
+
+        var funcTypeDesc = funcType.functionTypeDesc().insertParameterTypes(0, classDesc(Func.class), ConstantDescs.CD_Object);
+        cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
+            StructDispatch.MHD_BOOTSTRAP_MEMBER,
+            StandardOperation.CALL.toString(),
+            funcTypeDesc));
+        cob.returnInstruction(TypeKind.from(funcType.returnType().classDesc()));
+      });
+    });
   }
 
   private void generateFunction(ClassBuilder clb, String funcName, TFunction function,

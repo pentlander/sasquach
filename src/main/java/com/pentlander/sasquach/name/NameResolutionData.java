@@ -3,10 +3,12 @@ package com.pentlander.sasquach.name;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.RecurPoint;
+import com.pentlander.sasquach.ast.StructName;
 import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Match;
 import com.pentlander.sasquach.ast.expression.NamedStruct;
@@ -32,7 +34,8 @@ public record NameResolutionData(
     Map<NamedStruct, NamedStructId> namedStructTypes,
     Map<Recur, RecurPoint> recurPoints,
     Map<Match, List<TypeNode>> matchTypeNodes,
-    Map<Function, SequencedSet<LocalVariable>> funcCaptures
+    Map<Function, SequencedSet<LocalVariable>> funcCaptures,
+    Map<LiteralStruct, StructName> literalStructNames
 ) {
   NameResolutionData merge(NameResolutionData ond) {
     return NameResolutionDataBuilder.builder()

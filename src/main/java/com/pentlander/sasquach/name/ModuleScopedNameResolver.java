@@ -9,14 +9,10 @@ import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.Use;
-import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.Function;
+import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
-import com.pentlander.sasquach.type.ParameterizedType;
-import com.pentlander.sasquach.type.SingletonType;
-import com.pentlander.sasquach.type.StructType;
-import com.pentlander.sasquach.type.SumType;
 import java.lang.invoke.MethodHandles;
 import java.util.HashMap;
 import java.util.Map;
@@ -115,16 +111,6 @@ public class ModuleScopedNameResolver {
       var result = resolver.resolveTypeNode(typeAlias);
       namedTypes.putAll(result.namedTypes());
       variantTypes.putAll(result.variantTypes());
-//      result.variantTypes().values().forEach(variantTypeNode -> {
-//        switch (variantTypeNode.type()) {
-//          case SingletonType singletonType -> {
-//          }
-//          case StructType structType -> {
-//            var sumType = (SumType) typeAlias.type();
-//            structType.constructorType(sumType);
-//          }
-//        }
-//      });
       errors.addAll(result.errors());
     }
 

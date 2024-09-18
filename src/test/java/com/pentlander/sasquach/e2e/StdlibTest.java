@@ -87,7 +87,7 @@ public class StdlibTest extends BaseTest {
 
     @Test
     void assocAndGet_structKey() throws Exception {
-      var clazz = compile("""
+      var clazz = compileDebug("""
         Main {
           use std/Hash,
           use std/Map,

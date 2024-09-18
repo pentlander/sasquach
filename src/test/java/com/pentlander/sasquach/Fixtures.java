@@ -103,7 +103,7 @@ public class Fixtures {
 
   public static TypeNode typeNode(Type type) {
     if (type instanceof StructType structType) {
-      return new StructTypeNode(structType.fieldTypes()
+      return new StructTypeNode(structType.memberTypes()
           .entrySet()
           .stream()
           .collect(toMap(Entry::getKey, entry -> typeNode(entry.getValue()))), RowModifier.none(), range());

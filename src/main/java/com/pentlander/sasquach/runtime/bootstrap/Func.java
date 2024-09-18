@@ -1,4 +1,4 @@
-package com.pentlander.sasquach.runtime;
+package com.pentlander.sasquach.runtime.bootstrap;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;

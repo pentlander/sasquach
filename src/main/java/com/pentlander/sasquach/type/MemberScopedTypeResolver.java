@@ -1,6 +1,5 @@
 package com.pentlander.sasquach.type;
 
-import static com.pentlander.sasquach.Preconditions.checkArgument;
 import static com.pentlander.sasquach.Preconditions.checkNotInstanceOf;
 import static com.pentlander.sasquach.Util.concat;
 import static com.pentlander.sasquach.type.TypeUtils.reify;
@@ -22,6 +21,7 @@ import com.pentlander.sasquach.ast.Labeled;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.expression.PipeOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
@@ -62,37 +62,16 @@ import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.tast.TPattern;
 import com.pentlander.sasquach.tast.TPattern.TVariantTuple;
 import com.pentlander.sasquach.tast.TPatternVariable;
-import com.pentlander.sasquach.tast.expression.TApplyOperator;
-import com.pentlander.sasquach.tast.expression.TArrayValue;
+import com.pentlander.sasquach.tast.expression.*;
 import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TArgs;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TBooleanExpression;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TCompareExpression;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TMathExpression;
-import com.pentlander.sasquach.tast.expression.TBlock;
-import com.pentlander.sasquach.tast.expression.TFieldAccess;
-import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
-import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
 import com.pentlander.sasquach.tast.expression.TForeignFunctionCall.Varargs;
-import com.pentlander.sasquach.tast.expression.TFunction;
-import com.pentlander.sasquach.tast.expression.TIfExpression;
-import com.pentlander.sasquach.tast.expression.TLiteralStructBuilder;
 import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TCallTarget;
-import com.pentlander.sasquach.tast.expression.TLocalVariable;
-import com.pentlander.sasquach.tast.expression.TLoop;
-import com.pentlander.sasquach.tast.expression.TMatch;
-import com.pentlander.sasquach.tast.expression.TBasicFunctionCall;
-import com.pentlander.sasquach.tast.expression.TModuleStructBuilder;
-import com.pentlander.sasquach.tast.expression.TNot;
-import com.pentlander.sasquach.tast.expression.TPrintStatement;
-import com.pentlander.sasquach.tast.expression.TRecur;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
-import com.pentlander.sasquach.tast.expression.TThisExpr;
-import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Local;
-import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
-import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
-import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.FunctionType.Param;
 import com.pentlander.sasquach.type.MemberScopedTypeResolver.LabeledMap.Indexed;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType;
@@ -127,6 +106,7 @@ public class MemberScopedTypeResolver {
   private final TypeUnifier typeUnifier = new TypeUnifier();
   private final Builder errors = RangedErrorList.builder();
   private final AtomicInteger typeVarNum = new AtomicInteger();
+  private final AtomicInteger anonStructNum = new AtomicInteger();
   private final NameResolutionResult nameResolutionResult;
   private final NamedTypeResolver namedTypeResolver;
   private final ModuleScopedTypes moduleScopedTypes;
@@ -435,11 +415,30 @@ public class MemberScopedTypeResolver {
       // Literal structs have all of their fields inferred since they're not "based" on any
       // pre-existing type
       case LiteralStruct s -> {
-        List<TField> typedFields = new ArrayList<>();
+        var typedFields = new ArrayList<TField>();
+        var fieldTypes = new HashMap<UnqualifiedName, Type>();
         struct.fields()
-            .forEach(field -> typedFields.add(new TField(field.id(), infer(field.value()))));
+            .forEach(field -> {
+              var tExpr = infer(field.value());
+              typedFields.add(new TField(field.id(), tExpr));
+              fieldTypes.put(field.name(), tExpr.type());
+            });
         struct.functions()
-            .forEach(func -> typedFields.add(new TField(func.id(), infer(func.function()))));
+            .forEach(func -> {
+              var function = func.function();
+              var tExpr = infer(function);
+              typedFields.add(new TField(func.id(), tExpr));
+
+              var typeVarCount = new AtomicInteger();
+              var paramMap = typeParams(
+                  function.typeParameters(),
+                  _ -> new UniversalType(Integer.toString(typeVarCount.getAndIncrement())));
+              var normalizeFuncType = namedTypeResolver.resolveNames(
+                  tExpr.type(),
+                  paramMap,
+                  func.range());
+              fieldTypes.put(func.name(), normalizeFuncType);
+            });
 
         var spreads = s.spreads().stream().map(varRef -> {
           var tVarRef = resolveVarReference(varRef);
@@ -452,11 +451,8 @@ public class MemberScopedTypeResolver {
           return tVarRef;
         }).toList();
 
-        yield TLiteralStructBuilder.builder()
-            .fields(typedFields)
-            .spreads(spreads)
-            .range(s.range())
-            .build();
+        var name = moduleScopedTypes.getLiteralStructName(fieldTypes);
+        yield new TLiteralStruct(name, typedFields, spreads, s.range());
       }
       // Named structs need to have their field types checked against their type definition, similar
       // to functions.

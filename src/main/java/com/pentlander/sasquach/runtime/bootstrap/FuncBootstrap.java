@@ -1,6 +1,6 @@
-package com.pentlander.sasquach.runtime;
+package com.pentlander.sasquach.runtime.bootstrap;
 
-import static com.pentlander.sasquach.runtime.Bootstrap.*;
+import static com.pentlander.sasquach.runtime.bootstrap.Bootstrap.*;
 
 import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.constant.DynamicCallSiteDesc;

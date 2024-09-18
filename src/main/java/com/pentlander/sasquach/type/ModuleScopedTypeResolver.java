@@ -7,31 +7,29 @@ import static java.util.stream.Collectors.toMap;
 
 import com.pentlander.sasquach.AbstractRangedError;
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.RangedErrorList.Builder;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
+import com.pentlander.sasquach.ast.StructName;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
-import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Tuple;
 import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
-import com.pentlander.sasquach.ast.expression.NamedStruct;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Local;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Module;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration.Singleton;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStructConstructor;
-import com.pentlander.sasquach.name.NameResolutionData.NamedStructId.Variant;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TNamedFunction;
@@ -40,11 +38,13 @@ import com.pentlander.sasquach.tast.expression.TStruct.TField;
 import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType.LocalVar;
+import java.lang.constant.ClassDesc;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.stream.Stream;
 
 public class ModuleScopedTypeResolver {
@@ -57,6 +57,7 @@ public class ModuleScopedTypeResolver {
   private final TModuleStructBuilder typedStructBuilder = TModuleStructBuilder.builder();
 
   private final Map<TypeId, Type> namedTypeIdToType = new HashMap<>();
+  private final Map<StructTypeKey, StructName> structTypeNames = new LinkedHashMap<>();
   private final Builder errors = RangedErrorList.builder();
 
   private StructType thisStructType;
@@ -167,8 +168,7 @@ public class ModuleScopedTypeResolver {
   }
 
   FunctionSignature resolveFuncSignatureType(FunctionSignature funcSignature) {
-    var typeParams = typeParams(funcSignature.typeParameters(),
-        param -> param.toUniversal(0));
+    var typeParams = typeParams(funcSignature.typeParameters(), TypeParameter::toUniversal);
     return namedTypeResolver.resolveTypeNode(funcSignature, typeParams);
   }
 
@@ -185,6 +185,12 @@ public class ModuleScopedTypeResolver {
     @Override
     public StructType getThisType() {
       return requireNonNull(thisStructType);
+    }
+
+    @Override
+    public StructName getLiteralStructName(Map<UnqualifiedName, Type> memberTypes) {
+      return structTypeNames.computeIfAbsent(StructTypeKey.from(memberTypes), _ -> moduleDecl.name()
+          .qualifyInner(new UnqualifiedTypeName(Integer.toString(structTypeNames.size()))));
     }
 
     @Override
@@ -210,26 +216,16 @@ public class ModuleScopedTypeResolver {
       };
     }
 
-    @Override
-    public SumWithVariantIdx getVariantType(NamedStruct namedStruct) {
-      var namedStructType = nameResolutionResult.getNamedStructType(namedStruct);
+  }
 
-      switch (namedStructType) {
-        case Variant(var sumTypeId, var variantId) -> {
-          var sumType = (SumType) requireNonNull(namedTypeIdToType.get(sumTypeId));
-
-          Integer variantIdx = null;
-          for (int i = 0; i < sumType.types().size(); i++) {
-            var type = sumType.types().get(i);
-            if (type.typeNameStr().endsWith(variantId.name().toString())) {
-              variantIdx = i;
-              break;
-            }
-          }
-
-          return new SumWithVariantIdx(sumType, requireNonNull(variantIdx));
-        }
-      }
+  private record StructTypeKey(List<Entry<UnqualifiedName, ClassDesc>> memberTypes) {
+    static StructTypeKey from(Map<UnqualifiedName, Type> memberTypes) {
+      var memberList = memberTypes.entrySet()
+          .stream()
+          .sorted(Entry.comparingByKey())
+          .map(entry -> Map.entry(entry.getKey(), entry.getValue().classDesc()))
+          .toList();
+      return new StructTypeKey(memberList);
     }
   }
 

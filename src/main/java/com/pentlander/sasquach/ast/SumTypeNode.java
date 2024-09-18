@@ -69,7 +69,7 @@ public record SumTypeNode(QualifiedModuleName moduleName, TypeId id,
 
       @Override
       public StructType type() {
-        return new StructType(moduleName.qualifyInner(id.name()), typeNode.type().fieldTypes());
+        return new StructType(moduleName.qualifyInner(id.name()), typeNode.type().memberTypes());
       }
     }
 
@@ -82,7 +82,7 @@ public record SumTypeNode(QualifiedModuleName moduleName, TypeId id,
 
       @Override
       public StructType type() {
-        return new StructType(moduleName.qualifyInner(id.name()), typeNode.type().fieldTypes());
+        return new StructType(moduleName.qualifyInner(id.name()), typeNode.type().memberTypes());
       }
     }
   }

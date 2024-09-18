@@ -1,4 +1,4 @@
-package com.pentlander.sasquach.runtime;
+package com.pentlander.sasquach.runtime.bootstrap;
 
 import static java.util.Objects.requireNonNull;
 

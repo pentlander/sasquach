@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNullElse;
 import static java.util.stream.Collectors.joining;
 
 import com.pentlander.sasquach.ast.StructName;
-import com.pentlander.sasquach.ast.StructTypeNode.RowModifier;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.runtime.StructBase;
@@ -27,18 +26,19 @@ import org.jspecify.annotations.Nullable;
 /**
  * Type of a struct.
  *
- * @param fieldTypes Map of field names to types. Field types include any value type, as well as
+ * @param memberTypes Map of field names to types. Field types include any value type, as well as
  *                   functions.
  */
-public record StructType(StructName structName, List<TypeParameter> typeParameters, SequencedMap<UnqualifiedName, Type> fieldTypes, Map<UnqualifiedTypeName, SumType> namedStructTypes, RowModifier rowModifier) implements
+public record StructType(StructName structName, List<TypeParameter> typeParameters, SequencedMap<UnqualifiedName, Type> memberTypes, Map<UnqualifiedTypeName, SumType> namedStructTypes, RowModifier rowModifier) implements
     ParameterizedType, VariantType, TypeNester {
   private static final String PREFIX = "Struct";
   private static final Pattern TUPLE_FIELD_PATTERN = Pattern.compile("^_[0-9]+$");
 
   public StructType {
-    fieldTypes = requireNonNullElse(fieldTypes, seqMap());
-    fieldTypes.values().forEach(value -> Objects.requireNonNull(value, toString()));
-    structName = requireNonNullElse(structName, new UnqualifiedTypeName(PREFIX + hashFieldTypes(fieldTypes)));
+    memberTypes = requireNonNullElse(memberTypes, seqMap());
+    memberTypes.values().forEach(value -> Objects.requireNonNull(value, toString()));
+    structName = requireNonNullElse(structName, new UnqualifiedTypeName(PREFIX + hashFieldTypes(
+        memberTypes)));
     typeParameters = requireNonNullElse(typeParameters, List.of());
     namedStructTypes = requireNonNullElse(namedStructTypes, Map.of());
   }
@@ -65,12 +65,12 @@ public record StructType(StructName structName, List<TypeParameter> typeParamete
   }
 
   public boolean isTuple() {
-    return fieldTypes.keySet().stream().allMatch(name -> TUPLE_FIELD_PATTERN.matcher(name.toString()).matches());
+    return memberTypes.keySet().stream().allMatch(name -> TUPLE_FIELD_PATTERN.matcher(name.toString()).matches());
   }
 
   public FunctionType constructorType(ParameterizedType returnType) {
     var isTuple = isTuple();
-    var params = fieldTypes()
+    var params = memberTypes()
         .entrySet()
         .stream()
         .map(entry -> new FunctionType.Param(entry.getValue(), !isTuple ? entry.getKey() : null, false))
@@ -87,7 +87,7 @@ public record StructType(StructName structName, List<TypeParameter> typeParamete
   }
 
   public @Nullable Type fieldType(UnqualifiedName fieldName) {
-    return fieldTypes.get(fieldName);
+    return memberTypes.get(fieldName);
   }
 
   public @Nullable SumWithVariantIdx constructableType(UnqualifiedTypeName typeName) {
@@ -104,7 +104,7 @@ public record StructType(StructName structName, List<TypeParameter> typeParamete
   }
 
   public List<Type> sortedFieldTypes() {
-    return fieldTypes().entrySet()
+    return memberTypes().entrySet()
         .stream()
         .sorted(Entry.comparingByKey())
         .map(Entry::getValue)
@@ -112,7 +112,7 @@ public record StructType(StructName structName, List<TypeParameter> typeParamete
   }
 
   public List<Entry<UnqualifiedName, Type>> sortedFields() {
-    return fieldTypes().entrySet().stream().sorted(Entry.comparingByKey()).toList();
+    return memberTypes().entrySet().stream().sorted(Entry.comparingByKey()).toList();
   }
 
   @Override
@@ -130,8 +130,8 @@ public record StructType(StructName structName, List<TypeParameter> typeParamete
     var structType = TypeUtils.asStructType(other);
 
     if (structType.isPresent()) {
-      var otherFieldTypes = new HashMap<>(structType.get().fieldTypes);
-      for (var entry : fieldTypes.entrySet()) {
+      var otherFieldTypes = new HashMap<>(structType.get().memberTypes);
+      for (var entry : memberTypes.entrySet()) {
         var name = entry.getKey();
         var type = entry.getValue();
         var otherType = otherFieldTypes.remove(name);
@@ -148,7 +148,7 @@ public record StructType(StructName structName, List<TypeParameter> typeParamete
   public String toPrettyString() {
     if (typeNameStr().startsWith(PREFIX)) {
       var joiner = new StringJoiner(", ", "{ ", "}");
-      var fieldTypesStr = fieldTypes().entrySet()
+      var fieldTypesStr = memberTypes().entrySet()
           .stream()
           .map(e -> e.getKey() + ": " + e.getValue().toPrettyString())
           .collect(joining(", "));
