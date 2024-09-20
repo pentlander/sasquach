@@ -1,12 +1,12 @@
 package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.RangedErrorList;
+import com.pentlander.sasquach.ast.ConstructableNamedTypeNode;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.NamedTypeNode;
 import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode;
-import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeStatement;
 import com.pentlander.sasquach.ast.UnqualifiedName;
@@ -27,7 +27,7 @@ public class ModuleScopedNameResolver {
   private final Map<UnqualifiedTypeName, Class<?>> foreignClasses = new HashMap<>();
   private final Map<UnqualifiedTypeName, TypeStatement> typeStatementNames = new HashMap<>();
   private final Map<NamedTypeNode, NamedTypeDefinition> namedTypeDefs = new HashMap<>();
-  private final Map<UnqualifiedTypeName, VariantTypeNode> variantTypes = new HashMap<>();
+  private final Map<UnqualifiedTypeName, ConstructableNamedTypeNode> constructableTypes = new HashMap<>();
   private final Map<UnqualifiedName, LiteralStruct.Field> fields = new HashMap<>();
   private final Map<LiteralStruct.Field, NameResolutionResult> fieldResults = new HashMap<>();
   private final Map<UnqualifiedName, NamedFunction> functions = new HashMap<>();
@@ -115,11 +115,12 @@ public class ModuleScopedNameResolver {
       namedTypeDefs.putAll(result.namedTypes());
       if (!typeStatement.isAlias()) {
         switch (typeStatement.typeNode()) {
-          case StructTypeNode node -> {}
-          case TupleTypeNode node -> {}
-          case SumTypeNode node -> node.variantTypeNodes().forEach(variantTypeNode -> {
-            variantTypes.put(variantTypeNode.id().name(), variantTypeNode);
-          });
+          case StructTypeNode node -> constructableTypes.put(node.typeName().name(), node);
+          case TupleTypeNode node -> constructableTypes.put(node.typeName().name(), node);
+          case SumTypeNode node -> node.variantTypeNodes()
+              .forEach(variantTypeNode -> constructableTypes.put(
+                  variantTypeNode.typeName().name(),
+                  variantTypeNode));
           default -> throw new IllegalStateException("Must have checked in AstValidator");
         }
       }
@@ -172,7 +173,7 @@ public class ModuleScopedNameResolver {
     return Optional.ofNullable(typeStatementNames.get(typeAlias));
   }
 
-  Optional<VariantTypeNode> resolveVariantTypeNode(UnqualifiedTypeName variantName) {
-    return Optional.ofNullable(variantTypes.get(variantName));
+  Optional<ConstructableNamedTypeNode> resolveConstructableTypeNode(UnqualifiedTypeName structTypeName) {
+    return Optional.ofNullable(constructableTypes.get(structTypeName));
   }
 }

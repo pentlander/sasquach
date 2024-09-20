@@ -16,7 +16,6 @@ import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.TypeStatement;
 import com.pentlander.sasquach.ast.TypeNode;
-import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.HashMap;
 import java.util.List;
@@ -78,13 +77,7 @@ public class TypeNodeNameResolver {
       }
       case TupleTypeNode tupleTypeNode -> tupleTypeNode.fields().forEach(this::resolveTypeNode);
       case SumTypeNode sumTypeNode -> sumTypeNode.variantTypeNodes().forEach(this::resolveTypeNode);
-      case VariantTypeNode variantTypeNode -> {
-        switch (variantTypeNode) {
-          case VariantTypeNode.Singleton _ -> {}
-          case VariantTypeNode.Tuple tuple -> resolveTypeNode(tuple.typeNode());
-          case VariantTypeNode.Struct struct -> resolveTypeNode(struct.typeNode());
-        }
-      }
+      case VariantTypeNode.Singleton _ -> {}
       case NamedTypeNode namedTypeNode -> resolveNamedType(namedTypeNode);
     }
     return new Result(namedTypes, errors.build());

@@ -1,6 +1,5 @@
 package com.pentlander.sasquach.name;
 
-import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.Argument;
@@ -43,7 +42,6 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.jspecify.annotations.Nullable;
 
 /*
@@ -72,7 +70,6 @@ public class MemberScopedNameResolver {
   private final List<NameResolutionResult> resolutionResults = new ArrayList<>();
 
   private final List<TypeParameter> contextTypeParameters = new ArrayList<>();
-  private final AtomicInteger anonStructNum = new AtomicInteger();
 
   private final LocalVariableStack localVarStack;
 
@@ -136,7 +133,7 @@ public class MemberScopedNameResolver {
     switch (struct) {
       case ModuleStruct moduleStruct -> moduleStruct.useList().forEach(this::resolve);
       case NamedStruct namedStruct -> {
-        var foundVariant = moduleScopedNameResolver.resolveVariantTypeNode(namedStruct.name()).isPresent();
+        var foundVariant = moduleScopedNameResolver.resolveConstructableTypeNode(namedStruct.name()).isPresent();
         if (!foundVariant) {
           errors.add(new NameNotFoundError(
               namedStruct.name(),
@@ -187,7 +184,7 @@ public class MemberScopedNameResolver {
         nameData.addLocalFunctionCalls(funcId, localVar.get());
       } else {
         // Resolve as a variant constructor
-        moduleScopedNameResolver.resolveVariantTypeNode(localFunctionCall.name().toTypeName())
+        moduleScopedNameResolver.resolveConstructableTypeNode(localFunctionCall.name().toTypeName())
             .ifPresentOrElse(_ -> nameData.addLocalFunctionCalls(
                     funcId,
                     new VariantStructConstructor()),
@@ -249,7 +246,7 @@ public class MemberScopedNameResolver {
       if (module.isPresent()) {
         nameData.addVarReferences(varReference, new ReferenceDeclaration.Module(module.get()));
       } else {
-        var variantNode = moduleScopedNameResolver.resolveVariantTypeNode(varReference.name().toTypeName());
+        var variantNode = moduleScopedNameResolver.resolveConstructableTypeNode(varReference.name().toTypeName());
         if (variantNode.isPresent()) {
           nameData.addVarReferences(varReference,
               new ReferenceDeclaration.Singleton((VariantTypeNode.Singleton) variantNode.get()));
@@ -286,23 +283,20 @@ public class MemberScopedNameResolver {
     var branchTypeNodes = new ArrayList<TypeNode>();
     for (var branch : match.branches()) {
       pushScope();
+      var pattern = branch.pattern();
+      var nodeType = moduleScopedNameResolver.resolveConstructableTypeNode(pattern.id().name());
       switch (branch.pattern()) {
-        case Pattern.Singleton(var id) -> {
-          var nodeType = moduleScopedNameResolver.resolveVariantTypeNode(id.name());
+        case Pattern.Singleton(var id) -> nodeType.ifPresentOrElse(branchTypeNodes::add,
+            () -> errors.add(new NameNotFoundError(id, "singleton variant")));
+        case Pattern.VariantTuple(var id, var bindings, _) -> {
           nodeType.ifPresentOrElse(branchTypeNodes::add,
-              () -> errors.add(new NameNotFoundError(id, "singleton variant")));
+              () -> errors.add(new NameNotFoundError(id, "tuple variant")));
+          bindings.forEach(MemberScopedNameResolver.this::addLocalVariable);
         }
-        case Pattern.VariantTuple tuple -> {
-          var nodeType = moduleScopedNameResolver.resolveVariantTypeNode(tuple.id().name());
+        case Pattern.VariantStruct(var id, var bindings, _) -> {
           nodeType.ifPresentOrElse(branchTypeNodes::add,
-              () -> errors.add(new NameNotFoundError(tuple.id(), "tuple variant")));
-          tuple.bindings().forEach(MemberScopedNameResolver.this::addLocalVariable);
-        }
-        case Pattern.VariantStruct struct -> {
-          var nodeType = moduleScopedNameResolver.resolveVariantTypeNode(struct.id().name());
-          nodeType.ifPresentOrElse(branchTypeNodes::add,
-              () -> errors.add(new NameNotFoundError(struct.id(), "struct variant")));
-          struct.bindings().forEach(MemberScopedNameResolver.this::addLocalVariable);
+              () -> errors.add(new NameNotFoundError(id, "struct variant")));
+          bindings.forEach(MemberScopedNameResolver.this::addLocalVariable);
         }
       }
       resolve(branch.expr());

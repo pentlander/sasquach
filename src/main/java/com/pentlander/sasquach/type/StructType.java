@@ -69,6 +69,10 @@ public record StructType(StructName structName, List<TypeParameter> typeParamete
     return memberTypes.keySet().stream().allMatch(name -> TUPLE_FIELD_PATTERN.matcher(name.toString()).matches());
   }
 
+  public FunctionType constructorType() {
+    return constructorType(this);
+  }
+
   public FunctionType constructorType(ParameterizedType returnType) {
     var isTuple = isTuple();
     var params = memberTypes()

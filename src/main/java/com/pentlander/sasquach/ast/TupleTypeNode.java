@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import java.util.LinkedHashMap;
@@ -8,11 +9,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 
-public record TupleTypeNode(@Nullable UnqualifiedTypeName name, List<TypeNode> fields, Range range) implements TypeNode {
-
-  public TupleTypeNode(List<TypeNode> fields, Range range) {
-    this(null, fields, range);
-  }
+public record TupleTypeNode(@Nullable QualifiedTypeName typeName, List<TypeNode> fields, Range range) implements TypeNode,
+    ConstructableNamedTypeNode, VariantTypeNode {
 
   @Override
   public StructType type() {
@@ -22,12 +20,12 @@ public record TupleTypeNode(@Nullable UnqualifiedTypeName name, List<TypeNode> f
       var typeNode = typeNodes.get(i);
       fieldTypes.put(new UnqualifiedName("_" + i), typeNode.type());
     }
-    return new StructType(name, fieldTypes);
+    return new StructType(typeName, fieldTypes);
   }
 
   @Override
   public String typeNameStr() {
-    return name != null ? name.toString() : "Tuple" + fields.size();
+    return typeName != null ? typeName.toString() : "Tuple" + fields.size();
   }
 
   @Override

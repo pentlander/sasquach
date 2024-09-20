@@ -42,10 +42,9 @@ import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.parser.SasquachParser.*;
 import com.pentlander.sasquach.type.BuiltinType;
-import com.pentlander.sasquach.type.ClassType;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -93,10 +92,6 @@ public class Visitor {
 
   public CompilationUnitVisitor compilationUnitVisitor() {
     return new CompilationUnitVisitor();
-  }
-
-  private enum StructKind {
-    LITERAL, MODULE, NAMED,
   }
 
   public class CompilationUnitVisitor extends
@@ -406,9 +401,9 @@ public class Visitor {
   }
 
   class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<TypeNode> {
-    private final @Nullable StructName structName;
+    private final @Nullable QualifiedTypeName structName;
 
-    TypeVisitor(@Nullable StructName structName) {
+    TypeVisitor(@Nullable QualifiedTypeName structName) {
       this.structName = structName;
     }
 
@@ -435,7 +430,7 @@ public class Visitor {
 
     @Override
     public StructTypeNode visitStructType(StructTypeContext ctx) {
-      var fields = new HashMap<UnqualifiedName, TypeNode>();
+      var fields = new LinkedHashMap<UnqualifiedName, TypeNode>();
       RowModifier rowModifier = RowModifier.none();
       for (var fieldCtx : ctx.structTypeField()) {
         var id = fieldCtx.ID();
@@ -461,7 +456,7 @@ public class Visitor {
     @Override
     public TupleTypeNode visitTupleType(TupleTypeContext ctx) {
       var typeNodes = ctx.type().stream().map(typeCtx -> typeNode(typeCtx, this)).toList();
-      return new TupleTypeNode(typeNodes, rangeFrom(ctx));
+      return new TupleTypeNode(structName, typeNodes, rangeFrom(ctx));
     }
 
     private List<TypeNode> typeArguments(TypeArgumentListContext ctx) {
@@ -473,19 +468,19 @@ public class Visitor {
   }
 
   public StructVisitor structVisitorForModule(QualifiedModuleName name) {
-    return new StructVisitor(new StructIdentifier.ModuleName(name), StructKind.MODULE);
+    return new StructVisitor(new StructIdentifier.ModuleName(name));
   }
 
   public StructVisitor structVisitorForLiteral() {
     // TODO: Set the metadata at the end of the visitStruct func so struct methods work properly
     // TODO: Figure out how to reference parent scope from struct literal
-    return new StructVisitor(StructIdentifier.NONE, StructKind.LITERAL);
+    return new StructVisitor(StructIdentifier.NONE);
   }
 
   public StructVisitor structVisitorForNamed(NamedTypeNode node) {
     // TODO: Set the metadata at the end of the visitStruct func so struct methods work properly
     // TODO: Figure out how to reference parent scope from struct literal
-    return new StructVisitor(new StructIdentifier.TypeNode(node), StructKind.NAMED);
+    return new StructVisitor(new StructIdentifier.TypeNode(node));
   }
 
   private sealed interface StructIdentifier {
@@ -500,12 +495,10 @@ public class Visitor {
 
   public class StructVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Struct> {
     private final StructIdentifier structName;
-    private final StructKind structKind;
     private final ExpressionVisitor expressionVisitor;
 
-    private StructVisitor(StructIdentifier structName, StructKind structKind) {
+    private StructVisitor(StructIdentifier structName) {
       this.structName = structName;
-      this.structKind = structKind;
       this.expressionVisitor = new ExpressionVisitor();
     }
 
@@ -529,7 +522,7 @@ public class Visitor {
             fields.add(new Field(id, expr));
           } else if (funcCtx != null) {
             var func = funcCtx.accept(new FunctionVisitor());
-            if (structKind != StructKind.NAMED) {
+            if (!(structName instanceof StructIdentifier.TypeNode)) {
               functions.add(new NamedFunction(id, func));
             } else {
               fields.add(new Field(id, func));
@@ -646,34 +639,22 @@ public class Visitor {
 
   private VariantTypeNode variantTypeNode(QualifiedModuleName moduleName, TypeId aliasId,
       TypeId id, VariantTypeContext ctx) {
-    var structName = id.name();
+    var qualifiedStructName = moduleName.qualifyInner(id.name());
     return switch (ctx) {
       case SingletonTypeContext ignored -> new VariantTypeNode.Singleton(moduleName, aliasId, id);
-      case SingleTupleTypeContext tupCtx -> {
-        var typeNode = new TupleTypeNode(structName,
-            List.of(typeNode(tupCtx.type(), new TypeVisitor())),
-            rangeFrom(ctx));
-        yield new VariantTypeNode.Tuple(moduleName, aliasId, id, typeNode);
-      }
+      case SingleTupleTypeContext tupCtx -> new TupleTypeNode(qualifiedStructName,
+          List.of(typeNode(tupCtx.type(), new TypeVisitor())),
+          rangeFrom(ctx));
       case MultiTupleTypeContext tupCtx -> {
         var visitor = new TypeVisitor();
         var typeNodes = tupCtx.type().stream().map(t -> typeNode(t, visitor)).toList();
-        var typeNode = new TupleTypeNode(
-            structName,
+        yield new TupleTypeNode(
+            qualifiedStructName,
             typeNodes,
             rangeFrom(ctx));
-        yield new VariantTypeNode.Tuple(moduleName, aliasId, id, typeNode);
       }
-      case StructSumTypeContext structSumCtx -> {
-        var typeNode = new TypeVisitor().visitStructType(structSumCtx.structType());
-        yield new VariantTypeNode.Struct(moduleName,
-            aliasId,
-            id,
-            new StructTypeNode(structName,
-                typeNode.fieldTypeNodes(),
-                RowModifier.none(),
-                typeNode.range()));
-      }
+      case StructSumTypeContext structSumCtx ->
+          new TypeVisitor(qualifiedStructName).visitStructType(structSumCtx.structType());
       default -> throw new IllegalStateException();
     };
   }

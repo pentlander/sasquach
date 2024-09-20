@@ -14,8 +14,10 @@ import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.StructName;
+import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
+import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
@@ -79,30 +81,43 @@ public class ModuleScopedTypeResolver {
     struct.typeStatements().forEach(typeAlias -> {
       // Add the types of all the sum type nodes.
       var resolvedAlias = namedTypeResolver.resolveTypeNode(typeAlias, Map.of());
-      if (resolvedAlias.typeNode() instanceof SumTypeNode sumTypeNode) {
-        var sumType = sumTypeNode.type();
-        namedTypeIdToType.put(sumTypeNode.id(), sumType);
-        for (int i = 0; i < sumTypeNode.variantTypeNodes().size(); i++) {
-          var variantTypeNode = sumTypeNode.variantTypeNodes().get(i);
-          namedTypeIdToType.put(variantTypeNode.id(), variantTypeNode.type());
+      switch (resolvedAlias.typeNode()) {
+        case SumTypeNode sumTypeNode -> {
+          var sumType = sumTypeNode.type();
+          namedTypeIdToType.put(sumTypeNode.id(), sumType);
+          for (int i = 0; i < sumTypeNode.variantTypeNodes().size(); i++) {
+            var variantTypeNode = sumTypeNode.variantTypeNodes().get(i);
 
-          switch (variantTypeNode) {
-            case VariantTypeNode.Singleton singleton -> {
-              var id = singleton.id().toId();
-              typedFields.add(new TField(id,
-                  new TVarReference(id, new RefDeclaration.Singleton(singleton.type()), sumType)));
-            }
-            case VariantTypeNode.Struct variantStruct  -> {
-              var name = variantStruct.id().name().toName();
-              var funcType = variantStruct.type().constructorType(sumType);
-              fieldTypes.put(name, funcType);
-            }
-            case VariantTypeNode.Tuple tuple -> {
-              var name = tuple.id().name().toName();
-              var funcType = tuple.type().constructorType(sumType);
-              fieldTypes.put(name, funcType);
+            switch (variantTypeNode) {
+              case VariantTypeNode.Singleton singleton -> {
+                var id = singleton.id().toId();
+                typedFields.add(new TField(id,
+                    new TVarReference(id,
+                        new RefDeclaration.Singleton(singleton.type()),
+                        sumType)));
+              }
+              case StructTypeNode variantStruct -> {
+                var name = variantStruct.typeName().name().toName();
+                var funcType = variantStruct.type().constructorType(sumType);
+                fieldTypes.put(name, funcType);
+              }
+              case TupleTypeNode tuple -> {
+                var name = tuple.typeName().name().toName();
+                var funcType = tuple.type().constructorType(sumType);
+                fieldTypes.put(name, funcType);
+              }
             }
           }
+        }
+        case StructTypeNode typeNode -> {
+          var name = typeNode.typeName().name().toName();
+          fieldTypes.put(name, typeNode.type().constructorType());
+        }
+        case TupleTypeNode typeNode -> {
+          var name = typeNode.typeName().name().toName();
+          fieldTypes.put(name, typeNode.type().constructorType());
+        }
+        case null, default -> {
         }
       }
     });

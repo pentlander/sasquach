@@ -10,9 +10,12 @@ import static java.lang.classfile.Signature.ClassTypeSig;
 import static java.lang.classfile.Signature.TypeVarSig;
 
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode;
+import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeStatement;
 import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.backend.ExpressionGenerator.Context;
@@ -217,15 +220,26 @@ class ClassGenerator {
         sumType.internalClassDesc());
   }
 
+  private void generateStruct(StructType structType, Range range) {
+    buildAddClass(structType, clb -> generateStruct(clb, structType, range));
+  }
+
+  private void generateStruct(ClassBuilder clb, StructType structType, Range range) {
+    generateStructStart(
+        clb,
+        structType.internalClassDesc(),
+        range,
+        structType.memberTypes());
+  }
+
   private void generateStruct(TStruct struct) {
     buildAddClass(struct.type(), clb -> generateStruct(clb, struct));
   }
 
-  private void generateVariantTypeConstructor(ClassBuilder clb, String variantName, StructType variantStructType, SumType sumType) {
-    var funcType = variantStructType.constructorType(sumType);
-    var signature = generateMethodSignature(funcType);
-    var variantClassDesc = variantStructType.internalClassDesc();
-    clb.withMethod(variantName, funcType.functionTypeDesc(), ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL + ClassFile.ACC_SYNTHETIC, mb -> {
+  private void generateTypeConstructor(ClassBuilder clb, UnqualifiedTypeName typeName, StructType structType, FunctionType constructorType) {
+    var signature = generateMethodSignature(constructorType);
+    var variantClassDesc = structType.internalClassDesc();
+    clb.withMethod(typeName.toString(), constructorType.functionTypeDesc(), ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL + ClassFile.ACC_SYNTHETIC, mb -> {
       if (signature != null) {
         mb.with(SignatureAttribute.of(signature));
       }
@@ -233,11 +247,11 @@ class ClassGenerator {
         cob.new_(variantClassDesc).dup();
         // Start at 1 since 0 is `this`
         int idx = 1;
-        for (var type : funcType.parameterTypes()) {
+        for (var type : constructorType.parameterTypes()) {
           generateLoadVar(cob, type, idx++);
         }
         var methodDesc = MethodHandleDesc.ofConstructor(variantClassDesc,
-            funcType.parameterTypes().stream().map(Type::classDesc).toArray(ClassDesc[]::new));
+            constructorType.parameterTypes().stream().map(Type::classDesc).toArray(ClassDesc[]::new));
         GeneratorUtil.generate(cob, methodDesc);
         cob.areturn();
       });
@@ -247,20 +261,37 @@ class ClassGenerator {
   /** Generate classes for the named structs defined in the type aliases. */
   private void generateNamedTypes(ClassBuilder clb, List<TypeStatement> typeStatements) {
     for (var typeAlias : typeStatements) {
-      if (typeAlias.typeNode() instanceof SumTypeNode sumTypeNode) {
+      switch (typeAlias.typeNode()) {
+        case SumTypeNode sumTypeNode -> {
           var sumType = sumTypeNode.type();
           generateSumType(sumType);
           sumTypeNode.variantTypeNodes().forEach(variantTypeNode -> {
             switch (variantTypeNode.type()) {
               case StructType variantStructType -> {
                 generateVariantStruct(variantStructType, sumType, variantTypeNode.range());
-                var variantName = variantTypeNode.id().name().toString();
-                generateVariantTypeConstructor(clb, variantName, variantStructType, sumType);
+                var variantName = variantTypeNode.typeName().name();
+                var constructorType = variantStructType.constructorType(sumType);
+                generateTypeConstructor(clb, variantName, variantStructType, constructorType);
               }
               case SingletonType singletonType ->
                   generateSingleton(singletonType, sumType, variantTypeNode.range());
             }
           });
+        }
+        case StructTypeNode typeNode -> {
+          var type = typeNode.type();
+          generateStruct(type, typeNode.range());
+          var structName = typeNode.typeName().name();
+          generateTypeConstructor(clb, structName, type, type.constructorType());
+        }
+        case TupleTypeNode typeNode -> {
+          var type = typeNode.type();
+          generateStruct(type, typeNode.range());
+          var structName = typeNode.typeName().name();
+          generateTypeConstructor(clb, structName, type, type.constructorType());
+        }
+        case null, default -> {
+        }
       }
     }
   }

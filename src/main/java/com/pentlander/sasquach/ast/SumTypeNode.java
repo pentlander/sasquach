@@ -1,8 +1,8 @@
 package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Singleton;
 import com.pentlander.sasquach.type.SingletonType;
-import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.SumType;
 import com.pentlander.sasquach.type.TypeParameter;
 import com.pentlander.sasquach.type.VariantType;
@@ -38,12 +38,9 @@ public record SumTypeNode(QualifiedModuleName moduleName, TypeId id,
         .collect(Collectors.joining());
   }
 
-  public sealed interface VariantTypeNode extends TypeNode {
-    QualifiedModuleName moduleName();
-
-    TypeId aliasId();
-
-    TypeId id();
+  public sealed interface VariantTypeNode extends TypeNode, ConstructableNamedTypeNode permits
+      Singleton, TupleTypeNode, StructTypeNode {
+    QualifiedTypeName typeName();
 
     VariantType type();
 
@@ -55,34 +52,13 @@ public record SumTypeNode(QualifiedModuleName moduleName, TypeId id,
       }
 
       @Override
+      public QualifiedTypeName typeName() {
+        return moduleName.qualifyInner(id.name());
+      }
+
+      @Override
       public SingletonType type() {
         return new SingletonType(moduleName().qualifyInner(id().name()));
-      }
-    }
-
-    record Tuple(QualifiedModuleName moduleName, TypeId aliasId, TypeId id,
-                 TupleTypeNode typeNode) implements VariantTypeNode {
-      @Override
-      public Range range() {
-        return id.range().join(typeNode.range());
-      }
-
-      @Override
-      public StructType type() {
-        return new StructType(moduleName.qualifyInner(id.name()), typeNode.type().memberTypes());
-      }
-    }
-
-    record Struct(QualifiedModuleName moduleName, TypeId aliasId, TypeId id,
-                  StructTypeNode typeNode) implements VariantTypeNode {
-      @Override
-      public Range range() {
-        return id.range().join(typeNode.range());
-      }
-
-      @Override
-      public StructType type() {
-        return new StructType(moduleName.qualifyInner(id.name()), typeNode.type().memberTypes());
       }
     }
   }

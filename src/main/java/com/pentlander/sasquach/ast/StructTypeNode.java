@@ -6,20 +6,30 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.NamedRow;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.None;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.UnnamedRow;
+import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.type.StructType;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.SequencedMap;
 import org.jspecify.annotations.Nullable;
 
-/** Type node for a struct that contains type nodes for all of its fields. */
-public record StructTypeNode(@Nullable StructName name, Map<UnqualifiedName, TypeNode> fieldTypeNodes, RowModifier rowModifier,
-                             Range range) implements TypeNode {
-
-  public StructTypeNode(Map<UnqualifiedName, TypeNode> fieldTypeNodes, RowModifier rowModifier, Range range) {
-    this(null, fieldTypeNodes, rowModifier, range);
-  }
+/**
+ * Type node for a struct that contains type nodes for all of its fields.
+ * <p>
+ * It can appear as follows:
+ * <code>
+ * typealias NoName = { foo: String }
+ * type Named = { foo: String }
+ * { func = (foo: T }
+ * </code>
+ *
+ */
+public record StructTypeNode(@Nullable QualifiedTypeName typeName,
+                             SequencedMap<UnqualifiedName, TypeNode> fieldTypeNodes, RowModifier rowModifier,
+                             Range range) implements TypeNode, ConstructableNamedTypeNode,
+    VariantTypeNode {
 
   @Override
   public StructType type() {
@@ -30,12 +40,12 @@ public record StructTypeNode(@Nullable StructName name, Map<UnqualifiedName, Typ
       case None _ -> StructType.RowModifier.none();
       case UnnamedRow _ -> StructType.RowModifier.unnamedRow();
     };
-    return new StructType(name, List.of(), fieldTypes, Map.of(), rowModifier);
+    return new StructType(typeName, List.of(), fieldTypes, Map.of(), rowModifier);
   }
 
   @Override
   public String typeNameStr() {
-    return Objects.requireNonNullElse(name, type().structName()).toString();
+    return Objects.requireNonNullElse(typeName, type().structName()).toString();
   }
 
   public sealed interface RowModifier {

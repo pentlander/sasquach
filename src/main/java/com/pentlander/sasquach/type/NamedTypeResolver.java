@@ -1,9 +1,9 @@
 package com.pentlander.sasquach.type;
 
+import static com.pentlander.sasquach.Util.toLinkedMap;
 import static com.pentlander.sasquach.Util.toSeqMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.Objects.requireNonNullElse;
-import static java.util.stream.Collectors.toMap;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
@@ -18,8 +18,6 @@ import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.NamedRow;
 import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Singleton;
-import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Struct;
-import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Tuple;
 import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeStatement;
 import com.pentlander.sasquach.ast.TypeNode;
@@ -73,7 +71,7 @@ public class NamedTypeResolver {
         var resolvedFieldTypes = fieldTypeNodes.entrySet()
             .stream()
             .map(e -> Map.entry(e.getKey(), resolveTypeNode(e.getValue(), typeArgs)))
-            .collect(toMap(Entry::getKey, Entry::getValue));
+            .collect(toLinkedMap(Entry::getKey, Entry::getValue));
         var resolvedRowModifier = rowModifier;
         if (rowModifier instanceof NamedRow namedRow) {
           // Right now the localnamedtype is getting replaced with a universal type. This might be
@@ -101,16 +99,6 @@ public class NamedTypeResolver {
       }
       case Singleton(var moduleName, var aliasId, var id) ->
           new Singleton(moduleName, aliasId, id);
-      case Tuple(var moduleName, var aliasId, var id, var tupleTypeNode) ->
-          new Tuple(moduleName,
-              aliasId,
-              id,
-              resolveTypeNode(tupleTypeNode, typeArgs));
-      case Struct(var moduleName, var aliasId, var id, var structTypeNode) ->
-          new Struct(moduleName,
-              aliasId,
-              id,
-              resolveTypeNode(structTypeNode, typeArgs));
       case NamedTypeNode(var id, var typeArgNodes, var type, var range) ->
           new NamedTypeNode(id, typeArgNodes, resolveNames(type, typeArgs, range), range);
     };
