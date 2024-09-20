@@ -7,11 +7,9 @@ import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
-import com.pentlander.sasquach.ast.StructName;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.TypeNode;
-import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.expression.PipeOperator;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
@@ -39,7 +37,6 @@ import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
-import com.pentlander.sasquach.name.NameResolutionData.NamedStructId.Variant;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -224,9 +221,9 @@ public class MemberScopedNameResolver {
   }
 
   private void resolveTypeNames(TypeNode typeNode) {
-    var resolver = new TypeNameResolver(contextTypeParameters, moduleScopedNameResolver);
+    var resolver = new TypeNodeNameResolver(contextTypeParameters, moduleScopedNameResolver);
     var result = resolver.resolveTypeNode(typeNode);
-    nameData.addTypeAliases(result.namedTypes().entrySet());
+    nameData.addNamedTypeDefs(result.namedTypes().entrySet());
     errors.addAll(result.errors());
   }
 
@@ -371,19 +368,6 @@ public class MemberScopedNameResolver {
     if (ifExpression.falseExpression() != null) {
       resolve(ifExpression.falseExpression());
     }
-  }
-
-
-  // javac numbers its anon classes scoped to the class that they're defined in rather than the
-  // method. We are doing by method to get consistent names if we choose to parallelize the name
-  // resolution within a module.
-  private StructName literalStructName() {
-    var num = anonStructNum.getAndIncrement();
-    var funcName = requireNonNull(namedFunction).name();
-    return moduleScopedNameResolver.moduleDeclaration()
-        .name()
-        .qualifyInner(funcName)
-        .qualify(new UnqualifiedTypeName(Integer.toString(num)));
   }
 
   public sealed interface ReferenceDeclaration {

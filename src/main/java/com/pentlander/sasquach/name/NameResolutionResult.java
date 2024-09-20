@@ -4,22 +4,20 @@ import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
+import com.pentlander.sasquach.ast.NamedTypeNode;
 import com.pentlander.sasquach.ast.RecurPoint;
-import com.pentlander.sasquach.ast.StructName;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
 import com.pentlander.sasquach.ast.expression.Function;
-import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Match;
-import com.pentlander.sasquach.ast.expression.NamedStruct;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.FunctionCallTarget;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
-import com.pentlander.sasquach.name.NameResolutionData.NamedStructId;
+import com.pentlander.sasquach.type.NamedType;
 import com.pentlander.sasquach.type.Type;
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -35,30 +33,30 @@ public class NameResolutionResult {
       NameResolutionDataBuilder.builder().build(),
       new RangedErrorList(List.of()));
 
-  private final Map<Type, NamedTypeDefinition> typeNameAliases;
+  private final Map<NamedType, NamedTypeDefinition> namedTypeDefs;
   private final NameResolutionData nameData;
   private final RangedErrorList errors;
 
   public NameResolutionResult(NameResolutionData nameData, RangedErrorList errors) {
-    this.typeNameAliases = typeNameAliases(nameData.typeAliases());
+    this.namedTypeDefs = namedTypeDefs(nameData.namedTypeDefs());
     this.nameData = nameData;
     this.errors = errors;
   }
 
-  private static Map<Type, NamedTypeDefinition> typeNameAliases(
-      Map<TypeNode, NamedTypeDefinition> typeAliases) {
+  private static Map<NamedType, NamedTypeDefinition> namedTypeDefs(
+      Map<NamedTypeNode, NamedTypeDefinition> typeAliases) {
     return typeAliases.entrySet()
         .stream()
-        .collect(Collectors.toMap(entry -> entry.getKey().type(), Entry::getValue, (a, b) -> a));
+        .collect(Collectors.toMap(entry -> (NamedType) entry.getKey().type(), Entry::getValue, (a, _) -> a));
   }
 
   public NameResolutionResult withErrors(RangedErrorList errors) {
     return new NameResolutionResult(nameData, this.errors.concat(errors));
   }
 
-  public NameResolutionResult withNamedTypes(Map<TypeNode, NamedTypeDefinition> namedTypes) {
+  public NameResolutionResult withNamedTypeDefs(Map<NamedTypeNode, NamedTypeDefinition> namedTypes) {
     var mergedNameData = NameResolutionDataBuilder.builder(nameData)
-        .addTypeAliases(namedTypes.entrySet())
+        .addNamedTypeDefs(namedTypes.entrySet())
         .build();
     return new NameResolutionResult(mergedNameData, errors);
   }
@@ -67,8 +65,8 @@ public class NameResolutionResult {
     return EMPTY;
   }
 
-  public Optional<NamedTypeDefinition> getNamedType(Type type) {
-    return Optional.ofNullable(typeNameAliases.get(type));
+  public Optional<NamedTypeDefinition> getNamedTypeDef(NamedType type) {
+    return Optional.ofNullable(namedTypeDefs.get(type));
   }
 
   public Field getForeignField(ForeignFieldAccess foreignFieldAccess) {
@@ -113,7 +111,7 @@ public class NameResolutionResult {
     var ond = other.nameData;
     return new NameResolutionResult(
         NameResolutionDataBuilder.builder()
-            .typeAliases(merged(nd.typeAliases(), ond.typeAliases()))
+            .namedTypeDefs(merged(nd.namedTypeDefs(), ond.namedTypeDefs()))
             .foreignFieldAccesses(merged(nd.foreignFieldAccesses(), ond.foreignFieldAccesses()))
             .foreignFunctions(merged(nd.foreignFunctions(), ond.foreignFunctions()))
             .localFunctionCalls(merged(nd.localFunctionCalls(), ond.localFunctionCalls()))

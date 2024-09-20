@@ -3,9 +3,12 @@ package com.pentlander.sasquach.name;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
+import com.pentlander.sasquach.ast.NamedTypeNode;
+import com.pentlander.sasquach.ast.StructTypeNode;
+import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
+import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeStatement;
-import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.Use;
@@ -23,7 +26,7 @@ public class ModuleScopedNameResolver {
   private final Map<UnqualifiedName, ModuleScopedNameResolver> moduleImports = new HashMap<>();
   private final Map<UnqualifiedTypeName, Class<?>> foreignClasses = new HashMap<>();
   private final Map<UnqualifiedTypeName, TypeStatement> typeStatementNames = new HashMap<>();
-  private final Map<TypeNode, NamedTypeDefinition> namedTypes = new HashMap<>();
+  private final Map<NamedTypeNode, NamedTypeDefinition> namedTypeDefs = new HashMap<>();
   private final Map<UnqualifiedTypeName, VariantTypeNode> variantTypes = new HashMap<>();
   private final Map<UnqualifiedName, LiteralStruct.Field> fields = new HashMap<>();
   private final Map<LiteralStruct.Field, NameResolutionResult> fieldResults = new HashMap<>();
@@ -47,7 +50,7 @@ public class ModuleScopedNameResolver {
 
   public NameResolutionResult resolveBody() {
     resolve(module.struct());
-    return nameResolutionResult.withNamedTypes(namedTypes).withErrors(errors.build());
+    return nameResolutionResult.withNamedTypeDefs(namedTypeDefs).withErrors(errors.build());
   }
 
   public void resolveTypeDefs() {
@@ -107,10 +110,19 @@ public class ModuleScopedNameResolver {
     }
 
     for (var typeStatement : struct.typeStatements()) {
-      var resolver = new TypeNameResolver(this);
+      var resolver = new TypeNodeNameResolver(this);
       var result = resolver.resolveTypeNode(typeStatement);
-      namedTypes.putAll(result.namedTypes());
-      variantTypes.putAll(result.variantTypes());
+      namedTypeDefs.putAll(result.namedTypes());
+      if (!typeStatement.isAlias()) {
+        switch (typeStatement.typeNode()) {
+          case StructTypeNode node -> {}
+          case TupleTypeNode node -> {}
+          case SumTypeNode node -> node.variantTypeNodes().forEach(variantTypeNode -> {
+            variantTypes.put(variantTypeNode.id().name(), variantTypeNode);
+          });
+          default -> throw new IllegalStateException("Must have checked in AstValidator");
+        }
+      }
       errors.addAll(result.errors());
     }
 

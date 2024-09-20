@@ -23,24 +23,23 @@ import java.util.List;
 import java.util.Map;
 
 /** Resolves named types to their corresponding aliases or type parameters. */
-public class TypeNameResolver {
+public class TypeNodeNameResolver {
   private final List<TypeParameter> contextTypeParams;
   private final ModuleScopedNameResolver moduleScopedNameResolver;
-  // Map of named types to the captureName declaration, e.g. type alias or type parameter
-  private final Map<TypeNode, NamedTypeDefinition> namedTypes = new HashMap<>();
-  private final Map<UnqualifiedTypeName, VariantTypeNode> variantNodes = new HashMap<>();
+  // Map of named type nodes to its type definition, e.g. type alias or type parameter
+  private final Map<NamedTypeNode, NamedTypeDefinition> namedTypes = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
-  public TypeNameResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
+  public TypeNodeNameResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
     this(List.of(), moduleScopedNameResolver);
   }
-  public TypeNameResolver(List<TypeParameter> contextTypeParams,
+  public TypeNodeNameResolver(List<TypeParameter> contextTypeParams,
       ModuleScopedNameResolver moduleScopedNameResolver) {
     this.contextTypeParams = contextTypeParams;
     this.moduleScopedNameResolver = moduleScopedNameResolver;
   }
 
-  private void putNamedType(TypeNode typeNode, NamedTypeDefinition namedTypeDef) {
+  private void putNamedType(NamedTypeNode typeNode, NamedTypeDefinition namedTypeDef) {
     var existing = namedTypes.put(typeNode,  namedTypeDef);
     if (existing != null) {
       throw new IllegalStateException();
@@ -58,7 +57,7 @@ public class TypeNameResolver {
       }
       case FunctionSignature functionSignature -> {
         var typeParams = Util.concat(contextTypeParams, functionSignature.typeParameters());
-        var resolver = new TypeNameResolver(typeParams, moduleScopedNameResolver);
+        var resolver = new TypeNodeNameResolver(typeParams, moduleScopedNameResolver);
         functionSignature.parameters().forEach(param -> {
           if (param.typeNode() != null) {
             var result = resolver.resolveTypeNode(param.typeNode());
@@ -73,32 +72,26 @@ public class TypeNameResolver {
       }
       case TypeStatement typeStatement -> {
         var typeParams = Util.concat(contextTypeParams, typeStatement.typeParameters());
-        var resolver = new TypeNameResolver(typeParams, moduleScopedNameResolver);
+        var resolver = new TypeNodeNameResolver(typeParams, moduleScopedNameResolver);
         var result = resolver.resolveTypeNode(typeStatement.typeNode());
         mergeResult(result);
       }
       case TupleTypeNode tupleTypeNode -> tupleTypeNode.fields().forEach(this::resolveTypeNode);
       case SumTypeNode sumTypeNode -> sumTypeNode.variantTypeNodes().forEach(this::resolveTypeNode);
       case VariantTypeNode variantTypeNode -> {
-        variantNodes.put(variantTypeNode.id().name(), variantTypeNode);
         switch (variantTypeNode) {
-          case VariantTypeNode.Singleton singleton -> {
-            var typeAlias = moduleScopedNameResolver.resolveTypeAlias(singleton.aliasId().name())
-                .orElseThrow();
-            putNamedType(singleton, typeAlias);
-          }
+          case VariantTypeNode.Singleton _ -> {}
           case VariantTypeNode.Tuple tuple -> resolveTypeNode(tuple.typeNode());
           case VariantTypeNode.Struct struct -> resolveTypeNode(struct.typeNode());
         }
       }
       case NamedTypeNode namedTypeNode -> resolveNamedType(namedTypeNode);
     }
-    return new Result(namedTypes, variantNodes, errors.build());
+    return new Result(namedTypes, errors.build());
   }
 
   private void mergeResult(Result result) {
     namedTypes.putAll(result.namedTypes);
-    variantNodes.putAll(result.variantTypes);
     errors.addAll(result.errors);
   }
 
@@ -147,6 +140,5 @@ public class TypeNameResolver {
     }
   }
 
-  public record Result(Map<TypeNode, NamedTypeDefinition> namedTypes,
-                       Map<UnqualifiedTypeName, VariantTypeNode> variantTypes, RangedErrorList errors) {}
+  public record Result(Map<NamedTypeNode, NamedTypeDefinition> namedTypes, RangedErrorList errors) {}
 }

@@ -2,23 +2,20 @@ package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
+import com.pentlander.sasquach.ast.NamedTypeNode;
 import com.pentlander.sasquach.ast.RecurPoint;
-import com.pentlander.sasquach.ast.StructName;
 import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.Function;
-import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.Match;
-import com.pentlander.sasquach.ast.expression.NamedStruct;
 import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.FunctionCallTarget;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.lang.reflect.Field;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SequencedSet;
@@ -26,7 +23,7 @@ import java.util.SequencedSet;
 @RecordBuilder
 @RecordBuilder.Options(addSingleItemCollectionBuilders = true, useImmutableCollections = true)
 public record NameResolutionData(
-    Map<TypeNode, NamedTypeDefinition> typeAliases,
+    Map<NamedTypeNode, NamedTypeDefinition> namedTypeDefs,
     Map<ForeignFieldAccess, Field> foreignFieldAccesses,
     Map<Id, ForeignFunctions> foreignFunctions,
     Map<Id, FunctionCallTarget> localFunctionCalls,

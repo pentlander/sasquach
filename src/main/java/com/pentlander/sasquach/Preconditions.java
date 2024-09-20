@@ -9,7 +9,12 @@ public final class Preconditions {
     if (!expr) {
       throw new IllegalArgumentException(errorTemplate.formatted(args));
     }
+  }
 
+  public static void checkState(boolean expr, String errorTemplate, Object... args) {
+    if (!expr) {
+      throw new IllegalStateException(errorTemplate.formatted(args));
+    }
   }
 
   public static <T> void checkNotInstanceOf(T obj, Class<? extends T> clazz, String msg) {

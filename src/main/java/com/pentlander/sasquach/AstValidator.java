@@ -1,7 +1,9 @@
 package com.pentlander.sasquach;
 
-import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.CompilationUnit;
+import com.pentlander.sasquach.ast.StructTypeNode;
+import com.pentlander.sasquach.ast.SumTypeNode;
+import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.FunctionCall;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
@@ -14,7 +16,6 @@ import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -37,7 +38,22 @@ public class AstValidator {
   public List<Error> validate() {
     var errors = new ArrayList<Error>();
     for (var module : compilationUnit.modules()) {
-      var functions = module.struct().functions();
+      var struct = module.struct();
+
+      for (var typeStatement : struct.typeStatements()) {
+        if (!typeStatement.isAlias()) {
+          switch (typeStatement.typeNode()) {
+            case StructTypeNode _, TupleTypeNode _, SumTypeNode _ -> {}
+            default -> {
+              errors.add(new BasicError(
+                  "Type value must be a struct, tuple, or sum type. Try 'typealias' instead.",
+                  typeStatement.typeNode().range()));
+            }
+          }
+        }
+      }
+
+      var functions = struct.functions();
       var functionNames = new HashMap<UnqualifiedName, NamedFunction>();
 
       for (var function : functions) {

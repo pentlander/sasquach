@@ -394,7 +394,7 @@ public class EndToEndTest extends BaseTest {
     assertThat(sum).isEqualTo("fox");
   }
 
-  @Test @Disabled
+  @Test
   void namedStruct() throws Exception {
     var clazz = compile("""
         Main {
@@ -560,7 +560,7 @@ public class EndToEndTest extends BaseTest {
   void typeAliasFunction() throws Exception {
     var clazz = compile( """
         Main {
-          type MathFunc = (x: Int, y: Int) -> Int,
+          typealias MathFunc = (x: Int, y: Int) -> Int,
           getX = (x: Int, func: MathFunc): Int -> func(x, 6),
           main = (): Int -> getX(3, (x: Int, y: Int): Int -> x + y)
         }

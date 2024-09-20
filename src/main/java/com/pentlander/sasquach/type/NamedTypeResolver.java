@@ -126,7 +126,7 @@ public class NamedTypeResolver {
   }
 
   private Type resolveNamedType(NamedType namedType, Map<String, Type> typeArgs, Range range) {
-    var typeDefNode = nameResolutionResult.getNamedType(namedType)
+    var typeDefNode = nameResolutionResult.getNamedTypeDef(namedType)
         .orElseThrow(() -> new IllegalStateException("Unable to find named type: " + namedType));
 
     return switch (typeDefNode) {

@@ -102,7 +102,7 @@ public class Compiler {
 
       var validator = new AstValidator(compilationUnit);
       var compileErrors = validator.validate();
-      if (!compileErrors.isEmpty()) {throw new CompilationException(source, compileErrors);}
+      if (!compileErrors.isEmpty()) throw new CompilationException(source, compileErrors);
     }
 
     var nameResolver = new ModuleResolver();
