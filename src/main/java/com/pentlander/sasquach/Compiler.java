@@ -19,9 +19,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.StringJoiner;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.atteo.classindex.ClassIndex;
 
 public class Compiler {
@@ -94,14 +91,10 @@ public class Compiler {
   }
 
   public BytecodeResult compile(Source source) throws CompilationException {
-    return new BytecodeResult(compileSources(Sources.single(source)));
+    return compile(Sources.single(source));
   }
 
   public BytecodeResult compile(Sources sources) throws CompilationException {
-    return new BytecodeResult(compileSources(sources));
-  }
-
-  private Map<String, byte[]> compileSources(Sources sources) throws CompilationException {
     var compUnits = new ArrayList<CompilationUnit>();
     for (Source source : sources.values()) {
       var compilationUnit = parser.getCompilationUnit(source);
@@ -121,8 +114,7 @@ public class Compiler {
     typeResolutionResult.errors().throwIfNotEmpty(sources);
 
     var bytecodeGenerator = new BytecodeGenerator();
-    return bytecodeGenerator.generateBytecode(typeResolutionResult.getModuleDeclarations())
-        .generatedBytecode();
+    return bytecodeGenerator.generateBytecode(typeResolutionResult.getModuleDeclarations());
   }
 
   public void compile(List<Path> sourcePaths, Path outputPath) {
@@ -130,7 +122,7 @@ public class Compiler {
       var sources = findFiles(sourcePaths);
       Map<String, byte[]> bytecodeResults;
       try {
-        bytecodeResults = compileSources(sources);
+        bytecodeResults = compile(sources).generatedClasses();
       } catch (CompilationException e) {
         printErrors(sources, e.errors());
         return;

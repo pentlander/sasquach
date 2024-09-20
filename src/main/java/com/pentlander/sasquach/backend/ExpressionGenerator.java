@@ -56,6 +56,7 @@ import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.FieldAccessKind;
 import com.pentlander.sasquach.type.FunctionType;
+import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeUtils;
 import com.pentlander.sasquach.type.TypeVariable;
@@ -131,8 +132,8 @@ final class ExpressionGenerator {
     return type(expression.type());
   }
 
-  Type type(TStruct expression) {
-    return type(expression.structType());
+  StructType type(TStruct expression) {
+    return (StructType) type(expression.structType());
   }
 
   Type type(Type type) {
@@ -183,8 +184,8 @@ final class ExpressionGenerator {
             // for the captured vars
               generateLoadVar(localVar);
           case Module(var moduleId) ->
-              cob.getstatic(moduleId.classDesc(), INSTANCE_FIELD, type(varReference).classDesc());
-          case Singleton(var singletonType) -> cob.getstatic(internalClassDesc(singletonType),
+              cob.getstatic(moduleId.toClassDesc(), INSTANCE_FIELD, type(varReference).classDesc());
+          case Singleton(var singletonType) -> cob.getstatic(singletonType.internalClassDesc(),
               INSTANCE_FIELD,
               type(varReference).classDesc());
         }
@@ -401,7 +402,7 @@ final class ExpressionGenerator {
               for (int j = 0; j < bindings.size(); j++) {
                 // Load the value of the field and cast it
                 GeneratorUtil.generateLoadVar(cob, variantType, exprVarIdx);
-                cob.checkcast(internalClassDesc(variantType));
+                cob.checkcast(variantType.internalClassDesc());
 
                 var field = tupleFieldTypes.get(j);
                 generateFieldAccess(cob, field.getKey(), field.getValue());
@@ -417,7 +418,7 @@ final class ExpressionGenerator {
               var variantType = variantStruct.type();
               for (var binding : variantStruct.bindings()) {
                 GeneratorUtil.generateLoadVar(cob, variantType, exprVarIdx);
-                cob.checkcast(internalClassDesc(variantType));
+                cob.checkcast(variantType.internalClassDesc());
 
                 var fieldType = variantType.fieldType(binding.name());
                 generateFieldAccess(cob, binding.name(), fieldType);
@@ -560,7 +561,7 @@ final class ExpressionGenerator {
   //  not consistent.
   void generateStructInit(TStruct struct) {
     var structType = type(struct);
-    var structClassDesc = internalClassDesc(structType);
+    var structClassDesc = structType.internalClassDesc();
     var fields = struct.fields();
 
     if (struct instanceof TLiteralStruct literalStruct && !literalStruct.spreads().isEmpty()) {

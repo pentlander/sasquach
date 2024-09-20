@@ -76,7 +76,7 @@ public class ModuleScopedTypeResolver {
     var fieldTypes = new LinkedHashMap<UnqualifiedName, Type>();
     var typedFields = new ArrayList<TField>();
 
-    struct.typeAliases().forEach(typeAlias -> {
+    struct.typeStatements().forEach(typeAlias -> {
       // Add the types of all the sum type nodes.
       var resolvedAlias = namedTypeResolver.resolveTypeNode(typeAlias, Map.of());
       if (resolvedAlias.typeNode() instanceof SumTypeNode sumTypeNode) {
@@ -133,15 +133,15 @@ public class ModuleScopedTypeResolver {
       errors.addAll(result.errors());
     });
 
-    var typeAliases = namedTypeResolver.mapResolveTypeNode(struct.typeAliases());
+    var typeStatements = namedTypeResolver.mapResolveTypeNode(struct.typeStatements());
 
     typedStructBuilder.name(struct.name())
         .useList(struct.useList())
-        .typeAliases(typeAliases)
+        .typeStatements(typeStatements)
         .fields(typedFields)
         .range(struct.range());
 
-    var namedStructTypes = typeAliases.stream()
+    var namedStructTypes = typeStatements.stream()
         .flatMap(alias -> alias.type() instanceof SumType sumType ? Stream.of(sumType)
             : Stream.empty())
         .collect(toMap(sumType -> sumType.qualifiedTypeName().name(), identity()));

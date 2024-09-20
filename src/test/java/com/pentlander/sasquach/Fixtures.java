@@ -1,6 +1,5 @@
 package com.pentlander.sasquach;
 
-import static java.util.stream.Collectors.toMap;
 
 import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.BasicTypeNode;
@@ -8,15 +7,12 @@ import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.QualifiedModuleId;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
-import com.pentlander.sasquach.ast.StructTypeNode;
-import com.pentlander.sasquach.ast.StructTypeNode.RowModifier;
 import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
-import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
@@ -31,7 +27,6 @@ import com.pentlander.sasquach.tast.expression.TStruct.TField;
 import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.FunctionType;
-import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.lang.constant.DirectMethodHandleDesc;
@@ -39,7 +34,6 @@ import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import jdk.dynalink.linker.support.Lookup;
@@ -83,11 +77,6 @@ public class Fixtures {
     return new QualifiedModuleId(PACKAGE_NAME, name, range());
   }
 
-  public static NamedFunction func(String name, List<FunctionParameter> functionParameters,
-      Type returnType, Expression expression) {
-    return func(name, functionParameters, List.of(), returnType, expression);
-  }
-
   public static TNamedFunction tfunc(String name, List<TFunctionParameter> funcParams,
       Type returnType, TypedExpression expression) {
     var paramTypes = funcParams.stream()
@@ -101,22 +90,8 @@ public class Fixtures {
     return new TField(id(name), expression);
   }
 
-  public static TypeNode typeNode(Type type) {
-    if (type instanceof StructType structType) {
-      return new StructTypeNode(structType.memberTypes()
-          .entrySet()
-          .stream()
-          .collect(toMap(Entry::getKey, entry -> typeNode(entry.getValue()))), RowModifier.none(), range());
-    }
-    return new BasicTypeNode<>(type, range());
-  }
-
-  public static NamedFunction func(String name, List<FunctionParameter> functionParameters,
-      List<TypeParameter> typeParameters, Type returnType, Expression expression) {
-    var funcId = id(name);
-    return new NamedFunction(funcId, new Function(
-        new FunctionSignature(functionParameters, typeParameters, typeNode(returnType), range()),
-        expression));
+  public static TypeNode typeNode(BuiltinType type) {
+    return new BasicTypeNode(type, range());
   }
 
   public static TNamedFunction tfunc(String name, List<TFunctionParameter> functionParameters,
@@ -130,7 +105,10 @@ public class Fixtures {
   }
 
   public static NamedFunction voidFunc(String name, Expression expression) {
-    return func(name, List.of(), BuiltinType.VOID, expression);
+    var funcId = id(name);
+    return new NamedFunction(funcId, new Function(
+        new FunctionSignature(List.of(), List.of(), typeNode(BuiltinType.VOID), range()),
+        expression));
   }
 
   public static Struct literalStruct(List<Field> fields, List<NamedFunction> functions) {

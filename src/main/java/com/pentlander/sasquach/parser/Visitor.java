@@ -1,36 +1,15 @@
 package com.pentlander.sasquach.parser;
 import static com.pentlander.sasquach.Util.mapNonNull;
-import static com.pentlander.sasquach.ast.expression.Struct.StructKind;
 import static java.util.Objects.requireNonNullElse;
 
 import com.pentlander.sasquach.PackageName;
 import com.pentlander.sasquach.Position;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.SourcePath;
-import com.pentlander.sasquach.ast.BasicTypeNode;
-import com.pentlander.sasquach.ast.Branch;
-import com.pentlander.sasquach.ast.CompilationUnit;
-import com.pentlander.sasquach.ast.FunctionSignature;
-import com.pentlander.sasquach.ast.Id;
-import com.pentlander.sasquach.ast.ModuleDeclaration;
-import com.pentlander.sasquach.ast.ModuleScopedTypeId;
-import com.pentlander.sasquach.ast.Pattern;
-import com.pentlander.sasquach.ast.PatternVariable;
-import com.pentlander.sasquach.ast.QualifiedModuleId;
-import com.pentlander.sasquach.ast.QualifiedModuleName;
-import com.pentlander.sasquach.ast.StructName;
-import com.pentlander.sasquach.ast.StructTypeNode;
+import com.pentlander.sasquach.ast.*;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier;
-import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
-import com.pentlander.sasquach.ast.TupleTypeNode;
-import com.pentlander.sasquach.ast.TypeAlias;
-import com.pentlander.sasquach.ast.TypeId;
-import com.pentlander.sasquach.ast.TypeNode;
-import com.pentlander.sasquach.ast.UnqualifiedName;
-import com.pentlander.sasquach.ast.UnqualifiedTypeName;
-import com.pentlander.sasquach.ast.Use;
-import com.pentlander.sasquach.ast.Argument;
+import com.pentlander.sasquach.ast.TypeStatement;
 import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.PipeOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
@@ -61,72 +40,9 @@ import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.ast.expression.VariableDeclaration;
-import com.pentlander.sasquach.parser.SasquachParser.ApplicationContext;
-import com.pentlander.sasquach.parser.SasquachParser.BinaryOperationContext;
-import com.pentlander.sasquach.parser.SasquachParser.BlockContext;
-import com.pentlander.sasquach.parser.SasquachParser.BooleanExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.BooleanLiteralContext;
-import com.pentlander.sasquach.parser.SasquachParser.ClassTypeContext;
-import com.pentlander.sasquach.parser.SasquachParser.CompareExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.CompilationUnitContext;
-import com.pentlander.sasquach.parser.SasquachParser.DblLiteralContext;
-import com.pentlander.sasquach.parser.SasquachParser.ExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.ForeignMemberAccessExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.ForeignMemberApplicationExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.ForeignNameContext;
-import com.pentlander.sasquach.parser.SasquachParser.FunctionCallContext;
-import com.pentlander.sasquach.parser.SasquachParser.FunctionContext;
-import com.pentlander.sasquach.parser.SasquachParser.FunctionDeclarationContext;
-import com.pentlander.sasquach.parser.SasquachParser.FunctionParameterListContext;
-import com.pentlander.sasquach.parser.SasquachParser.FunctionTypeContext;
-import com.pentlander.sasquach.parser.SasquachParser.IdentifierStatementContext;
-import com.pentlander.sasquach.parser.SasquachParser.IfExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.IntLiteralContext;
-import com.pentlander.sasquach.parser.SasquachParser.LabelContext;
-import com.pentlander.sasquach.parser.SasquachParser.LocalNamedTypeContext;
-import com.pentlander.sasquach.parser.SasquachParser.LoopExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.MatchExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.MemberAccessExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.MemberApplicationContext;
-import com.pentlander.sasquach.parser.SasquachParser.MemberApplicationExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.ModuleDeclarationContext;
-import com.pentlander.sasquach.parser.SasquachParser.ModuleNamedTypeContext;
-import com.pentlander.sasquach.parser.SasquachParser.MultiTupleTypeContext;
-import com.pentlander.sasquach.parser.SasquachParser.MultiTupleVariantPatternContext;
-import com.pentlander.sasquach.parser.SasquachParser.NamedStructContext;
-import com.pentlander.sasquach.parser.SasquachParser.NotExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.ParenExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.PipeExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.PrintStatementContext;
-import com.pentlander.sasquach.parser.SasquachParser.SingleTupleTypeContext;
-import com.pentlander.sasquach.parser.SasquachParser.SingleTupleVariantPatternContext;
-import com.pentlander.sasquach.parser.SasquachParser.SingletonPatternContext;
-import com.pentlander.sasquach.parser.SasquachParser.SingletonTypeContext;
-import com.pentlander.sasquach.parser.SasquachParser.SpreadStatementContext;
-import com.pentlander.sasquach.parser.SasquachParser.StringLiteralContext;
-import com.pentlander.sasquach.parser.SasquachParser.StructContext;
-import com.pentlander.sasquach.parser.SasquachParser.StructSumTypeContext;
-import com.pentlander.sasquach.parser.SasquachParser.StructTypeContext;
-import com.pentlander.sasquach.parser.SasquachParser.StructVariantPatternContext;
-import com.pentlander.sasquach.parser.SasquachParser.SumTypeContext;
-import com.pentlander.sasquach.parser.SasquachParser.TupleExpressionContext;
-import com.pentlander.sasquach.parser.SasquachParser.TupleTypeContext;
-import com.pentlander.sasquach.parser.SasquachParser.TypeAliasStatementContext;
-import com.pentlander.sasquach.parser.SasquachParser.TypeAnnotationContext;
-import com.pentlander.sasquach.parser.SasquachParser.TypeArgumentListContext;
-import com.pentlander.sasquach.parser.SasquachParser.TypeContext;
-import com.pentlander.sasquach.parser.SasquachParser.TypeIdentifierContext;
-import com.pentlander.sasquach.parser.SasquachParser.TypeParameterListContext;
-import com.pentlander.sasquach.parser.SasquachParser.UseStatementContext;
-import com.pentlander.sasquach.parser.SasquachParser.VarReferenceContext;
-import com.pentlander.sasquach.parser.SasquachParser.VariableDeclarationContext;
-import com.pentlander.sasquach.parser.SasquachParser.VariantTypeContext;
-import com.pentlander.sasquach.tast.TFunctionParameter.Label;
+import com.pentlander.sasquach.parser.SasquachParser.*;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.ClassType;
-import com.pentlander.sasquach.type.LocalNamedType;
-import com.pentlander.sasquach.type.ModuleNamedType;
-import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -177,6 +93,10 @@ public class Visitor {
 
   public CompilationUnitVisitor compilationUnitVisitor() {
     return new CompilationUnitVisitor();
+  }
+
+  private enum StructKind {
+    LITERAL, MODULE, NAMED,
   }
 
   public class CompilationUnitVisitor extends
@@ -353,7 +273,8 @@ public class Visitor {
 
     @Override
     public Expression visitNamedStruct(NamedStructContext ctx) {
-      return ctx.struct().accept(structVisitorForNamed(ctx.typeIdentifier().getText()));
+      var namedTypeNode = (NamedTypeNode) ctx.namedType().accept(new TypeVisitor());
+      return ctx.struct().accept(structVisitorForNamed(namedTypeNode));
     }
     @Override
     public Expression visitFunction(FunctionContext ctx) {
@@ -453,7 +374,7 @@ public class Visitor {
     public Expression visitTupleExpression(TupleExpressionContext ctx) {
       var tupCtx = ctx.tuple();
       var expressions = tupCtx.expression().stream().map(exprCtx -> exprCtx.accept(this)).toList();
-      return Struct.tupleStruct(expressions, rangeFrom(ctx));
+      return com.pentlander.sasquach.ast.expression.Struct.tupleStruct(expressions, rangeFrom(ctx));
     }
 
     @Override
@@ -461,17 +382,17 @@ public class Visitor {
       var match = ctx.match();
       var branches = match.branch().stream().map(branch -> {
         var pattern = switch (branch.pattern()) {
-          case SingletonPatternContext pat -> new Pattern.Singleton(typeId(pat.typeIdentifier()));
+          case SingletonPatternContext pat -> new Pattern.Singleton(typeId(pat.namedType()));
           case SingleTupleVariantPatternContext pat ->
-              new Pattern.VariantTuple(typeId(pat.typeIdentifier()),
+              new Pattern.VariantTuple(typeId(pat.namedType()),
                   List.of(new PatternVariable(id(pat.ID()))),
                   rangeFrom(pat));
           case MultiTupleVariantPatternContext pat ->
-              new Pattern.VariantTuple(typeId(pat.typeIdentifier()),
+              new Pattern.VariantTuple(typeId(pat.namedType()),
                   pat.ID().stream().map(Visitor.this::id).map(PatternVariable::new).toList(),
                   rangeFrom(pat));
           case StructVariantPatternContext pat ->
-              new Pattern.VariantStruct(typeId(pat.typeIdentifier()),
+              new Pattern.VariantStruct(typeId(pat.namedType()),
                   pat.ID().stream().map(Visitor.this::id).map(PatternVariable::new).toList(),
                   rangeFrom(pat));
           default -> throw new IllegalStateException(
@@ -485,23 +406,31 @@ public class Visitor {
   }
 
   class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<TypeNode> {
-    @Override
-    public TypeNode visitClassType(ClassTypeContext ctx) {
-      return new BasicTypeNode<>(new ClassType(ctx.getText()), rangeFrom(ctx));
+    private final @Nullable StructName structName;
+
+    TypeVisitor(@Nullable StructName structName) {
+      this.structName = structName;
+    }
+
+    TypeVisitor() {
+      this(null);
     }
 
     @Override
-    public TypeNode visitLocalNamedType(LocalNamedTypeContext ctx) {
-      Type type;
-      var builtin = BuiltinType.fromStringOpt(ctx.getText());
-      if (builtin.isPresent()) {
-        type = builtin.get();
+    public TypeNode visitNamedType(NamedTypeContext ctx) {
+      var firstTypeId = typeId(ctx.typeIdentifier(0));
+      TypeIdentifier typeId = firstTypeId;
+      if (ctx.typeIdentifier().size() == 2) {
+        typeId = new ModuleScopedTypeId(firstTypeId, typeId(ctx.typeIdentifier(1)));
       } else {
-        var id = typeId(ctx.typeIdentifier());
-        type = new LocalNamedType(id, typeArguments(ctx.typeArgumentList()));
+        var builtin = BuiltinType.fromStringOpt(firstTypeId.name().toString());
+        if (builtin.isPresent()) {
+          return new BasicTypeNode(builtin.get(), rangeFrom(ctx));
+        }
       }
 
-      return new BasicTypeNode<>(type, rangeFrom(ctx));
+      var typeArgs = typeArguments(ctx.typeArgumentList());
+      return new NamedTypeNode(typeId, typeArgs, rangeFrom(ctx));
     }
 
     @Override
@@ -514,26 +443,19 @@ public class Visitor {
           fields.put(
               new UnqualifiedName(id.getText()),
               typeAnnotation(fieldCtx.typeAnnotation(), new TypeVisitor()));
-        } else if (fieldCtx.typeIdentifier() != null) {
-          rowModifier = RowModifier.namedRow(typeId(fieldCtx.typeIdentifier()), rangeFrom(fieldCtx));
+        } else if (fieldCtx.namedType() != null) {
+          rowModifier = RowModifier.namedRow(typeId(fieldCtx.namedType()), rangeFrom(fieldCtx));
         } else {
           rowModifier = RowModifier.unnamedRow();
         }
       }
-      return new StructTypeNode(fields, rowModifier, rangeFrom(ctx));
+      return new StructTypeNode(structName, fields, rowModifier, rangeFrom(ctx));
     }
 
     @Override
     public FunctionSignature visitFunctionType(FunctionTypeContext ctx) {
       var params = parameterList(this, ctx.functionParameterList());
       return new FunctionSignature(params, typeNode(ctx.type(), this), rangeFrom(ctx));
-    }
-
-    @Override
-    public TypeNode visitModuleNamedType(ModuleNamedTypeContext ctx) {
-      return new BasicTypeNode<>(new ModuleNamedType(
-          new ModuleScopedTypeId(id(ctx.moduleName().ID()), typeId(ctx.typeIdentifier())),
-          typeArguments(ctx.typeArgumentList())), rangeFrom(ctx));
     }
 
     @Override
@@ -551,28 +473,37 @@ public class Visitor {
   }
 
   public StructVisitor structVisitorForModule(QualifiedModuleName name) {
-    return new StructVisitor(name, StructKind.MODULE);
+    return new StructVisitor(new StructIdentifier.ModuleName(name), StructKind.MODULE);
   }
 
   public StructVisitor structVisitorForLiteral() {
     // TODO: Set the metadata at the end of the visitStruct func so struct methods work properly
     // TODO: Figure out how to reference parent scope from struct literal
-    return new StructVisitor(null, StructKind.LITERAL);
+    return new StructVisitor(StructIdentifier.NONE, StructKind.LITERAL);
   }
 
-  public StructVisitor structVisitorForNamed(String name) {
+  public StructVisitor structVisitorForNamed(NamedTypeNode node) {
     // TODO: Set the metadata at the end of the visitStruct func so struct methods work properly
     // TODO: Figure out how to reference parent scope from struct literal
-    return new StructVisitor(new UnqualifiedTypeName(name), StructKind.NAMED);
+    return new StructVisitor(new StructIdentifier.TypeNode(node), StructKind.NAMED);
+  }
+
+  private sealed interface StructIdentifier {
+    None NONE = new None();
+    record TypeNode(NamedTypeNode node) implements StructIdentifier {}
+    record ModuleName(QualifiedModuleName name) implements StructIdentifier {}
+
+    final class None implements StructIdentifier {
+      private None() {}
+    }
   }
 
   public class StructVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Struct> {
-    @Nullable
-    private final StructName structName;
+    private final StructIdentifier structName;
     private final StructKind structKind;
     private final ExpressionVisitor expressionVisitor;
 
-    private StructVisitor(@Nullable StructName structName, StructKind structKind) {
+    private StructVisitor(StructIdentifier structName, StructKind structKind) {
       this.structName = structName;
       this.structKind = structKind;
       this.expressionVisitor = new ExpressionVisitor();
@@ -580,9 +511,8 @@ public class Visitor {
 
     @Override
     public Struct visitStruct(StructContext ctx) {
-      var typeVisitor = new TypeVisitor();
       var useList = new ArrayList<Use>();
-      var typeAliases = new ArrayList<TypeAlias>();
+      var typeStatements = new ArrayList<TypeStatement>();
       var fields = new ArrayList<Field>();
       var functions = new ArrayList<NamedFunction>();
       var spreads = new ArrayList<VarReference>();
@@ -621,30 +551,35 @@ public class Visitor {
             use = new Use.Module(qualifiedId, aliasId, rangeFrom(useCtx));
           }
           useList.add(use);
-        } else if (structStatementCtx instanceof TypeAliasStatementContext typeAliasCtx) {
-          var aliasId = typeId(typeAliasCtx.typeIdentifier());
-          var typeParameters = typeParams(typeAliasCtx.typeParameterList());
-          var typeNode = typeAliasCtx.type() != null ? typeNode(typeAliasCtx.type(), typeVisitor)
-              : sumTypeNode(typeAliasCtx.sumType(), (QualifiedModuleName) structName, aliasId, typeParameters);
-          var typeAlias = new TypeAlias(aliasId, typeParameters, typeNode, rangeFrom(typeAliasCtx));
-          typeAliases.add(typeAlias);
+        } else if (structStatementCtx instanceof TypeStatementContext typeStmtCtx) {
+          var aliasId = typeId(typeStmtCtx.typeIdentifier());
+          var typeParameters = typeParams(typeStmtCtx.typeParameterList());
+          var isAlias = typeStmtCtx.TYPEALIAS() != null;
+          var moduleName =  ((StructIdentifier.ModuleName) structName).name();
+          var namedTypeVisitor = new TypeVisitor(isAlias ? null : moduleName.qualifyInner(aliasId.name()));
+          var typeNode = typeStmtCtx.type() != null ? typeNode(typeStmtCtx.type(), namedTypeVisitor)
+              : sumTypeNode(typeStmtCtx.sumType(), moduleName, aliasId, typeParameters);
+          var typeStatement = new TypeStatement(aliasId, typeParameters, typeNode, isAlias, rangeFrom(typeStmtCtx));
+          typeStatements.add(typeStatement);
         } else if (structStatementCtx instanceof SpreadStatementContext spreadCtx) {
           var varRef = (VarReference) spreadCtx.varReference().accept(expressionVisitor);
           spreads.add(varRef);
         }
       }
 
-      return switch (structKind) {
-        case LITERAL -> Struct.literalStruct(fields, functions, spreads, rangeFrom(ctx));
-        case MODULE -> Struct.moduleStructBuilder((QualifiedModuleName) structName)
+      return switch (structName) {
+        case StructIdentifier.None _ -> com.pentlander.sasquach.ast.expression.Struct.literalStruct(fields, functions, spreads, rangeFrom(ctx));
+        case StructIdentifier.ModuleName(var name) -> Struct.moduleStructBuilder(name)
             .useList(useList)
-            .typeAliases(typeAliases)
+            .typeStatements(typeStatements)
             .fields(fields)
             .functions(functions)
             .range(rangeFrom(ctx))
             .build();
-        case NAMED -> Struct.variantStructConstructor((UnqualifiedTypeName) structName, fields,
-            rangeFrom(ctx));
+        case StructIdentifier.TypeNode(var node) ->
+            Struct.namedStructConstructor((UnqualifiedTypeName) node.id().name(),
+                fields,
+                rangeFrom(ctx));
       };
     }
   }
@@ -662,6 +597,12 @@ public class Visitor {
     var node = ctx.ID();
     return new TypeId(new UnqualifiedTypeName(node.getText()), rangeFrom(node));
   }
+
+  private TypeId typeId(NamedTypeContext ctx) {
+    var namedTypeNode = (NamedTypeNode) ctx.accept(new TypeVisitor());
+    return (TypeId) namedTypeNode.id();
+  }
+
 
   private List<TypeParameter> typeParams(TypeParameterListContext ctx) {
     return Optional.ofNullable(ctx)

@@ -171,7 +171,7 @@ public class MemberScopedTypeResolver {
   }
 
   public TypedExpression check(Expression expr, Type type) {
-    checkNotInstanceOf(type, LocalNamedType.class, "type must be resolved");
+    checkNotInstanceOf(type, NamedType.class, "type must be resolved");
 
     return switch (expr) {
       // Check that the function matches the given type
@@ -576,7 +576,7 @@ public class MemberScopedTypeResolver {
         return addError(
             memberAccess,
             new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(structType.get()
-                .typeNameStr(), memberAccess.fieldName()), memberAccess.range()));
+                .toPrettyString(), memberAccess.fieldName()), memberAccess.range()));
       }
     }
 
@@ -906,7 +906,7 @@ public class MemberScopedTypeResolver {
         .collect(joining("," + " ", "(", ")"));
     return addError(funcCall,
         new TypeLookupError("No method '%s' found on class '%s'".formatted(methodSignature,
-            classType.typeNameStr()), funcCall.range()));
+            classType.toPrettyString()), funcCall.range()));
   }
 
   private void addError(RangedError error) {

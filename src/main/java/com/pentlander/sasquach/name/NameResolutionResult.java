@@ -67,16 +67,8 @@ public class NameResolutionResult {
     return EMPTY;
   }
 
-  public Optional<NamedTypeDefinition> getNamedType(TypeNode typeNode) {
-    return Optional.ofNullable(nameData.typeAliases().get(typeNode));
-  }
-
   public Optional<NamedTypeDefinition> getNamedType(Type type) {
     return Optional.ofNullable(typeNameAliases.get(type));
-  }
-
-  public NamedStructId getNamedStructType(NamedStruct namedStruct) {
-    return requireNonNull(nameData.namedStructTypes().get(namedStruct));
   }
 
   public Field getForeignField(ForeignFieldAccess foreignFieldAccess) {
@@ -112,10 +104,6 @@ public class NameResolutionResult {
     return captures != null ? List.copyOf(captures) : List.of();
   }
 
-  public StructName getLiteralStructName(LiteralStruct struct) {
-    return requireNonNull(nameData.literalStructNames().get(struct), struct.toString());
-  }
-
   public RangedErrorList errors() {
     return errors;
   }
@@ -130,11 +118,9 @@ public class NameResolutionResult {
             .foreignFunctions(merged(nd.foreignFunctions(), ond.foreignFunctions()))
             .localFunctionCalls(merged(nd.localFunctionCalls(), ond.localFunctionCalls()))
             .varReferences(merged(nd.varReferences(), ond.varReferences()))
-            .namedStructTypes(merged(nd.namedStructTypes(), ond.namedStructTypes()))
             .recurPoints(merged(nd.recurPoints(), ond.recurPoints()))
             .matchTypeNodes(merged(nd.matchTypeNodes(), ond.matchTypeNodes()))
             .funcCaptures(merged(nd.funcCaptures(), ond.funcCaptures()))
-            .literalStructNames(merged(nd.literalStructNames(), ond.literalStructNames()))
             .build(),
         errors.concat(other.errors)
      );

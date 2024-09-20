@@ -1,3 +1,7 @@
 package com.pentlander.sasquach.type;
 
-public sealed interface VariantType extends Type permits SingletonType, StructType {}
+import java.lang.constant.ClassDesc;
+
+public sealed interface VariantType extends Type permits SingletonType, StructType {
+  ClassDesc internalClassDesc();
+}

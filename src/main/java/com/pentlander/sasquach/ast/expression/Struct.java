@@ -6,10 +6,8 @@ import com.pentlander.sasquach.Util;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
-import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -19,7 +17,7 @@ public sealed interface Struct extends Expression permits LiteralStruct,
     return new LiteralStruct(fields, functions, spreads, range);
   }
 
-  static Struct variantStructConstructor(UnqualifiedTypeName name, List<Field> fields, Range range) {
+  static Struct namedStructConstructor(UnqualifiedTypeName name, List<Field> fields, Range range) {
     return new NamedStruct(name, fields, range);
   }
 
@@ -49,10 +47,6 @@ public sealed interface Struct extends Expression permits LiteralStruct,
   List<Field> fields();
 
   List<NamedFunction> functions();
-
-  enum StructKind {
-    LITERAL, MODULE, NAMED,
-  }
 
   record Field(Id id, Expression value) implements Node {
     public UnqualifiedName name() {

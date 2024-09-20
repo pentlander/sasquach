@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNullElse;
 import static java.util.stream.Collectors.joining;
 
 import com.pentlander.sasquach.ast.StructName;
+import com.pentlander.sasquach.ast.StructName.UnnamedStruct;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.runtime.StructBase;
@@ -37,7 +38,7 @@ public record StructType(StructName structName, List<TypeParameter> typeParamete
   public StructType {
     memberTypes = requireNonNullElse(memberTypes, seqMap());
     memberTypes.values().forEach(value -> Objects.requireNonNull(value, toString()));
-    structName = requireNonNullElse(structName, new UnqualifiedTypeName(PREFIX + hashFieldTypes(
+    structName = requireNonNullElse(structName, new UnnamedStruct(PREFIX + hashFieldTypes(
         memberTypes)));
     typeParameters = requireNonNullElse(typeParameters, List.of());
     namedStructTypes = requireNonNullElse(namedStructTypes, Map.of());
@@ -125,6 +126,10 @@ public record StructType(StructName structName, List<TypeParameter> typeParamete
     return typeNameStr().replace(".", "/");
   }
 
+  public ClassDesc internalClassDesc() {
+    return ClassDesc.ofInternalName(internalName());
+  }
+
   @Override
   public boolean isAssignableFrom(Type other) {
     var structType = TypeUtils.asStructType(other);
@@ -146,7 +151,7 @@ public record StructType(StructName structName, List<TypeParameter> typeParamete
 
   @Override
   public String toPrettyString() {
-    if (typeNameStr().startsWith(PREFIX)) {
+    if (structName instanceof UnnamedStruct) {
       var joiner = new StringJoiner(", ", "{ ", "}");
       var fieldTypesStr = memberTypes().entrySet()
           .stream()

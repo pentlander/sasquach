@@ -78,8 +78,8 @@ public record FunctionType(List<Param> parameters,
         .collect(joining(", ", "(", ")")) + " -> " + returnType.toPrettyString();
   }
 
-  private Optional<Map<LocalNamedType, Type>> reifyTypes(FunctionType other) {
-    var paramTypes = new HashMap<LocalNamedType, Type>();
+  private Optional<Map<NamedType, Type>> reifyTypes(FunctionType other) {
+    var paramTypes = new HashMap<NamedType, Type>();
     var paramCount = parameterTypes().size();
     if (paramCount != other.parameterTypes().size()) {
       return Optional.empty();
@@ -88,8 +88,8 @@ public record FunctionType(List<Param> parameters,
     for (int i = 0; i < paramCount; i++) {
       var paramType = parameterTypes().get(i);
       var otherParamType = other.parameterTypes().get(i);
-      if (paramType instanceof LocalNamedType localNamedType) {
-        paramType = paramTypes.computeIfAbsent(localNamedType, _ -> otherParamType);
+      if (paramType instanceof NamedType namedType) {
+        paramType = paramTypes.computeIfAbsent(namedType, _ -> otherParamType);
       }
       if (!paramType.isAssignableFrom(otherParamType)) {
         return Optional.empty();

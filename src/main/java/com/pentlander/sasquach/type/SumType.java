@@ -25,6 +25,10 @@ public record SumType(QualifiedTypeName qualifiedTypeName,
     return qualifiedTypeName.toString().replace(".", "/");
   }
 
+  public ClassDesc internalClassDesc() {
+    return ClassDesc.ofInternalName(internalName());
+  }
+
   @Override
   public boolean isAssignableFrom(Type other) {
     if (other instanceof SumType sumType) {

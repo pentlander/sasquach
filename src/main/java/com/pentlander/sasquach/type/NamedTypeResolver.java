@@ -11,7 +11,9 @@ import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.RangedErrorList.Builder;
 import com.pentlander.sasquach.ast.BasicTypeNode;
 import com.pentlander.sasquach.ast.FunctionSignature;
+import com.pentlander.sasquach.ast.ModuleScopedTypeName;
 import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
+import com.pentlander.sasquach.ast.NamedTypeNode;
 import com.pentlander.sasquach.ast.StructTypeNode;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.NamedRow;
 import com.pentlander.sasquach.ast.SumTypeNode;
@@ -19,8 +21,9 @@ import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Singleton;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Struct;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Tuple;
 import com.pentlander.sasquach.ast.TupleTypeNode;
-import com.pentlander.sasquach.ast.TypeAlias;
+import com.pentlander.sasquach.ast.TypeStatement;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.type.MemberScopedTypeResolver.TypeMismatchError;
@@ -48,12 +51,11 @@ public class NamedTypeResolver {
   @SuppressWarnings({"unchecked", "RedundantSuppression"})
   public <T extends TypeNode> T resolveTypeNode(T typeNode, Map<String, Type> typeArgs) {
     return (T) switch (typeNode) {
-      case BasicTypeNode<?>(var type, var range) ->
-          new BasicTypeNode<>(resolveNames(type, typeArgs, range), range);
+      case BasicTypeNode node -> node;
       case FunctionSignature(var parameters, var typeParameters, var returnType, var range) -> {
         var newTypeArgs = new HashMap<>(typeArgs);
         newTypeArgs.putAll(MemberScopedTypeResolver.typeParams(typeParameters,
-            param -> param.toUniversal()));
+            TypeParameter::toUniversal));
         var resolvedParameters = parameters.stream()
             .map(p -> {
               var paramTypeNode =
@@ -91,11 +93,11 @@ public class NamedTypeResolver {
           range);
       case TupleTypeNode(var name, var fields, var range) ->
           new TupleTypeNode(name, mapResolveTypeNode(fields, typeArgs), range);
-      case TypeAlias(var id, var typeParameters, var aliasTypeNode, var range) -> {
+      case TypeStatement(var id, var typeParameters, var aliasTypeNode, var isAlias, var range) -> {
         var newTypeArgs = new HashMap<>(typeArgs);
         newTypeArgs.putAll(MemberScopedTypeResolver.typeParams(typeParameters,
-            param -> param.toUniversal()));
-        yield new TypeAlias(id, typeParameters, resolveTypeNode(aliasTypeNode, newTypeArgs), range);
+            TypeParameter::toUniversal));
+        yield new TypeStatement(id, typeParameters, resolveTypeNode(aliasTypeNode, newTypeArgs), isAlias, range);
       }
       case Singleton(var moduleName, var aliasId, var id) ->
           new Singleton(moduleName, aliasId, id);
@@ -109,6 +111,8 @@ public class NamedTypeResolver {
               aliasId,
               id,
               resolveTypeNode(structTypeNode, typeArgs));
+      case NamedTypeNode(var id, var typeArgNodes, var type, var range) ->
+          new NamedTypeNode(id, typeArgNodes, resolveNames(type, typeArgs, range), range);
     };
   }
 
@@ -128,33 +132,32 @@ public class NamedTypeResolver {
     return switch (typeDefNode) {
       case TypeParameter typeParameter ->
           typeArgs.getOrDefault(typeParameter.name(), namedType);
-      case TypeAlias typeAlias -> {
-        if (typeAlias.typeParameters().size() != namedType.typeArguments().size()) {
+      case TypeStatement typeStatement -> {
+        if (typeStatement.typeParameters().size() != namedType.typeArguments().size()) {
           yield addError(new TypeMismatchError(
               "Number of type args does not match number of "
-                  + "type parameters for type '%s'".formatted(typeAlias.toPrettyString()),
-              requireNonNullElse(range, typeAlias.range())));
+                  + "type parameters for type '%s'".formatted(typeStatement.toPrettyString()),
+              requireNonNullElse(range, typeStatement.range())));
         }
         // Construct a new map of type arguments that includes the
         var newTypeArgs = new HashMap<>(typeArgs);
         var resolvedTypeArgs = new ArrayList<Type>();
-        for (int i = 0; i < typeAlias.typeParameters().size(); i++) {
-          var typeParam = typeAlias.typeParameters().get(i);
+        for (int i = 0; i < typeStatement.typeParameters().size(); i++) {
+          var typeParam = typeStatement.typeParameters().get(i);
           var typeArg = resolveNames(namedType.typeArguments().get(i), typeArgs, range);
           newTypeArgs.put(typeParam.name(), typeArg);
           resolvedTypeArgs.add(typeArg);
         }
 
-        yield switch (namedType) {
-          case ModuleNamedType moduleNamedType ->
-              new ResolvedModuleNamedType(moduleNamedType.moduleName(),
-                  moduleNamedType.name(),
-                  resolvedTypeArgs,
-                  resolveNames(typeAlias.type(), newTypeArgs, range));
-          case LocalNamedType localNamedType ->
-              new ResolvedLocalNamedType(localNamedType.typeNameStr(),
-                  resolvedTypeArgs,
-                  resolveNames(typeAlias.type(), newTypeArgs, range));
+        yield switch (namedType.typeName()) {
+          case ModuleScopedTypeName(var moduleName, var name) -> new ResolvedModuleNamedType(
+              moduleName,
+              name,
+              resolvedTypeArgs,
+              resolveNames(typeStatement.type(), newTypeArgs, range));
+          case UnqualifiedTypeName typeName -> new ResolvedLocalNamedType(typeName.toString(),
+              resolvedTypeArgs,
+              resolveNames(typeStatement.type(), newTypeArgs, range));
         };
       }
       case ForeignClass foreignClass -> {

@@ -17,7 +17,7 @@ public class TypeUnifier {
    * Resolves the type by replacing any type variables in a parameterized type with a concrete one.
    */
   public Type resolve(Type type) {
-    checkNotInstanceOf(type, LocalNamedType.class, "named type must be resolved before unifying");
+    checkNotInstanceOf(type, NamedType.class, "named type must be resolved before unifying");
 
     if (type instanceof TypeNester paramType) {
       return switch (paramType) {
@@ -81,10 +81,10 @@ public class TypeUnifier {
   public void unify(Type destType, Type sourceType) {
     checkNotInstanceOf(
         destType,
-        LocalNamedType.class,
+        NamedType.class,
         "named destType must be resolved before unifying");
     checkNotInstanceOf(sourceType,
-        LocalNamedType.class,
+        NamedType.class,
         "named sourceType must be resolved before unifying");
 
     if (destType instanceof ResolvedNamedType resolvedNamedType) {

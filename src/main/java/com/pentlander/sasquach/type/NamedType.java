@@ -1,22 +1,37 @@
 package com.pentlander.sasquach.type;
 
-import com.pentlander.sasquach.ast.Identifier;
-import com.pentlander.sasquach.ast.Name;
-import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.TypeIdentifier;
+import com.pentlander.sasquach.ast.TypeIdentifier.UnresolvedTypeName;
+import java.lang.constant.ClassDesc;
 import java.util.List;
+import java.util.Objects;
 
-/** Unresolved type referred to by captureName. **/
-public sealed interface NamedType extends Type permits LocalNamedType, ModuleNamedType {
-  Identifier id();
+/**
+ * Unresolved type referred to by captureName.
+ **/
+// TODO change id to a name
+public record NamedType(TypeIdentifier id, List<Type> typeArguments) implements Type {
+  public NamedType {
+    typeArguments = Objects.requireNonNullElse(typeArguments, List.of());
+  }
 
-  default Name typeName() {
+  UnresolvedTypeName typeName() {
     return id().name();
   }
 
-  List<TypeNode> typeArgumentNodes();
+  @Override
+  public String typeNameStr() {
+    return id.name().toString();
+  }
 
-  default List<Type> typeArguments() {
-    return typeArgumentNodes().stream().map(TypeNode::type).toList();
+  @Override
+  public String internalName() {
+    throw new IllegalStateException();
+  }
+
+  @Override
+  public ClassDesc classDesc() {
+    throw new IllegalStateException();
   }
 }
 

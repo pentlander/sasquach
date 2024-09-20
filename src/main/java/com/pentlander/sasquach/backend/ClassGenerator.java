@@ -11,7 +11,7 @@ import static java.lang.classfile.Signature.TypeVarSig;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.SumTypeNode;
-import com.pentlander.sasquach.ast.TypeAlias;
+import com.pentlander.sasquach.ast.TypeStatement;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
@@ -21,7 +21,6 @@ import com.pentlander.sasquach.runtime.bootstrap.Func;
 import com.pentlander.sasquach.runtime.bootstrap.StructDispatch;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TFunctionParameter.Label;
-import com.pentlander.sasquach.tast.TFunctionSignature;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TypedNode;
 import com.pentlander.sasquach.tast.expression.TFunction;
@@ -29,12 +28,12 @@ import com.pentlander.sasquach.tast.expression.TModuleStruct;
 import com.pentlander.sasquach.tast.expression.TStruct;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.FunctionType;
-import com.pentlander.sasquach.type.FunctionType.Param;
 import com.pentlander.sasquach.type.SingletonType;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.SumType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.UniversalType;
+import com.pentlander.sasquach.type.VariantType;
 import java.lang.classfile.ClassBuilder;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.ClassFile.ClassHierarchyResolverOption;
@@ -45,7 +44,6 @@ import java.lang.classfile.Signature;
 import java.lang.classfile.Signature.BaseTypeSig;
 import java.lang.classfile.Signature.TypeParam;
 import java.lang.classfile.TypeKind;
-import java.lang.classfile.attribute.NestMembersAttribute;
 import java.lang.classfile.attribute.PermittedSubclassesAttribute;
 import java.lang.classfile.attribute.SignatureAttribute;
 import java.lang.classfile.attribute.SourceFileAttribute;
@@ -62,7 +60,6 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.function.Consumer;
@@ -181,12 +178,12 @@ class ClassGenerator {
   private void generateSumType(ClassBuilder clb, SumType sumType) {
     var permittedSubclassDescs = sumType.types()
         .stream()
-        .map(GeneratorUtil::internalClassDesc)
+        .map(VariantType::internalClassDesc)
         .toList();
     clb.withFlags(AccessFlag.PUBLIC, AccessFlag.ABSTRACT, AccessFlag.INTERFACE)
         .withInterfaceSymbols(CD_STRUCT_BASE)
         .with(PermittedSubclassesAttribute.ofSymbols(permittedSubclassDescs));
-    resolver.addSumType(internalClassDesc(sumType));
+    resolver.addSumType(sumType.internalClassDesc());
   }
 
   private void generateSingleton(SingletonType singleton, SumType sumType, Range range) {
@@ -194,8 +191,8 @@ class ClassGenerator {
   }
 
   private void generateSingleton(ClassBuilder clb, SingletonType singleton, SumType sumType, Range range) {
-    var structDesc = internalClassDesc(singleton);
-    generateStructStart(clb, structDesc, range, seqMap(), internalClassDesc(sumType));
+    var structDesc = singleton.internalClassDesc();
+    generateStructStart(clb, structDesc, range, seqMap(), sumType.internalClassDesc());
 
     generateStaticInstance(clb, singleton.classDesc(),
         structDesc,
@@ -214,10 +211,10 @@ class ClassGenerator {
   private void generateVariantStruct(ClassBuilder clb, StructType structType, SumType sumType, Range range) {
     generateStructStart(
         clb,
-        internalClassDesc(structType),
+        structType.internalClassDesc(),
         range,
         structType.memberTypes(),
-        internalClassDesc(sumType));
+        sumType.internalClassDesc());
   }
 
   private void generateStruct(TStruct struct) {
@@ -227,7 +224,7 @@ class ClassGenerator {
   private void generateVariantTypeConstructor(ClassBuilder clb, String variantName, StructType variantStructType, SumType sumType) {
     var funcType = variantStructType.constructorType(sumType);
     var signature = generateMethodSignature(funcType);
-    var variantClassDesc = internalClassDesc(variantStructType);
+    var variantClassDesc = variantStructType.internalClassDesc();
     clb.withMethod(variantName, funcType.functionTypeDesc(), ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL + ClassFile.ACC_SYNTHETIC, mb -> {
       if (signature != null) {
         mb.with(SignatureAttribute.of(signature));
@@ -248,8 +245,8 @@ class ClassGenerator {
   }
 
   /** Generate classes for the named structs defined in the type aliases. */
-  private void generateNamedTypes(ClassBuilder clb, List<TypeAlias> typeAliases) {
-    for (var typeAlias : typeAliases) {
+  private void generateNamedTypes(ClassBuilder clb, List<TypeStatement> typeStatements) {
+    for (var typeAlias : typeStatements) {
       if (typeAlias.typeNode() instanceof SumTypeNode sumTypeNode) {
           var sumType = sumTypeNode.type();
           generateSumType(sumType);
@@ -269,7 +266,7 @@ class ClassGenerator {
   }
 
   private static void generateEquals(ClassBuilder clb, TStruct struct) {
-    var structDesc = internalClassDesc(struct.structType());
+    var structDesc = struct.structType().internalClassDesc();
 
     clb.withMethodBody("equals", MTD_EQUALS, ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL, cob -> {
       var falseLabel = cob.newLabel();
@@ -296,7 +293,7 @@ class ClassGenerator {
   }
 
   private static void generateHashCode(ClassBuilder clb, TStruct struct) {
-    var structDesc = internalClassDesc(struct.structType());
+    var structDesc = struct.structType().internalClassDesc();
 
     clb.withMethodBody("hashCode", MTD_HASHCODE, ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL, cob -> {
       var thisSlot = cob.receiverSlot();
@@ -319,7 +316,7 @@ class ClassGenerator {
     setContext(struct);
     // Generate class header
     var structType = struct.structType();
-    var structDesc = internalClassDesc(structType);
+    var structDesc = structType.internalClassDesc();
 
     // `struct.structType().memberTypes()` includes the named function types, which do not get
     // included as constructor parameters
@@ -335,9 +332,9 @@ class ClassGenerator {
 
     // Add a static INSTANCE field of the struct to make a singleton class.
     if (struct instanceof TModuleStruct moduleStruct) {
-      generateNamedTypes(clb, moduleStruct.typeAliases());
+      generateNamedTypes(clb, moduleStruct.typeStatements());
       generateStaticInstance(clb, structType.classDesc(),
-          internalClassDesc(structType),
+          structType.internalClassDesc(),
           cob -> new ExpressionGenerator(cob, Context.INIT, "modInit", List.of()).generateStructInit(
               struct));
 

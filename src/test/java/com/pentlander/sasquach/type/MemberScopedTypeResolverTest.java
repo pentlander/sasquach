@@ -249,7 +249,7 @@ class MemberScopedTypeResolverTest {
               range()), boolValue(true)));
     }
 
-    private FunctionParameter param(String name, Type type) {
+    private FunctionParameter param(String name, BuiltinType type) {
       return new FunctionParameter(id(name), null, typeNode(type), null);
     }
 

@@ -1,6 +1,5 @@
 package com.pentlander.sasquach.type;
 
-import com.pentlander.sasquach.ast.QualifiedModuleName;
 import com.pentlander.sasquach.ast.QualifiedTypeName;
 import com.pentlander.sasquach.runtime.StructBase;
 import java.lang.constant.ClassDesc;
@@ -21,4 +20,7 @@ public record SingletonType(QualifiedTypeName qualifiedTypeName) implements Vari
     return qualifiedTypeName.toString();
   }
 
+  public ClassDesc internalClassDesc() {
+    return ClassDesc.ofInternalName(internalName());
+  }
 }

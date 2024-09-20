@@ -22,7 +22,7 @@ public record QualifiedModuleId(QualifiedModuleName moduleName, Range.Single ran
     return moduleName;
   }
 
-  public ClassDesc classDesc() {
+  public ClassDesc toClassDesc() {
     return ClassDesc.ofInternalName(name().toString());
   }
 }

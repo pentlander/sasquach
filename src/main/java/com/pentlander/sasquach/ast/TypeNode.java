@@ -2,10 +2,9 @@ package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.type.Type;
-import com.pentlander.sasquach.type.TypeParameter;
 
 public sealed interface TypeNode extends Node permits BasicTypeNode, FunctionSignature,
-    StructTypeNode, SumTypeNode, VariantTypeNode, TupleTypeNode, TypeAlias {
+    NamedTypeNode, StructTypeNode, SumTypeNode, VariantTypeNode, TupleTypeNode, TypeStatement {
   Type type();
 
   default String typeNameStr() {

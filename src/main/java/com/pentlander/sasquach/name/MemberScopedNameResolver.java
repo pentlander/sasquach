@@ -138,15 +138,17 @@ public class MemberScopedNameResolver {
   private void resolve(Struct struct) {
     switch (struct) {
       case ModuleStruct moduleStruct -> moduleStruct.useList().forEach(this::resolve);
-      case NamedStruct namedStruct ->
-          moduleScopedNameResolver.resolveVariantTypeNode(namedStruct.name())
-              .ifPresent(typeNode -> nameData.addNamedStructTypes(
-                  namedStruct,
-                  new Variant(typeNode.aliasId(),  typeNode.id())));
-      case LiteralStruct literalStruct -> {
-        nameData.addLiteralStructNames(literalStruct, literalStructName());
-        literalStruct.spreads().forEach(this::resolve);
+      case NamedStruct namedStruct -> {
+        var foundVariant = moduleScopedNameResolver.resolveVariantTypeNode(namedStruct.name()).isPresent();
+        if (!foundVariant) {
+          errors.add(new NameNotFoundError(
+              namedStruct.name(),
+              namedStruct.range(),
+              "struct name",
+              List.of()));
+        }
       }
+      case LiteralStruct literalStruct -> literalStruct.spreads().forEach(this::resolve);
     }
     struct.functions().forEach(function -> resolveNestedFunc(function.function()));
     struct.fields().forEach(field -> resolve(field.value()));

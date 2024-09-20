@@ -271,6 +271,29 @@ public class EndToEndTest extends BaseTest {
     assertThat(sum).isEqualTo("foo");
   }
 
+  @Test @Disabled
+  void matchSumType_structVariantDifferentModule() throws Exception {
+    var clazz = compile("""
+        Option {
+          type T[A] = | Some { inner: A } | None,
+        }
+        
+        Main {
+          
+          foo = (): String -> {
+            let option = if (true) Option.Some { inner = "foo" } else Option.None,
+            match option {
+              Option.Some { inner } -> inner,
+              Option.None -> "",
+            }
+          },
+        }
+        """);
+    String sum = invokeName(clazz, "foo");
+
+    assertThat(sum).isEqualTo("foo");
+  }
+
   // should fail
   @Test
   void matchSumType_sameParam_multipleVariants() throws Exception {
@@ -369,6 +392,20 @@ public class EndToEndTest extends BaseTest {
     String sum = invokeMain(clazz);
 
     assertThat(sum).isEqualTo("fox");
+  }
+
+  @Test @Disabled
+  void namedStruct() throws Exception {
+    var clazz = compile("""
+        Main {
+          type IntBox = { i: Int },
+        
+          main = (): IntBox -> IntBox { i = 5 }
+        }
+        """);
+    Object baz = invokeMain(clazz);
+
+    assertThat(baz).hasFieldOrPropertyWithValue("i", 5);
   }
 
   @Test

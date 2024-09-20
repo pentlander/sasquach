@@ -33,7 +33,7 @@ public record SumTypeNode(QualifiedModuleName moduleName, TypeId id,
 
   @Override
   public String toPrettyString() {
-    return typeNameStr() + variantTypeNodes.stream()
+    return id().name().toString() + variantTypeNodes.stream()
         .map(VariantTypeNode::toPrettyString)
         .collect(Collectors.joining());
   }

@@ -62,7 +62,7 @@ public class StdlibTest extends BaseTest {
   class MapTest extends BaseTest {
     @Test
     void assocAndGet() throws Exception {
-      var clazz = compile("""
+      var clazz = compileDebug("""
         Main {
           use std/Hash,
           use std/Map,

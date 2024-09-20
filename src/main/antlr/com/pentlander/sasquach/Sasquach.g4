@@ -20,14 +20,12 @@ label: ID ;
 functionParameter : label? ID typeAnnotation? (EQUALS expression)? ;
 functionParameterList : '(' (functionParameter)? (',' functionParameter)* ')' ;
 
-type : classType | structType | localNamedType | functionType | moduleNamedType | tupleType ;
-classType : qualifiedName ;
-structTypeField : NL* ID typeAnnotation | SPREAD typeIdentifier? ;
+type : structType | namedType | functionType | tupleType ;
+structTypeField : NL* ID typeAnnotation | SPREAD namedType? ;
 structType : '{' structTypeField (',' structTypeField)* ','? NL* '}' ;
 functionType : functionParameterList '->' type ;
 typeArgumentList : ('[' type (',' type)* ']') ;
-localNamedType: typeIdentifier typeArgumentList? ;
-moduleNamedType: moduleName NL* '.' typeIdentifier typeArgumentList? ;
+namedType: typeIdentifier ('.' typeIdentifier)? typeArgumentList? ;
 tupleType : '(' type ',' ')'  | '(' type (',' type)+ ')' ;
 sumType : ('|' typeIdentifier variantType )+ ;
 variantType :
@@ -50,10 +48,10 @@ functionCall : functionName application ;
 loop : LOOP '(' variableDeclaration? (',' NL* variableDeclaration)* ')' '->' NL* expression ;
 
 pattern :
-    typeIdentifier #singletonPattern
-  | typeIdentifier '(' ID ')' #singleTupleVariantPattern
-  | typeIdentifier '(' ID (',' NL* ID)+ ')' #multiTupleVariantPattern
-  | typeIdentifier '{' NL* ID (',' NL* ID)* (',')? NL* '}' #structVariantPattern ;
+    namedType #singletonPattern
+  | namedType '(' ID ')' #singleTupleVariantPattern
+  | namedType '(' ID (',' NL* ID)+ ')' #multiTupleVariantPattern
+  | namedType '{' NL* ID (',' NL* ID)* (',')? NL* '}' #structVariantPattern ;
 branch : pattern '->' expression ;
 match : MATCH expression '{' NL* (branch ',' NL*)+ '}' ;
 
@@ -89,9 +87,9 @@ expression :
   | match # matchExpression;
 
 struct : '{' NL* structStatement (',' NL* structStatement)* (',')? NL* '}' ;
-namedStruct : typeIdentifier struct ;
+namedStruct : namedType struct ;
 structStatement : use #useStatement
-  | TYPEALIAS typeIdentifier typeParameterList? EQUALS (type|sumType) #typeAliasStatement
+  | typeKeyword=(TYPEDEF|TYPEALIAS) typeIdentifier typeParameterList? EQUALS (type|sumType) #typeStatement
   | memberName EQUALS (function|expression) #identifierStatement
   | SPREAD varReference #spreadStatement ;
 
@@ -115,7 +113,8 @@ LET : 'let' ;
 PRINT    : 'print' ;
 FOREIGN : 'foreign' ;
 USE : 'use' ;
-TYPEALIAS : 'type' ;
+TYPEDEF : 'type' ;
+TYPEALIAS : 'typealias' ;
 LOOP : 'loop' ;
 MATCH : 'match' ;
 

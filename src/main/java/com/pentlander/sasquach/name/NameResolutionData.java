@@ -31,32 +31,10 @@ public record NameResolutionData(
     Map<Id, ForeignFunctions> foreignFunctions,
     Map<Id, FunctionCallTarget> localFunctionCalls,
     Map<VarReference, ReferenceDeclaration> varReferences,
-    Map<NamedStruct, NamedStructId> namedStructTypes,
     Map<Recur, RecurPoint> recurPoints,
     Map<Match, List<TypeNode>> matchTypeNodes,
-    Map<Function, SequencedSet<LocalVariable>> funcCaptures,
-    Map<LiteralStruct, StructName> literalStructNames
+    Map<Function, SequencedSet<LocalVariable>> funcCaptures
 ) {
-  NameResolutionData merge(NameResolutionData ond) {
-    return NameResolutionDataBuilder.builder()
-        .typeAliases(merged(typeAliases(), ond.typeAliases()))
-        .foreignFieldAccesses(merged(foreignFieldAccesses(), ond.foreignFieldAccesses()))
-        .foreignFunctions(merged(foreignFunctions(), ond.foreignFunctions()))
-        .localFunctionCalls(merged(localFunctionCalls(), ond.localFunctionCalls()))
-        .varReferences(merged(varReferences(), ond.varReferences()))
-        .namedStructTypes(merged(namedStructTypes(), ond.namedStructTypes()))
-        .recurPoints(merged(recurPoints(), ond.recurPoints()))
-        .matchTypeNodes(merged(matchTypeNodes(), ond.matchTypeNodes()))
-        .funcCaptures(merged(funcCaptures(), ond.funcCaptures()))
-        .build();
-  }
-
-  private static <K, V> Map<K, V> merged(Map<K, V> mapA, Map<K, V> mapB) {
-    var map = new HashMap<>(mapA);
-    map.putAll(mapB);
-    return map;
-  }
-
   public sealed interface NamedStructId {
     record Variant(TypeId sumTypeId, TypeId variantStructId) implements NamedStructId {}
   }

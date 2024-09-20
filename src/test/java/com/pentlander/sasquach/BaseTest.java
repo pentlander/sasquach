@@ -68,9 +68,9 @@ public abstract class BaseTest {
 
     if (hasOpt(options, DUMP_CLASSES)) {
       var path = Path.of(Files.temporaryFolderPath(), testName.replaceAll("[()]", ""));
-      TestUtils.dumpGeneratedClasses(path, bytecode.generatedBytecode());
+      TestUtils.dumpGeneratedClasses(path, bytecode.generatedClasses());
     }
-    bytecode.generatedBytecode().forEach(cl::addClass);
+    bytecode.generatedClasses().forEach(cl::addClass);
     return cl.loadModule(new QualifiedModuleName(new PackageName("main"), "Main"));
   }
 

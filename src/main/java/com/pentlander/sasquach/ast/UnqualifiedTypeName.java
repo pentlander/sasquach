@@ -1,6 +1,8 @@
 package com.pentlander.sasquach.ast;
 
-public record UnqualifiedTypeName(String value) implements Name, StructName {
+import com.pentlander.sasquach.ast.TypeIdentifier.UnresolvedTypeName;
+
+public record UnqualifiedTypeName(String value) implements Name, StructName, UnresolvedTypeName {
   public UnqualifiedTypeName {
     Name.requireUnqualified(value);
   }

@@ -1,7 +1,5 @@
 package com.pentlander.sasquach;
 
-import com.pentlander.sasquach.type.LocalNamedType;
-
 public final class Preconditions {
   private Preconditions() {
   }

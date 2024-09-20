@@ -4,7 +4,7 @@ import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
-import com.pentlander.sasquach.ast.TypeAlias;
+import com.pentlander.sasquach.ast.TypeStatement;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
@@ -22,7 +22,7 @@ import java.util.Optional;
 public class ModuleScopedNameResolver {
   private final Map<UnqualifiedName, ModuleScopedNameResolver> moduleImports = new HashMap<>();
   private final Map<UnqualifiedTypeName, Class<?>> foreignClasses = new HashMap<>();
-  private final Map<UnqualifiedTypeName, TypeAlias> typeAliasNames = new HashMap<>();
+  private final Map<UnqualifiedTypeName, TypeStatement> typeStatementNames = new HashMap<>();
   private final Map<TypeNode, NamedTypeDefinition> namedTypes = new HashMap<>();
   private final Map<UnqualifiedTypeName, VariantTypeNode> variantTypes = new HashMap<>();
   private final Map<UnqualifiedName, LiteralStruct.Field> fields = new HashMap<>();
@@ -61,10 +61,10 @@ public class ModuleScopedNameResolver {
     }
 
     // The loops need to be separated in case there are aliases that refer to other aliases
-    for (var typeAlias : struct.typeAliases()) {
-      var prevAlias = typeAliasNames.put(typeAlias.id().name(), typeAlias);
-      if (prevAlias != null) {
-        errors.add(new DuplicateNameError(typeAlias.id(), prevAlias.id()));
+    for (var typeStatement : struct.typeStatements()) {
+      var prevStatement = typeStatementNames.put(typeStatement.id().name(), typeStatement);
+      if (prevStatement != null) {
+        errors.add(new DuplicateNameError(typeStatement.id(), prevStatement.id()));
       }
     }
 
@@ -106,9 +106,9 @@ public class ModuleScopedNameResolver {
       throw new IllegalStateException("Must resolve type defs before resolving rest of module");
     }
 
-    for (var typeAlias : struct.typeAliases()) {
+    for (var typeStatement : struct.typeStatements()) {
       var resolver = new TypeNameResolver(this);
-      var result = resolver.resolveTypeNode(typeAlias);
+      var result = resolver.resolveTypeNode(typeStatement);
       namedTypes.putAll(result.namedTypes());
       variantTypes.putAll(result.variantTypes());
       errors.addAll(result.errors());
@@ -156,8 +156,8 @@ public class ModuleScopedNameResolver {
     return Optional.ofNullable(fields.get(fieldName));
   }
 
-  Optional<TypeAlias> resolveTypeAlias(UnqualifiedTypeName typeAlias) {
-    return Optional.ofNullable(typeAliasNames.get(typeAlias));
+  Optional<TypeStatement> resolveTypeAlias(UnqualifiedTypeName typeAlias) {
+    return Optional.ofNullable(typeStatementNames.get(typeAlias));
   }
 
   Optional<VariantTypeNode> resolveVariantTypeNode(UnqualifiedTypeName variantName) {

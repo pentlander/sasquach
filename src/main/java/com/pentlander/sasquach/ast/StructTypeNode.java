@@ -6,7 +6,6 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.NamedRow;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.None;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.UnnamedRow;
-import com.pentlander.sasquach.type.LocalNamedType;
 import com.pentlander.sasquach.type.StructType;
 import java.util.List;
 import java.util.Map;
@@ -15,7 +14,7 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /** Type node for a struct that contains type nodes for all of its fields. */
-public record StructTypeNode(@Nullable UnqualifiedTypeName name, Map<UnqualifiedName, TypeNode> fieldTypeNodes, RowModifier rowModifier,
+public record StructTypeNode(@Nullable StructName name, Map<UnqualifiedName, TypeNode> fieldTypeNodes, RowModifier rowModifier,
                              Range range) implements TypeNode {
 
   public StructTypeNode(Map<UnqualifiedName, TypeNode> fieldTypeNodes, RowModifier rowModifier, Range range) {
@@ -40,14 +39,14 @@ public record StructTypeNode(@Nullable UnqualifiedTypeName name, Map<Unqualified
   }
 
   public sealed interface RowModifier {
-    record NamedRow(BasicTypeNode<LocalNamedType> typeNode) implements RowModifier {
+    record NamedRow(NamedTypeNode typeNode) implements RowModifier {
       public String name() {
-        return typeNode.typeNameStr();
+        return typeNode.type().typeNameStr();
       }
     }
 
     static NamedRow namedRow(TypeId id, Range range) {
-      return new NamedRow(new BasicTypeNode<>(new LocalNamedType(id), range));
+      return new NamedRow(new NamedTypeNode(id, List.of(), range));
     }
 
     final class UnnamedRow implements RowModifier {
