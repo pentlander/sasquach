@@ -9,7 +9,6 @@ import com.pentlander.sasquach.ast.StructName.UnnamedStruct;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.runtime.StructBase;
-import com.pentlander.sasquach.type.ModuleScopedTypes.SumWithVariantIdx;
 import com.pentlander.sasquach.type.StructType.RowModifier.NamedRow;
 import com.pentlander.sasquach.type.StructType.RowModifier.None;
 import com.pentlander.sasquach.type.StructType.RowModifier.UnnamedRow;
@@ -95,34 +94,11 @@ public record StructType(StructName structName, List<TypeParameter> typeParamete
     return memberTypes.get(fieldName);
   }
 
-  public @Nullable SumWithVariantIdx constructableType(UnqualifiedTypeName typeName) {
-    for (var namedStructTypeEntry : namedStructTypes.entrySet()) {
-      var namedStructType = namedStructTypeEntry.getValue();
-      for (int i = 0; i < namedStructType.types().size(); i++) {
-        var variant = namedStructType.types().get(i);
-        if (variant.typeNameStr().endsWith(typeName.toString())) {
-          return new SumWithVariantIdx(namedStructType, i);
-        }
-      }
-    }
-    return null;
-  }
-
-  public List<Type> sortedFieldTypes() {
-    return memberTypes().entrySet()
-        .stream()
-        .sorted(Entry.comparingByKey())
-        .map(Entry::getValue)
-        .toList();
-  }
-
-  public List<Entry<UnqualifiedName, Type>> sortedFields() {
-    return memberTypes().entrySet().stream().sorted(Entry.comparingByKey()).toList();
-  }
-
   @Override
   public ClassDesc classDesc() {
     return TypeUtils.classDesc(StructBase.class);
+//    return structName instanceof UnnamedStruct ? TypeUtils.classDesc(StructBase.class)
+//        : internalClassDesc();
   }
 
   @Override

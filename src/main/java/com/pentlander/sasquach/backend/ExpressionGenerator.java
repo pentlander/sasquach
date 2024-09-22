@@ -1,8 +1,7 @@
 package com.pentlander.sasquach.backend;
 
-import static com.pentlander.sasquach.backend.ClassGenerator.INSTANCE_FIELD;
 import static com.pentlander.sasquach.backend.ClassGenerator.CD_STRUCT_BASE;
-import static com.pentlander.sasquach.backend.GeneratorUtil.internalClassDesc;
+import static com.pentlander.sasquach.backend.ClassGenerator.INSTANCE_FIELD;
 import static com.pentlander.sasquach.backend.GeneratorUtil.tryBox;
 import static com.pentlander.sasquach.type.TypeUtils.asStructType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
@@ -20,39 +19,16 @@ import com.pentlander.sasquach.runtime.bootstrap.SwitchBootstraps;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TPattern;
 import com.pentlander.sasquach.tast.TypedNode;
-import com.pentlander.sasquach.tast.expression.TApplyOperator;
-import com.pentlander.sasquach.tast.expression.TArrayValue;
+import com.pentlander.sasquach.tast.expression.*;
 import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TArgs;
-import com.pentlander.sasquach.tast.expression.TBinaryExpression;
-import com.pentlander.sasquach.tast.expression.TBinaryExpression.TBooleanExpression;
-import com.pentlander.sasquach.tast.expression.TBlock;
-import com.pentlander.sasquach.tast.expression.TFieldAccess;
-import com.pentlander.sasquach.tast.expression.TForeignFieldAccess;
-import com.pentlander.sasquach.tast.expression.TForeignFunctionCall;
-import com.pentlander.sasquach.tast.expression.TForeignFunctionCall.Varargs;
-import com.pentlander.sasquach.tast.expression.TFunction;
-import com.pentlander.sasquach.tast.expression.TFunctionCall;
-import com.pentlander.sasquach.tast.expression.TIfExpression;
-import com.pentlander.sasquach.tast.expression.TLiteralStruct;
 import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TCallTarget.LocalVar;
 import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TCallTarget.Struct;
-import com.pentlander.sasquach.tast.expression.TLocalVariable;
-import com.pentlander.sasquach.tast.expression.TLoop;
-import com.pentlander.sasquach.tast.expression.TMatch;
-import com.pentlander.sasquach.tast.expression.TBasicFunctionCall;
-import com.pentlander.sasquach.tast.expression.TNot;
-import com.pentlander.sasquach.tast.expression.TPrintStatement;
-import com.pentlander.sasquach.tast.expression.TRecur;
-import com.pentlander.sasquach.tast.expression.TStruct;
+import com.pentlander.sasquach.tast.expression.TBinaryExpression.TBooleanExpression;
+import com.pentlander.sasquach.tast.expression.TForeignFunctionCall.Varargs;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
-import com.pentlander.sasquach.tast.expression.TThisExpr;
-import com.pentlander.sasquach.tast.expression.TVarReference;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Local;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Module;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Singleton;
-import com.pentlander.sasquach.tast.expression.TVariableDeclaration;
-import com.pentlander.sasquach.tast.expression.TypedExprWrapper;
-import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.FieldAccessKind;
 import com.pentlander.sasquach.type.FunctionType;
@@ -395,7 +371,7 @@ final class ExpressionGenerator {
             case TPattern.TSingleton _ -> {}
             case TPattern.TVariantTuple variantTuple -> {
               var variantType = variantTuple.type();
-              var tupleFieldTypes = variantType.sortedFields();
+              var tupleFieldTypes = List.copyOf(variantType.memberTypes().entrySet());
               var bindings = variantTuple.bindings();
               // Need to look up the types of the bindings, allocate a variable for each field,
               // then store the value of the field in the variable

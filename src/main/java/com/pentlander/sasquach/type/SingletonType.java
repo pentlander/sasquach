@@ -3,11 +3,12 @@ package com.pentlander.sasquach.type;
 import com.pentlander.sasquach.ast.QualifiedTypeName;
 import com.pentlander.sasquach.runtime.StructBase;
 import java.lang.constant.ClassDesc;
+import java.util.List;
 
-public record SingletonType(QualifiedTypeName qualifiedTypeName) implements VariantType {
+public record SingletonType(QualifiedTypeName typeName) implements VariantType {
   @Override
   public String typeNameStr() {
-    return qualifiedTypeName.name().toString();
+    return typeName.name().toString();
   }
 
   @Override
@@ -17,7 +18,12 @@ public record SingletonType(QualifiedTypeName qualifiedTypeName) implements Vari
 
   @Override
   public String internalName() {
-    return qualifiedTypeName.toString();
+    return typeName.toString();
+  }
+
+  @Override
+  public FunctionType constructorType(ParameterizedType returnType) {
+    return new FunctionType(List.of(), returnType.typeParameters(), returnType);
   }
 
   public ClassDesc internalClassDesc() {

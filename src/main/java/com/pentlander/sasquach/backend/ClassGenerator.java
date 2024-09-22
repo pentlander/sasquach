@@ -236,21 +236,20 @@ class ClassGenerator {
     buildAddClass(struct.type(), clb -> generateStruct(clb, struct));
   }
 
-  private void generateTypeConstructor(ClassBuilder clb, UnqualifiedTypeName typeName, StructType structType, FunctionType constructorType) {
+  private void generateTypeConstructor(ClassBuilder clb, UnqualifiedTypeName typeName, ClassDesc classDesc, FunctionType constructorType) {
     var signature = generateMethodSignature(constructorType);
-    var variantClassDesc = structType.internalClassDesc();
     clb.withMethod(typeName.toString(), constructorType.functionTypeDesc(), ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL + ClassFile.ACC_SYNTHETIC, mb -> {
       if (signature != null) {
         mb.with(SignatureAttribute.of(signature));
       }
       mb.withCode(cob -> {
-        cob.new_(variantClassDesc).dup();
+        cob.new_(classDesc).dup();
         // Start at 1 since 0 is `this`
         int idx = 1;
         for (var type : constructorType.parameterTypes()) {
           generateLoadVar(cob, type, idx++);
         }
-        var methodDesc = MethodHandleDesc.ofConstructor(variantClassDesc,
+        var methodDesc = MethodHandleDesc.ofConstructor(classDesc,
             constructorType.parameterTypes().stream().map(Type::classDesc).toArray(ClassDesc[]::new));
         GeneratorUtil.generate(cob, methodDesc);
         cob.areturn();
@@ -266,15 +265,19 @@ class ClassGenerator {
           var sumType = sumTypeNode.type();
           generateSumType(sumType);
           sumTypeNode.variantTypeNodes().forEach(variantTypeNode -> {
-            switch (variantTypeNode.type()) {
-              case StructType variantStructType -> {
-                generateVariantStruct(variantStructType, sumType, variantTypeNode.range());
-                var variantName = variantTypeNode.typeName().name();
-                var constructorType = variantStructType.constructorType(sumType);
-                generateTypeConstructor(clb, variantName, variantStructType, constructorType);
+            var variantType = variantTypeNode.type();
+            var name = variantTypeNode.typeName().name();
+            var constructorType = variantType.constructorType(sumType);
+            switch (variantType) {
+              case StructType structType -> {
+                generateVariantStruct(structType, sumType, variantTypeNode.range());
+                generateTypeConstructor(clb, name, structType.internalClassDesc(), constructorType);
+
               }
-              case SingletonType singletonType ->
-                  generateSingleton(singletonType, sumType, variantTypeNode.range());
+              case SingletonType singletonType -> {
+                generateSingleton(singletonType, sumType, variantTypeNode.range());
+                generateTypeConstructor(clb, name, singletonType.internalClassDesc(), constructorType);
+              }
             }
           });
         }
@@ -282,16 +285,15 @@ class ClassGenerator {
           var type = typeNode.type();
           generateStruct(type, typeNode.range());
           var structName = typeNode.typeName().name();
-          generateTypeConstructor(clb, structName, type, type.constructorType());
+          generateTypeConstructor(clb, structName, type.internalClassDesc(), type.constructorType());
         }
         case TupleTypeNode typeNode -> {
           var type = typeNode.type();
           generateStruct(type, typeNode.range());
           var structName = typeNode.typeName().name();
-          generateTypeConstructor(clb, structName, type, type.constructorType());
+          generateTypeConstructor(clb, structName, type.internalClassDesc(), type.constructorType());
         }
-        case null, default -> {
-        }
+        case null, default -> {}
       }
     }
   }

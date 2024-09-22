@@ -133,8 +133,8 @@ public class MemberScopedNameResolver {
     switch (struct) {
       case ModuleStruct moduleStruct -> moduleStruct.useList().forEach(this::resolve);
       case NamedStruct namedStruct -> {
-        var foundVariant = moduleScopedNameResolver.resolveConstructableTypeNode(namedStruct.name()).isPresent();
-        if (!foundVariant) {
+        var foundStruct = moduleScopedNameResolver.resolveConstructableTypeNode(namedStruct.name()).isPresent();
+        if (!foundStruct) {
           errors.add(new NameNotFoundError(
               namedStruct.name(),
               namedStruct.range(),

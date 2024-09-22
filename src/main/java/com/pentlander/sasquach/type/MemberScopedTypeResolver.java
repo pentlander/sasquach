@@ -5,7 +5,10 @@ import static com.pentlander.sasquach.Util.concat;
 import static com.pentlander.sasquach.type.TypeUtils.reify;
 import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
-import static java.util.stream.Collectors.*;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toCollection;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 
 import com.pentlander.sasquach.AbstractRangedError;
 import com.pentlander.sasquach.BasicError;
@@ -21,38 +24,11 @@ import com.pentlander.sasquach.ast.Labeled;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.UnqualifiedName;
-import com.pentlander.sasquach.ast.UnqualifiedTypeName;
-import com.pentlander.sasquach.ast.expression.PipeOperator;
-import com.pentlander.sasquach.ast.expression.ArrayValue;
-import com.pentlander.sasquach.ast.expression.BinaryExpression;
+import com.pentlander.sasquach.ast.expression.*;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathExpression;
-import com.pentlander.sasquach.ast.expression.Block;
-import com.pentlander.sasquach.ast.expression.Expression;
-import com.pentlander.sasquach.ast.expression.MemberAccess;
-import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
-import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
-import com.pentlander.sasquach.ast.expression.Function;
-import com.pentlander.sasquach.ast.expression.FunctionCall;
-import com.pentlander.sasquach.ast.expression.IfExpression;
-import com.pentlander.sasquach.ast.expression.LiteralStruct;
-import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
-import com.pentlander.sasquach.ast.expression.LocalVariable;
-import com.pentlander.sasquach.ast.expression.Loop;
-import com.pentlander.sasquach.ast.expression.Match;
-import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
-import com.pentlander.sasquach.ast.expression.ModuleStruct;
-import com.pentlander.sasquach.ast.expression.NamedFunction;
-import com.pentlander.sasquach.ast.expression.NamedStruct;
-import com.pentlander.sasquach.ast.expression.Not;
-import com.pentlander.sasquach.ast.expression.PrintStatement;
-import com.pentlander.sasquach.ast.expression.Recur;
-import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
-import com.pentlander.sasquach.ast.expression.Value;
-import com.pentlander.sasquach.ast.expression.VarReference;
-import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.tast.TBranch;
 import com.pentlander.sasquach.tast.TFunctionParameter;
@@ -64,11 +40,11 @@ import com.pentlander.sasquach.tast.TPattern.TVariantTuple;
 import com.pentlander.sasquach.tast.TPatternVariable;
 import com.pentlander.sasquach.tast.expression.*;
 import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TArgs;
+import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TCallTarget;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TBooleanExpression;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TCompareExpression;
 import com.pentlander.sasquach.tast.expression.TBinaryExpression.TMathExpression;
 import com.pentlander.sasquach.tast.expression.TForeignFunctionCall.Varargs;
-import com.pentlander.sasquach.tast.expression.TBasicFunctionCall.TCallTarget;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration;
 import com.pentlander.sasquach.tast.expression.TVarReference.RefDeclaration.Local;
@@ -373,7 +349,7 @@ public class MemberScopedTypeResolver {
     return typedExpr;
   }
 
-  private TVarReference resolveVarReference(VarReference varRef) {
+  private TypedExpression resolveVarReference(VarReference varRef) {
     return switch (moduleScopedTypes.getVarReferenceType(varRef)) {
       case Module(var moduleId, var fieldType) ->
           new TVarReference(varRef.id(), new RefDeclaration.Module(moduleId), fieldType);
@@ -384,9 +360,9 @@ public class MemberScopedTypeResolver {
             new Local(typedLocalVar),
             typedLocalVar.variableType());
       }
-      case Singleton(var sumType, var singletonType) -> new TVarReference(varRef.id(),
-          new RefDeclaration.Singleton(singletonType),
-          convertUniversals(sumType, varRef.range()));
+      case Singleton _ -> resolveMemberFunctionCall(
+          thisExpr(varRef.range()),
+          new LocalFunctionCall(varRef.id(), List.of(), varRef.range()));
     };
   }
 
@@ -440,15 +416,15 @@ public class MemberScopedTypeResolver {
               fieldTypes.put(func.name(), normalizeFuncType);
             });
 
-        var spreads = s.spreads().stream().map(varRef -> {
+        var spreads = s.spreads().stream().flatMap(varRef -> {
           var tVarRef = resolveVarReference(varRef);
           if (!(tVarRef.type() instanceof StructType)) {
             addError(varRef,
-                new TypeMismatchError("Expected variable '%s' to be type struct, found: '%s'".formatted(
+                new TypeMismatchError("Expected '%s' to be type struct, found: '%s'".formatted(
                     varRef.name(),
                     tVarRef.type().toPrettyString()), varRef.range()));
           }
-          return tVarRef;
+          return tVarRef instanceof TVarReference t ? Stream.of(t) : Stream.empty();
         }).toList();
 
         var name = moduleScopedTypes.getLiteralStructName(fieldTypes);
@@ -499,14 +475,11 @@ public class MemberScopedTypeResolver {
               new TPattern.TSingleton(singleton.id(), (SingletonType) variantType);
           case Pattern.VariantTuple tuple -> {
             var tupleType = TypeUtils.asStructType(variantType).orElseThrow();
-            // The fields types are stored in a hashmap, but we sort them to bind the variables
-            // in a // consistent order. This works because the fields are named by number,
-            // e.g _0, _1, etc.
-            var tupleFieldTypes = tupleType.sortedFieldTypes();
+            var tupleMemberTypes = List.copyOf(tupleType.memberTypes().values());
             var typedPatternVars = new ArrayList<TPatternVariable>();
             for (int j = 0; j < tuple.bindings().size(); j++) {
               var binding = tuple.bindings().get(j);
-              var fieldType = tupleFieldTypes.get(j);
+              var fieldType = tupleMemberTypes.get(j);
               var typedVar = new TPatternVariable(binding.id(), fieldType);
               putLocalVarType(binding, typedVar);
               typedPatternVars.add(typedVar);
@@ -563,16 +536,14 @@ public class MemberScopedTypeResolver {
     if (structType.isPresent()) {
       var fieldType = structType.get().fieldType(fieldName);
       if (fieldType != null) {
+        // TODO Maybe don't need all these checks if name resolution verifies there aren't conflicts
+        if (fieldType instanceof FunctionType funcType && funcType.parameters().isEmpty() && funcType.returnType() instanceof SumType) {
+          return resolveMemberFunctionCall(
+              typedStructExpr,
+              new LocalFunctionCall(memberAccess.id(), List.of(), memberAccess.range()));
+        }
         return new TFieldAccess(typedStructExpr, memberAccess.id(), fieldType);
       } else {
-        var variantWithSum = structType.get().constructableType(fieldName.toTypeName());
-        if (variantWithSum != null) {
-          var sumType = variantWithSum.sumType();
-          return new TVarReference(
-              memberAccess.id(),
-              new RefDeclaration.Singleton((SingletonType) variantWithSum.type()),
-              convertUniversals(sumType, memberAccess.range()));
-        }
         return addError(
             memberAccess,
             new TypeMismatchError("Type '%s' does not contain field '%s'".formatted(structType.get()
@@ -725,6 +696,10 @@ public class MemberScopedTypeResolver {
             structType.get().toPrettyString()), structFuncCall.range()));
   }
 
+  private TThisExpr thisExpr(Range range) {
+    return new TThisExpr(moduleScopedTypes.getThisType(), range);
+  }
+
   private TypedExpression resolveFunctionCall(FunctionCall funcCall) {
     var name = funcCall.name();
     var args = funcCall.arguments();
@@ -733,9 +708,7 @@ public class MemberScopedTypeResolver {
     return switch (funcCall) {
       case LocalFunctionCall localFuncCall ->
           switch (moduleScopedTypes.getFunctionCallType(localFuncCall)) {
-            case FuncCallType.Module() ->
-                resolveMemberFunctionCall(new TThisExpr(moduleScopedTypes.getThisType(), range),
-                    localFuncCall);
+            case FuncCallType.Module() -> resolveMemberFunctionCall(thisExpr(range), localFuncCall);
             case FuncCallType.LocalVar(var localVar) -> {
               var tLocalVar = getLocalVar(localVar).orElseThrow();
               var funcType = TypeUtils.asFunctionType(tLocalVar.variableType()).orElseThrow();
