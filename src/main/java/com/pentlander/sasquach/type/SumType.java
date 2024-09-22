@@ -12,7 +12,7 @@ public record SumType(QualifiedTypeName qualifiedTypeName,
     TypeNester {
   @Override
   public String typeNameStr() {
-    return qualifiedTypeName.name().toString();
+    return qualifiedTypeName.simpleName().toString();
   }
 
   @Override

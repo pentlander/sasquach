@@ -5,10 +5,10 @@ import com.pentlander.sasquach.runtime.StructBase;
 import java.lang.constant.ClassDesc;
 import java.util.List;
 
-public record SingletonType(QualifiedTypeName typeName) implements VariantType {
+public record SingletonType(QualifiedTypeName name) implements VariantType {
   @Override
   public String typeNameStr() {
-    return typeName.name().toString();
+    return name.simpleName().toString();
   }
 
   @Override
@@ -18,7 +18,7 @@ public record SingletonType(QualifiedTypeName typeName) implements VariantType {
 
   @Override
   public String internalName() {
-    return typeName.toString();
+    return name.toString();
   }
 
   @Override

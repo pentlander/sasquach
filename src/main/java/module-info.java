@@ -1,3 +1,6 @@
+import org.jspecify.annotations.NullMarked;
+
+@NullMarked
 module sasquach.main {
   requires java.compiler;
   requires jdk.dynalink;

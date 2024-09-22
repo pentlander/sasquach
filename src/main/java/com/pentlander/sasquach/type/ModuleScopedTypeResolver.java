@@ -1,24 +1,17 @@
 package com.pentlander.sasquach.type;
 
-import static com.pentlander.sasquach.type.MemberScopedTypeResolver.typeParams;
 import static java.util.Objects.requireNonNull;
-import static java.util.function.Function.identity;
-import static java.util.stream.Collectors.toMap;
 
 import com.pentlander.sasquach.AbstractRangedError;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.RangedErrorList.Builder;
 import com.pentlander.sasquach.Source;
-import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.StructName;
-import com.pentlander.sasquach.ast.StructTypeNode;
-import com.pentlander.sasquach.ast.SumTypeNode;
-import com.pentlander.sasquach.ast.TupleTypeNode;
+import com.pentlander.sasquach.ast.StructName.SyntheticName;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.UnqualifiedTypeName;
-import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.ModuleStruct;
@@ -32,6 +25,7 @@ import com.pentlander.sasquach.name.MemberScopedNameResolver.VariantStructConstr
 import com.pentlander.sasquach.name.NameResolutionResult;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TNamedFunction;
+import com.pentlander.sasquach.tast.expression.TModuleStruct.TypeDef;
 import com.pentlander.sasquach.tast.expression.TModuleStructBuilder;
 import com.pentlander.sasquach.tast.expression.TStruct.TField;
 import com.pentlander.sasquach.type.ModuleScopedTypes.FuncCallType.LocalVar;
@@ -41,7 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 
 public class ModuleScopedTypeResolver {
   private final NameResolutionResult nameResolutionResult;
@@ -49,12 +43,12 @@ public class ModuleScopedTypeResolver {
   private final ModuleDeclaration moduleDecl;
   private final ModuleTypeProvider moduleTypeProvider;
 
-  private final List<NamedFunction> nameResolvedFunctions = new ArrayList<>();
+  private final List<ResolvedFunctionType> nameResolvedFuncTypes = new ArrayList<>();
   private final TModuleStructBuilder typedStructBuilder = TModuleStructBuilder.builder();
   private final Map<StructTypeKey, StructName> structTypeNames = new LinkedHashMap<>();
   private final Builder errors = RangedErrorList.builder();
 
-  private StructType thisStructType;
+  private @Nullable StructType thisStructType;
 
 
   public ModuleScopedTypeResolver(NameResolutionResult nameResolutionResult,
@@ -72,26 +66,21 @@ public class ModuleScopedTypeResolver {
 
     struct.typeStatements().forEach(typeAlias -> {
       // Add the types of all the sum type nodes.
-      var resolvedAlias = namedTypeResolver.resolveTypeNode(typeAlias, Map.of());
-      switch (resolvedAlias.typeNode()) {
-        case SumTypeNode sumTypeNode -> {
-          var sumType = sumTypeNode.type();
-          for (int i = 0; i < sumTypeNode.variantTypeNodes().size(); i++) {
-            var variantTypeNode = sumTypeNode.variantTypeNodes().get(i);
-            var name = variantTypeNode.typeName().name().toName();
-            var funcType = variantTypeNode.type().constructorType(sumType);
+      var typeArgs = TypeUtils.typeParamsToUniversal(typeAlias.typeParameters());
+      var resolvedAliasType = namedTypeResolver.resolveNames(typeAlias, typeArgs);
+      switch (resolvedAliasType) {
+        case SumType sumType -> {
+          for (var variantType : sumType.types()) {
+            var name = variantType.name().simpleName().toName();
+            var funcType = variantType.constructorType(sumType);
             fieldTypes.put(name, funcType);
           }
         }
-        case StructTypeNode typeNode -> {
-          var name = typeNode.typeName().name().toName();
-          fieldTypes.put(name, typeNode.type().constructorType());
+        case StructType structType -> {
+          var name = structType.name().simpleName().toName();
+          fieldTypes.put(name, structType.constructorType());
         }
-        case TupleTypeNode typeNode -> {
-          var name = typeNode.typeName().name().toName();
-          fieldTypes.put(name, typeNode.type().constructorType());
-        }
-        case null, default -> {}
+        default -> {}
       }
     });
     struct.functions().forEach(func -> {
@@ -106,11 +95,13 @@ public class ModuleScopedTypeResolver {
         errors.add(new TypeAnnotationRequiredError("return", funcSig.range()));
       }
 
-      var resolvedFuncSig = resolveFuncSignatureType(funcSig);
-      var type = resolvedFuncSig.type();
-      fieldTypes.put(func.name(), type);
-      nameResolvedFunctions.add(new NamedFunction(func.id(),
-          new Function(resolvedFuncSig, func.expression())));
+      var funcTypeParams = TypeUtils.typeParamsToUniversal(funcSig.typeParameters());
+      var funcType = namedTypeResolver.resolveNames(funcSig.type(),
+          funcTypeParams,
+          func.range());
+      fieldTypes.put(func.name(), funcType);
+
+      nameResolvedFuncTypes.add(new ResolvedFunctionType(func, funcType));
     });
 
     var modScopedTypes = new ResolverModuleScopedTypes();
@@ -121,28 +112,27 @@ public class ModuleScopedTypeResolver {
       errors.addAll(result.errors());
     });
 
-    var typeStatements = namedTypeResolver.mapResolveTypeNode(struct.typeStatements());
+    var typeDefs = struct.typeStatements().stream().map(stmt -> {
+      var typeNode = stmt.typeNode();
+      var typeParams = TypeUtils.typeParamsToUniversal(stmt.typeParameters());
+      var resolvedType = namedTypeResolver.resolveNames(typeNode, typeParams);
+      return new TypeDef(resolvedType, stmt.range().sourcePath());
+    }).toList();
 
     typedStructBuilder.name(struct.name())
-        .useList(struct.useList())
-        .typeStatements(typeStatements)
+        .typeDefs(typeDefs)
         .fields(typedFields)
         .range(struct.range());
 
-    var namedStructTypes = typeStatements.stream()
-        .flatMap(alias -> alias.type() instanceof SumType sumType ? Stream.of(sumType)
-            : Stream.empty())
-        .collect(toMap(sumType -> sumType.qualifiedTypeName().name(), identity()));
-
-    thisStructType = new StructType(struct.name(), fieldTypes, namedStructTypes);
+    thisStructType = new StructType(struct.name(), fieldTypes);
     return thisStructType;
   }
 
   public TypeResolutionResult resolveFunctions() {
     var modScopedTypes = new ResolverModuleScopedTypes();
     var typedFunctions = new ArrayList<TNamedFunction>();
-    var mergedResult = nameResolvedFunctions.stream().map(func -> {
-      var result = new MemberScopedTypeResolver(nameResolutionResult, modScopedTypes).checkType(func);
+    var mergedResult = nameResolvedFuncTypes.stream().map(func -> {
+      var result = new MemberScopedTypeResolver(nameResolutionResult, modScopedTypes).checkType(func.func(), func.type());
       typedFunctions.add((TNamedFunction) result.getTypedMember());
       return result;
     }).reduce(TypeResolutionResult.EMPTY, TypeResolutionResult::merge);
@@ -155,10 +145,14 @@ public class ModuleScopedTypeResolver {
     return TypeResolutionResult.ofTypedModules(typedModules, errors.build()).merge(mergedResult);
   }
 
-  FunctionSignature resolveFuncSignatureType(FunctionSignature funcSignature) {
-    var typeParams = typeParams(funcSignature.typeParameters(), TypeParameter::toUniversal);
-    return namedTypeResolver.resolveTypeNode(funcSignature, typeParams);
+  public StructName getLiteralStructName(Map<UnqualifiedName, Type> memberTypes) {
+    return structTypeNames.computeIfAbsent(StructTypeKey.from(memberTypes), _ -> {
+      var unqualifiedName = new UnqualifiedTypeName(Integer.toString(structTypeNames.size()));
+      return new SyntheticName(moduleDecl.name().qualifyInner(unqualifiedName));
+    });
   }
+
+  private record ResolvedFunctionType(NamedFunction func, FunctionType type) {}
 
   public class ResolverModuleScopedTypes implements ModuleScopedTypes {
     @Override
@@ -168,8 +162,7 @@ public class ModuleScopedTypeResolver {
 
     @Override
     public StructName getLiteralStructName(Map<UnqualifiedName, Type> memberTypes) {
-      return structTypeNames.computeIfAbsent(StructTypeKey.from(memberTypes), _ -> moduleDecl.name()
-          .qualifyInner(new UnqualifiedTypeName(Integer.toString(structTypeNames.size()))));
+      return ModuleScopedTypeResolver.this.getLiteralStructName(memberTypes);
     }
 
     @Override

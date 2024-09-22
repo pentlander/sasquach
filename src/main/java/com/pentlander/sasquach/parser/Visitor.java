@@ -1,6 +1,8 @@
 package com.pentlander.sasquach.parser;
+
 import static com.pentlander.sasquach.Util.mapNonNull;
 import static java.util.Objects.requireNonNullElse;
+import static java.util.Objects.requireNonNullElseGet;
 
 import com.pentlander.sasquach.PackageName;
 import com.pentlander.sasquach.Position;
@@ -9,37 +11,13 @@ import com.pentlander.sasquach.SourcePath;
 import com.pentlander.sasquach.ast.*;
 import com.pentlander.sasquach.ast.StructTypeNode.RowModifier;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
-import com.pentlander.sasquach.ast.TypeStatement;
-import com.pentlander.sasquach.ast.expression.ModuleStruct;
-import com.pentlander.sasquach.ast.expression.PipeOperator;
-import com.pentlander.sasquach.ast.expression.BinaryExpression;
+import com.pentlander.sasquach.ast.expression.*;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathOperator;
-import com.pentlander.sasquach.ast.expression.Block;
-import com.pentlander.sasquach.ast.expression.Expression;
-import com.pentlander.sasquach.ast.expression.MemberAccess;
-import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
-import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
-import com.pentlander.sasquach.ast.expression.Function;
-import com.pentlander.sasquach.ast.expression.FunctionCall;
-import com.pentlander.sasquach.ast.expression.FunctionParameter;
-import com.pentlander.sasquach.ast.expression.IfExpression;
-import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
-import com.pentlander.sasquach.ast.expression.Loop;
-import com.pentlander.sasquach.ast.expression.Match;
-import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
-import com.pentlander.sasquach.ast.expression.NamedFunction;
-import com.pentlander.sasquach.ast.expression.Not;
-import com.pentlander.sasquach.ast.expression.PrintStatement;
-import com.pentlander.sasquach.ast.expression.Recur;
-import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
-import com.pentlander.sasquach.ast.expression.Value;
-import com.pentlander.sasquach.ast.expression.VarReference;
-import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.parser.SasquachParser.*;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.TypeParameter;
@@ -50,13 +28,11 @@ import java.util.Optional;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.jspecify.annotations.NullUnmarked;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Visitor that parses the source code into an abstract syntax tree.
  */
-@NullUnmarked
 public class Visitor {
   private final SourcePath sourcePath;
   private final PackageName packageName;
@@ -456,7 +432,11 @@ public class Visitor {
     @Override
     public TupleTypeNode visitTupleType(TupleTypeContext ctx) {
       var typeNodes = ctx.type().stream().map(typeCtx -> typeNode(typeCtx, this)).toList();
-      return new TupleTypeNode(structName, typeNodes, rangeFrom(ctx));
+      var moduleName = new QualifiedModuleName(new PackageName("std/tuple"), "Tuple");
+      var name = requireNonNullElseGet(
+          structName,
+          () -> moduleName.qualifyInner(new UnqualifiedTypeName(Integer.toString(typeNodes.size()))));
+      return new TupleTypeNode(name, typeNodes, rangeFrom(ctx));
     }
 
     private List<TypeNode> typeArguments(TypeArgumentListContext ctx) {

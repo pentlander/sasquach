@@ -21,7 +21,7 @@ import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.expression.Block;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
-import com.pentlander.sasquach.ast.expression.FunctionBuilder;
+import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Struct;
@@ -50,10 +50,9 @@ class MemberScopedNameResolverTest {
     var varDeclA = new VariableDeclaration(id("a"), Fixtures.intValue(10), range());
     var varDeclB = new VariableDeclaration(id("b"), varReference, range());
     var varDeclC = new VariableDeclaration(id("c"), varReference, range());
-    var function = FunctionBuilder.builder()
-        .functionSignature(new FunctionSignature(List.of(), typeNode(BuiltinType.VOID), range()))
-        .expression(new Block(List.of(varDeclA, varDeclB, varDeclC), range()))
-        .build();
+    var function = new Function(
+        new FunctionSignature(List.of(), typeNode(BuiltinType.VOID), range()),
+        new Block(List.of(varDeclA, varDeclB, varDeclC), range()));
     var namedFunc = new NamedFunction(id("func"), function);
 
     var memberResolver = new MemberScopedNameResolver(modResolver);
@@ -73,10 +72,9 @@ class MemberScopedNameResolverTest {
 
     var varReference = new VarReference(id("OtherModule"));
     var varDeclA = new VariableDeclaration(id("a"), varReference, range());
-    var function = FunctionBuilder.builder()
-        .functionSignature(new FunctionSignature(List.of(), typeNode(BuiltinType.VOID), range()))
-        .expression(new Block(List.of(varDeclA), range()))
-        .build();
+    var function = new Function(
+        new FunctionSignature(List.of(), typeNode(BuiltinType.VOID), range()),
+        new Block(List.of(varDeclA), range()));
     var namedFunc = new NamedFunction(id("func"), function);
     var memberResolver = new MemberScopedNameResolver(modResolver);
     var result = memberResolver.resolve(namedFunc);
@@ -88,10 +86,8 @@ class MemberScopedNameResolverTest {
   @Test
   void resolveVariable_localFunction() {
     var funcId = id("test");
-    var func = FunctionBuilder.builder()
-        .functionSignature(new FunctionSignature(List.of(), typeNode(BuiltinType.VOID), range()))
-        .expression(stringValue("hi"))
-        .build();
+    var func = new Function(new FunctionSignature(List.of(), typeNode(BuiltinType.VOID), range()),
+        stringValue("hi"));
     when(modResolver.resolveFunction(name("test"))).thenReturn(Optional.of(new NamedFunction(funcId,
         func)));
     when(modResolver.moduleDeclaration()).thenReturn(new ModuleDeclaration(qualId("foo/bar"),
@@ -99,10 +95,9 @@ class MemberScopedNameResolverTest {
         range()));
 
     var funcCall = new LocalFunctionCall(id("test"), List.of(), range());
-    var function = FunctionBuilder.builder()
-        .functionSignature(new FunctionSignature(List.of(), typeNode(BuiltinType.VOID), range()))
-        .expression(new Block(List.of(funcCall), range()))
-        .build();
+    var function = new Function(
+        new FunctionSignature(List.of(), typeNode(BuiltinType.VOID), range()),
+        new Block(List.of(funcCall), range()));
     var memberResolver = new MemberScopedNameResolver(modResolver);
     var result = memberResolver.resolve(new NamedFunction(id("foo"), function));
     var localFunc = result.getLocalFunctionCallTarget(funcCall);

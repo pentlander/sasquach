@@ -17,6 +17,10 @@ public sealed interface Struct extends Expression permits LiteralStruct,
     return new LiteralStruct(fields, functions, spreads, range);
   }
 
+  static Struct tupleStruct(List<Expression> expressions, Range range) {
+    return new LiteralStruct(tupleFields(expressions), List.of(), List.of(), range);
+  }
+
   static Struct namedStructConstructor(UnqualifiedTypeName name, List<Field> fields, Range range) {
     return new NamedStruct(name, fields, range);
   }
@@ -29,10 +33,6 @@ public sealed interface Struct extends Expression permits LiteralStruct,
     return Util.tupleFields(
         expressions,
         (name, expr) -> new Field(new Id(name, (Single) expr.range()), expr));
-  }
-
-  static Struct tupleStruct(List<Expression> expressions, Range range) {
-    return new LiteralStruct(tupleFields(expressions), List.of(), List.of(), range);
   }
 
   @Override

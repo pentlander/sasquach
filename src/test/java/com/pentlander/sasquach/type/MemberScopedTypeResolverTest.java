@@ -18,7 +18,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.pentlander.sasquach.Fixtures;
 import com.pentlander.sasquach.PackageName;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Argument;
@@ -26,6 +25,7 @@ import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.QualifiedModuleName;
+import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.ArrayValue;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
@@ -52,7 +52,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Map;
+import java.util.SequencedMap;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -63,6 +63,10 @@ class MemberScopedTypeResolverTest {
   MemberScopedTypeResolver memberScopedTypeResolver;
   ModuleScopedTypes moduleScopedTypes;
   boolean shouldAssertErrorsEmpty = true;
+
+  public static StructType unnamed(SequencedMap<UnqualifiedName, Type> fieldTypes, RowModifier rowModifier) {
+    return new StructType(null, List.of(), fieldTypes, rowModifier);
+  }
 
   @BeforeEach
   void setUp() {
@@ -272,12 +276,11 @@ class MemberScopedTypeResolverTest {
 
       @BeforeEach
       void setUp() {
-        memberScopedTypeResolver.checkType(func);
+        memberScopedTypeResolver.checkType(func, func.functionSignature().type());
         when(moduleScopedTypes.getFunctionCallType(any())).thenReturn(new FuncCallType.Module());
         when(moduleScopedTypes.getThisType()).thenReturn(new StructType(
             QUAL_MOD_NAME,
-            seqMap(funcId.name(), func.functionSignature().type()),
-            Map.of()));
+            seqMap(funcId.name(), func.functionSignature().type())));
 
         when(nameResolutionResult.getLocalFunctionCallTarget(any())).thenReturn(new QualifiedFunction());
       }
@@ -383,7 +386,11 @@ class MemberScopedTypeResolverTest {
       var struct = literalStruct(argFields, List.of());
       var argType = resolveExpr(struct);
 
-      var paramType = StructType.unnamed(seqMap(name("foo"), BuiltinType.STRING, name("bar"), BuiltinType.INT));
+      var paramType = StructType.synthetic(seqMap(
+          name("foo"),
+          BuiltinType.STRING,
+          name("bar"),
+          BuiltinType.INT));
 
       assertThat(paramType.isAssignableFrom(argType)).isFalse();
     }
@@ -396,7 +403,7 @@ class MemberScopedTypeResolverTest {
       var struct = literalStruct(argFields, List.of());
       var argType = resolveExpr(struct);
 
-      var paramType = StructType.unnamed(seqMap(name("foo"), BuiltinType.STRING, name("bar"), BuiltinType.INT),
+      var paramType = unnamed(seqMap(name("foo"), BuiltinType.STRING, name("bar"), BuiltinType.INT),
           RowModifier.unnamedRow());
 
       assertThat(paramType.isAssignableFrom(argType)).isTrue();

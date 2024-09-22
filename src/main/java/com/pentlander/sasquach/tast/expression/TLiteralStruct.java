@@ -1,7 +1,6 @@
 package com.pentlander.sasquach.tast.expression;
 
 import static java.util.Objects.requireNonNull;
-import static java.util.Objects.requireNonNullElse;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.StructName;
@@ -17,7 +16,7 @@ public record TLiteralStruct(StructName name, List<TField> fields,
                              Range range) implements TStruct {
   public TLiteralStruct {
     requireNonNull(fields, "fields");
-    spreads = requireNonNullElse(spreads, List.of());
+    requireNonNull(spreads);
     requireNonNull(range, "range");
   }
 

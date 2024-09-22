@@ -9,7 +9,6 @@ import com.pentlander.sasquach.ast.StructTypeNode.RowModifier.UnnamedRow;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.type.StructType;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.SequencedMap;
@@ -40,12 +39,12 @@ public record StructTypeNode(@Nullable QualifiedTypeName typeName,
       case None _ -> StructType.RowModifier.none();
       case UnnamedRow _ -> StructType.RowModifier.unnamedRow();
     };
-    return new StructType(typeName, List.of(), fieldTypes, Map.of(), rowModifier);
+    return new StructType(typeName, List.of(), fieldTypes, rowModifier);
   }
 
   @Override
   public String typeNameStr() {
-    return Objects.requireNonNullElse(typeName, type().structName()).toString();
+    return Objects.requireNonNullElse(typeName, type().name()).toString();
   }
 
   public sealed interface RowModifier {

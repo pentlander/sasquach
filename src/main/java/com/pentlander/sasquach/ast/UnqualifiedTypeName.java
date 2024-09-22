@@ -8,6 +8,11 @@ public record UnqualifiedTypeName(String value) implements Name, StructName, Unr
   }
 
   @Override
+  public UnqualifiedTypeName simpleName() {
+    return this;
+  }
+
+  @Override
   public String toString() {
     return value;
   }

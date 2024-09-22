@@ -4,15 +4,11 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /** Declaration of a type alias, with optional type parameters. */
 public record TypeStatement(TypeId id, List<TypeParameter> typeParameters, TypeNode typeNode, boolean isAlias,
                             Range range) implements TypeNode, NamedTypeDefinition {
-  public TypeStatement {
-    typeParameters = Objects.requireNonNullElse(typeParameters, List.of());
-  }
 
   public Type type() {
     return typeNode.type();

@@ -46,11 +46,9 @@ public class TypeUnifier {
                 .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType))));
           }
           yield new StructType(
-              structType.structName(),
+              structType.name(),
               structType.typeParameters(),
-              fieldTypes,
-              structType.namedStructTypes(),
-              rowModifier);
+              fieldTypes, rowModifier);
         }
         case ResolvedModuleNamedType namedType ->
             new ResolvedModuleNamedType(namedType.moduleName(),
@@ -155,12 +153,12 @@ public class TypeUnifier {
 
         if (!sourceFieldTypes.isEmpty() && destStructType.rowModifier() instanceof StructType.RowModifier.NamedRow namedRow) {
           var typeVar = (TypeVariable) namedRow.type();
-          var structType = StructType.unnamed(sourceFieldTypes);
+          var structType = StructType.synthetic(sourceFieldTypes);
           unifyTypeVariable(typeVar, structType);
         }
         if (!destFieldTypes.isEmpty() && sourceStructType.rowModifier() instanceof StructType.RowModifier.NamedRow namedRow) {
           var typeVar = (TypeVariable) namedRow.type();
-          var structType = StructType.unnamed(destFieldTypes);
+          var structType = StructType.synthetic(destFieldTypes);
           unifyTypeVariable(typeVar, structType);
         }
       }

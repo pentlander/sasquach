@@ -7,9 +7,8 @@ import com.pentlander.sasquach.type.Type;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.jspecify.annotations.Nullable;
 
-public record TupleTypeNode(@Nullable QualifiedTypeName typeName, List<TypeNode> fields, Range range) implements TypeNode,
+public record TupleTypeNode(QualifiedTypeName typeName, List<TypeNode> fields, Range range) implements TypeNode,
     ConstructableNamedTypeNode, VariantTypeNode {
 
   @Override
@@ -25,7 +24,7 @@ public record TupleTypeNode(@Nullable QualifiedTypeName typeName, List<TypeNode>
 
   @Override
   public String typeNameStr() {
-    return typeName != null ? typeName.toString() : "Tuple" + fields.size();
+    return typeName.toString();
   }
 
   @Override

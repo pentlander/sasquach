@@ -13,6 +13,11 @@ public record QualifiedModuleName(PackageName packageName, String moduleName) im
         qualifiedModuleName.substring(lastSlash + 1));
   }
 
+  @Override
+  public UnqualifiedTypeName simpleName() {
+    return new UnqualifiedTypeName(moduleName);
+  }
+
   public QualifiedTypeName qualifyInner(UnqualifiedTypeName name) {
     return new QualifiedTypeName(this, name);
   }

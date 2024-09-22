@@ -115,11 +115,11 @@ public class ModuleScopedNameResolver {
       namedTypeDefs.putAll(result.namedTypes());
       if (!typeStatement.isAlias()) {
         switch (typeStatement.typeNode()) {
-          case StructTypeNode node -> constructableTypes.put(node.typeName().name(), node);
-          case TupleTypeNode node -> constructableTypes.put(node.typeName().name(), node);
+          case StructTypeNode node -> constructableTypes.put(node.typeName().simpleName(), node);
+          case TupleTypeNode node -> constructableTypes.put(node.typeName().simpleName(), node);
           case SumTypeNode node -> node.variantTypeNodes()
               .forEach(variantTypeNode -> constructableTypes.put(
-                  variantTypeNode.typeName().name(),
+                  variantTypeNode.typeName().simpleName(),
                   variantTypeNode));
           default -> throw new IllegalStateException("Must have checked in AstValidator");
         }

@@ -1,13 +1,11 @@
 package com.pentlander.sasquach.type;
 
-import static com.pentlander.sasquach.Util.seqMap;
-import static java.util.Objects.requireNonNullElse;
+import static java.util.Objects.requireNonNullElseGet;
 import static java.util.stream.Collectors.joining;
 
 import com.pentlander.sasquach.ast.StructName;
-import com.pentlander.sasquach.ast.StructName.UnnamedStruct;
+import com.pentlander.sasquach.ast.StructName.SyntheticName;
 import com.pentlander.sasquach.ast.UnqualifiedName;
-import com.pentlander.sasquach.ast.UnqualifiedTypeName;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.type.StructType.RowModifier.NamedRow;
 import com.pentlander.sasquach.type.StructType.RowModifier.None;
@@ -17,7 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.StringJoiner;
 import java.util.regex.Pattern;
@@ -27,41 +24,45 @@ import org.jspecify.annotations.Nullable;
  * Type of a struct.
  *
  * @param memberTypes Map of field names to types. Field types include any value type, as well as
- *                   functions.
+ *                    functions.
  */
-public record StructType(StructName structName, List<TypeParameter> typeParameters, SequencedMap<UnqualifiedName, Type> memberTypes, Map<UnqualifiedTypeName, SumType> namedStructTypes, RowModifier rowModifier) implements
-    ParameterizedType, VariantType, TypeNester {
+public record StructType(StructName name, List<TypeParameter> typeParameters,
+                         SequencedMap<UnqualifiedName, Type> memberTypes,
+                         RowModifier rowModifier) implements ParameterizedType, VariantType,
+    TypeNester {
   private static final String PREFIX = "Struct";
   private static final Pattern TUPLE_FIELD_PATTERN = Pattern.compile("^_[0-9]+$");
 
-  public StructType {
-    memberTypes = requireNonNullElse(memberTypes, seqMap());
-    memberTypes.values().forEach(value -> Objects.requireNonNull(value, toString()));
-    structName = requireNonNullElse(structName, new UnnamedStruct(PREFIX + hashFieldTypes(
-        memberTypes)));
-    typeParameters = requireNonNullElse(typeParameters, List.of());
-    namedStructTypes = requireNonNullElse(namedStructTypes, Map.of());
+  public StructType(
+      @Nullable StructName name,
+      List<TypeParameter> typeParameters,
+      SequencedMap<UnqualifiedName, Type> memberTypes,
+      RowModifier rowModifier
+  ) {
+    this.name = requireNonNullElseGet(
+        name,
+        () -> SyntheticName.unqualified(PREFIX + hashFieldTypes(memberTypes)));
+    this.typeParameters = typeParameters;
+    this.memberTypes = memberTypes;
+    this.rowModifier = rowModifier;
   }
 
-  public StructType(@Nullable StructName name, SequencedMap<UnqualifiedName, Type> fieldTypes, Map<UnqualifiedTypeName, SumType> namedStructTypes) {
-    this(name, List.of(), fieldTypes, namedStructTypes, RowModifier.none());
+  public StructType(StructName name, SequencedMap<UnqualifiedName, Type> fieldTypes) {
+    this(name, List.of(), fieldTypes, RowModifier.none());
   }
 
-  public StructType(@Nullable StructName name, SequencedMap<UnqualifiedName, Type> fieldTypes) {
-    this(name, fieldTypes, Map.of());
+  public static StructType synthetic(SequencedMap<UnqualifiedName, Type> memberTypes, RowModifier rowModifier) {
+    var name = SyntheticName.unqualified(PREFIX + hashFieldTypes(memberTypes));
+    return new StructType(name, List.of(), memberTypes, rowModifier);
   }
 
-  public static StructType unnamed(SequencedMap<UnqualifiedName, Type> fieldTypes, RowModifier rowModifier) {
-    return new StructType(null, List.of(), fieldTypes, Map.of(), rowModifier);
-  }
-
-  public static StructType unnamed(SequencedMap<UnqualifiedName, Type> fieldTypes) {
-    return new StructType(null, List.of(), fieldTypes, Map.of(), RowModifier.none());
+  public static StructType synthetic(SequencedMap<UnqualifiedName, Type> memberTypes) {
+    return synthetic(memberTypes, RowModifier.none());
   }
 
   @Override
   public String typeNameStr() {
-    return structName.toString();
+    return name.toString();
   }
 
   public boolean isTuple() {
@@ -131,7 +132,7 @@ public record StructType(StructName structName, List<TypeParameter> typeParamete
 
   @Override
   public String toPrettyString() {
-    if (structName instanceof UnnamedStruct) {
+    if (name instanceof SyntheticName) {
       var joiner = new StringJoiner(", ", "{ ", "}");
       var fieldTypesStr = memberTypes().entrySet()
           .stream()

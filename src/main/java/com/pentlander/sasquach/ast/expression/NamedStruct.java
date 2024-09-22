@@ -12,7 +12,7 @@ import com.pentlander.sasquach.type.FunctionType;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 
-// TODO: Switch typeName to id
+// TODO: Switch name to id
 public record NamedStruct(UnqualifiedTypeName name, List<Field> fields, Range range) implements
     StructWithName {
 

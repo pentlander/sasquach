@@ -1,7 +1,11 @@
 package com.pentlander.sasquach.type;
 
+import static java.util.stream.Collectors.toMap;
+
 import java.lang.constant.ClassDesc;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
@@ -73,5 +77,14 @@ public final class TypeUtils {
 
   public static ClassDesc classDesc(Class<?> clazz) {
     return clazz.describeConstable().orElseThrow();
+  }
+
+  static Map<String, Type> typeParamsToUniversal(List<TypeParameter> typeAlias) {
+    return typeParams(typeAlias, TypeParameter::toUniversal);
+  }
+
+  static Map<String, Type> typeParams(Collection<TypeParameter> typeParams,
+      java.util.function.Function<TypeParameter, Type> paramFunc) {
+    return typeParams.stream().collect(toMap(TypeParameter::name, paramFunc));
   }
 }

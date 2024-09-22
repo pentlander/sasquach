@@ -6,10 +6,8 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.FunctionSignature;
 import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.type.TypeParameter;
-import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;
 
-@RecordBuilder
 public record Function(FunctionSignature functionSignature, Expression expression) implements
     Expression, RecurPoint {
   public Function {

@@ -41,7 +41,7 @@ public class EndToEndTest extends BaseTest {
 
   @Test
   void tuple() throws Exception {
-    var clazz = compile( """
+    var clazz = compileDebug( """
         Main {
           tuplify = [A, B](a: A, b: B): (A, B) -> (a, b),
           foo = (): Int -> {

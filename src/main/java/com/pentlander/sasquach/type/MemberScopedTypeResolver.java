@@ -75,14 +75,12 @@ import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
 public class MemberScopedTypeResolver {
-  private static final boolean DEBUG = true;
   private static final UnqualifiedName NAME_RECUR = new UnqualifiedName("recur");
   private final Map<Id, TLocalVariable> localVariables = new HashMap<>();
   private final Map<Expression, TypedExpression> typedExprs = new HashMap<>();
   private final TypeUnifier typeUnifier = new TypeUnifier();
   private final Builder errors = RangedErrorList.builder();
   private final AtomicInteger typeVarNum = new AtomicInteger();
-  private final AtomicInteger anonStructNum = new AtomicInteger();
   private final NameResolutionResult nameResolutionResult;
   private final NamedTypeResolver namedTypeResolver;
   private final ModuleScopedTypes moduleScopedTypes;
@@ -97,11 +95,10 @@ public class MemberScopedTypeResolver {
     this.moduleScopedTypes = moduleScopedTypes;
   }
 
-  public TypeResolutionResult checkType(NamedFunction namedFunction) {
+  public TypeResolutionResult checkType(NamedFunction namedFunction, FunctionType functionType) {
     nodeResolving = namedFunction;
     try {
-      var typedFunction = (TFunction) check(namedFunction.function(),
-          namedFunction.functionSignature().type());
+      var typedFunction = (TFunction) check(namedFunction.function(), functionType);
       return TypeResolutionResult.ofTypedMember(new TNamedFunction(namedFunction.id(),
           typedFunction), errors());
     } catch (RuntimeException e) {
@@ -121,7 +118,7 @@ public class MemberScopedTypeResolver {
   }
 
   private Map<String, Type> typeParamToVar(List<TypeParameter> typeParams) {
-    return typeParams(typeParams, param -> {
+    return TypeUtils.typeParams(typeParams, param -> {
       return param.toTypeVariable(typeVarNum.getAndIncrement());
     });
   }
@@ -141,11 +138,6 @@ public class MemberScopedTypeResolver {
         .orElseGet(() -> new ClassType(clazz, typeArgs));
   }
 
-  static Map<String, Type> typeParams(Collection<TypeParameter> typeParams,
-      java.util.function.Function<TypeParameter, Type> paramFunc) {
-    return typeParams.stream().collect(toMap(TypeParameter::name, paramFunc));
-  }
-
   public TypedExpression check(Expression expr, Type type) {
     checkNotInstanceOf(type, NamedType.class, "type must be resolved");
 
@@ -154,11 +146,14 @@ public class MemberScopedTypeResolver {
       case Function func when type instanceof FunctionType funcType -> {
         List<TFunctionParameter> funcParams = new ArrayList<>();
         // TODO need to include type args from parent if this is a nested func
-        var funcSig = namedTypeResolver.resolveTypeNode(func.functionSignature(), Map.of());
+        var funcSig = func.functionSignature();
+        var typeArgs = TypeUtils.typeParams(funcSig.typeParameters(), TypeParameter::toUniversal);
         for (int i = 0; i < func.parameters().size(); i++) {
           var param = funcSig.parameters().get(i);
+          var paramType = namedTypeResolver.resolveNames(param.type(), typeArgs, param.range());
           var expectedParamType = funcType.parameterTypes().get(i);
-          typeUnifier.unify(param.type(), expectedParamType);
+          typeUnifier.unify(paramType, expectedParamType);
+
           var typedVar = new TFunctionParameter(param.id(), Label.of(param.label(), null),  expectedParamType, param.range());
           funcParams.add(typedVar);
           putLocalVarType(param, typedVar);
@@ -219,8 +214,10 @@ public class MemberScopedTypeResolver {
       case Value value -> value;
       case VariableDeclaration varDecl -> {
         TypedExpression tExpr;
-        if (varDecl.typeAnnotation() != null) {
-          tExpr = check(varDecl.expression(), varDecl.typeAnnotation().type());
+        var typeAnnotation = varDecl.typeAnnotation();
+        if (typeAnnotation != null) {
+          var type = namedTypeResolver.resolveNames(typeAnnotation, Map.of());
+          tExpr = check(varDecl.expression(), type);
         } else {
           tExpr = infer(varDecl.expression());
         }
@@ -313,7 +310,7 @@ public class MemberScopedTypeResolver {
           Type paramType;
           var typeNode = param.typeNode();
           if (typeNode != null) {
-            paramType = namedTypeResolver.resolveNames(typeNode.type(), Map.of(), typeNode.range());
+            paramType = namedTypeResolver.resolveNames(typeNode, Map.of());
           } else {
             paramType = new TypeVariable(param.name().toString(), lvl);
           }
@@ -375,6 +372,7 @@ public class MemberScopedTypeResolver {
 
   private TypedExpression resolveStruct(Struct struct) {
     return switch (struct) {
+      // TODO I don't think this branch should ever be called, maybe throw here instead?
       case ModuleStruct s -> {
         var typedFunctions = typedFuncs(struct);
         var typedFields = struct.fields()
@@ -383,6 +381,7 @@ public class MemberScopedTypeResolver {
             .toList();
         yield TModuleStructBuilder.builder()
             .name(s.name())
+            .typeDefs(List.of())
             .fields(typedFields)
             .functions(typedFunctions)
             .range(s.range())
@@ -406,7 +405,7 @@ public class MemberScopedTypeResolver {
               typedFields.add(new TField(func.id(), tExpr));
 
               var typeVarCount = new AtomicInteger();
-              var paramMap = typeParams(
+              var paramMap = TypeUtils.typeParams(
                   function.typeParameters(),
                   _ -> new UniversalType(Integer.toString(typeVarCount.getAndIncrement())));
               var normalizeFuncType = namedTypeResolver.resolveNames(
@@ -493,7 +492,7 @@ public class MemberScopedTypeResolver {
             var structType = TypeUtils.asStructType(variantType).orElseThrow();
             var typedPatternVars = new ArrayList<TPatternVariable>();
             for (var binding : struct.bindings()) {
-              var fieldType = structType.fieldType(binding.id().name());
+              var fieldType = requireNonNull(structType.fieldType(binding.id().name()));
               var typedVar = new TPatternVariable(binding.id(), fieldType);
               putLocalVarType(binding, typedVar);
               typedPatternVars.add(typedVar);
@@ -907,10 +906,6 @@ public class MemberScopedTypeResolver {
           localVar));
     }
     localVariables.put(localVar.id(), typedLocalVar);
-  }
-
-  private Optional<Type> getLocalVarType(LocalVariable localVar) {
-    return Optional.ofNullable(localVariables.get(localVar.id()).variableType());
   }
 
   private Optional<TLocalVariable> getLocalVar(LocalVariable localVar) {
