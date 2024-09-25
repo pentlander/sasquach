@@ -2,7 +2,7 @@ package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.ast.StructName.SyntheticName;
 
-public sealed interface StructName extends Name permits QualifiedModuleName, QualifiedTypeName,
+public sealed interface StructName extends Name permits QualifiedTypeName,
     SyntheticName, UnqualifiedTypeName {
   UnqualifiedTypeName simpleName();
   record SyntheticName(StructName innerName) implements StructName {

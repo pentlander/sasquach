@@ -4,7 +4,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
-import com.pentlander.sasquach.ast.NamedTypeNode;
 import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
@@ -18,15 +17,12 @@ import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.FunctionCallTarget;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
 import com.pentlander.sasquach.type.NamedType;
-import com.pentlander.sasquach.type.Type;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class NameResolutionResult {
   private static final NameResolutionResult EMPTY = new NameResolutionResult(
@@ -38,23 +34,16 @@ public class NameResolutionResult {
   private final RangedErrorList errors;
 
   public NameResolutionResult(NameResolutionData nameData, RangedErrorList errors) {
-    this.namedTypeDefs = namedTypeDefs(nameData.namedTypeDefs());
+    this.namedTypeDefs = nameData.namedTypeDefs();
     this.nameData = nameData;
     this.errors = errors;
-  }
-
-  private static Map<NamedType, NamedTypeDefinition> namedTypeDefs(
-      Map<NamedTypeNode, NamedTypeDefinition> typeAliases) {
-    return typeAliases.entrySet()
-        .stream()
-        .collect(Collectors.toMap(entry -> (NamedType) entry.getKey().type(), Entry::getValue, (a, _) -> a));
   }
 
   public NameResolutionResult withErrors(RangedErrorList errors) {
     return new NameResolutionResult(nameData, this.errors.concat(errors));
   }
 
-  public NameResolutionResult withNamedTypeDefs(Map<NamedTypeNode, NamedTypeDefinition> namedTypes) {
+  public NameResolutionResult withNamedTypeDefs(Map<NamedType, NamedTypeDefinition> namedTypes) {
     var mergedNameData = NameResolutionDataBuilder.builder(nameData)
         .addNamedTypeDefs(namedTypes.entrySet())
         .build();

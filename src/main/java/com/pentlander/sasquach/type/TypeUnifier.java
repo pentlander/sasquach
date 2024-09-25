@@ -163,7 +163,7 @@ public class TypeUnifier {
         }
       }
       case SumType destSumType when sourceType instanceof SumType sourceSumType
-          && destSumType.typeNameStr().equals(sourceSumType.typeNameStr()) -> {
+          && destSumType.qualifiedTypeName().equals(sourceSumType.qualifiedTypeName()) -> {
         for (int i = 0; i < destSumType.types().size(); i++) {
           var destVariantType = destSumType.types().get(i);
           var sourceVariantType = sourceSumType.types().get(i);

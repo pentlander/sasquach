@@ -119,7 +119,7 @@ public class ModuleScopedTypeResolver {
       return new TypeDef(resolvedType, stmt.range().sourcePath());
     }).toList();
 
-    typedStructBuilder.name(struct.name())
+    typedStructBuilder.name(struct.moduleName())
         .typeDefs(typeDefs)
         .fields(typedFields)
         .range(struct.range());

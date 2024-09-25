@@ -1,7 +1,6 @@
 package com.pentlander.sasquach.type;
 
 import java.lang.constant.ClassDesc;
-import java.lang.invoke.MethodHandles;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -12,18 +11,6 @@ import java.util.stream.Collectors;
 public record ClassType(Class<?> typeClass, List<Type> typeArguments) implements Type, TypeNester {
   public ClassType(Class<?> typeClass) {
     this(typeClass, List.of());
-  }
-
-  public ClassType(String typeName) {
-    this(lookup(typeName));
-  }
-
-  private static Class<?> lookup(String typeName) {
-    try {
-      return MethodHandles.lookup().findClass(typeName.replace("/", "."));
-    } catch (ClassNotFoundException | IllegalAccessException e) {
-      throw new RuntimeException(e);
-    }
   }
 
   @Override
@@ -64,10 +51,8 @@ public record ClassType(Class<?> typeClass, List<Type> typeArguments) implements
       return true;
     } else if (other instanceof BuiltinType builtinType) {
       return typeClass.isAssignableFrom(builtinType.typeClass());
-    } else if (typeClass.equals(Object.class)) {
-      return true;
     }
-    return false;
+    return typeClass.equals(Object.class);
   }
 
   @Override

@@ -2,10 +2,9 @@ package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.type.NamedType;
-import com.pentlander.sasquach.type.Type;
 import java.util.List;
 
-public record NamedTypeNode(TypeIdentifier id, List<TypeNode> typeArgumentNodes, Type type, Range range) implements TypeNode {
+public record NamedTypeNode(TypeIdentifier id, List<TypeNode> typeArgumentNodes, NamedType type, Range range) implements TypeNode {
   public NamedTypeNode(TypeIdentifier id, List<TypeNode> typeArgumentNodes, Range range) {
     this(
         id,

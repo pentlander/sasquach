@@ -26,7 +26,7 @@ public sealed interface Struct extends Expression permits LiteralStruct,
   }
 
   static ModuleStructBuilder moduleStructBuilder(QualifiedModuleName name) {
-    return ModuleStructBuilder.builder().name(name);
+    return ModuleStructBuilder.builder().moduleName(name);
   }
 
   private static List<Field> tupleFields(List<Expression> expressions) {

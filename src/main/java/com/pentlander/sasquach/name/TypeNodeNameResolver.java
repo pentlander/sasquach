@@ -14,8 +14,9 @@ import com.pentlander.sasquach.ast.SumTypeNode;
 import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.ast.TupleTypeNode;
 import com.pentlander.sasquach.ast.TypeId;
-import com.pentlander.sasquach.ast.TypeStatement;
 import com.pentlander.sasquach.ast.TypeNode;
+import com.pentlander.sasquach.ast.TypeStatement;
+import com.pentlander.sasquach.type.NamedType;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.HashMap;
 import java.util.List;
@@ -26,7 +27,7 @@ public class TypeNodeNameResolver {
   private final List<TypeParameter> contextTypeParams;
   private final ModuleScopedNameResolver moduleScopedNameResolver;
   // Map of named type nodes to its type definition, e.g. type alias or type parameter
-  private final Map<NamedTypeNode, NamedTypeDefinition> namedTypes = new HashMap<>();
+  private final Map<NamedType, NamedTypeDefinition> namedTypes = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
   public TypeNodeNameResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
@@ -39,7 +40,7 @@ public class TypeNodeNameResolver {
   }
 
   private void putNamedType(NamedTypeNode typeNode, NamedTypeDefinition namedTypeDef) {
-    var existing = namedTypes.put(typeNode,  namedTypeDef);
+    var existing = namedTypes.put(typeNode.type(),  namedTypeDef);
     if (existing != null) {
       throw new IllegalStateException();
     }
@@ -133,5 +134,5 @@ public class TypeNodeNameResolver {
     }
   }
 
-  public record Result(Map<NamedTypeNode, NamedTypeDefinition> namedTypes, RangedErrorList errors) {}
+  public record Result(Map<NamedType, NamedTypeDefinition> namedTypes, RangedErrorList errors) {}
 }

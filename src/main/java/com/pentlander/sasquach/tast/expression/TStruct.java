@@ -1,8 +1,6 @@
 package com.pentlander.sasquach.tast.expression;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.Range.Single;
-import com.pentlander.sasquach.Util;
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.tast.TypedMember;
@@ -11,7 +9,7 @@ import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import java.util.List;
 
-public sealed interface TStruct extends TypedExpression permits TLiteralStruct, TStructWithName {
+public sealed interface TStruct extends TypedExpression permits TLiteralStruct, TModuleStruct {
   List<TField> fields();
 
   StructType structType();

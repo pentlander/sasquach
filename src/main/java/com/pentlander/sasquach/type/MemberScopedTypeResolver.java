@@ -380,7 +380,7 @@ public class MemberScopedTypeResolver {
             .map(field -> new TField(field.id(), infer(field.value())))
             .toList();
         yield TModuleStructBuilder.builder()
-            .name(s.name())
+            .name(s.moduleName())
             .typeDefs(List.of())
             .fields(typedFields)
             .functions(typedFunctions)

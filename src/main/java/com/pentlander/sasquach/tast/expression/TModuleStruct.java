@@ -15,7 +15,8 @@ import java.util.List;
 
 @RecordBuilder
 public record TModuleStruct(QualifiedModuleName name, List<TypeDef> typeDefs,
-                            List<TField> fields, List<TNamedFunction> functions, Range range) implements TStructWithName {
+                            List<TField> fields, List<TNamedFunction> functions, Range range) implements
+    TStruct {
   public TModuleStruct {
     requireNonNull(name);
     requireNonNull(typeDefs);
@@ -30,7 +31,7 @@ public record TModuleStruct(QualifiedModuleName name, List<TypeDef> typeDefs,
     functions().forEach(func -> fieldTypes.put(func.name(), func.type()));
     fields().forEach(field -> fieldTypes.put(field.name(), field.type()));
 
-    return new StructType(name(), fieldTypes);
+    return new StructType(name().toQualifiedTypeName(), fieldTypes);
   }
 
   public record TypeDef(Type type, SourcePath sourcePath) {}

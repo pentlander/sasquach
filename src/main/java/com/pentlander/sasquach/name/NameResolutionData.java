@@ -2,9 +2,7 @@ package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.ast.Id;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
-import com.pentlander.sasquach.ast.NamedTypeNode;
 import com.pentlander.sasquach.ast.RecurPoint;
-import com.pentlander.sasquach.ast.TypeId;
 import com.pentlander.sasquach.ast.TypeNode;
 import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
 import com.pentlander.sasquach.ast.expression.Function;
@@ -14,6 +12,7 @@ import com.pentlander.sasquach.ast.expression.Recur;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.FunctionCallTarget;
 import com.pentlander.sasquach.name.MemberScopedNameResolver.ReferenceDeclaration;
+import com.pentlander.sasquach.type.NamedType;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.lang.reflect.Field;
 import java.util.List;
@@ -23,7 +22,7 @@ import java.util.SequencedSet;
 @RecordBuilder
 @RecordBuilder.Options(addSingleItemCollectionBuilders = true, useImmutableCollections = true)
 public record NameResolutionData(
-    Map<NamedTypeNode, NamedTypeDefinition> namedTypeDefs,
+    Map<NamedType, NamedTypeDefinition> namedTypeDefs,
     Map<ForeignFieldAccess, Field> foreignFieldAccesses,
     Map<Id, ForeignFunctions> foreignFunctions,
     Map<Id, FunctionCallTarget> localFunctionCalls,
@@ -31,8 +30,4 @@ public record NameResolutionData(
     Map<Recur, RecurPoint> recurPoints,
     Map<Match, List<TypeNode>> matchTypeNodes,
     Map<Function, SequencedSet<LocalVariable>> funcCaptures
-) {
-  public sealed interface NamedStructId {
-    record Variant(TypeId sumTypeId, TypeId variantStructId) implements NamedStructId {}
-  }
-}
+) {}

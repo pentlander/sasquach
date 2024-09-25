@@ -279,7 +279,7 @@ class MemberScopedTypeResolverTest {
         memberScopedTypeResolver.checkType(func, func.functionSignature().type());
         when(moduleScopedTypes.getFunctionCallType(any())).thenReturn(new FuncCallType.Module());
         when(moduleScopedTypes.getThisType()).thenReturn(new StructType(
-            QUAL_MOD_NAME,
+            QUAL_MOD_NAME.toQualifiedTypeName(),
             seqMap(funcId.name(), func.functionSignature().type())));
 
         when(nameResolutionResult.getLocalFunctionCallTarget(any())).thenReturn(new QualifiedFunction());

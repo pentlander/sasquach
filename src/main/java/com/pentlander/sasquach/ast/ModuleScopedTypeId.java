@@ -2,7 +2,7 @@ package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range.Single;
 
-/** Identifier that is qualified by a module captureName. */
+/** Identifier that is qualified by a module name. */
 public record ModuleScopedTypeId(TypeId moduleId, TypeId id) implements TypeIdentifier {
   @Override
   public ModuleScopedTypeName name() {

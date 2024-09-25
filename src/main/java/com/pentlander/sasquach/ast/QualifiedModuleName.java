@@ -1,8 +1,9 @@
 package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.PackageName;
+import java.util.List;
 
-public record QualifiedModuleName(PackageName packageName, String moduleName) implements StructName, QualifiedName {
+public record QualifiedModuleName(PackageName packageName, String moduleName) implements QualifiedName {
   public static QualifiedModuleName fromString(String qualifiedModuleName) {
     var lastSlash = qualifiedModuleName.lastIndexOf("/");
     if (lastSlash == -1 || lastSlash == qualifiedModuleName.length() - 1) {
@@ -13,17 +14,12 @@ public record QualifiedModuleName(PackageName packageName, String moduleName) im
         qualifiedModuleName.substring(lastSlash + 1));
   }
 
-  @Override
-  public UnqualifiedTypeName simpleName() {
-    return new UnqualifiedTypeName(moduleName);
+  public QualifiedTypeName toQualifiedTypeName() {
+    return new QualifiedTypeName(qualifiedModuleName(), List.of());
   }
 
   public QualifiedTypeName qualifyInner(UnqualifiedTypeName name) {
     return new QualifiedTypeName(this, name);
-  }
-
-  public QualifiedTypeName qualifyInner(UnqualifiedName name) {
-    return new QualifiedTypeName(this, new UnqualifiedTypeName(name.value()));
   }
 
   public String javaName() {

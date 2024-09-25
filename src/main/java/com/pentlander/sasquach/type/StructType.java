@@ -51,13 +51,9 @@ public record StructType(StructName name, List<TypeParameter> typeParameters,
     this(name, List.of(), fieldTypes, RowModifier.none());
   }
 
-  public static StructType synthetic(SequencedMap<UnqualifiedName, Type> memberTypes, RowModifier rowModifier) {
-    var name = SyntheticName.unqualified(PREFIX + hashFieldTypes(memberTypes));
-    return new StructType(name, List.of(), memberTypes, rowModifier);
-  }
-
   public static StructType synthetic(SequencedMap<UnqualifiedName, Type> memberTypes) {
-    return synthetic(memberTypes, RowModifier.none());
+    var name = SyntheticName.unqualified(PREFIX + hashFieldTypes(memberTypes));
+    return new StructType(name, memberTypes);
   }
 
   @Override
@@ -98,7 +94,7 @@ public record StructType(StructName name, List<TypeParameter> typeParameters,
   @Override
   public ClassDesc classDesc() {
     return TypeUtils.classDesc(StructBase.class);
-//    return structName instanceof UnnamedStruct ? TypeUtils.classDesc(StructBase.class)
+//    return name instanceof SyntheticName ? TypeUtils.classDesc(StructBase.class)
 //        : internalClassDesc();
   }
 

@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.RecursiveTask;
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 
 public class ModuleResolver {
   // Map of qualified module captureName to resolver
@@ -49,6 +50,7 @@ public class ModuleResolver {
     return resolveCompilationUnit(compilationUnit.modules());
   }
 
+  @Nullable
   public ModuleScopedNameResolver resolveModule(QualifiedModuleName qualifiedModuleName) {
     var task = moduleScopedResolverTasks.get(qualifiedModuleName);
     if (task != null) {
