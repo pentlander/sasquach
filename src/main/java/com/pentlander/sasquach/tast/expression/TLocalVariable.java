@@ -1,7 +1,7 @@
 package com.pentlander.sasquach.tast.expression;
 
-import com.pentlander.sasquach.ast.Id;
-import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TPatternVariable;

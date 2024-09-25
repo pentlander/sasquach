@@ -1,12 +1,12 @@
 package com.pentlander.sasquach.parser;
 
 import com.pentlander.sasquach.SourcePath;
-import com.pentlander.sasquach.ast.QualifiedTypeName;
-import com.pentlander.sasquach.ast.UnqualifiedTypeName;
+import com.pentlander.sasquach.name.QualifiedTypeName;
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import java.util.LinkedHashMap;
+import java.util.Objects;
 import java.util.SequencedMap;
 import org.jspecify.annotations.NullMarked;
-import org.jspecify.annotations.Nullable;
 
 @NullMarked
 public final class ModuleContext {
@@ -25,8 +25,9 @@ public final class ModuleContext {
     localTypeNames.put(typeName, qualTypeName);
   }
 
-  @Nullable
   public QualifiedTypeName getTypeName(UnqualifiedTypeName typeName) {
-    return localTypeNames.get(typeName);
+    return Objects.requireNonNull(
+        localTypeNames.get(typeName),
+        "Could not resolve type name: " + typeName);
   }
 }

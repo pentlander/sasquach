@@ -2,7 +2,7 @@ package com.pentlander.sasquach.type;
 
 import static com.pentlander.sasquach.type.TypeUtils.typeWithParamsToString;
 
-import com.pentlander.sasquach.ast.QualifiedTypeName;
+import com.pentlander.sasquach.name.QualifiedTypeName;
 import com.pentlander.sasquach.runtime.StructBase;
 import java.lang.constant.ClassDesc;
 import java.util.List;

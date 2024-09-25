@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.id.TypeId;
 import java.util.List;
 
 public sealed interface Pattern extends Node {

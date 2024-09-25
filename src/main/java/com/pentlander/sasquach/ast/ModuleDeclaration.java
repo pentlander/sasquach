@@ -2,7 +2,8 @@ package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.expression.ModuleStruct;
-import com.pentlander.sasquach.ast.expression.Struct;
+import com.pentlander.sasquach.ast.id.QualifiedModuleId;
+import com.pentlander.sasquach.name.QualifiedModuleName;
 
 /**
  * Declaration of a module struct.

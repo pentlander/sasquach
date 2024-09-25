@@ -1,10 +1,10 @@
 package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.CompilationUnit;
-import com.pentlander.sasquach.ast.StructTypeNode;
-import com.pentlander.sasquach.ast.SumTypeNode;
-import com.pentlander.sasquach.ast.TupleTypeNode;
-import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.ast.typenode.StructTypeNode;
+import com.pentlander.sasquach.ast.typenode.SumTypeNode;
+import com.pentlander.sasquach.ast.typenode.TupleTypeNode;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.FunctionCall;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.expression.Block;

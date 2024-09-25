@@ -1,13 +1,11 @@
 package com.pentlander.sasquach.parser;
 
-import com.pentlander.sasquach.Position;
-import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.SourcePath;
-import com.pentlander.sasquach.ast.Id;
-import com.pentlander.sasquach.ast.TypeId;
-import com.pentlander.sasquach.ast.TypeNode;
-import com.pentlander.sasquach.ast.UnqualifiedName;
-import com.pentlander.sasquach.ast.UnqualifiedTypeName;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.ast.id.TypeId;
+import com.pentlander.sasquach.ast.typenode.TypeNode;
+import com.pentlander.sasquach.name.UnqualifiedName;
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.parser.SasquachParser.ForeignNameContext;
 import com.pentlander.sasquach.parser.SasquachParser.FunctionParameterListContext;
@@ -20,40 +18,19 @@ import com.pentlander.sasquach.type.TypeParameter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import org.antlr.v4.runtime.ParserRuleContext;
-import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.jspecify.annotations.Nullable;
 
-interface VisitorHelper {
+interface VisitorHelper extends RangeHelper {
   static TypeNode typeNode(TypeContext ctx, TypeVisitor visitor) {
     return ctx.accept(visitor);
   }
 
-  SourcePath sourcePath();
+  ModuleContext moduleCtx();
 
-  default Range rangeFrom(ParserRuleContext context) {
-    Token start = context.getStart();
-    Token end = context.getStop();
-    var pos = new Position(start.getLine(), start.getCharPositionInLine());
-    if (start.getLine() == end.getLine()) {
-      return new Range.Single(sourcePath(),
-          pos,
-          end.getCharPositionInLine() - start.getCharPositionInLine() + 1);
-    }
-    return new Range.Multi(sourcePath(),
-        pos,
-        new Position(end.getLine(), end.getCharPositionInLine() + end.getText().length()));
-  }
-
-  default Range.Single rangeFrom(Token token) {
-    return new Range.Single(sourcePath(),
-        new Position(token.getLine(), token.getCharPositionInLine()),
-        token.getText().length());
-  }
-
-  default Range.Single rangeFrom(TerminalNode node) {
-    return rangeFrom(node.getSymbol());
+  @Override
+  default SourcePath sourcePath() {
+    return moduleCtx().sourcePath();
   }
 
   default Id id(TerminalNode node) {

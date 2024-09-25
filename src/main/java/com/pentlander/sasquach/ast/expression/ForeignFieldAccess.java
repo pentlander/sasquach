@@ -1,8 +1,8 @@
 package com.pentlander.sasquach.ast.expression;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.Id;
-import com.pentlander.sasquach.ast.TypeId;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.ast.id.TypeId;
 
 public record ForeignFieldAccess(TypeId classAlias, Id id) implements Expression {
 

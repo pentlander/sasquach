@@ -1,8 +1,8 @@
 package com.pentlander.sasquach.type;
 
-import com.pentlander.sasquach.ast.QualifiedModuleId;
-import com.pentlander.sasquach.ast.StructName;
-import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.ast.id.QualifiedModuleId;
+import com.pentlander.sasquach.name.StructName;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.VarReference;

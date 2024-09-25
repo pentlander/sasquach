@@ -3,11 +3,11 @@ package com.pentlander.sasquach.ast.expression;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.Range.Single;
 import com.pentlander.sasquach.Util;
-import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.id.Id;
 import com.pentlander.sasquach.ast.Node;
-import com.pentlander.sasquach.ast.QualifiedModuleName;
-import com.pentlander.sasquach.ast.UnqualifiedName;
-import com.pentlander.sasquach.ast.UnqualifiedTypeName;
+import com.pentlander.sasquach.name.QualifiedModuleName;
+import com.pentlander.sasquach.name.UnqualifiedName;
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import java.util.List;
 import java.util.stream.Collectors;
 

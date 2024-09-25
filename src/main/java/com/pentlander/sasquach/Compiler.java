@@ -5,7 +5,7 @@ import static java.util.Objects.requireNonNull;
 import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.backend.BytecodeGenerator;
 import com.pentlander.sasquach.backend.BytecodeResult;
-import com.pentlander.sasquach.name.ModuleResolver;
+import com.pentlander.sasquach.nameres.ModuleResolver;
 import com.pentlander.sasquach.type.TypeResolver;
 import java.io.IOException;
 import java.io.UncheckedIOException;

@@ -2,7 +2,7 @@ package com.pentlander.sasquach.type;
 
 import static com.pentlander.sasquach.Preconditions.checkNotInstanceOf;
 
-import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.type.StructType.RowModifier;
 import java.util.LinkedHashMap;
 import java.util.List;

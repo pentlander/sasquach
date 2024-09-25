@@ -2,18 +2,18 @@ package com.pentlander.sasquach.parser;
 
 import com.pentlander.sasquach.Range.Single;
 import com.pentlander.sasquach.SourcePath;
-import com.pentlander.sasquach.ast.Id;
-import com.pentlander.sasquach.ast.QualifiedModuleId;
-import com.pentlander.sasquach.ast.QualifiedModuleName;
-import com.pentlander.sasquach.ast.SumTypeNode;
-import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode;
-import com.pentlander.sasquach.ast.SumTypeNode.VariantTypeNode.Singleton;
-import com.pentlander.sasquach.ast.TupleTypeNode;
-import com.pentlander.sasquach.ast.TypeId;
-import com.pentlander.sasquach.ast.TypeNode;
-import com.pentlander.sasquach.ast.TypeStatement;
-import com.pentlander.sasquach.ast.UnqualifiedName;
-import com.pentlander.sasquach.ast.UnqualifiedTypeName;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.ast.id.QualifiedModuleId;
+import com.pentlander.sasquach.name.QualifiedModuleName;
+import com.pentlander.sasquach.ast.typenode.SumTypeNode;
+import com.pentlander.sasquach.ast.typenode.SumTypeNode.VariantTypeNode;
+import com.pentlander.sasquach.ast.typenode.SumTypeNode.VariantTypeNode.Singleton;
+import com.pentlander.sasquach.ast.typenode.TupleTypeNode;
+import com.pentlander.sasquach.ast.id.TypeId;
+import com.pentlander.sasquach.ast.typenode.TypeNode;
+import com.pentlander.sasquach.ast.typenode.TypeStatement;
+import com.pentlander.sasquach.name.UnqualifiedName;
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.Use.Foreign;
 import com.pentlander.sasquach.ast.Use.Module;
@@ -203,6 +203,11 @@ public class StructVisitor extends
           new TypeVisitor(moduleCtx, qualifiedStructName).visitStructType(structSumCtx.structType());
       default -> throw new IllegalStateException();
     };
+  }
+
+  @Override
+  public ModuleContext moduleCtx() {
+    return moduleCtx;
   }
 
   @Override

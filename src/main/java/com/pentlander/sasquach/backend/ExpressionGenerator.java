@@ -7,7 +7,7 @@ import static com.pentlander.sasquach.type.TypeUtils.asStructType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
 import static java.util.Objects.requireNonNull;
 
-import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;

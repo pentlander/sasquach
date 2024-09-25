@@ -5,6 +5,11 @@ import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.ast.id.QualifiedModuleId;
+import com.pentlander.sasquach.ast.id.TypeId;
+import com.pentlander.sasquach.ast.typenode.FunctionSignature;
+import com.pentlander.sasquach.ast.typenode.TypeNode;
 import com.pentlander.sasquach.type.TypeParameter;
 
 /**

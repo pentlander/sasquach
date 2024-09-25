@@ -3,7 +3,7 @@ package com.pentlander.sasquach.ast.expression;
 import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.FunctionSignature;
+import com.pentlander.sasquach.ast.typenode.FunctionSignature;
 import com.pentlander.sasquach.ast.RecurPoint;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.List;

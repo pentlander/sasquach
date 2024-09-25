@@ -3,7 +3,7 @@ package com.pentlander.sasquach.type;
 import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.RangedErrorList;
-import com.pentlander.sasquach.ast.QualifiedModuleId;
+import com.pentlander.sasquach.ast.id.QualifiedModuleId;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TypedMember;
 import java.util.Collection;

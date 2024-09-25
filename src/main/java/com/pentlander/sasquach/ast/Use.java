@@ -1,6 +1,8 @@
 package com.pentlander.sasquach.ast;
 
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.ast.id.QualifiedModuleId;
 
 /**
  * An import declaration.

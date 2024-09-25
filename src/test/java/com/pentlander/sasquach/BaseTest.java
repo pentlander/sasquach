@@ -4,7 +4,7 @@ import static java.util.Objects.requireNonNull;
 import static org.junit.platform.commons.util.AnnotationUtils.findAnnotation;
 
 import com.pentlander.sasquach.BaseTest.Extension;
-import com.pentlander.sasquach.ast.QualifiedModuleName;
+import com.pentlander.sasquach.name.QualifiedModuleName;
 import com.pentlander.sasquach.backend.BytecodeResult;
 import java.io.IOException;
 import java.lang.annotation.ElementType;

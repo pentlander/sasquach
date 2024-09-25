@@ -5,9 +5,9 @@ import static java.util.Objects.requireNonNullElse;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Node;
-import com.pentlander.sasquach.ast.QualifiedModuleName;
-import com.pentlander.sasquach.ast.StructName;
-import com.pentlander.sasquach.ast.TypeStatement;
+import com.pentlander.sasquach.name.QualifiedModuleName;
+import com.pentlander.sasquach.name.StructName;
+import com.pentlander.sasquach.ast.typenode.TypeStatement;
 import com.pentlander.sasquach.ast.Use;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import java.util.List;

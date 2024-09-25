@@ -5,11 +5,8 @@ import static java.util.Objects.requireNonNullElse;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Argument;
-import com.pentlander.sasquach.ast.Id;
-import com.pentlander.sasquach.ast.TypeId;
-import com.pentlander.sasquach.ast.UnqualifiedTypeName;
-import com.pentlander.sasquach.type.FunctionType;
-import io.soabase.recordbuilder.core.RecordBuilder;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import java.util.List;
 
 // TODO: Switch name to id

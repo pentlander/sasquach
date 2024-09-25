@@ -1,11 +1,10 @@
 package com.pentlander.sasquach.ast.expression;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.FunctionSignature;
-import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.typenode.FunctionSignature;
+import com.pentlander.sasquach.ast.id.Id;
 import com.pentlander.sasquach.ast.Node;
-import com.pentlander.sasquach.ast.UnqualifiedName;
-import com.pentlander.sasquach.type.Type;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import java.util.List;
 
 public record NamedFunction(Id id, Function function) implements Node {

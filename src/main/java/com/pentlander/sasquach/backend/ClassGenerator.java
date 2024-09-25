@@ -10,8 +10,8 @@ import static java.lang.classfile.Signature.ClassTypeSig;
 import static java.lang.classfile.Signature.TypeVarSig;
 
 import com.pentlander.sasquach.SourcePath;
-import com.pentlander.sasquach.ast.UnqualifiedName;
-import com.pentlander.sasquach.ast.UnqualifiedTypeName;
+import com.pentlander.sasquach.name.UnqualifiedName;
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.backend.ExpressionGenerator.Context;

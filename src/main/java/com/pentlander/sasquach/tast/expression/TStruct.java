@@ -1,8 +1,8 @@
 package com.pentlander.sasquach.tast.expression;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.Id;
-import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.tast.TypedMember;
 import com.pentlander.sasquach.tast.TypedNode;
 import com.pentlander.sasquach.type.StructType;

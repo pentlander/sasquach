@@ -1,13 +1,12 @@
 package com.pentlander.sasquach.ast.expression;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.Id;
-import com.pentlander.sasquach.ast.TypeNode;
-import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.ast.typenode.TypeNode;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.tast.expression.TLocalVariable;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeVariable;
-import java.lang.classfile.Label;
 import org.jspecify.annotations.Nullable;
 
 /**

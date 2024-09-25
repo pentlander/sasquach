@@ -1,7 +1,7 @@
 package com.pentlander.sasquach.tast;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.QualifiedModuleId;
+import com.pentlander.sasquach.ast.id.QualifiedModuleId;
 import com.pentlander.sasquach.tast.expression.TStruct;
 import com.pentlander.sasquach.type.Type;
 

@@ -3,19 +3,17 @@ package com.pentlander.sasquach.parser;
 import com.pentlander.sasquach.PackageName;
 import com.pentlander.sasquach.SourcePath;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
-import com.pentlander.sasquach.ast.QualifiedModuleId;
-import com.pentlander.sasquach.ast.QualifiedModuleName;
+import com.pentlander.sasquach.ast.id.QualifiedModuleId;
+import com.pentlander.sasquach.name.QualifiedModuleName;
 import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.parser.SasquachParser.ModuleDeclarationContext;
 import com.pentlander.sasquach.parser.Visitor.StructIdentifier;
 
-class ModuleVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<ModuleDeclaration> implements VisitorHelper {
-  private final Visitor visitor;
+class ModuleVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<ModuleDeclaration> implements RangeHelper {
   private final SourcePath sourcePath;
   private final PackageName packageName;
 
-  ModuleVisitor(Visitor visitor, SourcePath sourcePath, PackageName packageName) {
-    this.visitor = visitor;
+  ModuleVisitor(SourcePath sourcePath, PackageName packageName) {
     this.sourcePath = sourcePath;
     this.packageName = packageName;
   }
@@ -27,7 +25,7 @@ class ModuleVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<M
     var structVisitor = new StructVisitor(moduleCtx, new StructIdentifier.ModuleName(name));
     var struct = (ModuleStruct) ctx.struct().accept(structVisitor);
     return new ModuleDeclaration(new QualifiedModuleId(name,
-        visitor.rangeFrom(ctx.moduleName().ID())), struct, visitor.rangeFrom(ctx));
+        rangeFrom(ctx.moduleName().ID())), struct, rangeFrom(ctx));
   }
 
   @Override

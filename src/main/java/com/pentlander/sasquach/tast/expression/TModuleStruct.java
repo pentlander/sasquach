@@ -4,8 +4,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.SourcePath;
-import com.pentlander.sasquach.ast.QualifiedModuleName;
-import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.name.QualifiedModuleName;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.tast.TNamedFunction;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;

@@ -2,9 +2,9 @@ package com.pentlander.sasquach.ast.expression;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Argument;
-import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.id.Id;
 import com.pentlander.sasquach.ast.Node;
-import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import java.util.List;
 import java.util.stream.Collectors;
 

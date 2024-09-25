@@ -2,7 +2,7 @@ package com.pentlander.sasquach.backend;
 
 import static java.util.Objects.requireNonNull;
 
-import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.id.Id;
 import com.pentlander.sasquach.tast.expression.TLocalVariable;
 import com.pentlander.sasquach.type.BuiltinType;
 import java.util.ArrayDeque;

@@ -3,8 +3,8 @@ package com.pentlander.sasquach.tast.expression;
 import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.StructName;
-import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.name.StructName;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import com.pentlander.sasquach.type.TypeUtils;

@@ -4,9 +4,9 @@ import static com.pentlander.sasquach.Util.mapNonNull;
 import static java.util.Objects.requireNonNullElse;
 import static java.util.stream.Collectors.joining;
 
-import com.pentlander.sasquach.ast.Id;
+import com.pentlander.sasquach.ast.id.Id;
 import com.pentlander.sasquach.ast.Labeled;
-import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.runtime.bootstrap.Func;
 import com.pentlander.sasquach.tast.TFunctionParameter;

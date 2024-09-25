@@ -3,15 +3,14 @@ package com.pentlander.sasquach.parser;
 import static com.pentlander.sasquach.Util.mapNonNull;
 import static java.util.Objects.requireNonNullElse;
 
-import com.pentlander.sasquach.SourcePath;
 import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.Branch;
-import com.pentlander.sasquach.ast.Id;
-import com.pentlander.sasquach.ast.NamedTypeNode;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.ast.typenode.NamedTypeNode;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.PatternVariable;
-import com.pentlander.sasquach.ast.TypeId;
-import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.ast.id.TypeId;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.BinaryExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator;
@@ -318,7 +317,7 @@ class ExpressionVisitor extends
   }
 
   @Override
-  public SourcePath sourcePath() {
-    return moduleCtx.sourcePath();
+  public ModuleContext moduleCtx() {
+    return moduleCtx;
   }
 }

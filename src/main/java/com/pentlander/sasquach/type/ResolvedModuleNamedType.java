@@ -1,9 +1,11 @@
 package com.pentlander.sasquach.type;
 
+import com.pentlander.sasquach.name.UnqualifiedName;
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import java.lang.constant.ClassDesc;
 import java.util.List;
 
-public record ResolvedModuleNamedType(com.pentlander.sasquach.ast.UnqualifiedName moduleName, com.pentlander.sasquach.ast.UnqualifiedTypeName name, List<Type> typeArgs,
+public record ResolvedModuleNamedType(UnqualifiedName moduleName, UnqualifiedTypeName name, List<Type> typeArgs,
                                       Type type) implements ResolvedNamedType {
   public ResolvedModuleNamedType {
     if (type instanceof NamedType) {

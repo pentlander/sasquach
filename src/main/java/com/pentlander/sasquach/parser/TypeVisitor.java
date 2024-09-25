@@ -3,21 +3,20 @@ package com.pentlander.sasquach.parser;
 import static java.util.Objects.requireNonNullElseGet;
 
 import com.pentlander.sasquach.PackageName;
-import com.pentlander.sasquach.SourcePath;
-import com.pentlander.sasquach.ast.BasicTypeNode;
-import com.pentlander.sasquach.ast.FunctionSignature;
-import com.pentlander.sasquach.ast.ModuleScopedTypeId;
-import com.pentlander.sasquach.ast.NamedTypeNode;
-import com.pentlander.sasquach.ast.QualifiedModuleName;
-import com.pentlander.sasquach.ast.QualifiedTypeName;
-import com.pentlander.sasquach.ast.StructTypeNode;
-import com.pentlander.sasquach.ast.StructTypeNode.RowModifier;
-import com.pentlander.sasquach.ast.TupleTypeNode;
-import com.pentlander.sasquach.ast.TypeId;
-import com.pentlander.sasquach.ast.TypeIdentifier;
-import com.pentlander.sasquach.ast.TypeNode;
-import com.pentlander.sasquach.ast.UnqualifiedName;
-import com.pentlander.sasquach.ast.UnqualifiedTypeName;
+import com.pentlander.sasquach.ast.typenode.BasicTypeNode;
+import com.pentlander.sasquach.ast.typenode.FunctionSignature;
+import com.pentlander.sasquach.ast.id.ModuleScopedTypeId;
+import com.pentlander.sasquach.ast.typenode.NamedTypeNode;
+import com.pentlander.sasquach.name.QualifiedModuleName;
+import com.pentlander.sasquach.name.QualifiedTypeName;
+import com.pentlander.sasquach.ast.typenode.StructTypeNode;
+import com.pentlander.sasquach.ast.typenode.StructTypeNode.RowModifier;
+import com.pentlander.sasquach.ast.typenode.TupleTypeNode;
+import com.pentlander.sasquach.ast.id.TypeId;
+import com.pentlander.sasquach.ast.id.TypeIdentifier;
+import com.pentlander.sasquach.ast.typenode.TypeNode;
+import com.pentlander.sasquach.name.UnqualifiedName;
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.parser.SasquachParser.FunctionTypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.NamedTypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.StructTypeContext;
@@ -118,8 +117,7 @@ class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Typ
   }
 
   @Override
-  public SourcePath sourcePath() {
-    return moduleCtx.sourcePath();
+  public ModuleContext moduleCtx() {
+    return moduleCtx;
   }
-
 }

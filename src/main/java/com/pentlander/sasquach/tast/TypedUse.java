@@ -1,8 +1,8 @@
 package com.pentlander.sasquach.tast;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.Id;
-import com.pentlander.sasquach.ast.QualifiedModuleId;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.ast.id.QualifiedModuleId;
 import com.pentlander.sasquach.type.Type;
 
 public sealed interface TypedUse extends TypedNode {

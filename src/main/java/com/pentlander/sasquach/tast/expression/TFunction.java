@@ -1,18 +1,15 @@
 package com.pentlander.sasquach.tast.expression;
 
 import static com.pentlander.sasquach.Util.concat;
-import static com.pentlander.sasquach.Util.listOfSize;
 import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.UnqualifiedName;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TFunctionSignature;
 import com.pentlander.sasquach.tast.TRecurPoint;
 import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.FunctionType.Param;
 import java.util.List;
-import java.util.stream.Stream;
 
 // Need to include both the signature and function type in preparation for not requiring
 // parameters types and return type for lambdas

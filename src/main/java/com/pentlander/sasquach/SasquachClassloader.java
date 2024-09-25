@@ -1,6 +1,6 @@
 package com.pentlander.sasquach;
 
-import com.pentlander.sasquach.ast.QualifiedModuleName;
+import com.pentlander.sasquach.name.QualifiedModuleName;
 
 /**
  * Classloader for Sasquach classes.

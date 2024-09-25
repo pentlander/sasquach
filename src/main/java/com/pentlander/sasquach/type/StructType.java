@@ -3,9 +3,9 @@ package com.pentlander.sasquach.type;
 import static java.util.Objects.requireNonNullElseGet;
 import static java.util.stream.Collectors.joining;
 
-import com.pentlander.sasquach.ast.StructName;
-import com.pentlander.sasquach.ast.StructName.SyntheticName;
-import com.pentlander.sasquach.ast.UnqualifiedName;
+import com.pentlander.sasquach.name.StructName;
+import com.pentlander.sasquach.name.StructName.SyntheticName;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.type.StructType.RowModifier.NamedRow;
 import com.pentlander.sasquach.type.StructType.RowModifier.None;

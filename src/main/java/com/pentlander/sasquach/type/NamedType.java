@@ -1,7 +1,7 @@
 package com.pentlander.sasquach.type;
 
-import com.pentlander.sasquach.ast.TypeIdentifier;
-import com.pentlander.sasquach.ast.TypeIdentifier.UnresolvedTypeName;
+import com.pentlander.sasquach.ast.id.TypeIdentifier;
+import com.pentlander.sasquach.ast.id.TypeIdentifier.UnresolvedTypeName;
 import java.lang.constant.ClassDesc;
 import java.util.List;
 

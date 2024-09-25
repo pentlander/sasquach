@@ -1,7 +1,6 @@
 package com.pentlander.sasquach.parser;
 
-import com.pentlander.sasquach.SourcePath;
-import com.pentlander.sasquach.ast.FunctionSignature;
+import com.pentlander.sasquach.ast.typenode.FunctionSignature;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.parser.SasquachParser.FunctionContext;
 import com.pentlander.sasquach.parser.SasquachParser.FunctionDeclarationContext;
@@ -35,7 +34,7 @@ class FunctionVisitor extends
   }
 
   @Override
-  public SourcePath sourcePath() {
-    return moduleCtx.sourcePath();
+  public ModuleContext moduleCtx() {
+    return moduleCtx;
   }
 }
