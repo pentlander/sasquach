@@ -1,20 +1,21 @@
 package com.pentlander.sasquach.nameres;
 
 import com.pentlander.sasquach.RangedErrorList;
-import com.pentlander.sasquach.ast.typenode.ConstructableNamedTypeNode;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
-import com.pentlander.sasquach.ast.typenode.StructTypeNode;
-import com.pentlander.sasquach.ast.typenode.SumTypeNode;
-import com.pentlander.sasquach.ast.typenode.TupleTypeNode;
-import com.pentlander.sasquach.ast.typenode.TypeStatement;
-import com.pentlander.sasquach.name.UnqualifiedName;
-import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.Use;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
+import com.pentlander.sasquach.ast.typenode.ConstructableNamedTypeNode;
+import com.pentlander.sasquach.ast.typenode.StructTypeNode;
+import com.pentlander.sasquach.ast.typenode.SumTypeNode;
+import com.pentlander.sasquach.ast.typenode.TupleTypeNode;
+import com.pentlander.sasquach.ast.typenode.TypeStatement;
+import com.pentlander.sasquach.name.QualifiedTypeName;
+import com.pentlander.sasquach.name.UnqualifiedName;
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.type.NamedType;
 import java.lang.invoke.MethodHandles;
 import java.util.HashMap;
@@ -24,8 +25,8 @@ import java.util.Optional;
 
 public class ModuleScopedNameResolver {
   private final Map<UnqualifiedName, ModuleScopedNameResolver> moduleImports = new HashMap<>();
-  private final Map<UnqualifiedTypeName, Class<?>> foreignClasses = new HashMap<>();
-  private final Map<UnqualifiedTypeName, TypeStatement> typeStatementNames = new HashMap<>();
+  private final Map<QualifiedTypeName, Class<?>> foreignClasses = new HashMap<>();
+  private final Map<QualifiedTypeName, TypeStatement> typeStatementNames = new HashMap<>();
   private final Map<NamedType, NamedTypeDefinition> namedTypeDefs = new HashMap<>();
   private final Map<UnqualifiedTypeName, ConstructableNamedTypeNode> constructableTypes = new HashMap<>();
   private final Map<UnqualifiedName, LiteralStruct.Field> fields = new HashMap<>();
@@ -96,9 +97,9 @@ public class ModuleScopedNameResolver {
 
   private void resolve(Use.Foreign use) {
     try {
-      var qualifiedName = use.id().name().javaName();
-      var clazz = MethodHandles.lookup().findClass(qualifiedName);
-      foreignClasses.put(use.alias().name().toTypeName(), clazz);
+      var qualifiedName = use.id().name();
+      var clazz = MethodHandles.lookup().findClass(qualifiedName.javaName());
+      foreignClasses.put(qualifiedName.toQualifiedTypeName(), clazz);
     } catch (ClassNotFoundException | IllegalAccessException e) {
       errors.add(new NameNotFoundError(use.alias(), "foreign class"));
     }
@@ -148,17 +149,13 @@ public class ModuleScopedNameResolver {
     }
   }
 
-  Optional<Class<?>> resolveForeignClass(UnqualifiedTypeName classAlias) {
+  Optional<Class<?>> resolveForeignClass(QualifiedTypeName classAlias) {
     return Optional.ofNullable(foreignClasses.get(classAlias));
   }
 
   Optional<ModuleDeclaration> resolveModule(UnqualifiedName moduleAlias) {
     return Optional.ofNullable(moduleImports.get(moduleAlias))
         .map(ModuleScopedNameResolver::moduleDeclaration);
-  }
-
-  Optional<ModuleScopedNameResolver> resolveModuleResolver(UnqualifiedName moduleAlias) {
-    return Optional.ofNullable(moduleImports.get(moduleAlias));
   }
 
   Optional<NamedFunction> resolveFunction(UnqualifiedName functionName) {
@@ -169,8 +166,14 @@ public class ModuleScopedNameResolver {
     return Optional.ofNullable(fields.get(fieldName));
   }
 
-  Optional<TypeStatement> resolveTypeAlias(UnqualifiedTypeName typeAlias) {
-    return Optional.ofNullable(typeStatementNames.get(typeAlias));
+  Optional<TypeStatement> resolveTypeAlias(QualifiedTypeName typeAlias) {
+    var moduleName = typeAlias.qualifiedModuleName();
+    if (module.name().equals(moduleName)) {
+      return Optional.ofNullable(typeStatementNames.get(typeAlias));
+    }
+
+    return Optional.ofNullable(moduleImports.get(moduleName.simpleName()))
+        .flatMap(resolver -> resolver.resolveTypeAlias(typeAlias));
   }
 
   Optional<ConstructableNamedTypeNode> resolveConstructableTypeNode(UnqualifiedTypeName structTypeName) {

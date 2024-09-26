@@ -6,11 +6,11 @@ import static java.util.Objects.requireNonNullElse;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.id.Id;
-import com.pentlander.sasquach.name.UnqualifiedTypeName;
+import com.pentlander.sasquach.name.QualifiedTypeName;
 import java.util.List;
 
 // TODO: Switch name to id
-public record NamedStruct(UnqualifiedTypeName name, List<Field> fields, Range range) implements
+public record NamedStruct(QualifiedTypeName name, List<Field> fields, Range range) implements
     StructWithName {
 
   public NamedStruct {
@@ -29,6 +29,6 @@ public record NamedStruct(UnqualifiedTypeName name, List<Field> fields, Range ra
     var args = fields.stream()
         .map(field -> new Argument(field.name(), field.value(), field.range()))
         .toList();
-    return new LocalFunctionCall(new Id(name.toName(), idRange), args, range);
+    return new LocalFunctionCall(new Id(name.simpleName().toName(), idRange), args, range);
   }
 }

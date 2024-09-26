@@ -1,15 +1,15 @@
 package com.pentlander.sasquach.type;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.id.Identifier;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.Node;
+import com.pentlander.sasquach.ast.id.TypeParameterId;
 
 /**
  *
  * Represents a type parameter defined as part of a type alias or function signature.
  */
-public record TypeParameter(Identifier id) implements Node, NamedTypeDefinition {
+public record TypeParameter(TypeParameterId id) implements Node, NamedTypeDefinition {
   public String name() {
     return id.name().toString();
   }

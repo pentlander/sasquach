@@ -3,18 +3,19 @@ package com.pentlander.sasquach.parser;
 import static java.util.Objects.requireNonNullElseGet;
 
 import com.pentlander.sasquach.PackageName;
+import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.id.TypeId;
+import com.pentlander.sasquach.ast.id.TypeIdentifier;
+import com.pentlander.sasquach.ast.id.TypeParameterId;
 import com.pentlander.sasquach.ast.typenode.BasicTypeNode;
 import com.pentlander.sasquach.ast.typenode.FunctionSignature;
-import com.pentlander.sasquach.ast.id.ModuleScopedTypeId;
 import com.pentlander.sasquach.ast.typenode.NamedTypeNode;
-import com.pentlander.sasquach.name.QualifiedModuleName;
-import com.pentlander.sasquach.name.QualifiedTypeName;
 import com.pentlander.sasquach.ast.typenode.StructTypeNode;
 import com.pentlander.sasquach.ast.typenode.StructTypeNode.RowModifier;
 import com.pentlander.sasquach.ast.typenode.TupleTypeNode;
-import com.pentlander.sasquach.ast.id.TypeId;
-import com.pentlander.sasquach.ast.id.TypeIdentifier;
 import com.pentlander.sasquach.ast.typenode.TypeNode;
+import com.pentlander.sasquach.name.QualifiedModuleName;
+import com.pentlander.sasquach.name.QualifiedTypeName;
 import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.parser.SasquachParser.FunctionTypeContext;
@@ -43,15 +44,28 @@ class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Typ
 
   @Override
   public TypeNode visitNamedType(NamedTypeContext ctx) {
-    var firstTypeId = typeId(ctx.typeIdentifier(0));
-    TypeIdentifier typeId = firstTypeId;
-    if (ctx.typeIdentifier().size() == 2) {
-      typeId = new ModuleScopedTypeId(firstTypeId, typeId(ctx.typeIdentifier(1)));
-    } else {
-      var builtin = BuiltinType.fromStringOpt(firstTypeId.name().toString());
+    var firstTypeIdCtx = ctx.typeIdentifier(0);
+    TypeIdentifier typeId;
+    if (ctx.typeIdentifier().size() == 1) {
+      var id = firstTypeIdCtx.ID();
+      var builtin = BuiltinType.fromStringOpt(id.getText());
       if (builtin.isPresent()) {
         return new BasicTypeNode(builtin.get(), rangeFrom(ctx));
       }
+
+      var name = new UnqualifiedTypeName(id.getText());
+      var qualName = moduleCtx().getTypeName(name);
+      var range = rangeFrom(id);
+      if (qualName != null) {
+        typeId = new TypeId(qualName, range);
+      } else {
+        typeId = new TypeParameterId(name, range);
+      }
+    } else {
+      var moduleName = new UnqualifiedName(firstTypeIdCtx.ID().getText());
+      var qualModuleName = moduleCtx.getModuleName(moduleName);
+      var name = new UnqualifiedTypeName(ctx.typeIdentifier(1).ID().getText());
+      typeId = new TypeId(new QualifiedTypeName(qualModuleName, name), (Range.Single) rangeFrom(ctx));
     }
 
     var typeArgs = typeArguments(ctx.typeArgumentList());
@@ -106,9 +120,9 @@ class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Typ
     return ctx.type().stream().map(this::typeNode).toList();
   }
 
-  private TypeId typeId(NamedTypeContext ctx) {
+  private TypeIdentifier typeId(NamedTypeContext ctx) {
     var namedTypeNode = (NamedTypeNode) ctx.accept(this);
-    return (TypeId) namedTypeNode.id();
+    return namedTypeNode.id();
   }
 
   private TypeNode typeNode(TypeContext ctx) {

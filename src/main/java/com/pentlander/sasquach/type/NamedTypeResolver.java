@@ -7,11 +7,10 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.RangedErrorList.Builder;
-import com.pentlander.sasquach.name.ModuleScopedTypeName;
 import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
 import com.pentlander.sasquach.ast.typenode.TypeNode;
 import com.pentlander.sasquach.ast.typenode.TypeStatement;
-import com.pentlander.sasquach.name.UnqualifiedTypeName;
+import com.pentlander.sasquach.name.QualifiedTypeName;
 import com.pentlander.sasquach.nameres.NameResolutionResult;
 import com.pentlander.sasquach.type.MemberScopedTypeResolver.TypeMismatchError;
 import com.pentlander.sasquach.type.MemberScopedTypeResolver.UnknownType;
@@ -55,16 +54,10 @@ public class NamedTypeResolver {
           resolvedTypeArgs.add(typeArg);
         }
 
-        yield switch (namedType.typeName()) {
-          case ModuleScopedTypeName(var moduleName, var name) -> new ResolvedModuleNamedType(
-              moduleName,
-              name,
-              resolvedTypeArgs,
-              resolveNames(typeStatement.type(), newTypeArgs, range));
-          case UnqualifiedTypeName typeName -> new ResolvedLocalNamedType(typeName.toString(),
-              resolvedTypeArgs,
-              resolveNames(typeStatement.type(), newTypeArgs, range));
-        };
+        yield new ResolvedModuleNamedType(
+            (QualifiedTypeName) namedType.typeName(),
+            resolvedTypeArgs,
+            resolveNames(typeStatement.type(), newTypeArgs, range));
       }
       case ForeignClass foreignClass -> {
         var clazz = foreignClass.clazz();
@@ -129,7 +122,7 @@ public class NamedTypeResolver {
               .map(t -> resolveNames(t, typeArgs, range))
               .map(VariantType.class::cast)
               .toList());
-      case ResolvedModuleNamedType namedType -> new ResolvedModuleNamedType(namedType.moduleName(),
+      case ResolvedModuleNamedType namedType -> new ResolvedModuleNamedType(
           namedType.name(),
           resolveNamedTypes(namedType.typeArgs(), typeArgs, range),
           resolveNames(namedType.type(), typeArgs, range));

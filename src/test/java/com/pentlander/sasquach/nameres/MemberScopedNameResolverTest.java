@@ -108,9 +108,9 @@ class MemberScopedNameResolverTest {
 
   @Test
   void resolveVariable_foreignField() throws Exception {
-    when(modResolver.resolveForeignClass(typeName("System"))).thenReturn(Optional.of(System.class));
+    when(modResolver.resolveForeignClass(typeName("java/lang/System"))).thenReturn(Optional.of(System.class));
 
-    var foreignFieldAccess = new ForeignFieldAccess(typeId("System"), id("out"));
+    var foreignFieldAccess = new ForeignFieldAccess(typeId("java/lang/System"), id("out"));
     var function = voidFunc("main", foreignFieldAccess);
     var memberResolver = new MemberScopedNameResolver(modResolver);
     var result = memberResolver.resolve(function);
@@ -121,9 +121,9 @@ class MemberScopedNameResolverTest {
 
   @Test
   void resolveVariable_foreignFunctionCall() throws Exception {
-    when(modResolver.resolveForeignClass(typeName("String"))).thenReturn(Optional.of(String.class));
+    when(modResolver.resolveForeignClass(typeName("java/lang/String"))).thenReturn(Optional.of(String.class));
 
-    var foreignFunctionCall = new ForeignFunctionCall(typeId("String"),
+    var foreignFunctionCall = new ForeignFunctionCall(typeId("java/lang/String"),
         id("valueOf"),
         args(intValue("5")),
         range());

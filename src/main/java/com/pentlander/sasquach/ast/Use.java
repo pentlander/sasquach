@@ -31,6 +31,6 @@ public sealed interface Use extends Node {
 
   @Override
   default String toPrettyString() {
-    return "use " + id().name().toString();
+    return "use " + id().name();
   }
 }

@@ -2,9 +2,9 @@ package com.pentlander.sasquach.nameres;
 
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.Util;
+import com.pentlander.sasquach.ast.id.TypeParameterId;
 import com.pentlander.sasquach.ast.typenode.BasicTypeNode;
 import com.pentlander.sasquach.ast.typenode.FunctionSignature;
-import com.pentlander.sasquach.ast.id.ModuleScopedTypeId;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
 import com.pentlander.sasquach.ast.typenode.NamedTypeNode;
@@ -112,18 +112,21 @@ public class TypeNodeNameResolver {
         } else if (typeParam.isPresent()) {
           // Exit if the named type matches a type parameter
           putNamedType(typeNode, typeParam.get());
+          throw new IllegalStateException();
         } else if (foreignClass.isPresent()) {
           putNamedType(typeNode, new ForeignClass(foreignClass.get()));
         } else {
           errors.add(new NameNotFoundError(typeId, "named type"));
         }
       }
-      case ModuleScopedTypeId(var moduleId, var id) -> {
-        var moduleName = moduleId.name();
-        var moduleScopedResolver = moduleScopedNameResolver.resolveModuleResolver(moduleName.toName());
-        moduleScopedResolver.flatMap(m -> m.resolveTypeAlias(id.name())).ifPresentOrElse(
-            alias -> putNamedType(typeNode, alias),
-            () -> errors.add(new NameNotFoundError(typeNode.id(), "module type")));
+      case TypeParameterId typeId -> {
+        var name = typeId.name();
+        contextTypeParams.stream()
+            .filter(param -> param.id().name().equals(name))
+            .findFirst()
+            .ifPresentOrElse(
+                typeParam -> putNamedType(typeNode, typeParam),
+                () -> errors.add(new NameNotFoundError(typeId, "named type")));
       }
     }
   }

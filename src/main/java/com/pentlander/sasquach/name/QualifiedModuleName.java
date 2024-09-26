@@ -14,6 +14,10 @@ public record QualifiedModuleName(PackageName packageName, String moduleName) im
         qualifiedModuleName.substring(lastSlash + 1));
   }
 
+  public UnqualifiedName simpleName() {
+    return new UnqualifiedName(moduleName);
+  }
+
   public QualifiedTypeName toQualifiedTypeName() {
     return new QualifiedTypeName(qualifiedModuleName(), List.of());
   }

@@ -2,21 +2,21 @@ package com.pentlander.sasquach;
 
 
 import com.pentlander.sasquach.ast.Argument;
-import com.pentlander.sasquach.ast.typenode.BasicTypeNode;
-import com.pentlander.sasquach.ast.typenode.FunctionSignature;
-import com.pentlander.sasquach.ast.id.Id;
-import com.pentlander.sasquach.ast.id.QualifiedModuleId;
-import com.pentlander.sasquach.name.QualifiedModuleName;
-import com.pentlander.sasquach.ast.id.TypeId;
-import com.pentlander.sasquach.ast.typenode.TypeNode;
-import com.pentlander.sasquach.name.UnqualifiedName;
-import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.expression.Expression;
 import com.pentlander.sasquach.ast.expression.Function;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
 import com.pentlander.sasquach.ast.expression.Value;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.ast.id.QualifiedModuleId;
+import com.pentlander.sasquach.ast.id.TypeId;
+import com.pentlander.sasquach.ast.typenode.BasicTypeNode;
+import com.pentlander.sasquach.ast.typenode.FunctionSignature;
+import com.pentlander.sasquach.ast.typenode.TypeNode;
+import com.pentlander.sasquach.name.QualifiedModuleName;
+import com.pentlander.sasquach.name.QualifiedTypeName;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.nameres.ForeignFunctionHandle;
 import com.pentlander.sasquach.nameres.ForeignFunctions;
 import com.pentlander.sasquach.tast.TFunctionParameter;
@@ -62,15 +62,15 @@ public class Fixtures {
   }
 
   public static TypeId typeId(String name) {
-    return new TypeId(name, range());
+    return new TypeId(typeName(name), range());
   }
 
   public static UnqualifiedName name(String name) {
     return new UnqualifiedName(name);
   }
 
-  public static UnqualifiedTypeName typeName(String name) {
-    return new UnqualifiedTypeName(name);
+  public static QualifiedTypeName typeName(String name) {
+    return QualifiedModuleName.fromString(name).toQualifiedTypeName();
   }
 
   public static QualifiedModuleId qualId(String name) {

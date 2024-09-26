@@ -43,7 +43,7 @@ class ModuleScopedNameResolverTest {
     resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
     resolveModule();
 
-    assertThat(resolver.resolveForeignClass(typeName("System")).get()).isEqualTo(System.class);
+    assertThat(resolver.resolveForeignClass(typeName("java/lang/System")).get()).isEqualTo(System.class);
   }
 
   @Test

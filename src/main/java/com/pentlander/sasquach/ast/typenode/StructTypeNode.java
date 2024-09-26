@@ -3,11 +3,11 @@ package com.pentlander.sasquach.ast.typenode;
 import static com.pentlander.sasquach.Util.toLinkedMap;
 
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.id.TypeIdentifier;
 import com.pentlander.sasquach.ast.typenode.StructTypeNode.RowModifier.NamedRow;
 import com.pentlander.sasquach.ast.typenode.StructTypeNode.RowModifier.None;
 import com.pentlander.sasquach.ast.typenode.StructTypeNode.RowModifier.UnnamedRow;
 import com.pentlander.sasquach.ast.typenode.SumTypeNode.VariantTypeNode;
-import com.pentlander.sasquach.ast.id.TypeId;
 import com.pentlander.sasquach.name.QualifiedTypeName;
 import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.type.StructType;
@@ -57,7 +57,7 @@ public record StructTypeNode(@Nullable QualifiedTypeName typeName,
       }
     }
 
-    static NamedRow namedRow(TypeId id, Range range) {
+    static NamedRow namedRow(TypeIdentifier id, Range range) {
       return new NamedRow(new NamedTypeNode(id, List.of(), range));
     }
 

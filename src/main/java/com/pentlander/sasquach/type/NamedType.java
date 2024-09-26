@@ -1,7 +1,7 @@
 package com.pentlander.sasquach.type;
 
 import com.pentlander.sasquach.ast.id.TypeIdentifier;
-import com.pentlander.sasquach.ast.id.TypeIdentifier.UnresolvedTypeName;
+import com.pentlander.sasquach.name.TypeName;
 import java.lang.constant.ClassDesc;
 import java.util.List;
 
@@ -10,7 +10,7 @@ import java.util.List;
  **/
 // TODO change id to a name
 public record NamedType(TypeIdentifier id, List<Type> typeArguments) implements Type {
-  UnresolvedTypeName typeName() {
+  TypeName typeName() {
     return id().name();
   }
 

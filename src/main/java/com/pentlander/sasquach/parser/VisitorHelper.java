@@ -1,12 +1,15 @@
 package com.pentlander.sasquach.parser;
 
+import static java.util.Objects.requireNonNull;
+
 import com.pentlander.sasquach.SourcePath;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.ast.id.Id;
 import com.pentlander.sasquach.ast.id.TypeId;
+import com.pentlander.sasquach.ast.id.TypeParameterId;
 import com.pentlander.sasquach.ast.typenode.TypeNode;
 import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.name.UnqualifiedTypeName;
-import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.parser.SasquachParser.ForeignNameContext;
 import com.pentlander.sasquach.parser.SasquachParser.FunctionParameterListContext;
 import com.pentlander.sasquach.parser.SasquachParser.LabelContext;
@@ -14,6 +17,7 @@ import com.pentlander.sasquach.parser.SasquachParser.TypeAnnotationContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeIdentifierContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeParameterListContext;
+import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,12 +44,19 @@ interface VisitorHelper extends RangeHelper {
   default TypeId typeId(TypeIdentifierContext ctx) {
     var node = ctx.ID();
     var name = new UnqualifiedTypeName(node.getText());
-    return new TypeId(name, rangeFrom(node));
+    // TODO Return an error instead of throwing
+    if (BuiltinType.fromStringOpt(name.toString()).isPresent()) {
+      throw new IllegalStateException("Type name cannot match builtin type: " + name);
+    }
+    var qualName = requireNonNull(moduleCtx().getTypeName(name), name.toString());
+    return new TypeId(qualName, rangeFrom(node));
   }
 
   default TypeId typeId(ForeignNameContext ctx) {
     var node = ctx.ID();
-    return new TypeId(new UnqualifiedTypeName(node.getText()), rangeFrom(node));
+    var name = new UnqualifiedTypeName(node.getText());
+    var qualName = requireNonNull(moduleCtx().getTypeName(name));
+    return new TypeId(qualName, rangeFrom(node));
   }
 
   default List<TypeParameter> typeParams(TypeParameterListContext ctx) {
@@ -53,7 +64,8 @@ interface VisitorHelper extends RangeHelper {
         .map(TypeParameterListContext::typeIdentifier)
         .orElse(List.of())
         .stream()
-        .map(typeParamCtx -> new TypeParameter(typeId(typeParamCtx)))
+        .map(typeParamCtx -> new TypeParameter(new TypeParameterId(new UnqualifiedTypeName(
+            typeParamCtx.ID().getText()), rangeFrom(typeParamCtx.ID()))))
         .toList();
   }
 

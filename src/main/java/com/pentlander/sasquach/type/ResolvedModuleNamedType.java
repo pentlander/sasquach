@@ -1,11 +1,10 @@
 package com.pentlander.sasquach.type;
 
-import com.pentlander.sasquach.name.UnqualifiedName;
-import com.pentlander.sasquach.name.UnqualifiedTypeName;
+import com.pentlander.sasquach.name.QualifiedTypeName;
 import java.lang.constant.ClassDesc;
 import java.util.List;
 
-public record ResolvedModuleNamedType(UnqualifiedName moduleName, UnqualifiedTypeName name, List<Type> typeArgs,
+public record ResolvedModuleNamedType(QualifiedTypeName name, List<Type> typeArgs,
                                       Type type) implements ResolvedNamedType {
   public ResolvedModuleNamedType {
     if (type instanceof NamedType) {
@@ -15,7 +14,7 @@ public record ResolvedModuleNamedType(UnqualifiedName moduleName, UnqualifiedTyp
 
   @Override
   public String typeNameStr() {
-    return moduleName + "." + name;
+    return name.toString();
   }
 
   @Override
@@ -35,6 +34,6 @@ public record ResolvedModuleNamedType(UnqualifiedName moduleName, UnqualifiedTyp
 
   @Override
   public String toPrettyString() {
-    return TypeUtils.typeWithArgsToString(moduleName + "." + name, typeArgs);
+    return TypeUtils.typeWithArgsToString(name.toString(), typeArgs);
   }
 }

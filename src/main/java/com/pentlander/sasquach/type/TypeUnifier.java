@@ -51,7 +51,7 @@ public class TypeUnifier {
               fieldTypes, rowModifier);
         }
         case ResolvedModuleNamedType namedType ->
-            new ResolvedModuleNamedType(namedType.moduleName(),
+            new ResolvedModuleNamedType(
                 namedType.name(),
                 resolve(namedType.typeArgs()),
                 resolve(namedType.type()));

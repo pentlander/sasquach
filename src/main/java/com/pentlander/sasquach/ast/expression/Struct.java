@@ -3,11 +3,11 @@ package com.pentlander.sasquach.ast.expression;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.Range.Single;
 import com.pentlander.sasquach.Util;
-import com.pentlander.sasquach.ast.id.Id;
 import com.pentlander.sasquach.ast.Node;
+import com.pentlander.sasquach.ast.id.Id;
 import com.pentlander.sasquach.name.QualifiedModuleName;
+import com.pentlander.sasquach.name.QualifiedTypeName;
 import com.pentlander.sasquach.name.UnqualifiedName;
-import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -21,7 +21,7 @@ public sealed interface Struct extends Expression permits LiteralStruct,
     return new LiteralStruct(tupleFields(expressions), List.of(), List.of(), range);
   }
 
-  static Struct namedStructConstructor(UnqualifiedTypeName name, List<Field> fields, Range range) {
+  static Struct namedStructConstructor(QualifiedTypeName name, List<Field> fields, Range range) {
     return new NamedStruct(name, fields, range);
   }
 

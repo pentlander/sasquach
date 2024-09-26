@@ -7,7 +7,7 @@ import java.util.Objects;
 
 public record QualifiedTypeName(QualifiedModuleName qualifiedModuleName,
                                 List<UnqualifiedTypeName> names) implements Name, StructName,
-    QualifiedName {
+    QualifiedName, TypeName {
 
   public QualifiedTypeName(QualifiedModuleName qualifiedModuleName, UnqualifiedTypeName name) {
     this(qualifiedModuleName, List.of(name));

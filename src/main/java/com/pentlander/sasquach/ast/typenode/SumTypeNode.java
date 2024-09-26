@@ -24,7 +24,7 @@ public record SumTypeNode(QualifiedModuleName moduleName, TypeId id,
   @Override
   public SumType type() {
     return new SumType(
-        moduleName.qualifyInner(id.name()),
+        id.name(),
         typeParameters,
         variantTypeNodes.stream().map(VariantTypeNode::type).toList());
   }
@@ -56,12 +56,12 @@ public record SumTypeNode(QualifiedModuleName moduleName, TypeId id,
 
       @Override
       public QualifiedTypeName typeName() {
-        return moduleName.qualifyInner(id.name());
+        return id.name();
       }
 
       @Override
       public SingletonType type() {
-        return new SingletonType(moduleName().qualifyInner(id().name()));
+        return new SingletonType(id().name());
       }
     }
   }

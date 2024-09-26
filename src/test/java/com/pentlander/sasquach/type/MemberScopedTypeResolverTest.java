@@ -173,7 +173,7 @@ class MemberScopedTypeResolverTest {
     @Test
     void constructor() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignConstructors(File.class));
-      var call = new ForeignFunctionCall(typeId("File"),
+      var call = new ForeignFunctionCall(typeId("java/io/File"),
           id("new"),
           args(stringValue("foo.txt")),
           range());
@@ -186,7 +186,7 @@ class MemberScopedTypeResolverTest {
     @Test
     void staticFunc() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class, "get"));
-      var call = new ForeignFunctionCall(typeId("Paths"),
+      var call = new ForeignFunctionCall(typeId("java/nio/file/Paths"),
           id("get"),
           args(stringValue("foo.txt")),
           range());
@@ -200,7 +200,7 @@ class MemberScopedTypeResolverTest {
     void virtualFunc() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(String.class,
           m -> m.getName().equals("concat")));
-      var call = new ForeignFunctionCall(typeId("String"),
+      var call = new ForeignFunctionCall(typeId("java/lang/String"),
           id("concat"),
           args(stringValue("foo"), stringValue("bar")),
           range());
@@ -213,7 +213,7 @@ class MemberScopedTypeResolverTest {
     @Test
     void constructorNotFound() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignConstructors(File.class));
-      var call = new ForeignFunctionCall(typeId("File"),
+      var call = new ForeignFunctionCall(typeId("java/io/File"),
           id("new"),
           args(intValue("45"), intValue("10")),
           range());
@@ -227,7 +227,7 @@ class MemberScopedTypeResolverTest {
     void staticFuncNotFound() {
       when(nameResolutionResult.getForeignFunction(any())).thenReturn(foreignMethods(Paths.class,
           m -> m.getParameterCount() == 2));
-      var call = new ForeignFunctionCall(typeId("Paths"),
+      var call = new ForeignFunctionCall(typeId("java/nio/file/Paths"),
           id("get"),
           args(intValue("10"), ArrayValue.ofElementType(BuiltinType.STRING, List.of(), range())),
           range());
