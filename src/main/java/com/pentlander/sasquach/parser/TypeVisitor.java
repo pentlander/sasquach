@@ -62,8 +62,8 @@ class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Typ
         typeId = new TypeParameterId(name, range);
       }
     } else {
-      var moduleName = new UnqualifiedName(firstTypeIdCtx.ID().getText());
-      var qualModuleName = moduleCtx.getModuleName(moduleName);
+      var moduleId = id(firstTypeIdCtx.ID());
+      var qualModuleName = moduleCtx.getModuleName(moduleId);
       var name = new UnqualifiedTypeName(ctx.typeIdentifier(1).ID().getText());
       typeId = new TypeId(new QualifiedTypeName(qualModuleName, name), (Range.Single) rangeFrom(ctx));
     }

@@ -133,7 +133,7 @@ public class MemberScopedNameResolver {
     switch (struct) {
       case ModuleStruct moduleStruct -> moduleStruct.useList().forEach(this::resolve);
       case NamedStruct namedStruct -> {
-        var foundStruct = moduleScopedNameResolver.resolveConstructableTypeNode(namedStruct.name().simpleName()).isPresent();
+        var foundStruct = moduleScopedNameResolver.resolveConstructableTypeNode(namedStruct.name()).isPresent();
         if (!foundStruct) {
           errors.add(new NameNotFoundError(
               namedStruct.name(),
@@ -284,7 +284,7 @@ public class MemberScopedNameResolver {
     for (var branch : match.branches()) {
       pushScope();
       var pattern = branch.pattern();
-      var nodeType = moduleScopedNameResolver.resolveConstructableTypeNode(pattern.id().name().simpleName());
+      var nodeType = moduleScopedNameResolver.resolveConstructableTypeNode(pattern.id().name());
       switch (branch.pattern()) {
         case Pattern.Singleton(var id) -> nodeType.ifPresentOrElse(branchTypeNodes::add,
             () -> errors.add(new NameNotFoundError(id, "singleton variant")));

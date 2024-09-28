@@ -1,12 +1,11 @@
 package com.pentlander.sasquach;
 
-import static com.pentlander.sasquach.Util.mapNonNull;
-
 import com.pentlander.sasquach.Range.Single;
 import com.pentlander.sasquach.ast.CompilationUnit;
+import com.pentlander.sasquach.parser.CompileResult;
 import com.pentlander.sasquach.parser.SasquachLexer;
 import com.pentlander.sasquach.parser.SasquachParser;
-import com.pentlander.sasquach.parser.Visitor;
+import com.pentlander.sasquach.parser.CompilationUnitVisitor;
 import java.util.ArrayList;
 import java.util.List;
 import org.antlr.v4.runtime.BaseErrorListener;
@@ -18,7 +17,7 @@ import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 
 public class CompilationUnitParser {
-  public CompilationUnit getCompilationUnit(Source source) {
+  public CompileResult<CompilationUnit> parse(Source source) {
     CharStream charStream = CharStreams.fromString(source.sourceString());
     var lexer = new SasquachLexer(charStream);
     var errorListener = new SasquachTreeWalkErrorListener(source);
@@ -29,8 +28,8 @@ public class CompilationUnitParser {
     var parser = new SasquachParser(tokenStream);
     parser.addErrorListener(errorListener);
 
-    var visitor = new Visitor(source.path(), new PackageName(source.packageName()));
-    return parser.compilationUnit().accept(visitor.compilationUnitVisitor());
+    var visitor = new CompilationUnitVisitor(source.path(), new PackageName(source.packageName()));
+    return parser.compilationUnit().accept(visitor);
   }
 
   static class SasquachTreeWalkErrorListener extends BaseErrorListener {

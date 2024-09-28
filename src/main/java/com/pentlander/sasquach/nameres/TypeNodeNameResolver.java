@@ -110,8 +110,7 @@ public class TypeNodeNameResolver {
         } else if (typeAlias.isPresent()) {
           putNamedType(typeNode, typeAlias.get());
         } else if (typeParam.isPresent()) {
-          // Exit if the named type matches a type parameter
-          putNamedType(typeNode, typeParam.get());
+          // TODO remove branch
           throw new IllegalStateException();
         } else if (foreignClass.isPresent()) {
           putNamedType(typeNode, new ForeignClass(foreignClass.get()));

@@ -14,6 +14,8 @@ import com.pentlander.sasquach.ast.typenode.SumTypeNode;
 import com.pentlander.sasquach.ast.typenode.TupleTypeNode;
 import com.pentlander.sasquach.ast.typenode.TypeStatement;
 import com.pentlander.sasquach.name.QualifiedTypeName;
+import com.pentlander.sasquach.name.StructName;
+import com.pentlander.sasquach.name.StructName.SyntheticName;
 import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.type.NamedType;
@@ -149,13 +151,18 @@ public class ModuleScopedNameResolver {
     }
   }
 
+
   Optional<Class<?>> resolveForeignClass(QualifiedTypeName classAlias) {
     return Optional.ofNullable(foreignClasses.get(classAlias));
   }
 
   Optional<ModuleDeclaration> resolveModule(UnqualifiedName moduleAlias) {
-    return Optional.ofNullable(moduleImports.get(moduleAlias))
+    return getModuleNameResolver(moduleAlias)
         .map(ModuleScopedNameResolver::moduleDeclaration);
+  }
+
+  private Optional<ModuleScopedNameResolver> getModuleNameResolver(UnqualifiedName moduleAlias) {
+    return Optional.ofNullable(moduleImports.get(moduleAlias));
   }
 
   Optional<NamedFunction> resolveFunction(UnqualifiedName functionName) {
@@ -172,11 +179,22 @@ public class ModuleScopedNameResolver {
       return Optional.ofNullable(typeStatementNames.get(typeAlias));
     }
 
-    return Optional.ofNullable(moduleImports.get(moduleName.simpleName()))
+    return getModuleNameResolver(moduleName.simpleName())
         .flatMap(resolver -> resolver.resolveTypeAlias(typeAlias));
   }
 
-  Optional<ConstructableNamedTypeNode> resolveConstructableTypeNode(UnqualifiedTypeName structTypeName) {
-    return Optional.ofNullable(constructableTypes.get(structTypeName));
+  Optional<ConstructableNamedTypeNode> resolveConstructableTypeNode(StructName structTypeName) {
+    return switch (structTypeName) {
+      case QualifiedTypeName qualName -> {
+        var moduleName = qualName.qualifiedModuleName();
+        if (module.name().equals(moduleName)) {
+          yield Optional.ofNullable(constructableTypes.get(qualName.simpleName()));
+        }
+        yield getModuleNameResolver(moduleName.simpleName()).flatMap(resolver -> resolver.resolveConstructableTypeNode(
+            structTypeName));
+      }
+      case UnqualifiedTypeName name -> Optional.ofNullable(constructableTypes.get(name));
+      case SyntheticName syntheticName -> throw new IllegalStateException();
+    };
   }
 }

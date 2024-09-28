@@ -24,7 +24,4 @@ public record QualifiedModuleId(QualifiedModuleName moduleName, Range.Single ran
     return moduleName;
   }
 
-  public ClassDesc toClassDesc() {
-    return ClassDesc.ofInternalName(name().toString());
-  }
 }

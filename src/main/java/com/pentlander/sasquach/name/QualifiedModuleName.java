@@ -1,9 +1,12 @@
 package com.pentlander.sasquach.name;
 
 import com.pentlander.sasquach.PackageName;
+import java.lang.constant.ClassDesc;
 import java.util.List;
 
 public record QualifiedModuleName(PackageName packageName, String moduleName) implements QualifiedName {
+  public static final QualifiedModuleName EMPTY = new QualifiedModuleName(new PackageName("EMPTY"), "EMPTY");
+
   public static QualifiedModuleName fromString(String qualifiedModuleName) {
     var lastSlash = qualifiedModuleName.lastIndexOf("/");
     if (lastSlash == -1 || lastSlash == qualifiedModuleName.length() - 1) {
@@ -38,5 +41,9 @@ public record QualifiedModuleName(PackageName packageName, String moduleName) im
   @Override
   public QualifiedModuleName qualifiedModuleName() {
     return this;
+  }
+
+  public ClassDesc toClassDesc() {
+    return ClassDesc.ofInternalName(toString());
   }
 }

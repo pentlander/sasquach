@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.type;
 
 import com.pentlander.sasquach.ast.id.QualifiedModuleId;
+import com.pentlander.sasquach.name.QualifiedModuleName;
 import com.pentlander.sasquach.name.StructName;
 import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
@@ -13,6 +14,8 @@ public interface ModuleScopedTypes {
   StructType getThisType();
 
   StructName getLiteralStructName(Map<UnqualifiedName, Type> memberTypes);
+
+  StructType getModuleType(QualifiedModuleName moduleName);
 
   FuncCallType getFunctionCallType(LocalFunctionCall funcCall);
 

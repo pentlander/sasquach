@@ -8,15 +8,16 @@ import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.RangedErrorList.Builder;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
-import com.pentlander.sasquach.name.StructName;
-import com.pentlander.sasquach.name.StructName.SyntheticName;
-import com.pentlander.sasquach.name.UnqualifiedName;
-import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
 import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.VarReference;
+import com.pentlander.sasquach.name.QualifiedModuleName;
+import com.pentlander.sasquach.name.StructName;
+import com.pentlander.sasquach.name.StructName.SyntheticName;
+import com.pentlander.sasquach.name.UnqualifiedName;
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.nameres.MemberScopedNameResolver.QualifiedFunction;
 import com.pentlander.sasquach.nameres.MemberScopedNameResolver.ReferenceDeclaration.Local;
 import com.pentlander.sasquach.nameres.MemberScopedNameResolver.ReferenceDeclaration.Module;
@@ -166,6 +167,11 @@ public class ModuleScopedTypeResolver {
     }
 
     @Override
+    public StructType getModuleType(QualifiedModuleName moduleName) {
+      return moduleTypeProvider.getModuleType(moduleName);
+    }
+
+    @Override
     public FuncCallType getFunctionCallType(LocalFunctionCall funcCall) {
       var callTarget = nameResolutionResult.getLocalFunctionCallTarget(funcCall);
       return switch (callTarget) {
@@ -179,7 +185,7 @@ public class ModuleScopedTypeResolver {
       return switch (nameResolutionResult.getVarReference(varRef)) {
         case Local local -> new VarRefType.LocalVar(local.localVariable());
         case Module(var modDecl) ->
-            new VarRefType.Module(modDecl.id(), moduleTypeProvider.getModuleType(modDecl.id()));
+            new VarRefType.Module(modDecl.id(), moduleTypeProvider.getModuleType(modDecl.name()));
         case Singleton _ -> new VarRefType.Singleton();
       };
     }

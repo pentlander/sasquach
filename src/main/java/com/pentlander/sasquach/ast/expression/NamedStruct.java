@@ -1,7 +1,6 @@
 package com.pentlander.sasquach.ast.expression;
 
 import static java.util.Objects.requireNonNull;
-import static java.util.Objects.requireNonNullElse;
 
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Argument;
@@ -15,7 +14,7 @@ public record NamedStruct(QualifiedTypeName name, List<Field> fields, Range rang
 
   public NamedStruct {
     requireNonNull(name);
-    fields = requireNonNullElse(fields, List.of());
+    requireNonNull(fields);
     requireNonNull(range);
   }
 

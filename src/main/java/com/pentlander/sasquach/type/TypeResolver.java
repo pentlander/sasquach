@@ -7,6 +7,7 @@ import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.id.QualifiedModuleId;
 import com.pentlander.sasquach.ast.expression.Expression;
+import com.pentlander.sasquach.name.QualifiedModuleName;
 import com.pentlander.sasquach.nameres.NameResolutionResult;
 import java.util.Collection;
 import java.util.HashMap;
@@ -15,17 +16,13 @@ import java.util.concurrent.RecursiveTask;
 import java.util.stream.Stream;
 
 public class TypeResolver implements ModuleTypeProvider {
-  private final Map<QualifiedModuleId, ModuleTask> moduleTasks = new HashMap<>();
+  private final Map<QualifiedModuleName, ModuleTask> moduleTasks = new HashMap<>();
   private final Map<QualifiedModuleId, FunctionsTask> functionsTasks = new HashMap<>();
 
   final NameResolutionResult nameResolutionResult;
 
   public TypeResolver(NameResolutionResult nameResolutionResult) {
     this.nameResolutionResult = nameResolutionResult;
-  }
-
-  public TypeResolutionResult resolve(CompilationUnit compilationUnit) {
-    return resolve(compilationUnit.modules().stream());
   }
 
   public TypeResolutionResult resolve(Collection<CompilationUnit> compilationUnits) {
@@ -39,13 +36,13 @@ public class TypeResolver implements ModuleTypeProvider {
     // inside the fork
     modules.forEach(module -> {
       var resolver = new ModuleScopedTypeResolver(nameResolutionResult, module, this);
-      moduleTasks.put(module.id(), new ModuleTask(module, resolver));
+      moduleTasks.put(module.name(), new ModuleTask(module, resolver));
       functionsTasks.put(module.id(), new FunctionsTask(resolver));
     });
     // Fork all the tasks so they all start running
     moduleTasks.values().forEach(RecursiveTask::fork);
     // Await all the results
-    Map<Expression, Type> moduleTypes = moduleTasks.values()
+    Map<Expression, Type> _ = moduleTasks.values()
         .stream()
         .collect(toMap(task -> task.moduleDeclaration.struct(), RecursiveTask::join));
     var moduleResult = TypeResolutionResult.ofTypedModules(Map.of(), RangedErrorList.empty());
@@ -58,8 +55,8 @@ public class TypeResolver implements ModuleTypeProvider {
             TypeResolutionResult::merge);
   }
 
-  public StructType getModuleType(QualifiedModuleId qualifiedModuleId) {
-    return moduleTasks.get(qualifiedModuleId).join();
+  public StructType getModuleType(QualifiedModuleName moduleName) {
+    return moduleTasks.get(moduleName).join();
   }
 
   private static class ModuleTask extends RecursiveTask<StructType> {

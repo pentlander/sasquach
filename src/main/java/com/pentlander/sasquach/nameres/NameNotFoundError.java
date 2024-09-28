@@ -7,7 +7,7 @@ import com.pentlander.sasquach.ast.id.Identifier;
 import com.pentlander.sasquach.name.Name;
 import java.util.List;
 
-record NameNotFoundError(Name name, Range range, String nodeType, List<String> suggestions) implements RangedError {
+public record NameNotFoundError(Name name, Range range, String nodeType, List<String> suggestions) implements RangedError {
   public NameNotFoundError(Identifier id, String nodeType, List<String> suggestions) {
     this(id.name(), id.range(), nodeType, suggestions);
   }
@@ -24,6 +24,6 @@ record NameNotFoundError(Name name, Range range, String nodeType, List<String> s
     return """
         Could not find %s '%s' in scope.
         %s%s
-        """.formatted(nodeType, name(), source.highlight(range()), matchesStr);
+        """.formatted(nodeType, name().toPrettyString(), source.highlight(range()), matchesStr);
   }
 }

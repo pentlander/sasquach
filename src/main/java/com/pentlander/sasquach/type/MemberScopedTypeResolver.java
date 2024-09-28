@@ -23,6 +23,7 @@ import com.pentlander.sasquach.ast.id.Id;
 import com.pentlander.sasquach.ast.Labeled;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
+import com.pentlander.sasquach.name.QualifiedModuleName;
 import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.*;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
@@ -347,15 +348,17 @@ public class MemberScopedTypeResolver {
   }
 
   private TypedExpression resolveVarReference(VarReference varRef) {
+    var name = varRef.name();
+    var range = varRef.range();
     return switch (moduleScopedTypes.getVarReferenceType(varRef)) {
       case Module(var moduleId, var fieldType) ->
-          new TVarReference(varRef.id(), new RefDeclaration.Module(moduleId), fieldType);
+          new TVarReference(name, new RefDeclaration.Module(moduleId.moduleName()), fieldType, range);
       case LocalVar(var localVar) -> {
         var typedLocalVar = getLocalVar(localVar).orElseThrow(() -> new IllegalStateException(
             "Unable to find local: " + localVar));
-        yield new TVarReference(varRef.id(),
+        yield new TVarReference(name,
             new Local(typedLocalVar),
-            typedLocalVar.variableType());
+            typedLocalVar.variableType(), range);
       }
       case Singleton _ -> resolveMemberFunctionCall(
           thisExpr(varRef.range()),
@@ -431,10 +434,16 @@ public class MemberScopedTypeResolver {
       }
       // Named structs need to have their field types checked against their type definition, similar
       // to functions.
-      case NamedStruct namedStruct ->
-          resolveMemberFunctionCall(new TThisExpr(moduleScopedTypes.getThisType(),
-              namedStruct.range()), namedStruct.toFunctionCall());
+      case NamedStruct namedStruct -> {
+        var moduleRef = moduleRef(namedStruct.name().qualifiedModuleName(), namedStruct.range());
+        yield resolveMemberFunctionCall(moduleRef, namedStruct.toFunctionCall());
+      }
     };
+  }
+
+  private TVarReference moduleRef(QualifiedModuleName moduleName, Range range) {
+    var moduleType = moduleScopedTypes.getModuleType(moduleName);
+    return new TVarReference(moduleName.simpleName(), new RefDeclaration.Module(moduleName), moduleType, range);
   }
 
   private TypedExpression resolveIfExpression(IfExpression ifExpr) {
@@ -707,7 +716,7 @@ public class MemberScopedTypeResolver {
     return switch (funcCall) {
       case LocalFunctionCall localFuncCall ->
           switch (moduleScopedTypes.getFunctionCallType(localFuncCall)) {
-            case FuncCallType.Module() -> resolveMemberFunctionCall(thisExpr(range), localFuncCall);
+            case FuncCallType.Module _ -> resolveMemberFunctionCall(thisExpr(range), localFuncCall);
             case FuncCallType.LocalVar(var localVar) -> {
               var tLocalVar = getLocalVar(localVar).orElseThrow();
               var funcType = TypeUtils.asFunctionType(tLocalVar.variableType()).orElseThrow();

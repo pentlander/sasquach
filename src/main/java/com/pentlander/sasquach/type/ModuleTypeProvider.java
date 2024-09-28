@@ -1,7 +1,7 @@
 package com.pentlander.sasquach.type;
 
-import com.pentlander.sasquach.ast.id.QualifiedModuleId;
+import com.pentlander.sasquach.name.QualifiedModuleName;
 
 public interface ModuleTypeProvider {
-  StructType getModuleType(QualifiedModuleId qualifiedModuleId);
+  StructType getModuleType(QualifiedModuleName qualifiedModuleId);
 }

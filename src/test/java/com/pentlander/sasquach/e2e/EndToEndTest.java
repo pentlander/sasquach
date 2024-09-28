@@ -229,6 +229,30 @@ public class EndToEndTest extends BaseTest {
   }
 
   @Test
+  void matchSumType_otherModule() throws Exception {
+    var clazz = compile("""
+        Option {
+          type Option[T] = | Some(T) | None,
+        }
+        
+        Main {
+          use main/Option,
+        
+          foo = (): String -> {
+            let option = if (true) Option.Some("foo") else Option.None
+            match option {
+              Option.Some(str) -> str,
+              Option.None -> "",
+            }
+          },
+        }
+        """);
+    String sum = invokeName(clazz, "foo");
+
+    assertThat(sum).isEqualTo("foo");
+  }
+
+  @Test
   void matchSumType_generic() throws Exception {
     // Failed because the A in the typedef and the func get resolved to the same Universal type and both get replaced.
     var clazz = compile("""
@@ -271,7 +295,7 @@ public class EndToEndTest extends BaseTest {
     assertThat(sum).isEqualTo("foo");
   }
 
-  @Test @Disabled
+  @Test
   void matchSumType_structVariantDifferentModule() throws Exception {
     var clazz = compile("""
         Option {
@@ -279,9 +303,10 @@ public class EndToEndTest extends BaseTest {
         }
         
         Main {
+          use main/Option,
           
           foo = (): String -> {
-            let option = if (true) Option.Some { inner = "foo" } else Option.None,
+            let option = if (true) Option.Some { inner = "foo" } else Option.None
             match option {
               Option.Some { inner } -> inner,
               Option.None -> "",

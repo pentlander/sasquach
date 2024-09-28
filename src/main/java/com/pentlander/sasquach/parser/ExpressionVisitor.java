@@ -5,38 +5,19 @@ import static java.util.Objects.requireNonNullElse;
 
 import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.Branch;
+import com.pentlander.sasquach.ast.expression.*;
 import com.pentlander.sasquach.ast.id.Id;
 import com.pentlander.sasquach.ast.typenode.NamedTypeNode;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.PatternVariable;
 import com.pentlander.sasquach.ast.id.TypeId;
 import com.pentlander.sasquach.name.UnqualifiedName;
-import com.pentlander.sasquach.ast.expression.BinaryExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathOperator;
-import com.pentlander.sasquach.ast.expression.Block;
-import com.pentlander.sasquach.ast.expression.Expression;
-import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
-import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
-import com.pentlander.sasquach.ast.expression.FunctionCall;
-import com.pentlander.sasquach.ast.expression.IfExpression;
-import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
-import com.pentlander.sasquach.ast.expression.Loop;
-import com.pentlander.sasquach.ast.expression.Match;
-import com.pentlander.sasquach.ast.expression.MemberAccess;
-import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
-import com.pentlander.sasquach.ast.expression.Not;
-import com.pentlander.sasquach.ast.expression.PipeOperator;
-import com.pentlander.sasquach.ast.expression.PrintStatement;
-import com.pentlander.sasquach.ast.expression.Recur;
-import com.pentlander.sasquach.ast.expression.Value;
-import com.pentlander.sasquach.ast.expression.VarReference;
-import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.parser.SasquachParser.*;
-import com.pentlander.sasquach.parser.Visitor.StructIdentifier;
 import com.pentlander.sasquach.type.BuiltinType;
 import java.util.List;
 
@@ -171,7 +152,7 @@ class ExpressionVisitor extends
   }
 
   @Override
-  public Expression visitFunction(FunctionContext ctx) {
+  public Function visitFunction(FunctionContext ctx) {
     return ctx.accept(new FunctionVisitor(moduleCtx));
   }
 

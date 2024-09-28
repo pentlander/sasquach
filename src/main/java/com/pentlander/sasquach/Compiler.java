@@ -97,7 +97,10 @@ public class Compiler {
   public BytecodeResult compile(Sources sources) throws CompilationException {
     var compUnits = new ArrayList<CompilationUnit>();
     for (Source source : sources.values()) {
-      var compilationUnit = parser.getCompilationUnit(source);
+      var result = parser.parse(source);
+      result.errors().throwIfNotEmpty(sources);
+
+      var compilationUnit = result.item();
       compUnits.add(compilationUnit);
 
       var validator = new AstValidator(compilationUnit);
