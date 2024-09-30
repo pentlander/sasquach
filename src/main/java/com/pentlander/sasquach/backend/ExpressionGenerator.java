@@ -5,13 +5,12 @@ import static com.pentlander.sasquach.backend.ClassGenerator.INSTANCE_FIELD;
 import static com.pentlander.sasquach.backend.GeneratorUtil.tryBox;
 import static com.pentlander.sasquach.type.TypeUtils.asStructType;
 import static com.pentlander.sasquach.type.TypeUtils.classDesc;
-import static java.util.Objects.requireNonNull;
 
-import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.backend.TLocalVarMeta.TVarMeta;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.runtime.bootstrap.Func;
 import com.pentlander.sasquach.runtime.bootstrap.FuncBootstrap;
 import com.pentlander.sasquach.runtime.bootstrap.StructDispatch;
@@ -507,16 +506,15 @@ final class ExpressionGenerator {
   }
 
   private void generateArgs(TArgs typedArgs, List<FunctionType.Param> params) {
-    Integer argStartIdx = null;
     var args = typedArgs.args();
+    var varIndexes = new int[args.size()];
+    int j = 0;
     for (var expr : args) {
       // Generate the expression
       generate(expr);
 
       int idx = localVarMeta.pushHidden();
-      if (argStartIdx == null) {
-        argStartIdx = idx;
-      }
+      varIndexes[j++] = idx;
       generateStoreVar(cob, type(expr), idx);
     }
 
@@ -526,7 +524,7 @@ final class ExpressionGenerator {
       var argType = type(args.get(argIndex));
       var param = params.get(i);
 
-      GeneratorUtil.generateLoadVar(cob, argType, requireNonNull(argStartIdx) + argIndex);
+      GeneratorUtil.generateLoadVar(cob, argType, varIndexes[argIndex]);
       tryBox(cob, argType, param.type());
     }
   }

@@ -4,8 +4,6 @@ import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
 import com.pentlander.sasquach.ast.Use;
-import com.pentlander.sasquach.ast.expression.Function;
-import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.typenode.ConstructableNamedTypeNode;
@@ -20,21 +18,19 @@ import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.type.NamedType;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 public class ModuleScopedNameResolver {
+  private static Lookup LOOKUP = MethodHandles.lookup();
   private final Map<UnqualifiedName, ModuleScopedNameResolver> moduleImports = new HashMap<>();
   private final Map<QualifiedTypeName, Class<?>> foreignClasses = new HashMap<>();
   private final Map<QualifiedTypeName, TypeStatement> typeStatementNames = new HashMap<>();
   private final Map<NamedType, NamedTypeDefinition> namedTypeDefs = new HashMap<>();
   private final Map<UnqualifiedTypeName, ConstructableNamedTypeNode> constructableTypes = new HashMap<>();
-  private final Map<UnqualifiedName, LiteralStruct.Field> fields = new HashMap<>();
-  private final Map<LiteralStruct.Field, NameResolutionResult> fieldResults = new HashMap<>();
   private final Map<UnqualifiedName, NamedFunction> functions = new HashMap<>();
-  private final Map<Function, NameResolutionResult> functionResults = new HashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
   private final ModuleDeclaration module;
@@ -77,41 +73,8 @@ public class ModuleScopedNameResolver {
     typeDefsResolved = true;
   }
 
-  NameResolutionResult getResolver(LiteralStruct.Field field) {
-    return Objects.requireNonNull(fieldResults.get(field));
-  }
-
-  NameResolutionResult getResolver(Function function) {
-    return Objects.requireNonNull(functionResults.get(function));
-  }
-
-  private void resolve(Use.Module use) {
-    var moduleScopedResolver = moduleResolver.resolveModule(use.id().name());
-    if (moduleScopedResolver == null) {
-      errors.add(new NameNotFoundError(use.id(), "module"));
-      return;
-    }
-    var existingImport = moduleImports.put(use.alias().name(), moduleScopedResolver);
-    if (existingImport != null) {
-      errors.add(new DuplicateNameError(use.id(), existingImport.moduleDeclaration().id()));
-    }
-  }
-
-  private void resolve(Use.Foreign use) {
-    try {
-      var qualifiedName = use.id().name();
-      var clazz = MethodHandles.lookup().findClass(qualifiedName.javaName());
-      foreignClasses.put(qualifiedName.toQualifiedTypeName(), clazz);
-    } catch (ClassNotFoundException | IllegalAccessException e) {
-      errors.add(new NameNotFoundError(use.alias(), "foreign class"));
-    }
-  }
-
-  public void resolve(ModuleStruct struct) {
-    if (!typeDefsResolved) {
-      throw new IllegalStateException("Must resolve type defs before resolving rest of module");
-    }
-
+  void resolveTypeStatements() {
+    var struct = module.struct();
     for (var typeStatement : struct.typeStatements()) {
       var resolver = new TypeNodeNameResolver(this);
       var result = resolver.resolveTypeNode(typeStatement);
@@ -129,10 +92,38 @@ public class ModuleScopedNameResolver {
       }
       errors.addAll(result.errors());
     }
+  }
 
-    for (var field : struct.fields()) {
-      fields.put(field.name(), field);
+  private void resolve(Use.Module use) {
+    var moduleScopedResolver = moduleResolver.resolveModule(use.id().name());
+    if (moduleScopedResolver == null) {
+      errors.add(new NameNotFoundError(use.id(), "module"));
+      return;
     }
+    var existingImport = moduleImports.put(use.alias().name(), moduleScopedResolver);
+    if (existingImport != null) {
+      errors.add(new DuplicateNameError(use.id(), existingImport.moduleDeclaration().id()));
+    }
+  }
+
+  private void resolve(Use.Foreign use) {
+    try {
+      var qualifiedName = use.id().name();
+      var clazz = LOOKUP.findClass(qualifiedName.javaName());
+      foreignClasses.put(qualifiedName.toQualifiedTypeName(), clazz);
+    } catch (ClassNotFoundException | IllegalAccessException e) {
+      errors.add(new NameNotFoundError(use.alias(), "foreign class"));
+    }
+  }
+
+  public void resolve(ModuleStruct struct) {
+    if (!typeDefsResolved) {
+      throw new IllegalStateException("Must resolve type defs before resolving rest of module");
+    }
+
+//    for (var field : struct.fields()) {
+//      fields.put(field.name(), field);
+//    }
     for (var function : struct.functions()) {
       functions.put(function.name(), function);
     }
@@ -141,13 +132,11 @@ public class ModuleScopedNameResolver {
       var resolver = new MemberScopedNameResolver(this);
       var result = resolver.resolve(field);
       nameResolutionResult = nameResolutionResult.merge(result);
-      fieldResults.put(field, result);
     }
     for (var function : struct.functions()) {
       var resolver = new MemberScopedNameResolver(this);
       var result = resolver.resolve(function);
       nameResolutionResult = nameResolutionResult.merge(result);
-      functionResults.put(function.function(), result);
     }
   }
 
@@ -167,10 +156,6 @@ public class ModuleScopedNameResolver {
 
   Optional<NamedFunction> resolveFunction(UnqualifiedName functionName) {
     return Optional.ofNullable(functions.get(functionName));
-  }
-
-  Optional<LiteralStruct.Field> resolveField(UnqualifiedName fieldName) {
-    return Optional.ofNullable(fields.get(fieldName));
   }
 
   Optional<TypeStatement> resolveTypeAlias(QualifiedTypeName typeAlias) {
@@ -194,7 +179,7 @@ public class ModuleScopedNameResolver {
             structTypeName));
       }
       case UnqualifiedTypeName name -> Optional.ofNullable(constructableTypes.get(name));
-      case SyntheticName syntheticName -> throw new IllegalStateException();
+      case SyntheticName _ -> throw new IllegalStateException();
     };
   }
 }

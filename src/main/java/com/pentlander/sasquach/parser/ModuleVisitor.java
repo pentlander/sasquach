@@ -22,7 +22,7 @@ class ModuleVisitor extends
   @Override
   public CompileResult<ModuleDeclaration> visitModuleDeclaration(ModuleDeclarationContext ctx) {
     var name = new QualifiedModuleName(packageName, ctx.moduleName().getText());
-    var moduleCtx = new ModuleContext(sourcePath);
+    var moduleCtx = new ModuleContext(name, sourcePath);
     var structVisitor = new StructVisitor(moduleCtx, new StructIdentifier.ModuleName(name));
     var struct = (ModuleStruct) ctx.struct().accept(structVisitor);
     var modDecl = new ModuleDeclaration(new QualifiedModuleId(name,

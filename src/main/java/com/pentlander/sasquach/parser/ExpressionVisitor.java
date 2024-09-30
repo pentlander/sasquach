@@ -1,22 +1,22 @@
 package com.pentlander.sasquach.parser;
 
 import static com.pentlander.sasquach.Util.mapNonNull;
+import static com.pentlander.sasquach.ast.expression.Struct.tupleStruct;
 import static java.util.Objects.requireNonNullElse;
 
 import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.Branch;
-import com.pentlander.sasquach.ast.expression.*;
-import com.pentlander.sasquach.ast.id.Id;
-import com.pentlander.sasquach.ast.typenode.NamedTypeNode;
 import com.pentlander.sasquach.ast.Pattern;
 import com.pentlander.sasquach.ast.PatternVariable;
-import com.pentlander.sasquach.ast.id.TypeId;
-import com.pentlander.sasquach.name.UnqualifiedName;
+import com.pentlander.sasquach.ast.expression.*;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathOperator;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.ast.id.TypeId;
+import com.pentlander.sasquach.ast.typenode.NamedTypeNode;
 import com.pentlander.sasquach.parser.SasquachParser.*;
 import com.pentlander.sasquach.type.BuiltinType;
 import java.util.List;
@@ -31,8 +31,7 @@ class ExpressionVisitor extends
 
   @Override
   public Expression visitVarReference(VarReferenceContext ctx) {
-    var name = new UnqualifiedName(ctx.getText());
-    return new VarReference(new Id(name, rangeFrom(ctx.ID())));
+    return new VarReference(id(ctx.ID()));
   }
 
   @Override
@@ -64,7 +63,7 @@ class ExpressionVisitor extends
       return new Recur(arguments, rangeFrom(ctx));
     }
 
-    return new LocalFunctionCall(id(ctx.functionName().ID()), arguments, rangeFrom(ctx));
+    return new LocalFunctionCall(id(funcId), arguments, rangeFrom(ctx));
   }
 
   @Override
@@ -142,13 +141,15 @@ class ExpressionVisitor extends
 
   @Override
   public Expression visitStruct(StructContext ctx) {
-    return ctx.accept(structVisitorForLiteral());
+    return ctx.accept(new StructVisitor(moduleCtx, StructIdentifier.NONE));
   }
 
   @Override
   public Expression visitNamedStruct(NamedStructContext ctx) {
     var namedTypeNode = (NamedTypeNode) ctx.namedType().accept(new TypeVisitor(moduleCtx));
-    return ctx.struct().accept(structVisitorForNamed(namedTypeNode));
+    return ctx.struct().accept(new StructVisitor(
+        moduleCtx,
+        new StructIdentifier.TypeNode(namedTypeNode)));
   }
 
   @Override
@@ -250,7 +251,7 @@ class ExpressionVisitor extends
   public Expression visitTupleExpression(TupleExpressionContext ctx) {
     var tupCtx = ctx.tuple();
     var expressions = tupCtx.expression().stream().map(exprCtx -> exprCtx.accept(this)).toList();
-    return com.pentlander.sasquach.ast.expression.Struct.tupleStruct(expressions, rangeFrom(ctx));
+    return tupleStruct(expressions, rangeFrom(ctx));
   }
 
   @Override
@@ -284,18 +285,6 @@ class ExpressionVisitor extends
     return (TypeId) namedTypeNode.id();
   }
 
-
-  public StructVisitor structVisitorForLiteral() {
-    // TODO: Set the metadata at the end of the visitStruct func so struct methods work properly
-    // TODO: Figure out how to reference parent scope from struct literal
-    return new StructVisitor(moduleCtx, StructIdentifier.NONE);
-  }
-
-  public StructVisitor structVisitorForNamed(NamedTypeNode node) {
-    // TODO: Set the metadata at the end of the visitStruct func so struct methods work properly
-    // TODO: Figure out how to reference parent scope from struct literal
-    return new StructVisitor(moduleCtx, new StructIdentifier.TypeNode(node));
-  }
 
   @Override
   public ModuleContext moduleCtx() {

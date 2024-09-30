@@ -93,9 +93,7 @@ public record StructType(StructName name, List<TypeParameter> typeParameters,
 
   @Override
   public ClassDesc classDesc() {
-    return TypeUtils.classDesc(StructBase.class);
-//    return name instanceof SyntheticName ? TypeUtils.classDesc(StructBase.class)
-//        : internalClassDesc();
+    return isRow() || isSynthetic() ? TypeUtils.classDesc(StructBase.class) : internalClassDesc();
   }
 
   @Override
@@ -107,11 +105,23 @@ public record StructType(StructName name, List<TypeParameter> typeParameters,
     return ClassDesc.ofInternalName(internalName());
   }
 
+  private boolean isSynthetic() {
+    return name instanceof SyntheticName;
+  }
+
   @Override
   public boolean isAssignableFrom(Type other) {
     var structType = TypeUtils.asStructType(other);
 
     if (structType.isPresent()) {
+      // For it to be assignable:
+      // 1. Both types need to be synthetic,
+      // 2. Both need to be named with the same name
+      // 3. One has a row and the other doesn't matter
+      if (!isRow() && (!isSynthetic() || !structType.get().isSynthetic()) && !name.equals(structType.get().name)) {
+        return false;
+      }
+
       var otherFieldTypes = new HashMap<>(structType.get().memberTypes);
       for (var entry : memberTypes.entrySet()) {
         var name = entry.getKey();
@@ -129,7 +139,7 @@ public record StructType(StructName name, List<TypeParameter> typeParameters,
   @Override
   public String toPrettyString() {
     if (name instanceof SyntheticName) {
-      var joiner = new StringJoiner(", ", "{ ", "}");
+      var joiner = new StringJoiner(", ", "{ ", " }");
       var fieldTypesStr = memberTypes().entrySet()
           .stream()
           .map(e -> e.getKey() + ": " + e.getValue().toPrettyString())
@@ -145,7 +155,7 @@ public record StructType(StructName name, List<TypeParameter> typeParameters,
 
       return joiner.toString();
     }
-    return typeNameStr();
+    return name.toPrettyString();
   }
 
   public boolean isRow() {

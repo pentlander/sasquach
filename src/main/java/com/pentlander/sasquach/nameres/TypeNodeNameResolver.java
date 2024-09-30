@@ -11,7 +11,7 @@ import com.pentlander.sasquach.ast.typenode.NamedTypeNode;
 import com.pentlander.sasquach.ast.typenode.StructTypeNode;
 import com.pentlander.sasquach.ast.typenode.StructTypeNode.RowModifier.NamedRow;
 import com.pentlander.sasquach.ast.typenode.SumTypeNode;
-import com.pentlander.sasquach.ast.typenode.SumTypeNode.VariantTypeNode;
+import com.pentlander.sasquach.ast.typenode.SumTypeNode.VariantTypeNode.SingletonTypeNode;
 import com.pentlander.sasquach.ast.typenode.TupleTypeNode;
 import com.pentlander.sasquach.ast.id.TypeId;
 import com.pentlander.sasquach.ast.typenode.TypeNode;
@@ -78,7 +78,7 @@ public class TypeNodeNameResolver {
       }
       case TupleTypeNode tupleTypeNode -> tupleTypeNode.fields().forEach(this::resolveTypeNode);
       case SumTypeNode sumTypeNode -> sumTypeNode.variantTypeNodes().forEach(this::resolveTypeNode);
-      case VariantTypeNode.Singleton _ -> {}
+      case SingletonTypeNode _ -> {}
       case NamedTypeNode namedTypeNode -> resolveNamedType(namedTypeNode);
     }
     return new Result(namedTypes, errors.build());

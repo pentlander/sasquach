@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.parser;
 
+import com.pentlander.sasquach.RangedError;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.SourcePath;
 import com.pentlander.sasquach.ast.id.Id;
@@ -15,13 +16,19 @@ import org.jspecify.annotations.Nullable;
 
 @NullMarked
 public final class ModuleContext {
+  private final QualifiedModuleName moduleName;
   private final SourcePath sourcePath;
   private final SequencedMap<UnqualifiedTypeName, QualifiedTypeName> localTypeNames = new LinkedHashMap<>();
   private final SequencedMap<UnqualifiedName, QualifiedModuleName> moduleNames = new LinkedHashMap<>();
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
-  public ModuleContext(SourcePath sourcePath) {
+  public ModuleContext(QualifiedModuleName moduleName, SourcePath sourcePath) {
+    this.moduleName = moduleName;
     this.sourcePath = sourcePath;
+  }
+
+  public QualifiedModuleName moduleName() {
+    return moduleName;
   }
 
   public SourcePath sourcePath() {
@@ -48,6 +55,10 @@ public final class ModuleContext {
       return QualifiedModuleName.EMPTY;
     }
     return qualModuleName;
+  }
+
+  public void addError(RangedError rangedError) {
+    errors.add(rangedError);
   }
 
   public RangedErrorList errors() {

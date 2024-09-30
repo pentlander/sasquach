@@ -9,7 +9,6 @@ class ResolutionTask extends RecursiveTask<NameResolutionResult> {
   private final QualifiedModuleName moduleName;
   private final ModuleScopedNameResolver moduleScopedNameResolver;
   private final Phaser phaser;
-  private final int arrivalPhase;
 
   ResolutionTask(
       QualifiedModuleName moduleName,
@@ -19,12 +18,14 @@ class ResolutionTask extends RecursiveTask<NameResolutionResult> {
     this.moduleName = moduleName;
     this.moduleScopedNameResolver = moduleScopedNameResolver;
     this.phaser = phaser;
-    this.arrivalPhase = phaser.register();
+    phaser.register();
   }
 
   @Override
   protected NameResolutionResult compute() {
     moduleScopedNameResolver.resolveTypeDefs();
+    phaser.arriveAndAwaitAdvance();
+    moduleScopedNameResolver.resolveTypeStatements();
     phaser.arriveAndAwaitAdvance();
     return moduleScopedNameResolver.resolveBody();
   }

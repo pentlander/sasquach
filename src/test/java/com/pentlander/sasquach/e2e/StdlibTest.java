@@ -99,10 +99,10 @@ public class StdlibTest extends BaseTest {
             let hash = Hash.new((user: User) -> user.id)
             let map = Map.new(hash)
             
-            let user = { id = 1, name = "Bob", }
+            let user = User { id = 1, name = "Bob", }
             let mapWithKey = Map.assoc(map, user, 10)
             
-            let userCopy = { id = 1, name = "Bob", }
+            let userCopy = User { id = 1, name = "Bob", }
             mapWithKey
               |> Map.get(userCopy)
               |> Option.unwrap()

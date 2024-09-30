@@ -1,8 +1,8 @@
 package com.pentlander.sasquach.ast.typenode;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.typenode.SumTypeNode.VariantTypeNode.Singleton;
 import com.pentlander.sasquach.ast.id.TypeId;
+import com.pentlander.sasquach.ast.typenode.SumTypeNode.VariantTypeNode.SingletonTypeNode;
 import com.pentlander.sasquach.name.QualifiedModuleName;
 import com.pentlander.sasquach.name.QualifiedTypeName;
 import com.pentlander.sasquach.type.SingletonType;
@@ -42,12 +42,12 @@ public record SumTypeNode(QualifiedModuleName moduleName, TypeId id,
   }
 
   public sealed interface VariantTypeNode extends TypeNode, ConstructableNamedTypeNode permits
-      Singleton, TupleTypeNode, StructTypeNode {
+      SingletonTypeNode, TupleTypeNode, StructTypeNode {
     QualifiedTypeName typeName();
 
     VariantType type();
 
-    record Singleton(QualifiedModuleName moduleName, TypeId aliasId, TypeId id) implements
+    record SingletonTypeNode(TypeId id) implements
         VariantTypeNode {
       @Override
       public Range range() {

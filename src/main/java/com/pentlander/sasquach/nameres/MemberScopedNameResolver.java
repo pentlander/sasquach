@@ -6,36 +6,10 @@ import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
-import com.pentlander.sasquach.ast.typenode.SumTypeNode.VariantTypeNode;
+import com.pentlander.sasquach.ast.expression.*;
 import com.pentlander.sasquach.ast.id.TypeId;
+import com.pentlander.sasquach.ast.typenode.SumTypeNode.VariantTypeNode.SingletonTypeNode;
 import com.pentlander.sasquach.ast.typenode.TypeNode;
-import com.pentlander.sasquach.ast.expression.PipeOperator;
-import com.pentlander.sasquach.ast.expression.ArrayValue;
-import com.pentlander.sasquach.ast.expression.BinaryExpression;
-import com.pentlander.sasquach.ast.expression.Block;
-import com.pentlander.sasquach.ast.expression.Expression;
-import com.pentlander.sasquach.ast.expression.MemberAccess;
-import com.pentlander.sasquach.ast.expression.ForeignFieldAccess;
-import com.pentlander.sasquach.ast.expression.ForeignFunctionCall;
-import com.pentlander.sasquach.ast.expression.Function;
-import com.pentlander.sasquach.ast.expression.FunctionCall;
-import com.pentlander.sasquach.ast.expression.IfExpression;
-import com.pentlander.sasquach.ast.expression.LiteralStruct;
-import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
-import com.pentlander.sasquach.ast.expression.LocalVariable;
-import com.pentlander.sasquach.ast.expression.Loop;
-import com.pentlander.sasquach.ast.expression.Match;
-import com.pentlander.sasquach.ast.expression.MemberFunctionCall;
-import com.pentlander.sasquach.ast.expression.ModuleStruct;
-import com.pentlander.sasquach.ast.expression.NamedFunction;
-import com.pentlander.sasquach.ast.expression.NamedStruct;
-import com.pentlander.sasquach.ast.expression.Not;
-import com.pentlander.sasquach.ast.expression.PrintStatement;
-import com.pentlander.sasquach.ast.expression.Recur;
-import com.pentlander.sasquach.ast.expression.Struct;
-import com.pentlander.sasquach.ast.expression.Value;
-import com.pentlander.sasquach.ast.expression.VarReference;
-import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.type.TypeParameter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -249,7 +223,7 @@ public class MemberScopedNameResolver {
         var variantNode = moduleScopedNameResolver.resolveConstructableTypeNode(varReference.name().toTypeName());
         if (variantNode.isPresent()) {
           nameData.addVarReferences(varReference,
-              new ReferenceDeclaration.Singleton((VariantTypeNode.Singleton) variantNode.get()));
+              new ReferenceDeclaration.Singleton((SingletonTypeNode) variantNode.get()));
         } else {
           errors.add(new NameNotFoundError(varReference.id(), "variable, parameter, or module"));
         }
@@ -381,7 +355,7 @@ public class MemberScopedNameResolver {
       }
     }
 
-    record Singleton(VariantTypeNode.Singleton node) implements ReferenceDeclaration {
+    record Singleton(SingletonTypeNode node) implements ReferenceDeclaration {
       @Override
       public String toPrettyString() {
         return node.toPrettyString();

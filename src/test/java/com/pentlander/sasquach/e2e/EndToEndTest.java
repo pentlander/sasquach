@@ -556,7 +556,7 @@ public class EndToEndTest extends BaseTest {
     var clazz = compile( """
         Main {
           type Point = { x: Int, y: Int },
-          newPoint = (x: Int): Point -> { x = x, y = 4 },
+          newPoint = (x: Int): Point -> Point { x = x, y = 4 },
           getX = (point: Point): Int -> point.x,
           main = (): Int -> getX(newPoint(5))
         }
@@ -571,7 +571,7 @@ public class EndToEndTest extends BaseTest {
     var clazz = compile("""
         Main {
           type Point = { x: Int, y: Int },
-          newPoint = (x: Int): Point -> { x = x, y = 2 },
+          newPoint = (x: Int): Point -> Point { x = x, y = 2 },
           getX = (point: Point): Int -> point.x,
           main = (): Int -> getX(newPoint(5))
         }
@@ -603,7 +603,7 @@ public class EndToEndTest extends BaseTest {
         Point {
           type T = { x: Int, y: Int },
           
-          new = (x: Int): T -> { x = x, y = 4 }
+          new = (x: Int): T -> T { x = x, y = 4 }
         }
                 
         Main {
@@ -663,7 +663,7 @@ public class EndToEndTest extends BaseTest {
         Box {
           type T[A] = { value: A },
           
-          new = [A](value: A): T[A] -> { value = value },
+          new = [A](value: A): T[A] -> T { value = value },
           unbox = [A](box: T[A]): A -> box.value,
         }
                 
@@ -687,7 +687,7 @@ public class EndToEndTest extends BaseTest {
         Main {
           type Box[A] = { value: A },
                 
-          new = [B](value: B): Box[B] -> { value = value },
+          new = [B](value: B): Box[B] -> Box { value = value },
           main = (): Box[Int] -> {
             let boxInt = new(10)
             let boxStr = new("hello")
@@ -706,8 +706,8 @@ public class EndToEndTest extends BaseTest {
         Main {
           type Box[A] = { value: A },
                 
-          new = [B](value: B): Box[B] -> { value = value },
-          map = [A, B](box: Box[A], mapper: (value: A) -> B): Box[B] -> { value = mapper(box.value) },
+          new = [B](value: B): Box[B] -> Box { value = value },
+          map = [A, B](box: Box[A], mapper: (value: A) -> B): Box[B] -> Box { value = mapper(box.value) },
           main = (): String -> {
             let box = new(10) |> map((n: Int): String -> "hi")
             box.value
@@ -721,14 +721,18 @@ public class EndToEndTest extends BaseTest {
 
   @Test
   void complexParameterizedExpression_sameAliasParamName() throws Exception {
+    // BoxTwoConstr Main one:A two:B
+    // 3: one:A
+    // 4: two:B
+    // 5: Box:B
     var clazz = compile( """
         Main {
           type Box[A] = { value: A },
           type BoxTwo[A, B] = { one: A, two: Box[B] },
                 
-          new = [A, B](one: A, two: B): BoxTwo[A, B] -> {
+          new = [A, B](one: A, two: B): BoxTwo[A, B] -> BoxTwo {
             one = one,
-            two = { value = two },
+            two = Box { value = two },
           },
           main = (): Box[String] -> {
             let box = new(10, "hello")
@@ -749,8 +753,8 @@ public class EndToEndTest extends BaseTest {
           type Mapper[A, B] = { map: (inp: A) -> B },
                 
           map = [A, B](value: A, mapper: Mapper[A, B]): T[B] ->
-              { value = mapper.map(value) },
-          main = (): T[Int] -> map("foo", { map = (inp: String): Int -> 10 })
+              T { value = mapper.map(value) },
+          main = (): T[Int] -> map("foo", Mapper { map = (inp: String): Int -> 10 })
         }
         """);
     Object boxedInt = invokeName(clazz, "main");

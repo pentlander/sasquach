@@ -23,8 +23,8 @@ class FunctionVisitor extends
   }
 
   private FunctionSignature functionDeclaration(FunctionDeclarationContext ctx) {
-    var typeVisitor = new TypeVisitor(moduleCtx);
     var typeParams = typeParams(ctx.typeParameterList());
+    var typeVisitor = new TypeVisitor(moduleCtx, typeParams);
     var params = parameterList(typeVisitor, new ExpressionVisitor(moduleCtx), ctx.functionParameterList());
     return new FunctionSignature(
         params,

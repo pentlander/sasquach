@@ -42,14 +42,6 @@ public class ModuleResolver {
         NameResolutionResult::merge);
   }
 
-  public NameResolutionResult resolveCompilationUnit(List<ModuleDeclaration> modules) {
-    return resolveCompilationUnits(modules.stream());
-  }
-
-  public NameResolutionResult resolveCompilationUnit(CompilationUnit compilationUnit) {
-    return resolveCompilationUnit(compilationUnit.modules());
-  }
-
   @Nullable
   public ModuleScopedNameResolver resolveModule(QualifiedModuleName qualifiedModuleName) {
     var task = moduleScopedResolverTasks.get(qualifiedModuleName);

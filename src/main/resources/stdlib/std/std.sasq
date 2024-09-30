@@ -150,18 +150,18 @@ List {
 
   type T[A] = { list: ArrayList[A] },
 
-  new = [A](): T[A] -> { list = ArrayList#new() },
+  new = [A](): T[A] -> T { list = ArrayList#new() },
 
   of = [A](value: A): T[A] -> {
     let list = ArrayList#new()
     ArrayList#add(list, value)
-    { list = list }
+    T { list = list }
   },
 
   conj = [A](list: T[A], value: A): T[A] -> {
     let listCopy = ArrayList#new(list.list)
     ArrayList#add(listCopy, value)
-     { list = listCopy }
+    T { list = listCopy }
   },
 
   get = [A](list: T[A], idx: Int): A -> ArrayList#get(list.list, idx),
@@ -177,7 +177,7 @@ List {
         ArrayList#add(newList, mapper(item))
         recur(i + 1)
       } else {
-        { list = newList }
+        T { list = newList }
       }
   },
 
@@ -190,7 +190,7 @@ List {
         if (filterer(item)) ArrayList#add(newList, item)
         recur(i + 1)
       } else {
-        { list = newList }
+        T { list = newList }
       }
   },
 
@@ -222,7 +222,7 @@ List {
 Hash {
   type T[A] = { hashCode: (value: A) -> Int, .. },
 
-  new = [A](fn: (value: A) -> Int): T[A] -> {
+  new = [A](fn: (value: A) -> Int): T[A] -> T {
     hashCode = fn,
   }
 }
@@ -239,10 +239,10 @@ Map {
 
   type T[A, B] = {
     hasher: Hash.T[A],
-    map: HashMap[A, B]
+    map: HashMap[A, B],
   },
 
-  new = [A, B](hasher: Hash.T[A]): T[A, B] -> {
+  new = [A, B](hasher: Hash.T[A]): T[A, B] -> T {
     hasher = hasher,
     map = HashMap#new()
   },
@@ -267,13 +267,13 @@ Map {
   assoc = [A, B](map: T[A, B], key: A, value: B): T[A, B] -> {
     let newMap = HashMap#new(map.map)
     HashMap#put(newMap, key, value)
-    { hasher = map.hasher, map = newMap }
+    T { hasher = map.hasher, map = newMap }
   },
 
   dissoc = [A, B](map: T[A, B], key: A): T[A, B] -> {
     let newMap = HashMap#new(map.map)
     HashMap#remove(newMap, key)
-    { hasher = map.hasher, map = newMap }
+    T { hasher = map.hasher, map = newMap }
   },
 
   map = [A, B, C, D](map: T[A, B], hasher: Hash.T[C], mapper: (key: A, value: B) -> (C, D)): T[C, D] -> {
@@ -286,7 +286,7 @@ Map {
         HashMap#put(newMap, mappedEntry._0, mappedEntry._1)
         recur(iter)
       } else {
-        { hasher = hasher, map = newMap }
+        T { hasher = hasher, map = newMap }
       }
   },
 }

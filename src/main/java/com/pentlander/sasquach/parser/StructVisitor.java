@@ -14,7 +14,7 @@ import com.pentlander.sasquach.ast.id.QualifiedModuleId;
 import com.pentlander.sasquach.ast.id.TypeId;
 import com.pentlander.sasquach.ast.typenode.SumTypeNode;
 import com.pentlander.sasquach.ast.typenode.SumTypeNode.VariantTypeNode;
-import com.pentlander.sasquach.ast.typenode.SumTypeNode.VariantTypeNode.Singleton;
+import com.pentlander.sasquach.ast.typenode.SumTypeNode.VariantTypeNode.SingletonTypeNode;
 import com.pentlander.sasquach.ast.typenode.TupleTypeNode;
 import com.pentlander.sasquach.ast.typenode.TypeNode;
 import com.pentlander.sasquach.ast.typenode.TypeStatement;
@@ -129,7 +129,10 @@ public class StructVisitor extends
           var typeParameters = typeParams(typeStmtCtx.typeParameterList());
           var isAlias = typeStmtCtx.TYPEALIAS() != null;
           var moduleName = ((ModuleName) structName).name();
-          var namedTypeVisitor = new TypeVisitor(moduleCtx, isAlias ? null : aliasId.name());
+          var namedTypeVisitor = new TypeVisitor(
+              moduleCtx,
+              isAlias ? null : aliasId.name(),
+              typeParameters);
           var typeNode =
               typeStmtCtx.type() != null ? VisitorHelper.typeNode(typeStmtCtx.type(), namedTypeVisitor)
                   : sumTypeNode(typeStmtCtx.sumType(), moduleName, aliasId, typeParameters);
@@ -159,10 +162,11 @@ public class StructVisitor extends
           .functions(functions)
           .range(rangeFrom(ctx))
           .build();
-      case StructIdentifier.TypeNode(var node) ->
-          Struct.namedStructConstructor((QualifiedTypeName) node.id().name(),
-              fields,
-              rangeFrom(ctx));
+      case StructIdentifier.TypeNode(var node) -> {
+        yield Struct.namedStructConstructor((QualifiedTypeName) node.id().name(),
+            fields,
+            rangeFrom(ctx));
+      }
     };
   }
 
@@ -177,22 +181,21 @@ public class StructVisitor extends
       var name = moduleName.qualifyInner(new UnqualifiedTypeName(id.getText()));
       var typeId = new TypeId(name, rangeFrom(id));
       var variantTypeCtx = ctx.variantType(i);
-      variantNodes.add(variantTypeNode(moduleName, aliasId, typeId, variantTypeCtx));
+      variantNodes.add(variantTypeNode(typeId, typeParameters, variantTypeCtx));
     }
     return new SumTypeNode(moduleName, aliasId, typeParameters, variantNodes, rangeFrom(ctx));
   }
 
-  private VariantTypeNode variantTypeNode(QualifiedModuleName moduleName, TypeId aliasId,
-      TypeId id, VariantTypeContext ctx) {
+  private VariantTypeNode variantTypeNode(TypeId id, List<TypeParameter> typeParams, VariantTypeContext ctx) {
     var qualifiedStructName = id.name();
     moduleCtx.putTypeName(qualifiedStructName.simpleName(), qualifiedStructName);
+    var typeVisitor = new TypeVisitor(moduleCtx, qualifiedStructName, typeParams);
     return switch (ctx) {
-      case SingletonTypeContext ignored -> new Singleton(moduleName, aliasId, id);
+      case SingletonTypeContext _ -> new SingletonTypeNode(id);
       case SingleTupleTypeContext tupCtx -> new TupleTypeNode(qualifiedStructName,
-          List.of(VisitorHelper.typeNode(tupCtx.type(), new TypeVisitor(moduleCtx))),
+          List.of(VisitorHelper.typeNode(tupCtx.type(), typeVisitor)),
           rangeFrom(ctx));
       case MultiTupleTypeContext tupCtx -> {
-        var typeVisitor = new TypeVisitor(moduleCtx);
         var typeNodes = tupCtx.type().stream().map(t -> VisitorHelper.typeNode(t, typeVisitor)).toList();
         yield new TupleTypeNode(
             qualifiedStructName,
@@ -200,7 +203,7 @@ public class StructVisitor extends
             rangeFrom(ctx));
       }
       case StructSumTypeContext structSumCtx ->
-          new TypeVisitor(moduleCtx, qualifiedStructName).visitStructType(structSumCtx.structType());
+          typeVisitor.visitStructType(structSumCtx.structType());
       default -> throw new IllegalStateException();
     };
   }

@@ -2,8 +2,8 @@ package com.pentlander.sasquach.parser;
 
 import static java.util.Objects.requireNonNullElseGet;
 
-import com.pentlander.sasquach.PackageName;
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.expression.Struct;
 import com.pentlander.sasquach.ast.id.TypeId;
 import com.pentlander.sasquach.ast.id.TypeIdentifier;
 import com.pentlander.sasquach.ast.id.TypeParameterId;
@@ -14,10 +14,10 @@ import com.pentlander.sasquach.ast.typenode.StructTypeNode;
 import com.pentlander.sasquach.ast.typenode.StructTypeNode.RowModifier;
 import com.pentlander.sasquach.ast.typenode.TupleTypeNode;
 import com.pentlander.sasquach.ast.typenode.TypeNode;
-import com.pentlander.sasquach.name.QualifiedModuleName;
 import com.pentlander.sasquach.name.QualifiedTypeName;
 import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.name.UnqualifiedTypeName;
+import com.pentlander.sasquach.nameres.NameNotFoundError;
 import com.pentlander.sasquach.parser.SasquachParser.FunctionTypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.NamedTypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.StructTypeContext;
@@ -25,6 +25,7 @@ import com.pentlander.sasquach.parser.SasquachParser.TupleTypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeArgumentListContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeContext;
 import com.pentlander.sasquach.type.BuiltinType;
+import com.pentlander.sasquach.type.TypeParameter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -32,14 +33,23 @@ import org.jspecify.annotations.Nullable;
 class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<TypeNode> implements VisitorHelper {
   private final ModuleContext moduleCtx;
   private final @Nullable QualifiedTypeName structName;
+  private final List<TypeParameter> typeParams;
 
-  TypeVisitor(ModuleContext moduleCtx, @Nullable QualifiedTypeName structName) {
+  TypeVisitor(ModuleContext moduleCtx, @Nullable QualifiedTypeName structName,
+      List<TypeParameter> typeParams
+  ) {
     this.moduleCtx = moduleCtx;
     this.structName = structName;
+    this.typeParams = typeParams;
+  }
+
+
+  TypeVisitor(ModuleContext moduleCtx, List<TypeParameter> typeParams) {
+    this(moduleCtx, null, typeParams);
   }
 
   TypeVisitor(ModuleContext moduleCtx) {
-    this(moduleCtx, null);
+    this(moduleCtx, null, List.of());
   }
 
   @Override
@@ -59,7 +69,13 @@ class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Typ
       if (qualName != null) {
         typeId = new TypeId(qualName, range);
       } else {
-        typeId = new TypeParameterId(name, range);
+        if (typeParams.stream().anyMatch(param -> param.name().equals(name.toString()))) {
+          typeId = new TypeParameterId(name, range);
+        } else {
+          moduleCtx.addError(new NameNotFoundError(name, range, "type", List.of()));
+          var fakeName = moduleCtx.moduleName().qualifyInner(name);
+          typeId = new TypeId(fakeName, range);
+        }
       }
     } else {
       var moduleId = id(firstTypeIdCtx.ID());
@@ -80,7 +96,7 @@ class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Typ
       var id = fieldCtx.ID();
       if (fieldCtx.SPREAD() == null) {
         fields.put(new UnqualifiedName(id.getText()),
-            VisitorHelper.typeAnnotation(fieldCtx.typeAnnotation(), new TypeVisitor(moduleCtx)));
+            VisitorHelper.typeAnnotation(fieldCtx.typeAnnotation(), new TypeVisitor(moduleCtx, typeParams)));
       } else if (fieldCtx.namedType() != null) {
         rowModifier = RowModifier.namedRow(
             typeId(fieldCtx.namedType()),
@@ -89,7 +105,7 @@ class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Typ
         rowModifier = RowModifier.unnamedRow();
       }
     }
-    return new StructTypeNode(structName, fields, rowModifier, rangeFrom(ctx));
+    return new StructTypeNode(structName, typeParams, fields, rowModifier, rangeFrom(ctx));
   }
 
   @Override
@@ -107,9 +123,7 @@ class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Typ
         .stream()
         .map(this::typeNode)
         .toList();
-    var moduleName = new QualifiedModuleName(new PackageName("std/tuple"), "Tuple");
-    var name = requireNonNullElseGet(structName,
-        () -> moduleName.qualifyInner(new UnqualifiedTypeName(Integer.toString(typeNodes.size()))));
+    var name = requireNonNullElseGet(structName, () -> Struct.tupleName(typeNodes.size()));
     return new TupleTypeNode(name, typeNodes, rangeFrom(ctx));
   }
 
@@ -127,7 +141,7 @@ class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Typ
 
   private TypeNode typeNode(TypeContext ctx) {
     // Need to create a new visitor each time structs will end up with the same name
-    return ctx.accept(new TypeVisitor(moduleCtx));
+    return ctx.accept(new TypeVisitor(moduleCtx, typeParams));
   }
 
   @Override

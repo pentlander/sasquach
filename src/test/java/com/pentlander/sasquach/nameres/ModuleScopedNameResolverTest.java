@@ -11,10 +11,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.pentlander.sasquach.ast.ModuleDeclaration;
-import com.pentlander.sasquach.ast.id.QualifiedModuleId;
 import com.pentlander.sasquach.ast.Use;
-import com.pentlander.sasquach.ast.expression.LiteralStruct;
 import com.pentlander.sasquach.ast.expression.Struct;
+import com.pentlander.sasquach.ast.id.QualifiedModuleId;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,21 +46,6 @@ class ModuleScopedNameResolverTest {
   }
 
   @Test
-  void resolveFields() {
-    var id = qualId("Main");
-    var field = new LiteralStruct.Field(id("foo"), stringValue("bar"));
-    var modDecl = new ModuleDeclaration(id,
-        Struct.moduleStructBuilder(id.moduleName()).fields(List.of(field)).range(range()).build(),
-        range());
-    resolver = new ModuleScopedNameResolver(modDecl, moduleResolver);
-    resolveModule();
-
-    var resolvedField = resolver.resolveField(name("foo")).get();
-    assertThat(resolvedField).isEqualTo(field);
-    assertThat(resolver.getResolver(resolvedField)).isNotNull();
-  }
-
-  @Test
   void resolveFunctions() {
     var id = qualId("Main");
     var function = voidFunc("foo", stringValue("bar"));
@@ -77,7 +61,6 @@ class ModuleScopedNameResolverTest {
 
     var resolvedFunction = resolver.resolveFunction(name("foo")).get();
     assertThat(resolvedFunction).isEqualTo(function);
-    assertThat(resolver.getResolver(resolvedFunction.function())).isNotNull();
   }
 
   private void resolveModule() {

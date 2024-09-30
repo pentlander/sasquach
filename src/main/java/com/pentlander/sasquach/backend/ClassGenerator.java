@@ -78,7 +78,7 @@ class ClassGenerator {
 
   public Map<String, byte[]> generate(TModuleDeclaration moduleDeclaration) {
     try {
-      generateStruct(moduleDeclaration.struct());
+      generateTStruct(moduleDeclaration.struct());
     } catch (RuntimeException e) {
       throw new CodeGenerationException(contextNode, e);
     }
@@ -86,7 +86,7 @@ class ClassGenerator {
   }
 
   public Map<String, byte[]> generate(TStruct struct) {
-    generateStruct(struct);
+    generateTStruct(struct);
     return generatedClasses;
   }
 
@@ -143,6 +143,12 @@ class ClassGenerator {
         generateFunctionWrapper(clb, structDesc, name, funcType);
       }
     });
+
+    // TODO: If there's an equals method where the param type matches the struct, change the equals
+    //  impl generated to delegate to that func
+    generateEquals(clb, structDesc, fields);
+    // TODO: Don't generate hashCode method if the struct already has one
+    generateHashCode(clb, structDesc, fields);
   }
 
   private void generateSumType(SumType sumType) {
@@ -228,8 +234,8 @@ class ClassGenerator {
         structType.memberTypes());
   }
 
-  private void generateStruct(TStruct struct) {
-    buildAddClass(struct.type(), clb -> generateStruct(clb, struct));
+  private void generateTStruct(TStruct struct) {
+    buildAddClass(struct.type(), clb -> generateTStruct(clb, struct));
   }
 
   private void generateTypeConstructor(ClassBuilder clb, UnqualifiedTypeName typeName, ClassDesc classDesc, FunctionType constructorType) {
@@ -286,9 +292,7 @@ class ClassGenerator {
     }
   }
 
-  private static void generateEquals(ClassBuilder clb, TStruct struct) {
-    var structDesc = struct.structType().internalClassDesc();
-
+  private static void generateEquals(ClassBuilder clb, ClassDesc structDesc, SequencedMap<UnqualifiedName, Type> fields) {
     clb.withMethodBody("equals", MTD_EQUALS, ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL, cob -> {
       var falseLabel = cob.newLabel();
       var thisSlot = cob.receiverSlot();
@@ -298,34 +302,32 @@ class ClassGenerator {
           .aload(otherSlot)
           .checkcast(structDesc)
           .astore(castOtherSlot);
-      for (var field : struct.fields()) {
-        var fieldName = field.name().toString();
-        var fieldType = internalClassDesc(field.type());
+      fields.forEach((name, type) -> {
+        var fieldName = name.toString();
+        var fieldType = internalClassDesc(type);
         cob.aload(thisSlot)
             .getfield(structDesc, fieldName, fieldType)
             .aload(castOtherSlot)
             .getfield(structDesc, fieldName, fieldType);
         GeneratorUtil.generateEquals(cob, TypeKind.from(fieldType));
         cob.ifeq(falseLabel);
-      }
+      });
       var returnLabel = cob.newLabel();
       cob.iconst_1().goto_(returnLabel).labelBinding(falseLabel).iconst_0().labelBinding(returnLabel).ireturn();
     });
   }
 
-  private static void generateHashCode(ClassBuilder clb, TStruct struct) {
-    var structDesc = struct.structType().internalClassDesc();
-
+  private static void generateHashCode(ClassBuilder clb, ClassDesc structDesc, SequencedMap<UnqualifiedName, Type> fields) {
     clb.withMethodBody("hashCode", MTD_HASHCODE, ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL, cob -> {
       var thisSlot = cob.receiverSlot();
-      cob.ldc(struct.fields().size());
+      cob.ldc(fields.size());
       cob.anewarray(ConstantDescs.CD_Object);
       int i = 0;
-      for (var field : struct.fields()) {
-        var fieldName = field.name().toString();
-        var fieldType = internalClassDesc(field.type());
+      for (var field : fields.entrySet()) {
+        var fieldName = field.getKey().toString();
+        var fieldType = internalClassDesc(field.getValue());
         cob.dup().ldc(i++).aload(thisSlot).getfield(structDesc, fieldName, fieldType);
-        box(cob, field.type());
+        box(cob, field.getValue());
         cob.aastore();
       }
       cob.invokestatic(classDesc(Objects.class), "hash", MTD_HASH)
@@ -333,7 +335,7 @@ class ClassGenerator {
     });
   }
 
-  private void generateStruct(ClassBuilder clb, TStruct struct) {
+  private void generateTStruct(ClassBuilder clb, TStruct struct) {
     setContext(struct);
     // Generate class header
     var structType = struct.structType();
@@ -345,11 +347,6 @@ class ClassGenerator {
     struct.fields().forEach(field -> fieldTypes.put(field.name(), field.type()));
 
     generateStructStart(clb, structDesc, struct.range().sourcePath(), fieldTypes);
-    // TODO: If there's an equals method where the param type matches the struct, change the equals
-    //  impl generated to delegate to that func
-    generateEquals(clb, struct);
-    // TODO: Don't generate hashCode method if the struct already has one
-    generateHashCode(clb, struct);
 
     // Add a static INSTANCE field of the struct to make a singleton class.
     if (struct instanceof TModuleStruct moduleStruct) {
