@@ -11,7 +11,7 @@ import com.pentlander.sasquach.ast.typenode.SumTypeNode.VariantTypeNode;
 import com.pentlander.sasquach.name.QualifiedTypeName;
 import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.type.StructType;
-import com.pentlander.sasquach.type.TypeParameter;
+import com.pentlander.sasquach.type.TypeParameterNode;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -30,13 +30,14 @@ import org.jspecify.annotations.Nullable;
  *
  */
 public record StructTypeNode(@Nullable QualifiedTypeName typeName,
-                             List<TypeParameter> typeParams,
+                             List<TypeParameterNode> typeParams,
                              SequencedMap<UnqualifiedName, TypeNode> fieldTypeNodes, RowModifier rowModifier,
                              Range range) implements TypeNode, ConstructableNamedTypeNode,
     VariantTypeNode {
 
   @Override
   public StructType type() {
+    var typeParams = typeParams().stream().map(TypeParameterNode::toTypeParameter).toList();
     var fieldTypes = fieldTypeNodes.entrySet().stream()
         .collect(toLinkedMap(Entry::getKey, entry -> entry.getValue().type()));
     var rowModifier = switch (rowModifier()) {

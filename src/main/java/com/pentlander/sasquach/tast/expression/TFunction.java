@@ -9,6 +9,7 @@ import com.pentlander.sasquach.tast.TFunctionSignature;
 import com.pentlander.sasquach.tast.TRecurPoint;
 import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.FunctionType.Param;
+import com.pentlander.sasquach.type.TypeParameterNode;
 import java.util.List;
 
 // Need to include both the signature and function type in preparation for not requiring
@@ -31,7 +32,10 @@ public record TFunction(TFunctionSignature functionSignature, TypedExpression ex
     var funcType = type();
     return new FunctionType(
         concat(captureTypes, funcType.parameters()),
-        functionSignature.typeParameters(),
+        functionSignature.typeParameters()
+            .stream()
+            .map(TypeParameterNode::toTypeParameter)
+            .toList(),
         functionSignature.returnType());
   }
 

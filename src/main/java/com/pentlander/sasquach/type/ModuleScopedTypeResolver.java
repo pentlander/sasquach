@@ -67,7 +67,7 @@ public class ModuleScopedTypeResolver {
 
     struct.typeStatements().forEach(typeAlias -> {
       // Add the types of all the sum type nodes.
-      var typeArgs = TypeUtils.typeParamsToUniversal(typeAlias.typeParameters());
+      var typeArgs = TypeUtils.typeParamsToUniversal(typeAlias.typeParameterNodes());
       var resolvedAliasType = namedTypeResolver.resolveNames(typeAlias, typeArgs);
       switch (resolvedAliasType) {
         case SumType sumType -> {
@@ -96,7 +96,7 @@ public class ModuleScopedTypeResolver {
         errors.add(new TypeAnnotationRequiredError("return", funcSig.range()));
       }
 
-      var funcTypeParams = TypeUtils.typeParamsToUniversal(funcSig.typeParameters());
+      var funcTypeParams = TypeUtils.typeParamsToUniversal(funcSig.typeParameterNodes());
       var funcType = namedTypeResolver.resolveNames(funcSig.type(),
           funcTypeParams,
           func.range());
@@ -115,7 +115,7 @@ public class ModuleScopedTypeResolver {
 
     var typeDefs = struct.typeStatements().stream().map(stmt -> {
       var typeNode = stmt.typeNode();
-      var typeParams = TypeUtils.typeParamsToUniversal(stmt.typeParameters());
+      var typeParams = TypeUtils.typeParamsToUniversal(stmt.typeParameterNodes());
       var resolvedType = namedTypeResolver.resolveNames(typeNode, typeParams);
       return new TypeDef(resolvedType, stmt.range().sourcePath());
     }).toList();

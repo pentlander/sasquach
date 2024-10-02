@@ -28,7 +28,7 @@ import com.pentlander.sasquach.tast.expression.TypedExpression;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.Type;
-import com.pentlander.sasquach.type.TypeParameter;
+import com.pentlander.sasquach.type.TypeParameterNode;
 import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
@@ -95,11 +95,10 @@ public class Fixtures {
   }
 
   public static TNamedFunction tfunc(String name, List<TFunctionParameter> functionParameters,
-      List<TypeParameter> typeParameters, FunctionType funcType, TypedExpression expression) {
+      List<TypeParameterNode> typeParameterNodes, FunctionType funcType, TypedExpression expression) {
     var funcId = id(name);
     return new TNamedFunction(funcId,
-        new TFunction(new TFunctionSignature(functionParameters,
-            typeParameters,
+        new TFunction(new TFunctionSignature(functionParameters, typeParameterNodes,
             funcType.returnType(),
             range()), expression, List.of()));
   }

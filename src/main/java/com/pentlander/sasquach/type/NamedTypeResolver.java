@@ -11,6 +11,7 @@ import com.pentlander.sasquach.ast.NamedTypeDefinition.ForeignClass;
 import com.pentlander.sasquach.ast.typenode.TypeNode;
 import com.pentlander.sasquach.ast.typenode.TypeStatement;
 import com.pentlander.sasquach.name.QualifiedTypeName;
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.nameres.NameResolutionResult;
 import com.pentlander.sasquach.type.MemberScopedTypeResolver.TypeMismatchError;
 import com.pentlander.sasquach.type.MemberScopedTypeResolver.UnknownType;
@@ -32,23 +33,23 @@ public class NamedTypeResolver {
     this.nameResolutionResult = nameResolutionResult;
   }
 
-  private Type resolveNamedType(NamedType namedType, Map<String, Type> typeArgs, Range range) {
+  private Type resolveNamedType(NamedType namedType, Map<UnqualifiedTypeName, Type> typeArgs, Range range) {
     var typeDefNode = nameResolutionResult.getNamedTypeDef(namedType)
         .orElseThrow(() -> new IllegalStateException("Unable to find named type: " + namedType));
 
     return switch (typeDefNode) {
-      case TypeParameter typeParameter ->
-          typeArgs.getOrDefault(typeParameter.name(), namedType);
+      case TypeParameterNode typeParameterNode ->
+          typeArgs.getOrDefault(typeParameterNode.name(), namedType);
       case TypeStatement typeStatement -> {
-        if (typeStatement.typeParameters().size() != namedType.typeArguments().size()) {
+        if (typeStatement.typeParameterNodes().size() != namedType.typeArguments().size()) {
           yield addError(new TypeMismatchError("Number of type args does not match number of "
               + "type parameters for type '%s'".formatted(typeStatement.toPrettyString()), range));
         }
         // Construct a new map of type arguments that includes the
         var newTypeArgs = new HashMap<>(typeArgs);
         var resolvedTypeArgs = new ArrayList<Type>();
-        for (int i = 0; i < typeStatement.typeParameters().size(); i++) {
-          var typeParam = typeStatement.typeParameters().get(i);
+        for (int i = 0; i < typeStatement.typeParameterNodes().size(); i++) {
+          var typeParam = typeStatement.typeParameterNodes().get(i);
           var typeArg = resolveNames(namedType.typeArguments().get(i), typeArgs, range);
           newTypeArgs.put(typeParam.name(), typeArg);
           resolvedTypeArgs.add(typeArg);
@@ -72,12 +73,12 @@ public class NamedTypeResolver {
     };
   }
 
-  public Type resolveNames(TypeNode typeNode, Map<String, Type> typeArgs) {
+  public Type resolveNames(TypeNode typeNode, Map<UnqualifiedTypeName, Type> typeArgs) {
     return resolveNames(typeNode.type(), typeArgs, typeNode.range());
   }
 
   @SuppressWarnings("unchecked")
-  public <T extends Type> T resolveNames(T type, Map<String, Type> typeArgs, Range range) {
+  public <T extends Type> T resolveNames(T type, Map<UnqualifiedTypeName, Type> typeArgs, Range range) {
     return switch (type) {
       case NamedType namedType -> (T) resolveNamedType(namedType, typeArgs, range);
       case TypeNester typeNester -> (T) resolveNestedTypes(typeNester, typeArgs, range);
@@ -87,7 +88,7 @@ public class NamedTypeResolver {
 
   // For any parameterized type, you must recursively resolve any nested named types.
   private Type resolveNestedTypes(TypeNester typeNester,
-      Map<String, Type> typeArgs, Range range) {
+      Map<UnqualifiedTypeName, Type> typeArgs, Range range) {
     return switch (typeNester) {
       case StructType structType -> new StructType(structType.name(),
           structType.typeParameters(),
@@ -112,7 +113,7 @@ public class NamedTypeResolver {
             resolveNames(funcType.returnType(), newTypeArgs, range));
       }
       case UniversalType universalType ->
-          typeArgs.getOrDefault(universalType.typeNameStr(), universalType);
+          typeArgs.getOrDefault(universalType.typeName(), universalType);
       case TypeVariable typeVariable -> typeVariable;
       case SumType sumType -> new SumType(
           sumType.qualifiedTypeName(),
@@ -138,7 +139,7 @@ public class NamedTypeResolver {
     return errors.build();
   }
 
-  private List<Type> resolveNamedTypes(List<Type> types, Map<String, Type> typeArgs, Range range) {
+  private List<Type> resolveNamedTypes(List<Type> types, Map<UnqualifiedTypeName, Type> typeArgs, Range range) {
     return types.stream().map(t -> resolveNames(t, typeArgs, range)).toList();
   }
 

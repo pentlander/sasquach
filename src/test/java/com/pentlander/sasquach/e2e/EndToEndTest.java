@@ -41,17 +41,33 @@ public class EndToEndTest extends BaseTest {
 
   @Test
   void tuple() throws Exception {
-    var clazz = compileDebug( """
+    var clazz = compile( """
+        Main {
+          main = (): Int -> {
+            let tuple = ("string", 5)
+            tuple._1
+          },
+        }
+        """);
+    // Figure out why the local named type isn't being replaced
+    int sum = invokeMain(clazz);
+
+    assertThat(sum).isEqualTo(5);
+  }
+
+  @Test
+  void tuple_generic() throws Exception {
+    var clazz = compile( """
         Main {
           tuplify = [A, B](a: A, b: B): (A, B) -> (a, b),
-          foo = (): Int -> {
+          main = (): Int -> {
             let tuple = tuplify(5, "something")
             tuple._0
           },
         }
         """);
     // Figure out why the local named type isn't being replaced
-    int sum = invokeName(clazz, "foo");
+    int sum = invokeMain(clazz);
 
     assertThat(sum).isEqualTo(5);
   }

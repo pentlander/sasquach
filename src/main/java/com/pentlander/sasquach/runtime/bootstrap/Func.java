@@ -1,9 +1,11 @@
 package com.pentlander.sasquach.runtime.bootstrap;
 
+import java.lang.constant.ClassDesc;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 
 public sealed interface Func {
+  ClassDesc CD = Func.class.describeConstable().orElseThrow();
 
   record NamedFunc(Object inner) implements Func {}
 

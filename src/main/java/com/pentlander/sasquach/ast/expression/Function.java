@@ -5,7 +5,7 @@ import static java.util.Objects.requireNonNull;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.typenode.FunctionSignature;
 import com.pentlander.sasquach.ast.RecurPoint;
-import com.pentlander.sasquach.type.TypeParameter;
+import com.pentlander.sasquach.type.TypeParameterNode;
 import java.util.List;
 
 public record Function(FunctionSignature functionSignature, Expression expression) implements
@@ -23,8 +23,8 @@ public record Function(FunctionSignature functionSignature, Expression expressio
     return functionSignature.parameters();
   }
 
-  public List<TypeParameter> typeParameters() {
-    return functionSignature.typeParameters();
+  public List<TypeParameterNode> typeParameters() {
+    return functionSignature.typeParameterNodes();
   }
 
   public String toPrettyString() {

@@ -93,7 +93,7 @@ public record StructType(StructName name, List<TypeParameter> typeParameters,
 
   @Override
   public ClassDesc classDesc() {
-    return isRow() || isSynthetic() ? TypeUtils.classDesc(StructBase.class) : internalClassDesc();
+    return isRow() || isSynthetic() ? StructBase.CD : internalClassDesc();
   }
 
   @Override

@@ -6,7 +6,7 @@ import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.type.FunctionType;
-import com.pentlander.sasquach.type.TypeParameter;
+import com.pentlander.sasquach.type.TypeParameterNode;
 import com.pentlander.sasquach.type.TypeVariable;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -16,7 +16,7 @@ import org.jspecify.annotations.Nullable;
  * type.
  */
 public record FunctionSignature(List<FunctionParameter> parameters,
-                                List<TypeParameter> typeParameters,
+                                List<TypeParameterNode> typeParameterNodes,
                                 @Nullable TypeNode returnTypeNode, Range range) implements Node,
     TypeNode {
   public FunctionSignature(List<FunctionParameter> parameters, TypeNode returnTypeNode,
@@ -29,13 +29,13 @@ public record FunctionSignature(List<FunctionParameter> parameters,
     var returnType = returnTypeNode != null ? returnTypeNode.type() : new TypeVariable("Return", 0);
     return new FunctionType(
         parameters.stream().map(FunctionType.Param::from).toList(),
-        typeParameters,
+        typeParameterNodes.stream().map(TypeParameterNode::toTypeParameter).toList(),
         returnType);
   }
 
   @Override
   public String toPrettyString() {
-    var typeParams = !typeParameters.isEmpty() ? typeParameters.stream()
+    var typeParams = !typeParameterNodes.isEmpty() ? typeParameterNodes.stream()
         .map(Node::toPrettyString)
         .collect(joining(", ", "[", "]")) : "";
     var returnTypeStr = returnTypeNode != null ?  ": " + returnTypeNode.toPrettyString() : "";

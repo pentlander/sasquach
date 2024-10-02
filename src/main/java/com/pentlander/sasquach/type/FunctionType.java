@@ -1,13 +1,13 @@
 package com.pentlander.sasquach.type;
 
 import static com.pentlander.sasquach.Util.mapNonNull;
-import static java.util.Objects.requireNonNullElse;
+import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
-import com.pentlander.sasquach.ast.id.Id;
 import com.pentlander.sasquach.ast.Labeled;
-import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.runtime.bootstrap.Func;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TFunctionParameter.Label.None;
@@ -30,8 +30,8 @@ public record FunctionType(List<Param> parameters,
                            List<TypeParameter> typeParameters, Type returnType) implements
     ParameterizedType, TypeNester {
   public FunctionType {
-    parameters = requireNonNullElse(parameters, List.of());
-    typeParameters = requireNonNullElse(typeParameters, List.of());
+    requireNonNull(parameters);
+    requireNonNull(typeParameters);
   }
 
   @Override
@@ -72,6 +72,7 @@ public record FunctionType(List<Param> parameters,
   public String toPrettyString() {
     var typeParams = !typeParameters.isEmpty() ? typeParameters.stream()
         .map(TypeParameter::name)
+        .map(Object::toString)
         .collect(joining(", ", "[", "]")) : "";
     return typeParams + parameterTypes().stream()
         .map(Type::toPrettyString)

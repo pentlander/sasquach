@@ -10,14 +10,14 @@ import com.pentlander.sasquach.ast.id.QualifiedModuleId;
 import com.pentlander.sasquach.ast.id.TypeId;
 import com.pentlander.sasquach.ast.typenode.FunctionSignature;
 import com.pentlander.sasquach.ast.typenode.TypeNode;
-import com.pentlander.sasquach.type.TypeParameter;
+import com.pentlander.sasquach.type.TypeParameterNode;
 
 /**
  * A node in the abstract syntax tree.
  */
 public sealed interface Node permits Branch, FunctionSignature, Id, ModuleDeclaration, Pattern,
     QualifiedModuleId, TypeId, TypeNode, Use, Expression, LocalVariable, Argument, NamedFunction,
-    Field, TypeParameter {
+    Field, TypeParameterNode {
   /**
    * Range in the source code that this node can be found.
    */

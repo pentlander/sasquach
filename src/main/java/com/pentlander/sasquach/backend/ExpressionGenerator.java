@@ -477,7 +477,7 @@ final class ExpressionGenerator {
         }
 
         generateArgs(structFuncCall.typedArgs(), funcType.parameters());
-        var funcTypeDesc = funcType.functionTypeDesc().insertParameterTypes(0, classDesc(Func.class), ConstantDescs.CD_Object);
+        var funcTypeDesc = funcType.functionTypeDesc().insertParameterTypes(0, Func.CD, ConstantDescs.CD_Object);
         cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
             StructDispatch.MHD_BOOTSTRAP_MEMBER,
             StandardOperation.CALL.toString(),
@@ -567,11 +567,16 @@ final class ExpressionGenerator {
       return;
     }
     generateNewDup(structClassDesc);
-    fields.forEach(field -> generateExpr(field.expr()));
-    var paramDescs = struct.constructorParams()
-        .stream()
-        .map(Type::classDesc)
-        .toArray(ClassDesc[]::new);
+
+    var params = struct.constructorParams();
+    var paramDescs = new ClassDesc[params.size()];
+    for (int i = 0; i < fields.size(); i++) {
+      var field = fields.get(i);
+      var paramType = params.get(i);
+      generateExpr(field.expr());
+      tryBox(cob, field.type(), paramType);
+      paramDescs[i] = paramType.classDesc();
+    }
     generate(MethodHandleDesc.ofConstructor(structClassDesc, paramDescs));
   }
 

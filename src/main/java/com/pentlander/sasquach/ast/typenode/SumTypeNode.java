@@ -7,13 +7,13 @@ import com.pentlander.sasquach.name.QualifiedModuleName;
 import com.pentlander.sasquach.name.QualifiedTypeName;
 import com.pentlander.sasquach.type.SingletonType;
 import com.pentlander.sasquach.type.SumType;
-import com.pentlander.sasquach.type.TypeParameter;
+import com.pentlander.sasquach.type.TypeParameterNode;
 import com.pentlander.sasquach.type.VariantType;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public record SumTypeNode(QualifiedModuleName moduleName, TypeId id,
-                          List<TypeParameter> typeParameters,
+                          List<TypeParameterNode> typeParameterNodes,
                           List<VariantTypeNode> variantTypeNodes, Range range) implements TypeNode {
   public SumTypeNode {
     if (variantTypeNodes.isEmpty()) {
@@ -25,7 +25,7 @@ public record SumTypeNode(QualifiedModuleName moduleName, TypeId id,
   public SumType type() {
     return new SumType(
         id.name(),
-        typeParameters,
+        typeParameterNodes.stream().map(TypeParameterNode::toTypeParameter).toList(),
         variantTypeNodes.stream().map(VariantTypeNode::type).toList());
   }
 

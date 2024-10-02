@@ -3,7 +3,6 @@ package com.pentlander.sasquach.type;
 import static com.pentlander.sasquach.type.TypeUtils.typeWithParamsToString;
 
 import com.pentlander.sasquach.name.QualifiedTypeName;
-import com.pentlander.sasquach.runtime.StructBase;
 import java.lang.constant.ClassDesc;
 import java.util.List;
 
@@ -17,7 +16,8 @@ public record SumType(QualifiedTypeName qualifiedTypeName,
 
   @Override
   public ClassDesc classDesc() {
-    return TypeUtils.classDesc(StructBase.class);
+    return internalClassDesc();
+//    return StructBase.CD;
   }
 
   @Override

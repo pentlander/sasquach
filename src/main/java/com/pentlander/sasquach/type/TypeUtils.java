@@ -2,6 +2,7 @@ package com.pentlander.sasquach.type;
 
 import static java.util.stream.Collectors.toMap;
 
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import java.lang.constant.ClassDesc;
 import java.util.Collection;
 import java.util.List;
@@ -79,12 +80,12 @@ public final class TypeUtils {
     return clazz.describeConstable().orElseThrow();
   }
 
-  static Map<String, Type> typeParamsToUniversal(List<TypeParameter> typeAlias) {
-    return typeParams(typeAlias, TypeParameter::toUniversal);
+  static Map<UnqualifiedTypeName, Type> typeParamsToUniversal(List<TypeParameterNode> typeAlias) {
+    return typeParams(typeAlias, TypeParameterNode::toUniversal);
   }
 
-  static Map<String, Type> typeParams(Collection<TypeParameter> typeParams,
-      java.util.function.Function<TypeParameter, Type> paramFunc) {
-    return typeParams.stream().collect(toMap(TypeParameter::name, paramFunc));
+  static Map<UnqualifiedTypeName, Type> typeParams(Collection<TypeParameterNode> typeParams,
+      java.util.function.Function<TypeParameterNode, Type> paramFunc) {
+    return typeParams.stream().collect(toMap(TypeParameterNode::name, paramFunc));
   }
 }

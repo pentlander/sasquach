@@ -1,6 +1,8 @@
 package com.pentlander.sasquach.type;
 
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import java.lang.constant.ClassDesc;
+import java.lang.constant.ConstantDescs;
 
 // It exists as a type variable for function and type
 // definitions. If `TypeVariable` was used in those cases, once a function was called it could only
@@ -12,9 +14,13 @@ public record UniversalType(String name) implements Type, TypeNester {
     return name();
   }
 
+  public UnqualifiedTypeName typeName() {
+    return new UnqualifiedTypeName(name);
+  }
+
   @Override
   public ClassDesc classDesc() {
-    return TypeUtils.classDesc(Object.class);
+    return ConstantDescs.CD_Object;
   }
 
   @Override

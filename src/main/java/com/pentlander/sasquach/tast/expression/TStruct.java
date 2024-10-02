@@ -9,7 +9,8 @@ import com.pentlander.sasquach.type.StructType;
 import com.pentlander.sasquach.type.Type;
 import java.util.List;
 
-public sealed interface TStruct extends TypedExpression permits TLiteralStruct, TModuleStruct {
+public sealed interface TStruct extends TypedExpression permits TLiteralStruct, TModuleStruct,
+    TTuple {
   List<TField> fields();
 
   StructType structType();

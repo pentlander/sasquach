@@ -2,6 +2,7 @@ package com.pentlander.sasquach.type;
 
 import static com.pentlander.sasquach.Preconditions.checkNotInstanceOf;
 import static com.pentlander.sasquach.Util.concat;
+import static com.pentlander.sasquach.Util.toSeqMap;
 import static com.pentlander.sasquach.type.TypeUtils.reify;
 import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
@@ -19,24 +20,28 @@ import com.pentlander.sasquach.RangedErrorList.Builder;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.Argument;
 import com.pentlander.sasquach.ast.Branch;
-import com.pentlander.sasquach.ast.id.Id;
 import com.pentlander.sasquach.ast.Labeled;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.Pattern;
-import com.pentlander.sasquach.name.QualifiedModuleName;
-import com.pentlander.sasquach.name.UnqualifiedName;
+import com.pentlander.sasquach.ast.Pattern.VariantStruct;
+import com.pentlander.sasquach.ast.Pattern.VariantTuple;
 import com.pentlander.sasquach.ast.expression.*;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.BooleanExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareExpression;
 import com.pentlander.sasquach.ast.expression.BinaryExpression.MathExpression;
 import com.pentlander.sasquach.ast.expression.Struct.Field;
+import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.name.QualifiedModuleName;
+import com.pentlander.sasquach.name.UnqualifiedName;
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.nameres.NameResolutionResult;
 import com.pentlander.sasquach.tast.TBranch;
 import com.pentlander.sasquach.tast.TFunctionParameter;
 import com.pentlander.sasquach.tast.TFunctionParameter.Label;
 import com.pentlander.sasquach.tast.TFunctionSignature;
 import com.pentlander.sasquach.tast.TNamedFunction;
-import com.pentlander.sasquach.tast.TPattern;
+import com.pentlander.sasquach.tast.TPattern.TSingleton;
+import com.pentlander.sasquach.tast.TPattern.TVariantStruct;
 import com.pentlander.sasquach.tast.TPattern.TVariantTuple;
 import com.pentlander.sasquach.tast.TPatternVariable;
 import com.pentlander.sasquach.tast.expression.*;
@@ -118,10 +123,11 @@ public class MemberScopedTypeResolver {
     return errors.build().concat(namedTypeResolver.errors());
   }
 
-  private Map<String, Type> typeParamToVar(List<TypeParameter> typeParams) {
-    return TypeUtils.typeParams(typeParams, param -> {
-      return param.toTypeVariable(typeVarNum.getAndIncrement());
-    });
+  private Map<UnqualifiedTypeName, Type> typeParamToVar(List<TypeParameter> typeParams) {
+    return typeParams.stream()
+        .collect(toSeqMap(
+            TypeParameter::name,
+            param -> param.toTypeVariable(typeVarNum.getAndIncrement())));
   }
   private <T extends ParameterizedType> T convertUniversals(T type, Range range) {
     var typeParamToVar = typeParamToVar(type.typeParameters());
@@ -148,7 +154,7 @@ public class MemberScopedTypeResolver {
         List<TFunctionParameter> funcParams = new ArrayList<>();
         // TODO need to include type args from parent if this is a nested func
         var funcSig = func.functionSignature();
-        var typeArgs = TypeUtils.typeParams(funcSig.typeParameters(), TypeParameter::toUniversal);
+        var typeArgs = TypeUtils.typeParams(funcSig.typeParameterNodes(), TypeParameterNode::toUniversal);
         for (int i = 0; i < func.parameters().size(); i++) {
           var param = funcSig.parameters().get(i);
           var paramType = namedTypeResolver.resolveNames(param.type(), typeArgs, param.range());
@@ -438,6 +444,15 @@ public class MemberScopedTypeResolver {
         var moduleRef = moduleRef(namedStruct.name().qualifiedModuleName(), namedStruct.range());
         yield resolveMemberFunctionCall(moduleRef, namedStruct.toFunctionCall());
       }
+      case Tuple tuple -> {
+        var typedFields = new ArrayList<TField>();
+        struct.fields()
+            .forEach(field -> {
+              var tExpr = infer(field.value());
+              typedFields.add(new TField(field.id(), tExpr));
+            });
+        yield new TTuple(typedFields, tuple.range());
+      }
     };
   }
 
@@ -480,8 +495,8 @@ public class MemberScopedTypeResolver {
         var variantType = requireNonNull(exprVariantTypes.remove(branchVariantTypeName));
         var typedPattern = switch (branch.pattern()) {
           case Pattern.Singleton singleton ->
-              new TPattern.TSingleton(singleton.id(), (SingletonType) variantType);
-          case Pattern.VariantTuple tuple -> {
+              new TSingleton(singleton.id(), (SingletonType) variantType);
+          case VariantTuple tuple -> {
             var tupleType = TypeUtils.asStructType(variantType).orElseThrow();
             var tupleMemberTypes = List.copyOf(tupleType.memberTypes().values());
             var typedPatternVars = new ArrayList<TPatternVariable>();
@@ -497,7 +512,7 @@ public class MemberScopedTypeResolver {
                 typedPatternVars,
                 tuple.range());
           }
-          case Pattern.VariantStruct struct -> {
+          case VariantStruct struct -> {
             var structType = TypeUtils.asStructType(variantType).orElseThrow();
             var typedPatternVars = new ArrayList<TPatternVariable>();
             for (var binding : struct.bindings()) {
@@ -506,7 +521,7 @@ public class MemberScopedTypeResolver {
               putLocalVarType(binding, typedVar);
               typedPatternVars.add(typedVar);
             }
-            yield new TPattern.TVariantStruct(struct.id(),
+            yield new TVariantStruct(struct.id(),
                 structType,
                 typedPatternVars,
                 struct.range());
@@ -528,7 +543,7 @@ public class MemberScopedTypeResolver {
         return addError(match, new MatchNotExhaustive("Match is not exhaustive", match.range()));
       }
 
-      return new TMatch(typedExpr, typedBranches, returnType, match.range());
+      return new TMatch(typedExpr, typedBranches, requireNonNull(returnType), match.range());
     } else {
       return addError(match,
           new TypeMismatchError("Type '%s' in match is not a sum type".formatted(typedExpr.toPrettyString()),
@@ -601,7 +616,7 @@ public class MemberScopedTypeResolver {
   }
 
   private TArgs checkFuncArgs(UnqualifiedName name, List<Argument> args,
-      List<FunctionType.Param> params, Range range) {
+      List<Param> params, Range range) {
     var argsMap = LabeledMap.of(args);
     var posArgs = argsMap.positionalItems();
 
@@ -922,7 +937,7 @@ public class MemberScopedTypeResolver {
   }
 
   static final class TypeMismatchError extends AbstractRangedError implements RangedError {
-    TypeMismatchError(String message, Range range, Throwable cause) {
+    TypeMismatchError(String message, Range range, @Nullable Throwable cause) {
       super(message, range, cause);
     }
 

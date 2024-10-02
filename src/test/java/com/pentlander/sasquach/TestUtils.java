@@ -2,7 +2,6 @@ package com.pentlander.sasquach;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -69,10 +68,5 @@ public final class TestUtils {
 
   public static <T> T invokeMain(Class<?> clazz) throws Exception {
     return invokeName(clazz, "main");
-  }
-
-  @SuppressWarnings("unchecked")
-  public static <T> T invokeFirst(Class<?> clazz, Object... args) throws Exception {
-    return (T) clazz.getMethods()[0].invoke(staticInstance(clazz), args);
   }
 }

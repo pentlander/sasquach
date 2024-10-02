@@ -17,14 +17,14 @@ import com.pentlander.sasquach.ast.id.TypeId;
 import com.pentlander.sasquach.ast.typenode.TypeNode;
 import com.pentlander.sasquach.ast.typenode.TypeStatement;
 import com.pentlander.sasquach.type.NamedType;
-import com.pentlander.sasquach.type.TypeParameter;
+import com.pentlander.sasquach.type.TypeParameterNode;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /** Resolves named types to their corresponding aliases or type parameters. */
 public class TypeNodeNameResolver {
-  private final List<TypeParameter> contextTypeParams;
+  private final List<TypeParameterNode> contextTypeParams;
   private final ModuleScopedNameResolver moduleScopedNameResolver;
   // Map of named type nodes to its type definition, e.g. type alias or type parameter
   private final Map<NamedType, NamedTypeDefinition> namedTypes = new HashMap<>();
@@ -33,7 +33,7 @@ public class TypeNodeNameResolver {
   public TypeNodeNameResolver(ModuleScopedNameResolver moduleScopedNameResolver) {
     this(List.of(), moduleScopedNameResolver);
   }
-  public TypeNodeNameResolver(List<TypeParameter> contextTypeParams,
+  public TypeNodeNameResolver(List<TypeParameterNode> contextTypeParams,
       ModuleScopedNameResolver moduleScopedNameResolver) {
     this.contextTypeParams = contextTypeParams;
     this.moduleScopedNameResolver = moduleScopedNameResolver;
@@ -56,7 +56,7 @@ public class TypeNodeNameResolver {
         }
       }
       case FunctionSignature functionSignature -> {
-        var typeParams = Util.concat(contextTypeParams, functionSignature.typeParameters());
+        var typeParams = Util.concat(contextTypeParams, functionSignature.typeParameterNodes());
         var resolver = new TypeNodeNameResolver(typeParams, moduleScopedNameResolver);
         functionSignature.parameters().forEach(param -> {
           if (param.typeNode() != null) {
@@ -71,7 +71,7 @@ public class TypeNodeNameResolver {
         }
       }
       case TypeStatement typeStatement -> {
-        var typeParams = Util.concat(contextTypeParams, typeStatement.typeParameters());
+        var typeParams = Util.concat(contextTypeParams, typeStatement.typeParameterNodes());
         var resolver = new TypeNodeNameResolver(typeParams, moduleScopedNameResolver);
         var result = resolver.resolveTypeNode(typeStatement.typeNode());
         mergeResult(result);

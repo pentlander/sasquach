@@ -10,7 +10,7 @@ import com.pentlander.sasquach.ast.expression.*;
 import com.pentlander.sasquach.ast.id.TypeId;
 import com.pentlander.sasquach.ast.typenode.SumTypeNode.VariantTypeNode.SingletonTypeNode;
 import com.pentlander.sasquach.ast.typenode.TypeNode;
-import com.pentlander.sasquach.type.TypeParameter;
+import com.pentlander.sasquach.type.TypeParameterNode;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -43,7 +43,7 @@ public class MemberScopedNameResolver {
   private final RangedErrorList.Builder errors = RangedErrorList.builder();
   private final List<NameResolutionResult> resolutionResults = new ArrayList<>();
 
-  private final List<TypeParameter> contextTypeParameters = new ArrayList<>();
+  private final List<TypeParameterNode> contextTypeParameterNodes = new ArrayList<>();
 
   private final LocalVariableStack localVarStack;
 
@@ -58,7 +58,7 @@ public class MemberScopedNameResolver {
   }
 
   private MemberScopedNameResolver(ModuleScopedNameResolver moduleScopedNameResolver,
-      LocalVariableStack parentVariableStack) {
+      @Nullable LocalVariableStack parentVariableStack) {
     this.moduleScopedNameResolver = moduleScopedNameResolver;
     this.localVarStack = new LocalVariableStack(parentVariableStack, errors::add);
   }
@@ -117,6 +117,7 @@ public class MemberScopedNameResolver {
         }
       }
       case LiteralStruct literalStruct -> literalStruct.spreads().forEach(this::resolve);
+      case Tuple _ -> {}
     }
     struct.functions().forEach(function -> resolveNestedFunc(function.function()));
     struct.fields().forEach(field -> resolve(field.value()));
@@ -184,7 +185,7 @@ public class MemberScopedNameResolver {
     resolveTypeNames(funcSignature);
     // Add the type parameters to the contextual type parameters, so that nested functions can include
     // them when resolving type names
-    contextTypeParameters.addAll(funcSignature.typeParameters());
+    contextTypeParameterNodes.addAll(funcSignature.typeParameterNodes());
     funcSignature.parameters().forEach(MemberScopedNameResolver.this::addLocalVariable);
 
     resolve(function.expression());
@@ -192,7 +193,7 @@ public class MemberScopedNameResolver {
   }
 
   private void resolveTypeNames(TypeNode typeNode) {
-    var resolver = new TypeNodeNameResolver(contextTypeParameters, moduleScopedNameResolver);
+    var resolver = new TypeNodeNameResolver(contextTypeParameterNodes, moduleScopedNameResolver);
     var result = resolver.resolveTypeNode(typeNode);
     nameData.addNamedTypeDefs(result.namedTypes().entrySet());
     errors.addAll(result.errors());
@@ -200,7 +201,7 @@ public class MemberScopedNameResolver {
 
   private void resolveNestedFunc(Function function) {
     var resolver = new MemberScopedNameResolver(moduleScopedNameResolver, localVarStack);
-    resolver.contextTypeParameters.addAll(contextTypeParameters);
+    resolver.contextTypeParameterNodes.addAll(contextTypeParameterNodes);
 
     resolver.resolveFunc(function);
 
@@ -241,9 +242,8 @@ public class MemberScopedNameResolver {
   }
 
   private void resolve(Recur recur) {
-    var loop = loopStack.getLast();
-    if (loop != null) {
-      nameData.addRecurPoints(recur, loop);
+    if (!loopStack.isEmpty()) {
+      nameData.addRecurPoints(recur, loopStack.getLast());
     } else if (namedFunction != null) {
       nameData.addRecurPoints(recur, namedFunction.function());
     } else {

@@ -18,7 +18,7 @@ import com.pentlander.sasquach.parser.SasquachParser.TypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeIdentifierContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeParameterListContext;
 import com.pentlander.sasquach.type.BuiltinType;
-import com.pentlander.sasquach.type.TypeParameter;
+import com.pentlander.sasquach.type.TypeParameterNode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -59,12 +59,12 @@ interface VisitorHelper extends RangeHelper {
     return new TypeId(qualName, rangeFrom(node));
   }
 
-  default List<TypeParameter> typeParams(TypeParameterListContext ctx) {
+  default List<TypeParameterNode> typeParams(TypeParameterListContext ctx) {
     return Optional.ofNullable(ctx)
         .map(TypeParameterListContext::typeIdentifier)
         .orElse(List.of())
         .stream()
-        .map(typeParamCtx -> new TypeParameter(new TypeParameterId(new UnqualifiedTypeName(
+        .map(typeParamCtx -> new TypeParameterNode(new TypeParameterId(new UnqualifiedTypeName(
             typeParamCtx.ID().getText()), rangeFrom(typeParamCtx.ID()))))
         .toList();
   }

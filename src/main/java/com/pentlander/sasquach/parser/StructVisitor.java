@@ -36,7 +36,7 @@ import com.pentlander.sasquach.parser.SasquachParser.UseStatementContext;
 import com.pentlander.sasquach.parser.SasquachParser.VariantTypeContext;
 import com.pentlander.sasquach.parser.StructIdentifier.ModuleName;
 import com.pentlander.sasquach.parser.StructIdentifier.None;
-import com.pentlander.sasquach.type.TypeParameter;
+import com.pentlander.sasquach.type.TypeParameterNode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -173,7 +173,8 @@ public class StructVisitor extends
 
   private TypeNode sumTypeNode(
       SumTypeContext ctx, QualifiedModuleName moduleName, TypeId aliasId,
-      List<TypeParameter> typeParameters) {
+      List<TypeParameterNode> typeParameterNodes
+  ) {
     var numVariants = ctx.typeIdentifier().size();
     var variantNodes = new ArrayList<VariantTypeNode>();
     for (int i = 0; i < numVariants; i++) {
@@ -181,12 +182,12 @@ public class StructVisitor extends
       var name = moduleName.qualifyInner(new UnqualifiedTypeName(id.getText()));
       var typeId = new TypeId(name, rangeFrom(id));
       var variantTypeCtx = ctx.variantType(i);
-      variantNodes.add(variantTypeNode(typeId, typeParameters, variantTypeCtx));
+      variantNodes.add(variantTypeNode(typeId, typeParameterNodes, variantTypeCtx));
     }
-    return new SumTypeNode(moduleName, aliasId, typeParameters, variantNodes, rangeFrom(ctx));
+    return new SumTypeNode(moduleName, aliasId, typeParameterNodes, variantNodes, rangeFrom(ctx));
   }
 
-  private VariantTypeNode variantTypeNode(TypeId id, List<TypeParameter> typeParams, VariantTypeContext ctx) {
+  private VariantTypeNode variantTypeNode(TypeId id, List<TypeParameterNode> typeParams, VariantTypeContext ctx) {
     var qualifiedStructName = id.name();
     moduleCtx.putTypeName(qualifiedStructName.simpleName(), qualifiedStructName);
     var typeVisitor = new TypeVisitor(moduleCtx, qualifiedStructName, typeParams);

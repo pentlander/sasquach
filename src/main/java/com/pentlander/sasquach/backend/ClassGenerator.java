@@ -10,11 +10,12 @@ import static java.lang.classfile.Signature.ClassTypeSig;
 import static java.lang.classfile.Signature.TypeVarSig;
 
 import com.pentlander.sasquach.SourcePath;
-import com.pentlander.sasquach.name.UnqualifiedName;
-import com.pentlander.sasquach.name.UnqualifiedTypeName;
+import com.pentlander.sasquach.ast.expression.Tuple;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.backend.ExpressionGenerator.Context;
+import com.pentlander.sasquach.name.UnqualifiedName;
+import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.runtime.StructBase;
 import com.pentlander.sasquach.runtime.bootstrap.Func;
 import com.pentlander.sasquach.runtime.bootstrap.StructDispatch;
@@ -30,8 +31,10 @@ import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.SingletonType;
 import com.pentlander.sasquach.type.StructType;
+import com.pentlander.sasquach.type.StructType.RowModifier;
 import com.pentlander.sasquach.type.SumType;
 import com.pentlander.sasquach.type.Type;
+import com.pentlander.sasquach.type.TypeParameter;
 import com.pentlander.sasquach.type.UniversalType;
 import com.pentlander.sasquach.type.VariantType;
 import java.lang.classfile.ClassBuilder;
@@ -63,6 +66,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import jdk.dynalink.StandardOperation;
 import org.jspecify.annotations.Nullable;
@@ -94,7 +98,7 @@ class ClassGenerator {
     contextNode = node;
   }
 
-  private void generateStructStart(ClassBuilder clb, ClassDesc structDesc, SourcePath sourcePath,
+  private static void generateStructStart(ClassBuilder clb, ClassDesc structDesc, @Nullable SourcePath sourcePath,
       SequencedMap<UnqualifiedName, Type> fields, ClassDesc... interfaceDescs) {
     var entries = List.copyOf(fields.entrySet());
 
@@ -103,8 +107,10 @@ class ClassGenerator {
     allInterfaces.addAll(Arrays.asList(interfaceDescs));
 
     clb.withFlags(AccessFlag.PUBLIC, AccessFlag.FINAL)
-        .withInterfaceSymbols(allInterfaces)
-        .with(SourceFileAttribute.of(sourcePath.filepath()));
+        .withInterfaceSymbols(allInterfaces);
+    if (sourcePath != null) {
+      clb.with(SourceFileAttribute.of(sourcePath.filepath()));
+    }
 
     // Generate fields
     var fieldClasses = new ArrayList<ClassDesc>();
@@ -164,9 +170,9 @@ class ClassGenerator {
     buildAddClass(type.internalName(), internalClassDesc(type), handler);
   }
 
-  private static byte[] buildClass(ClassDesc type, Consumer<? super ClassBuilder> handler) {
+  private byte[] buildClass(ClassDesc type, Consumer<? super ClassBuilder> handler) {
     var opt = ClassHierarchyResolverOption.of(ClassHierarchyResolver.defaultResolver()
-        .orElse(new SasqClassHierarchyResolver()));
+        .orElse(resolver));
     var classFile = ClassFile.of(opt);
     var bytes = classFile.build(type, clb -> {
       clb.withVersion(ClassFile.JAVA_19_VERSION, 0);
@@ -234,13 +240,31 @@ class ClassGenerator {
         structType.memberTypes());
   }
 
+  public Map<String, byte[]> generateTuples() {
+    for (int i = 1; i < 10; i++) {
+      var memberTypes = new LinkedHashMap<UnqualifiedName, Type>();
+      for (int j = 0; j < i; j++) {
+        memberTypes.put(new UnqualifiedName("_" + j), new UniversalType("A" + j));
+      }
+      var typeParams = IntStream.range(0, i)
+          .mapToObj(j -> new TypeParameter(new UnqualifiedTypeName("A" + j)))
+          .toList();
+      var structType = new StructType(Tuple.tupleName(i), typeParams, memberTypes, RowModifier.none());
+      buildAddClass(structType, clb -> generateStructStart(clb,
+          structType.internalClassDesc(), null,
+          structType.memberTypes()));
+    }
+
+    return generatedClasses;
+  }
+
   private void generateTStruct(TStruct struct) {
     buildAddClass(struct.type(), clb -> generateTStruct(clb, struct));
   }
 
   private void generateTypeConstructor(ClassBuilder clb, UnqualifiedTypeName typeName, ClassDesc classDesc, FunctionType constructorType) {
     var signature = generateMethodSignature(constructorType);
-    clb.withMethod(typeName.toString(), constructorType.functionTypeDesc(), ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL + ClassFile.ACC_SYNTHETIC, mb -> {
+    clb.withMethod(typeName.toString(), constructorType.functionTypeDesc(), ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL, mb -> {
       if (signature != null) {
         mb.with(SignatureAttribute.of(signature));
       }
@@ -401,7 +425,7 @@ class ClassGenerator {
 
     var typeParams = funcType.typeParameters()
         .stream()
-        .map(typeParam -> TypeParam.of(typeParam.name(),
+        .map(typeParam -> TypeParam.of(typeParam.name().toString(),
             ClassTypeSig.of(ConstantDescs.CD_Object)))
         .toList();
     var paramTypeSigs = funcType.parameterTypes()
@@ -415,7 +439,7 @@ class ClassGenerator {
 
   }
 
-  private void generateFunctionWrapper(ClassBuilder clb, ClassDesc owner, UnqualifiedName fieldName, FunctionType funcType) {
+  private static void generateFunctionWrapper(ClassBuilder clb, ClassDesc owner, UnqualifiedName fieldName, FunctionType funcType) {
     var signature = generateMethodSignature(funcType);
     var fieldNameStr = fieldName.toString();
 
@@ -430,7 +454,7 @@ class ClassGenerator {
           GeneratorUtil.generateLoadVar(cob, param.type(), cob.parameterSlot(idx++));
         }
 
-        var funcTypeDesc = funcType.functionTypeDesc().insertParameterTypes(0, classDesc(Func.class), ConstantDescs.CD_Object);
+        var funcTypeDesc = funcType.functionTypeDesc().insertParameterTypes(0, Func.CD, ConstantDescs.CD_Object);
         cob.invokeDynamicInstruction(DynamicCallSiteDesc.of(
             StructDispatch.MHD_BOOTSTRAP_MEMBER,
             StandardOperation.CALL.toString(),

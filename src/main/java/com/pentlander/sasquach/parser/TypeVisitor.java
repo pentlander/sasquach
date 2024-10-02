@@ -3,7 +3,7 @@ package com.pentlander.sasquach.parser;
 import static java.util.Objects.requireNonNullElseGet;
 
 import com.pentlander.sasquach.Range;
-import com.pentlander.sasquach.ast.expression.Struct;
+import com.pentlander.sasquach.ast.expression.Tuple;
 import com.pentlander.sasquach.ast.id.TypeId;
 import com.pentlander.sasquach.ast.id.TypeIdentifier;
 import com.pentlander.sasquach.ast.id.TypeParameterId;
@@ -25,7 +25,7 @@ import com.pentlander.sasquach.parser.SasquachParser.TupleTypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeArgumentListContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeContext;
 import com.pentlander.sasquach.type.BuiltinType;
-import com.pentlander.sasquach.type.TypeParameter;
+import com.pentlander.sasquach.type.TypeParameterNode;
 import java.util.LinkedHashMap;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -33,10 +33,10 @@ import org.jspecify.annotations.Nullable;
 class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<TypeNode> implements VisitorHelper {
   private final ModuleContext moduleCtx;
   private final @Nullable QualifiedTypeName structName;
-  private final List<TypeParameter> typeParams;
+  private final List<TypeParameterNode> typeParams;
 
   TypeVisitor(ModuleContext moduleCtx, @Nullable QualifiedTypeName structName,
-      List<TypeParameter> typeParams
+      List<TypeParameterNode> typeParams
   ) {
     this.moduleCtx = moduleCtx;
     this.structName = structName;
@@ -44,7 +44,7 @@ class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Typ
   }
 
 
-  TypeVisitor(ModuleContext moduleCtx, List<TypeParameter> typeParams) {
+  TypeVisitor(ModuleContext moduleCtx, List<TypeParameterNode> typeParams) {
     this(moduleCtx, null, typeParams);
   }
 
@@ -69,7 +69,7 @@ class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Typ
       if (qualName != null) {
         typeId = new TypeId(qualName, range);
       } else {
-        if (typeParams.stream().anyMatch(param -> param.name().equals(name.toString()))) {
+        if (typeParams.stream().anyMatch(param -> param.name().equals(name))) {
           typeId = new TypeParameterId(name, range);
         } else {
           moduleCtx.addError(new NameNotFoundError(name, range, "type", List.of()));
@@ -123,7 +123,7 @@ class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Typ
         .stream()
         .map(this::typeNode)
         .toList();
-    var name = requireNonNullElseGet(structName, () -> Struct.tupleName(typeNodes.size()));
+    var name = requireNonNullElseGet(structName, () -> Tuple.tupleName(typeNodes.size()));
     return new TupleTypeNode(name, typeNodes, rangeFrom(ctx));
   }
 

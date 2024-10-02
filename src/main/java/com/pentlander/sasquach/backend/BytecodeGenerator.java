@@ -5,7 +5,6 @@ import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TypedNode;
 import java.util.Collection;
 import java.util.LinkedHashMap;
-import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 public class BytecodeGenerator {
@@ -15,6 +14,9 @@ public class BytecodeGenerator {
 
   public BytecodeResult generateBytecode(Collection<TModuleDeclaration> moduleDeclarations) {
     var generatedBytecode = new LinkedHashMap<String, byte[]>();
+
+    var tupleClassGen = new ClassGenerator();
+    generatedBytecode.putAll(tupleClassGen.generateTuples());
     for (var moduleDeclaration : moduleDeclarations) {
       var classGen = new ClassGenerator();
       generatedBytecode.putAll(classGen.generate(moduleDeclaration));

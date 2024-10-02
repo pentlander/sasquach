@@ -13,7 +13,7 @@ public record SingletonType(QualifiedTypeName name) implements VariantType {
 
   @Override
   public ClassDesc classDesc() {
-    return TypeUtils.classDesc(StructBase.class);
+    return StructBase.CD;
   }
 
   @Override
