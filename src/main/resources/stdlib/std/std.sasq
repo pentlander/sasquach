@@ -26,6 +26,13 @@ Into {
   type T[A, B] = { into: (a: A) -> B, }
 }
 
+Compare {
+  type Ordering = | Less | Equal | Greater,
+  type T[A] = { compare: (a1: A, a2: A) -> Ordering },
+
+  compare = [A](cmp: T[A], a1: A, a2: A): Ordering -> cmp.compare(a1, a2),
+}
+
 Exception {
   use foreign com/pentlander/sasquach/runtime/Stdlib,
 
@@ -167,6 +174,19 @@ List {
   get = [A](list: T[A], idx: Int): A -> ArrayList#get(list.list, idx),
 
   size = [A](list: T[A]): Int -> ArrayList#size(list.list),
+
+  flatMap = [A, B](list: T[A], mapper: (value: A) -> T[B]): T[B] -> {
+    let size = ArrayList#size(list.list)
+    let newList = ArrayList#new()
+    loop (let i = 0) ->
+      if i < size {
+        let item = get(list, i)
+        ArrayList#addAll(newList, mapper(item).list)
+        recur(i + 1)
+      } else {
+        T { list = newList }
+      }
+  },
 
   map = [A, B](list: T[A], mapper: (value: A) -> B): T[B] -> {
     let size = ArrayList#size(list.list)

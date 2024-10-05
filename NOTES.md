@@ -324,6 +324,28 @@ I should just special case the things that I need right now instead of worrying 
 the general case of `derive`. The list includes: Equals, Hashcode, Compare, Serialize, Deserialize,
 ToResultSet, FromResultSet
 
+## Custom pattern match
+Scala has [custom pattern matching](https://docs.scala-lang.org/tour/regular-expression-patterns.html) via the unapply method. This case of a regex or something similar is interesting because it can be used to implement routing for an HTTP server. For example:
+```
+match path {
+    Path("/api/users/", id) -> { ... },
+    Path("/api/users/", id, "/settings") -> { .. }
+}
+```
+
+Not sure if I'd actually use this in practice since an opinionated framework would automatically have the GET, PUT, POST, DELETE endpoints generated and the user would just need to implement them. The user provides a module with the right behavior:
+```
+type Controller[Id, Params] = { 
+  index: (ctx: Context, params: Params) -> Response,
+  show: (ctx: Context, params: Params, id: Id) -> Response,
+  create: (ctx: Context, item: Params) -> Response,
+  edit: (ctx: Context, item: Params, id: Id) -> Response,
+  update: (ctx: Context, item: Params, id: Id) -> Response,
+  delete: (ctx: Context, item: Params, id: Id) -> Response,
+  ..,
+}
+```
+
 # Open Questions
 
 ## Multi-file resolution

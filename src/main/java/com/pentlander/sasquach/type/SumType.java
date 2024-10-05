@@ -17,7 +17,6 @@ public record SumType(QualifiedTypeName qualifiedTypeName,
   @Override
   public ClassDesc classDesc() {
     return internalClassDesc();
-//    return StructBase.CD;
   }
 
   @Override
