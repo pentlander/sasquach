@@ -13,6 +13,8 @@ String {
 
   equals = (a: String, b: String): Boolean -> String#equals(a, b),
 
+  hashCode = (str: String): Int -> String#hashCode(str),
+
   toString = (val: String): String -> val,
 
   concat = (str: String, with otherStr: String): String -> String#concat(str, otherStr),

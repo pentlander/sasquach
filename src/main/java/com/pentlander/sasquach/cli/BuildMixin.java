@@ -3,6 +3,7 @@ package com.pentlander.sasquach.cli;
 import com.pentlander.sasquach.Compiler;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import org.jspecify.annotations.NullUnmarked;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -15,7 +16,7 @@ public class BuildMixin {
   Path outputPath;
 
   void compile() {
-    var compiler = new Compiler();
+    var compiler = new Compiler(Set.of());
     compiler.compile(sourcePaths, outputPath);
   }
 }

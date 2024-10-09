@@ -19,11 +19,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.atteo.classindex.ClassIndex;
 
 public class Compiler {
   private final CompilationUnitParser parser = new CompilationUnitParser();
+  private final Set<Option> options;
+
+  public Compiler(Set<Option> options) {
+    this.options = options;
+  }
 
   Sources findFiles(List<Path> sourcePaths) throws IOException {
     if (sourcePaths.isEmpty()) {
@@ -96,10 +102,17 @@ public class Compiler {
   }
 
   public BytecodeResult compile(Sources sources) throws CompilationException {
+    Sources combinedSources;
+    try {
+      combinedSources = options.contains(Option.NO_STD) ? sources
+          : findFiles(Path.of("src/main/sasquach/sasquach")).merge(sources);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
     var compUnits = new ArrayList<CompilationUnit>();
-    for (Source source : sources.values()) {
+    for (Source source : combinedSources.values()) {
       var result = parser.parse(source);
-      result.errors().throwIfNotEmpty(sources);
+      result.errors().throwIfNotEmpty(combinedSources);
 
       var compilationUnit = result.item();
       compUnits.add(compilationUnit);
@@ -123,7 +136,9 @@ public class Compiler {
 
   public void compile(List<Path> sourcePaths, Path outputPath) {
     try {
-      var sources = findFiles(sourcePaths);
+      var sasqSources = options.contains(Option.NO_STD) ? Sources.empty()
+          : findFiles(Path.of("src/main/sasquach/sasquach"));
+      var sources = sasqSources.merge(findFiles(sourcePaths));
       Map<String, byte[]> bytecodeResults;
       try {
         bytecodeResults = compile(sources).generatedClasses();
@@ -150,7 +165,7 @@ public class Compiler {
         var message = switch (compileError) {
           case BasicError basicError -> "error: %s\n".formatted(basicError.toPrettyString(sources));
           case RangedError rangedError ->
-              "%s:\nerror: %s\n".formatted(rangedError.range().sourcePath().filepath(),
+              "%s:\nerror: %s\n".formatted(rangedError.range(),
                   rangedError.toPrettyString(sources));
         };
         System.out.print(message);
@@ -192,5 +207,9 @@ public class Compiler {
         Files.write(outputFilePath, classFileBytes);
       }
     }
+  }
+
+  public enum Option {
+    NO_STD,
   }
 }

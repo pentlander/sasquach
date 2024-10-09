@@ -34,6 +34,6 @@ public record ResolvedModuleNamedType(QualifiedTypeName name, List<Type> typeArg
 
   @Override
   public String toPrettyString() {
-    return TypeUtils.typeWithArgsToString(name.toString(), typeArgs);
+    return TypeUtils.typeWithArgsToString(name.toPrettyString(), typeArgs);
   }
 }

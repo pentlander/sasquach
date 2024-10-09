@@ -575,7 +575,7 @@ public class MemberScopedTypeResolver {
     }
 
     return addError(memberAccess, new TypeMismatchError(
-        "Can only access fields on struct types, found type '%s'".formatted(typedStructExpr.toPrettyString()),
+        "Can only access fields on struct types, found type '%s'".formatted(typedStructExpr.type().toPrettyString()),
         memberAccess.range()));
   }
 

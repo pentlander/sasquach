@@ -70,7 +70,7 @@ public sealed interface Range {
 
     @Override
     public String toString() {
-      return sourcePath.toString() + ":" + start.line() + ":" + start.column() + "-" + (
+      return sourcePath + ":" + start.line() + ":" + start.column() + "-" + (
           start.column() + length);
     }
   }

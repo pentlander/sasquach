@@ -72,6 +72,7 @@ import jdk.dynalink.StandardOperation;
 import org.jspecify.annotations.Nullable;
 
 class ClassGenerator {
+  static final MethodTypeDesc MTD_TO_STRING = MethodTypeDesc.of(ConstantDescs.CD_String);
   static final MethodTypeDesc MTD_HASHCODE = MethodTypeDesc.of(ConstantDescs.CD_int);
   static final MethodTypeDesc MTD_HASH = MethodTypeDesc.of(ConstantDescs.CD_int, ConstantDescs.CD_Object.arrayType());
   static final ClassDesc CD_STRUCT_BASE = classDesc(StructBase.class);

@@ -142,7 +142,12 @@ final class ExpressionGenerator {
         cob.getstatic(classDesc(System.class), "out", printStreamDesc);
         var expr = printStatement.expression();
         generate(expr);
-        var methodType = MethodTypeDesc.of(ConstantDescs.CD_void, type(expr).classDesc());
+        var typeKind = TypeKind.from(type(expr).classDesc());
+        var classDesc = switch (typeKind) {
+          case ReferenceType -> ConstantDescs.CD_Object;
+          default -> ClassDesc.ofDescriptor(typeKind.descriptor());
+        };
+        var methodType = MethodTypeDesc.of(ConstantDescs.CD_void, classDesc);
         cob.invokevirtual(printStreamDesc, "println", methodType);
       }
       case TVariableDeclaration varDecl -> {

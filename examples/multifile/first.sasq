@@ -1,17 +1,12 @@
-Option {
-    type T[A] = { value: A },
-
-    some = [A](value: A): T[A] -> { value = value },
-    map = [A, B](option: T[A], mapper: { map: (input: A) -> B }): T[B] -> { value = mapper.map(option.value) }
-}
-
 First {
     use math/Math,
-    use first/Option,
+    use std/Option,
     use std/io/IO,
-    use std/Integer,
+    use std/Int,
     use std/List,
     use std/Map,
+    use std/Hash,
+    use std/String,
     use foreign java/io/File,
     use foreign java/io/PrintStream,
     use foreign java/lang/System,
@@ -25,28 +20,27 @@ First {
 
     mainStatic = (args: Array[String]): Void -> {
         let third = { foo = "third", bar = 45 }
-        let optStr = Option.some("an option")
-        let optInt = Option.map(optStr, { map = (input: String): Int -> 10 })
-        print optInt.value
-        PrintStream#println(System#out, optInt.value)
+        let optStr = Option.Some("an option")
+        let optInt = Option.map(optStr, (input) -> 10)
+        print optInt
         gee(third, "testing")
         IO.println("testing std")
         let drinkList = List.new()
           |> List.conj("drink")
           |> List.map((value: String): Int -> 4)
 
-        System#out |> PrintStream#println(drinkList |> List.get(0) |> Integer.toString())
+        System#out |> PrintStream#println(drinkList |> List.get(0) |> Int.toString())
 
         let sum = List.of("82")
           |> List.conj("18")
-          |> List.reduce(0, (n: Int, str: String): Int -> n + Integer.parse(str))
+          |> List.reduce(0, (n: Int, str: String): Int -> n + Int.parse(str))
         print sum
 
         let mapper = (entry: (String, Int)): (Int, String) -> (4, "hi")
         mapper(("foo", 3))
-        let map = Map.of("first", 1)
+        let map = Map.of(String, "first", 1)
           |> Map.assoc("second", 2)
-        print Map.get(map, "first")
+        print Map.get(map, "first") |> Option.unwrap()
 
         let tup = (4, 5)
         print tup._1

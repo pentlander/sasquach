@@ -1,21 +1,19 @@
 package com.pentlander.sasquach;
 
-import static java.util.Objects.requireNonNull;
 import static org.junit.platform.commons.util.AnnotationUtils.findAnnotation;
 
 import com.pentlander.sasquach.BaseTest.Extension;
-import com.pentlander.sasquach.name.QualifiedModuleName;
+import com.pentlander.sasquach.Compiler.Option;
 import com.pentlander.sasquach.backend.BytecodeResult;
-import java.io.IOException;
+import com.pentlander.sasquach.name.QualifiedModuleName;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
-import java.net.URISyntaxException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.Set;
 import org.assertj.core.util.Files;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,18 +51,12 @@ public abstract class BaseTest {
 
   private Class<?> compile(Source source, int options)
       throws ClassNotFoundException, CompilationException {
-    var url = requireNonNull(getClass().getResource("/stdlib"));
 
     BytecodeResult bytecode;
-    try {
-      var path = Paths.get(url.toURI());
-      var compiler = new Compiler();
-      var baseSources = hasOpt(options, INCLUDE_STD) ? compiler.findFiles(path) : Sources.empty();
-      var sources = baseSources.merge(Sources.single(source));
-      bytecode = compiler.compile(sources);
-    } catch (URISyntaxException | IOException e) {
-      throw new RuntimeException(e);
-    }
+    Set<Option> compilerOptions = hasOpt(options, INCLUDE_STD) ? Set.of() : Set.of(Option.NO_STD);
+    var compiler = new Compiler(compilerOptions);
+    var sources = Sources.single(source);
+    bytecode = compiler.compile(sources);
 
     if (hasOpt(options, DUMP_CLASSES)) {
       var path = Path.of(Files.temporaryFolderPath(), testName.replaceAll("[()]", ""));
