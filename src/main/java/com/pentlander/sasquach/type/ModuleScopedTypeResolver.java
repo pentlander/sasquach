@@ -10,7 +10,6 @@ import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
-import com.pentlander.sasquach.ast.expression.ModuleStruct;
 import com.pentlander.sasquach.ast.expression.NamedFunction;
 import com.pentlander.sasquach.ast.expression.VarReference;
 import com.pentlander.sasquach.name.QualifiedModuleName;
@@ -61,7 +60,7 @@ public class ModuleScopedTypeResolver {
   }
 
   public StructType resolveModuleType() {
-    var struct = (ModuleStruct) moduleDecl.struct();
+    var struct = moduleDecl.struct();
     var fieldTypes = new LinkedHashMap<UnqualifiedName, Type>();
     var typedFields = new ArrayList<TField>();
 
@@ -156,6 +155,10 @@ public class ModuleScopedTypeResolver {
   private record ResolvedFunctionType(NamedFunction func, FunctionType type) {}
 
   public class ResolverModuleScopedTypes implements ModuleScopedTypes {
+    @Override
+    public QualifiedModuleName getModuleName() {
+      return moduleDecl.name();
+    }
     @Override
     public StructType getThisType() {
       return requireNonNull(thisStructType);

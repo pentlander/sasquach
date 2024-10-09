@@ -18,7 +18,6 @@ public enum BuiltinType implements Type {
   FLOAT("Float", float.class, "F"),
   DOUBLE("Double", double.class, "D"),
   STRING("String", String.class, "Ljava/lang/String;"),
-  STRING_ARR("String[]", String[].class, "[Ljava/lang/String;"),
   VOID("Void", void.class, "V");
 
   private final String name;

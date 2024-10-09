@@ -23,7 +23,7 @@ First {
 
     bar = (boo: String): String -> "doo",
 
-    main = (args: String[]): Void -> {
+    mainStatic = (args: Array[String]): Void -> {
         let third = { foo = "third", bar = 45 }
         let optStr = Option.some("an option")
         let optInt = Option.map(optStr, { map = (input: String): Int -> 10 })

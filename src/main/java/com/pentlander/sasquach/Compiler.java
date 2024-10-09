@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.atteo.classindex.ClassIndex;
 
 public class Compiler {
@@ -165,6 +166,7 @@ public class Compiler {
   }
 
   void clearDestDir(Path outputPath) throws IOException {
+    if (Files.notExists(outputPath)) return;
     Files.walkFileTree(outputPath, new SimpleFileVisitor<>() {
       @Override
       public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
@@ -175,13 +177,20 @@ public class Compiler {
   }
 
   void writeRuntimeFiles(Path outputPath) throws IOException {
-    var outPath = outputPath.resolve("com/pentlander/sasquach/runtime/");
-    Files.createDirectories(outPath);
-    for (var clazz : ClassIndex.getPackageClasses("com.pentlander.sasquach.runtime")) {
-      var resourcePath = Paths.get(clazz.getName().replace('.', '/') + ".class");
-      var classFileBytes = requireNonNull(Main.class.getClassLoader()
-          .getResourceAsStream(resourcePath.toString())).readAllBytes();
-      Files.write(outPath.resolve(resourcePath.getFileName()), classFileBytes);
+    var packageClassList = Stream.of("com.pentlander.sasquach.runtime", "com.pentlander.sasquach.runtime.bootstrap")
+        .map(ClassIndex::getPackageClasses)
+        .toList();
+    for (var packageClasses : packageClassList) {
+      for (var clazz : packageClasses) {
+        var resourcePath = Paths.get(clazz.getName().replace('.', '/') + ".class");
+        var classFileBytes = requireNonNull(Main.class.getClassLoader()
+            .getResourceAsStream(resourcePath.toString())).readAllBytes();
+        var outputFilePath = outputPath.resolve(resourcePath);
+        if (Files.notExists(outputFilePath.getParent())) {
+          Files.createDirectories(outputFilePath.getParent());
+        }
+        Files.write(outputFilePath, classFileBytes);
+      }
     }
   }
 }

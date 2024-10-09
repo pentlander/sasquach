@@ -405,13 +405,14 @@ class ClassGenerator {
   }
 
   private void generateFunction(ClassBuilder clb, String funcName, TFunction function) {
+    // TODO Replace this with an annotation check once annotations are implemented
     generateFunction(clb, funcName, function, ClassFile.ACC_PUBLIC + ClassFile.ACC_FINAL);
   }
 
   public static Signature typeSignature(Type type) {
     return switch (type) {
       case UniversalType t -> TypeVarSig.of(t.name());
-      case BuiltinType t when t != BuiltinType.STRING && t != BuiltinType.STRING_ARR ->
+      case BuiltinType t when t != BuiltinType.STRING ->
           BaseTypeSig.of(t.classDesc());
       default -> ClassTypeSig.of(type.classDesc());
     };
@@ -464,13 +465,23 @@ class ClassGenerator {
     });
   }
 
-  private void generateFunction(ClassBuilder clb, String funcName, TFunction function,
+
+  private void generateFunction(ClassBuilder clb, String functionName, TFunction function,
       int methodFlags) {
     var funcType = function.typeWithCaptures();
     var signature = generateMethodSignature(funcType);
+    // If a "main" method is found, need to generate a static method that delegates to instance
+    int staticAcc = 0;
+    final String funcName;
+    if (functionName.equals("mainStatic")) {
+      staticAcc = ClassFile.ACC_STATIC;
+      funcName = "main";
+    } else {
+      funcName = functionName;
+    }
 
     var namedAnonFuncs = new ArrayList<NamedAnonFunc>();
-    clb.withMethod(funcName, funcType.functionTypeDesc(), methodFlags, mb -> {
+    clb.withMethod(funcName, funcType.functionTypeDesc(), methodFlags + staticAcc, mb -> {
       if (signature != null) {
         mb.with(SignatureAttribute.of(signature));
       }

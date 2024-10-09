@@ -346,6 +346,25 @@ type Controller[Id, Params] = {
 }
 ```
 
+## Modularization
+In order to build a sasquach application with external dependencies, I need to do two things:
+1. Add a CLI option to the build command to point at Java classfile/JAR dependencies and Sasquach source dependencies
+2. Craft a `java` command with args that can execute the built classes
+
+The first involves dumping all the dependency classes into a new classloader and passing that classloader around when resolving the Java classes. 
+```
+ModuleInfo {
+  Require = { package: String, transitive: Boolean, static: Boolean },
+  Export = { package: String, transitive: Boolean, static: Boolean },
+
+  require = (package: String): Require -> Require { package = package, transitive = false, static = false },
+
+  requires = List.of(
+    require("std/io"),
+  ),
+}
+```
+
 # Open Questions
 
 ## Multi-file resolution

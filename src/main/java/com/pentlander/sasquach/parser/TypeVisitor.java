@@ -7,6 +7,7 @@ import com.pentlander.sasquach.ast.expression.Tuple;
 import com.pentlander.sasquach.ast.id.TypeId;
 import com.pentlander.sasquach.ast.id.TypeIdentifier;
 import com.pentlander.sasquach.ast.id.TypeParameterId;
+import com.pentlander.sasquach.ast.typenode.ArrayTypeNode;
 import com.pentlander.sasquach.ast.typenode.BasicTypeNode;
 import com.pentlander.sasquach.ast.typenode.FunctionSignature;
 import com.pentlander.sasquach.ast.typenode.NamedTypeNode;
@@ -24,6 +25,7 @@ import com.pentlander.sasquach.parser.SasquachParser.StructTypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.TupleTypeContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeArgumentListContext;
 import com.pentlander.sasquach.parser.SasquachParser.TypeContext;
+import com.pentlander.sasquach.type.ArrayType;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.TypeParameterNode;
 import java.util.LinkedHashMap;
@@ -56,11 +58,15 @@ class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Typ
   public TypeNode visitNamedType(NamedTypeContext ctx) {
     var firstTypeIdCtx = ctx.typeIdentifier(0);
     TypeIdentifier typeId;
+    var typeArgs = typeArguments(ctx.typeArgumentList());
+
     if (ctx.typeIdentifier().size() == 1) {
       var id = firstTypeIdCtx.ID();
       var builtin = BuiltinType.fromStringOpt(id.getText());
       if (builtin.isPresent()) {
         return new BasicTypeNode(builtin.get(), rangeFrom(ctx));
+      } else if (id.getText().equals(ArrayType.TYPE_NAME)) {
+        return new ArrayTypeNode(typeArgs.getFirst(), rangeFrom(ctx));
       }
 
       var name = new UnqualifiedTypeName(id.getText());
@@ -84,7 +90,6 @@ class TypeVisitor extends com.pentlander.sasquach.parser.SasquachBaseVisitor<Typ
       typeId = new TypeId(new QualifiedTypeName(qualModuleName, name), (Range.Single) rangeFrom(ctx));
     }
 
-    var typeArgs = typeArguments(ctx.typeArgumentList());
     return new NamedTypeNode(typeId, typeArgs, rangeFrom(ctx));
   }
 

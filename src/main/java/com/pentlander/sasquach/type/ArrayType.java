@@ -6,6 +6,8 @@ import java.lang.constant.ClassDesc;
  * Type of an array.
  */
 public record ArrayType(Type elementType) implements Type {
+  public static final String TYPE_NAME = "Array";
+
   @Override
   public String typeNameStr() {
     return elementType.typeNameStr() + "[]";

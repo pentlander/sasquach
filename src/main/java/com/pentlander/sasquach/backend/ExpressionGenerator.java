@@ -191,8 +191,6 @@ final class ExpressionGenerator {
               cob.ldc(doubleValue);
             }
             case STRING -> cob.ldc(literal.replace("\"", ""));
-            case STRING_ARR -> {
-            }
             case VOID -> cob.aconst_null();
           }
         }

@@ -11,6 +11,8 @@ import java.util.Map;
 
 public interface ModuleScopedTypes {
 
+  QualifiedModuleName getModuleName();
+
   StructType getThisType();
 
   StructName getLiteralStructName(Map<UnqualifiedName, Type> memberTypes);

@@ -719,7 +719,11 @@ public class MemberScopedTypeResolver {
             structType.get().toPrettyString()), structFuncCall.range()));
   }
 
-  private TThisExpr thisExpr(Range range) {
+  private TypedExpression thisExpr(Range range) {
+    if (nodeResolving instanceof NamedFunction func && func.name().equals(new UnqualifiedName("mainStatic"))) {
+      var moduleName = moduleScopedTypes.getModuleName();
+      return new TVarReference(moduleName.simpleName(), new RefDeclaration.Module(moduleName), moduleScopedTypes.getThisType(), range);
+    }
     return new TThisExpr(moduleScopedTypes.getThisType(), range);
   }
 

@@ -27,6 +27,7 @@ dependencies {
     compileOnly("io.soabase.record-builder:record-builder-core:37")
 
     implementation("org.atteo.classindex:classindex:3.13")
+    implementation("info.picocli:picocli:4.7.6")
 
     api("org.jspecify:jspecify:1.0.0")
 

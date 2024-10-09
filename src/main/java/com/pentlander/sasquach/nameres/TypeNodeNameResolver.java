@@ -3,6 +3,7 @@ package com.pentlander.sasquach.nameres;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.Util;
 import com.pentlander.sasquach.ast.id.TypeParameterId;
+import com.pentlander.sasquach.ast.typenode.ArrayTypeNode;
 import com.pentlander.sasquach.ast.typenode.BasicTypeNode;
 import com.pentlander.sasquach.ast.typenode.FunctionSignature;
 import com.pentlander.sasquach.ast.NamedTypeDefinition;
@@ -49,6 +50,9 @@ public class TypeNodeNameResolver {
   public Result resolveTypeNode(TypeNode typeNode) {
     switch (typeNode) {
       case BasicTypeNode _ ->  {}
+      case ArrayTypeNode arrayTypeNode -> {
+        resolveTypeNode(arrayTypeNode.typeArgumentNode());
+      }
       case StructTypeNode structTypeNode -> {
         structTypeNode.fieldTypeNodes().values().forEach(this::resolveTypeNode);
         if (structTypeNode.rowModifier() instanceof NamedRow namedRow) {
