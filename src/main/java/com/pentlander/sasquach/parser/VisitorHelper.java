@@ -8,8 +8,11 @@ import com.pentlander.sasquach.ast.id.Id;
 import com.pentlander.sasquach.ast.id.TypeId;
 import com.pentlander.sasquach.ast.id.TypeParameterId;
 import com.pentlander.sasquach.ast.typenode.TypeNode;
+import com.pentlander.sasquach.name.QualifiedModuleName;
+import com.pentlander.sasquach.name.QualifiedTypeName;
 import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.name.UnqualifiedTypeName;
+import com.pentlander.sasquach.nameres.NameNotFoundError;
 import com.pentlander.sasquach.parser.SasquachParser.ForeignNameContext;
 import com.pentlander.sasquach.parser.SasquachParser.FunctionParameterListContext;
 import com.pentlander.sasquach.parser.SasquachParser.LabelContext;
@@ -55,7 +58,11 @@ interface VisitorHelper extends RangeHelper {
   default TypeId typeId(ForeignNameContext ctx) {
     var node = ctx.ID();
     var name = new UnqualifiedTypeName(node.getText());
-    var qualName = requireNonNull(moduleCtx().getTypeName(name));
+    var qualName = moduleCtx().getTypeName(name);
+    if (qualName == null) {
+      moduleCtx().addError(new NameNotFoundError(name, rangeFrom(node), "foreign class", List.of()));
+      qualName = new QualifiedTypeName(QualifiedModuleName.EMPTY, name);
+    }
     return new TypeId(qualName, rangeFrom(node));
   }
 

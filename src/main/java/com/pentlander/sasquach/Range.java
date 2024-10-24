@@ -48,7 +48,7 @@ public sealed interface Range {
     @Override
     public String toString() {
       return "%s:%s:%s-%s:%s".formatted(
-          sourcePath.toString(),
+          sourcePath.filepath(),
           start.line(),
           start.column(),
           end.line(),

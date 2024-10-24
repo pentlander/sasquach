@@ -1,23 +1,25 @@
 package com.pentlander.sasquach;
 
 import com.pentlander.sasquach.ast.CompilationUnit;
+import com.pentlander.sasquach.ast.expression.Block;
+import com.pentlander.sasquach.ast.expression.Expression;
+import com.pentlander.sasquach.ast.expression.FunctionCall;
+import com.pentlander.sasquach.ast.expression.FunctionParameter;
+import com.pentlander.sasquach.ast.expression.IfExpression;
+import com.pentlander.sasquach.ast.expression.Loop;
+import com.pentlander.sasquach.ast.expression.Match;
+import com.pentlander.sasquach.ast.expression.NamedFunction;
+import com.pentlander.sasquach.ast.expression.Recur;
+import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import com.pentlander.sasquach.ast.typenode.StructTypeNode;
 import com.pentlander.sasquach.ast.typenode.SumTypeNode;
 import com.pentlander.sasquach.ast.typenode.TupleTypeNode;
 import com.pentlander.sasquach.name.UnqualifiedName;
-import com.pentlander.sasquach.ast.expression.FunctionCall;
-import com.pentlander.sasquach.ast.expression.FunctionParameter;
-import com.pentlander.sasquach.ast.expression.Block;
-import com.pentlander.sasquach.ast.expression.Expression;
-import com.pentlander.sasquach.ast.expression.IfExpression;
-import com.pentlander.sasquach.ast.expression.Loop;
-import com.pentlander.sasquach.ast.expression.NamedFunction;
-import com.pentlander.sasquach.ast.expression.Recur;
-import com.pentlander.sasquach.ast.expression.VariableDeclaration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
 
 
 /**
@@ -74,24 +76,39 @@ public class AstValidator {
     return errors;
   }
 
+  @Nullable
+  private BasicError checkForRecur(Expression expr, Range range) {
+    if (expr instanceof Block block) {
+      expr = block.returnExpression();
+    }
+
+    return switch (expr) {
+      case IfExpression ifExpr -> {
+        var hasRecur = ifExpr.trueExpression() instanceof Recur
+            || ifExpr.falseExpression() instanceof Recur;
+        yield !hasRecur ? new BasicError("Loop must contain a recur", range) : null;
+
+      }
+      case Match match -> {
+        var hasRecur = false;
+        for (var branch : match.branches()) {
+          if (checkForRecur(branch.expr(), range) == null) hasRecur = true;
+        }
+        yield !hasRecur ? new BasicError("Loop must contain a recur", range) : null;
+      }
+      default -> new BasicError("Loop must end in an if expression", range);
+    };
+  }
+
   private List<Error> validateExpression(Expression expression) {
     var errors = new ArrayList<Error>();
     switch (expression) {
       case Block block -> errors.addAll(validateBlock(block));
       case Loop loop -> {
         var expr = loop.expression();
-        if (expr instanceof Block block) {
-          expr = block.returnExpression();
-        }
-
-        if (expr instanceof IfExpression ifExpr) {
-          var hasRecur =
-              ifExpr.trueExpression() instanceof Recur || ifExpr.falseExpression() instanceof Recur;
-          if (!hasRecur) {
-            errors.add(new BasicError("Loop must contain a recur", loop.range()));
-          }
-        } else {
-          errors.add(new BasicError("Loop must end in an if expression", loop.range()));
+        var error = checkForRecur(expr, loop.range());
+        if (error != null) {
+          errors.add(error);
         }
       }
       case FunctionCall funcCall -> {

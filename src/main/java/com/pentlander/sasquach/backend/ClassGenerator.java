@@ -13,7 +13,8 @@ import com.pentlander.sasquach.SourcePath;
 import com.pentlander.sasquach.ast.expression.Tuple;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
-import com.pentlander.sasquach.backend.ExpressionGenerator.Context;
+import com.pentlander.sasquach.backend.ExpressionGenerator.ExprContext;
+import com.pentlander.sasquach.name.QualifiedModuleName;
 import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.runtime.StructBase;
@@ -80,6 +81,12 @@ class ClassGenerator {
   private final Map<String, byte[]> generatedClasses = new LinkedHashMap<>();
   private final SasqClassHierarchyResolver resolver = new SasqClassHierarchyResolver();
   @Nullable private TypedNode contextNode;
+
+  private final QualifiedModuleName parentModuleName;
+
+  ClassGenerator(QualifiedModuleName parentModuleName) {
+    this.parentModuleName = parentModuleName;
+  }
 
   public Map<String, byte[]> generate(TModuleDeclaration moduleDeclaration) {
     try {
@@ -378,7 +385,7 @@ class ClassGenerator {
       generateNamedTypes(clb, moduleStruct.typeDefs());
       generateStaticInstance(clb, structType.classDesc(),
           structType.internalClassDesc(),
-          cob -> new ExpressionGenerator(cob, Context.INIT, "modInit", List.of()).generateStructInit(
+          cob -> new ExpressionGenerator(parentModuleName, cob, ExprContext.INIT, "modInit", List.of()).generateStructInit(
               struct));
 
       // Generate methods
@@ -495,11 +502,11 @@ class ClassGenerator {
             localVar.range()));
         var params = Stream.concat(captures, function.parameters().stream()).toList();
 
-        var context = Context.NAMED_FUNC;
+        var context = ExprContext.NAMED_FUNC;
         if ((methodFlags & ClassFile.ACC_STATIC) != 0) {
-          context = Context.ANON_FUNC;
+          context = ExprContext.ANON_FUNC;
         }
-        var exprGenerator = new ExpressionGenerator(cob, context, funcName, params).initParams();
+        var exprGenerator = new ExpressionGenerator(parentModuleName, cob, context, funcName, params).initParams();
         var returnExpr = function.expression();
         if (returnExpr != null) {
           exprGenerator.generateExpr(returnExpr);
@@ -516,6 +523,6 @@ class ClassGenerator {
         clb,
         func.name(),
         func.function(),
-        ClassFile.ACC_PUBLIC + ClassFile.ACC_STATIC + ClassFile.ACC_SYNTHETIC));
+        ClassFile.ACC_PUBLIC + ClassFile.ACC_STATIC));
   }
 }

@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import java.lang.constant.ClassDesc;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -15,8 +14,7 @@ import org.jspecify.annotations.Nullable;
 public final class TypeVariable implements Type, TypeNester {
   private final String name;
   private final int level;
-  private final @Nullable Object context;
-  private final UUID uuid;
+  private @Nullable Object context;
   private InnerType inner = new InnerType();
 
   private StackTraceElement[] stackTrace;
@@ -29,7 +27,6 @@ public final class TypeVariable implements Type, TypeNester {
     this.level = level;
     this.context = context;
     stackTrace = Thread.currentThread().getStackTrace();
-    uuid = UUID.nameUUIDFromBytes((name + level + context).getBytes());
   }
 
   public TypeVariable(String name, int level) {
@@ -55,6 +52,7 @@ public final class TypeVariable implements Type, TypeNester {
       // variables.
       if (typeVar.inner.type != null) {
         inner = typeVar.inner;
+        context = typeVar.context;
         stackTrace = Thread.currentThread().getStackTrace();
       } else {
         typeVar.inner = inner;
@@ -112,8 +110,7 @@ public final class TypeVariable implements Type, TypeNester {
 
   @Override
   public String toPrettyString() {
-    var innerStr = inner.type != null ? inner.type.toPrettyString() : "null";
-    return name + "[" + innerStr + "]";
+    return inner.type != null ? inner.type.toPrettyString() : "unknown";
   }
 
   private static class InnerType {

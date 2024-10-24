@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.cli;
 
 import com.pentlander.sasquach.Compiler;
+import com.pentlander.sasquach.Compiler.Result;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
@@ -15,8 +16,8 @@ public class BuildMixin {
   @Option(names = { "-o", "--output-path"}, defaultValue = "out")
   Path outputPath;
 
-  void compile() {
+  Result compile() {
     var compiler = new Compiler(Set.of());
-    compiler.compile(sourcePaths, outputPath);
+    return compiler.compile(sourcePaths, outputPath);
   }
 }

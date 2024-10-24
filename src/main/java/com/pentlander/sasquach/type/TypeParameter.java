@@ -7,10 +7,6 @@ public record TypeParameter(UnqualifiedTypeName name) {
     return new UniversalType(name().toString());
   }
 
-  public TypeVariable toTypeVariable(int level) {
-    return new TypeVariable(name().toString(), level);
-  }
-
   public String toPrettyString() {
     return name().toString();
   }

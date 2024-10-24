@@ -1,6 +1,7 @@
 package com.pentlander.sasquach.backend;
 
 import com.pentlander.sasquach.ast.Node;
+import com.pentlander.sasquach.ast.expression.Tuple;
 import com.pentlander.sasquach.tast.TModuleDeclaration;
 import com.pentlander.sasquach.tast.TypedNode;
 import java.util.Collection;
@@ -15,10 +16,10 @@ public class BytecodeGenerator {
   public BytecodeResult generateBytecode(Collection<TModuleDeclaration> moduleDeclarations) {
     var generatedBytecode = new LinkedHashMap<String, byte[]>();
 
-    var tupleClassGen = new ClassGenerator();
+    var tupleClassGen = new ClassGenerator(Tuple.TUPLE_MODULE);
     generatedBytecode.putAll(tupleClassGen.generateTuples());
     for (var moduleDeclaration : moduleDeclarations) {
-      var classGen = new ClassGenerator();
+      var classGen = new ClassGenerator(moduleDeclaration.moduleName());
       generatedBytecode.putAll(classGen.generate(moduleDeclaration));
     }
 

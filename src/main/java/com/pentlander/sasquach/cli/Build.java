@@ -13,7 +13,9 @@ public class Build implements Callable<Integer> {
 
   @Override
   public Integer call() {
-    buildMixin.compile();
-    return 0;
+    return switch (buildMixin.compile()) {
+      case SUCCESS -> 0;
+      case FAILURE -> 1;
+    };
   }
 }

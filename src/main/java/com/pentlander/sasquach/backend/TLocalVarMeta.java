@@ -3,6 +3,7 @@ package com.pentlander.sasquach.backend;
 import static java.util.Objects.requireNonNull;
 
 import com.pentlander.sasquach.ast.id.Id;
+import com.pentlander.sasquach.backend.ExpressionGenerator.ExprContext;
 import com.pentlander.sasquach.tast.expression.TLocalVariable;
 import com.pentlander.sasquach.type.BuiltinType;
 import java.util.ArrayDeque;
@@ -17,7 +18,7 @@ class TLocalVarMeta {
   private final Map<Id, TVarMeta> varToMeta = new HashMap<>();
   private int count = 0;
 
-  public static TLocalVarMeta of(List<? extends TLocalVariable> localVars, ExpressionGenerator.Context context) {
+  public static TLocalVarMeta of(List<? extends TLocalVariable> localVars, ExprContext context) {
     var localVarMeta = new TLocalVarMeta();
     localVarMeta.count = switch (context) {
       case INIT, ANON_FUNC -> 0;

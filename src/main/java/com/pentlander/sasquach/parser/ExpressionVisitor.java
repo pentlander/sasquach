@@ -212,7 +212,8 @@ class ExpressionVisitor extends
         .stream()
         .map(blockCtx -> blockCtx.accept(this))
         .toList();
-    return new Block(expressions, rangeFrom(ctx));
+    return !expressions.isEmpty() ? new Block(expressions, rangeFrom(ctx))
+        : new Value(BuiltinType.VOID, "", rangeFrom(ctx));
   }
 
   @Override

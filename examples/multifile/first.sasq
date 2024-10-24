@@ -7,6 +7,9 @@ First {
     use std/Map,
     use std/Hash,
     use std/String,
+    use std/Iterator,
+    use std/Char,
+
     use foreign java/io/File,
     use foreign java/io/PrintStream,
     use foreign java/lang/System,
@@ -44,5 +47,12 @@ First {
 
         let tup = (4, 5)
         print tup._1
+        print "char"
+        "test"
+          |> String.iter()
+          |> Iterator.map((ch) -> Char.toString(ch))
+          |> Iterator.filter((s) -> String.equals(s, "t"))
+          |> Iterator.forEach((s) -> { print s })
+        print "end"
     }
 }

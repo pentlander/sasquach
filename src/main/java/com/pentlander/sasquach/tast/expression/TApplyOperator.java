@@ -8,4 +8,9 @@ public record TApplyOperator(TypedExpression functionCall, Range range) implemen
   public Type type() {
     return functionCall.type();
   }
+
+  @Override
+  public String toPrettyString() {
+    return TypedExpression.super.toPrettyString();
+  }
 }

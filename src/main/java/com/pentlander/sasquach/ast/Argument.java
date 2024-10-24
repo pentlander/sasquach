@@ -9,4 +9,10 @@ public record Argument(@Nullable UnqualifiedName label, Expression expression, R
   public Argument(Expression expression) {
     this(null, expression, expression.range());
   }
+
+  @Override
+  public String toPrettyString() {
+    var labelStr = label != null ? label.toPrettyString() + ": " : "";
+    return labelStr + expression.toPrettyString();
+  }
 }

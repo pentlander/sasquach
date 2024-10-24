@@ -59,6 +59,35 @@ public class StdlibTest extends BaseTest {
   }
 
   @Nested
+  class IteratorTest extends BaseTest {
+    @Test
+    void map() throws Exception {
+      var clazz = compile("""
+        Main {
+          use std/Iterator,
+          use std/String,
+          use std/Char,
+          use std/Option,
+        
+          main = (): Int -> {
+            "test"
+              |> String.iter()
+              |> Iterator.map((ch) -> Char.toString(ch))
+              |> Iterator.filter((s) -> {
+                String.equals(s, "t")
+              })
+              |> Iterator.forEach((s) -> { print s })
+              1
+          }
+        }
+        """);
+
+      int value = invokeMain(clazz);
+      assertThat(value).isEqualTo(1);
+    }
+  }
+
+  @Nested
   class MapTest extends BaseTest {
     @Test
     void assocAndGet() throws Exception {

@@ -9,7 +9,7 @@ moduleName: ID;
 qualifiedName : ID ('/' ID)+;
 use: USE FOREIGN? qualifiedName ;
 
-block : '{' NL* blockStatement (NL blockStatement NL*)*  NL* '}' ;
+block : '{' NL* blockStatement? (NL+ blockStatement)*  NL* '}' ;
 function : functionDeclaration expression ;
 typeParameterList : ('[' typeIdentifier (',' typeIdentifier)* ']') ;
 functionDeclaration :
@@ -26,7 +26,7 @@ structType : '{' structTypeField (',' structTypeField)* ','? NL* '}' ;
 functionType : functionParameterList '->' type ;
 typeArgumentList : ('[' type (',' type)* ']') ;
 namedType: typeIdentifier ('.' typeIdentifier)? typeArgumentList? ;
-tupleType : '(' type ',' ')'  | '(' type (',' type)+ ')' ;
+tupleType : '(' type (',' type)* ')' ;
 sumType : ('|' typeIdentifier variantType )+ ;
 variantType :
     () #singletonType
@@ -56,7 +56,7 @@ branch : pattern '->' expression ;
 match : MATCH expression '{' NL* (branch ',' NL*)+ '}' ;
 
 argument : (label EQUALS)? expression ;
-arguments : argument (',' argument)* ;
+arguments : NL? argument (',' NL? argument)* NL? ;
 application :  LP arguments? RP
   | LP arguments? {notifyErrorListeners("Missing closing ')'");} ;
 memberApplication : memberName application ;
@@ -147,5 +147,6 @@ SPREAD   : '..' ;
 // Identifiers
 ID : [_a-zA-Z][$a-zA-Z0-9]* ;
 FOREIGN_ID : [_a-zA-Z][$a-zA-Z0-9]* ;
-NL : '\n' | 'r' '\n'? ;
+NL : '\n' | '\r' '\n'? ;
 WS : [ \t]+ -> skip ;
+COMMENT : '//' ~[\r\n]* NL -> skip ;

@@ -123,14 +123,13 @@ public class MemberScopedTypeResolver {
     return errors.build().concat(namedTypeResolver.errors());
   }
 
-  private Map<UnqualifiedTypeName, Type> typeParamToVar(List<TypeParameter> typeParams) {
-    return typeParams.stream()
-        .collect(toSeqMap(
-            TypeParameter::name,
-            param -> param.toTypeVariable(typeVarNum.getAndIncrement())));
-  }
   private <T extends ParameterizedType> T convertUniversals(T type, Range range) {
-    var typeParamToVar = typeParamToVar(type.typeParameters());
+    List<TypeParameter> typeParams = type.typeParameters();
+    Map<UnqualifiedTypeName, Type> typeParamToVar = typeParams.stream()
+        .collect(toSeqMap(TypeParameter::name, param -> {
+          int level = typeVarNum.getAndIncrement();
+          return new TypeVariable(param.name().toString(), level, type);
+        }));
     return namedTypeResolver.resolveNames(type, typeParamToVar, range);
   }
 
@@ -145,12 +144,12 @@ public class MemberScopedTypeResolver {
         .orElseGet(() -> new ClassType(clazz, typeArgs));
   }
 
-  public TypedExpression check(Expression expr, Type type) {
-    checkNotInstanceOf(type, NamedType.class, "type must be resolved");
+  public TypedExpression check(Expression expr, Type expectedType) {
+    checkNotInstanceOf(expectedType, NamedType.class, "type must be resolved");
 
     return switch (expr) {
       // Check that the function matches the given type
-      case Function func when type instanceof FunctionType funcType -> {
+      case Function func when expectedType instanceof FunctionType funcType -> {
         List<TFunctionParameter> funcParams = new ArrayList<>();
         // TODO need to include type args from parent if this is a nested func
         var funcSig = func.functionSignature();
@@ -182,28 +181,27 @@ public class MemberScopedTypeResolver {
       // When checking something that looks like literal Integer annotated with a different int-like
       // type, convert the literal to be the type it's checking against
       case Value(var valueType, var value, var range) when valueType == BuiltinType.INT
-          && type instanceof BuiltinType builtinType && builtinType.isIntegerLike() ->
+          && expectedType instanceof BuiltinType builtinType && builtinType.isIntegerLike() ->
           new Value(builtinType, value, range);
       // Same as above but for Double
       case Value(var valueType, var value, var range) when valueType == BuiltinType.DOUBLE
-          && type instanceof BuiltinType builtinType && builtinType.isDoubleLike() ->
+          && expectedType instanceof BuiltinType builtinType && builtinType.isDoubleLike() ->
           new Value(builtinType, value, range);
-      default -> switch (type) {
+      default -> switch (expectedType) {
         case ResolvedNamedType resolvedType -> check(expr, resolvedType.type());
         default -> {
           var typedExpr = infer(expr);
           try {
-            typeUnifier.unify(typedExpr.type(), type);
+            typeUnifier.unify(typedExpr.type(), expectedType);
             yield typedExpr;
           } catch (UnificationException e) {
-            var msg = e.resolvedDestType()
-                .map(resolvedDestType -> "Type '%s' should be '%s', but found '%s'".formatted(e.destType()
-                        .toPrettyString(),
-                    resolvedDestType.toPrettyString(),
-                    e.sourceType().toPrettyString()))
-                .orElseGet(() -> "Type should be '%s', but found '%s'".formatted(e.sourceType()
-                    .toPrettyString(), e.destType().toPrettyString()));
-            yield addError(expr, new TypeMismatchError(msg, expr.range(), e));
+            yield addError(
+                expr,
+                new TypeUnificationError(e.sourceType(),
+                    e.destType(),
+                    e.resolvedDestType().orElse(null),
+                    expr.range(),
+                    e));
           }
         }
       };
@@ -940,7 +938,39 @@ public class MemberScopedTypeResolver {
     return Optional.ofNullable(localVariables.get(localVar.id()));
   }
 
-  static final class TypeMismatchError extends AbstractRangedError implements RangedError {
+  static final class TypeUnificationError extends AbstractRangedError {
+    private final Type expectedType;
+    private final Type actualType;
+    @Nullable
+    private final Type resolvedTypeVarType;
+
+    public TypeUnificationError(
+        Type expectedType,
+        Type actualType,
+        @Nullable Type resolvedTypeVarType,
+        Range range,
+        @Nullable Throwable cause
+    ) {
+      super(range, cause);
+      this.expectedType = expectedType;
+      this.actualType = actualType;
+      this.resolvedTypeVarType = resolvedTypeVarType;
+    }
+
+    @Override
+    public String getMessage() {
+      if (resolvedTypeVarType != null) {
+        return "Type '%s' should be '%s', but found '%s'".formatted(
+            expectedType.toPrettyString(),
+            resolvedTypeVarType.toPrettyString(),
+            actualType.toPrettyString());
+      }
+      return "Type should be '%s', but found '%s'".formatted(expectedType.toPrettyString(),
+          actualType.toPrettyString());
+    }
+  }
+
+  static final class TypeMismatchError extends AbstractRangedError {
     TypeMismatchError(String message, Range range, @Nullable Throwable cause) {
       super(message, range, cause);
     }
@@ -948,15 +978,7 @@ public class MemberScopedTypeResolver {
     TypeMismatchError(String message, Range range) {
       this(message, range, null);
     }
-
-    @Override
-      public String toPrettyString(Source source) {
-        return """
-            %s
-            %s
-            """.formatted(getMessage(), source.highlight(range));
-      }
-    }
+  }
 
   record TypeLookupError(String message, Range range) implements RangedError {
     @Override

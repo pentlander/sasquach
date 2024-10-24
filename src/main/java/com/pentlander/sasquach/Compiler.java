@@ -134,7 +134,7 @@ public class Compiler {
     return bytecodeGenerator.generateBytecode(typeResolutionResult.getModuleDeclarations());
   }
 
-  public void compile(List<Path> sourcePaths, Path outputPath) {
+  public Result compile(List<Path> sourcePaths, Path outputPath) {
     try {
       var sasqSources = options.contains(Option.NO_STD) ? Sources.empty()
           : findFiles(Path.of("src/main/sasquach/sasquach"));
@@ -144,7 +144,7 @@ public class Compiler {
         bytecodeResults = compile(sources).generatedClasses();
       } catch (CompilationException e) {
         printErrors(sources, e.errors());
-        return;
+        return Result.FAILURE;
       }
 
       clearDestDir(outputPath);
@@ -157,6 +157,7 @@ public class Compiler {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+    return Result.SUCCESS;
   }
 
   static void printErrors(Sources sources, List<? extends Error> errors) {
@@ -211,5 +212,9 @@ public class Compiler {
 
   public enum Option {
     NO_STD,
+  }
+
+  public enum Result {
+    SUCCESS, FAILURE
   }
 }

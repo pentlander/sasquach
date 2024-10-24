@@ -10,6 +10,7 @@ import com.pentlander.sasquach.ast.expression.Value;
 import com.pentlander.sasquach.backend.AnonFunctions.NamedAnonFunc;
 import com.pentlander.sasquach.backend.BytecodeGenerator.CodeGenerationException;
 import com.pentlander.sasquach.backend.TLocalVarMeta.TVarMeta;
+import com.pentlander.sasquach.name.QualifiedModuleName;
 import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.runtime.bootstrap.Func;
 import com.pentlander.sasquach.runtime.bootstrap.FuncBootstrap;
@@ -67,13 +68,18 @@ final class ExpressionGenerator {
   private final Map<String, byte[]> generatedClasses = new HashMap<>();
   private final Deque<Label> loopLabels = new ArrayDeque<>();
   private final AnonFunctions anonFunctions;
+  private final QualifiedModuleName parentModuleName;
   private final CodeBuilder cob;
+  private final ExprContext context;
   private final TLocalVarMeta localVarMeta;
   @Nullable private TypedNode contextNode;
 
-  ExpressionGenerator(CodeBuilder cob, Context context, String functionName,
+  ExpressionGenerator(
+      QualifiedModuleName parentModuleName, CodeBuilder cob, ExprContext context, String functionName,
       List<TFunctionParameter> params) {
+    this.parentModuleName = parentModuleName;
     this.cob = cob;
+    this.context = context;
     this.anonFunctions = new AnonFunctions(functionName);
     this.localVarMeta = TLocalVarMeta.of(params, context);
   }
@@ -273,7 +279,7 @@ final class ExpressionGenerator {
       }
       case TStruct struct -> {
         if (struct instanceof TLiteralStruct) {
-          var classGen = new ClassGenerator();
+          var classGen = new ClassGenerator(parentModuleName);
           generatedClasses.putAll(classGen.generate(struct));
         }
 
@@ -414,7 +420,14 @@ final class ExpressionGenerator {
         cob.labelBinding(endLabel);
       }
       case TypedExprWrapper _ -> throw new IllegalStateException("Unrecognized expression: " + expression);
-      case TThisExpr _ -> cob.aload(cob.receiverSlot());
+      case TThisExpr _ -> {
+        if (context.isStatic()) {
+          var moduleClassDesc = parentModuleName.toClassDesc();
+          cob.getstatic(moduleClassDesc, INSTANCE_FIELD, moduleClassDesc);
+        } else {
+          cob.aload(cob.receiverSlot());
+        }
+      }
     }
   }
 
@@ -630,7 +643,11 @@ final class ExpressionGenerator {
     cob.new_(classDesc).dup();
   }
 
-  public enum Context {
-    INIT, NAMED_FUNC, ANON_FUNC
+  public enum ExprContext {
+    INIT, NAMED_FUNC, ANON_FUNC;
+
+    public boolean isStatic() {
+      return this.equals(ANON_FUNC);
+    }
   }
 }

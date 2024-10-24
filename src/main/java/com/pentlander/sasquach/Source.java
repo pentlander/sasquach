@@ -1,5 +1,7 @@
 package com.pentlander.sasquach;
 
+import static com.pentlander.sasquach.Source.DecorationChar.*;
+
 import java.util.Arrays;
 import java.util.List;
 
@@ -22,11 +24,8 @@ public record Source(SourcePath path, String packageName, List<String> sourceLin
 
   public String highlight(Range range) {
     return switch (range) {
-      case Range.Single single -> {
-        var lineStr = String.valueOf(range.start().line());
-        yield lineNumber(single.start().line()) + sourceLines.get(range.start().line() - 1) + '\n'
-            + underline(single, lineStr.length() + 2);
-      }
+      case Range.Single single ->
+          getNumberedLines(single) + '\n' + leftPad("") + " " + LBOT.unicode() + underline(single,0);
       case Range.Multi multi -> getNumberedLines(multi);
     };
   }
@@ -40,13 +39,13 @@ public record Source(SourcePath path, String packageName, List<String> sourceLin
   }
 
   private String lineNumber(int lineNumber) {
-    return leftPad(String.valueOf(lineNumber)) + ": ";
+    return leftPad(String.valueOf(lineNumber)) + " " + VBAR.unicode();
   }
 
   public String getNumberedLines(Range range) {
     Position start = range.start();
     return switch (range) {
-      case Range.Single r -> lineNumber(start.line()) + sourceLines.get(start.line() - 1);
+      case Range.Single _ -> lineNumber(start.line()) + sourceLines.get(start.line() - 1);
       case Range.Multi multiRange -> {
         Position end = multiRange.end();
         var builder = new StringBuilder();
@@ -56,5 +55,27 @@ public record Source(SourcePath path, String packageName, List<String> sourceLin
         yield builder.toString();
       }
     };
+  }
+
+  enum DecorationChar {
+    HBAR("─"),
+    VBAR("│"),
+    UARROW("▲"),
+    RARROW("▶"),
+    LTOP("╭"),
+    RTOP("╮"),
+    LBOT("╰"),
+    RBOT("╯"),
+    UNDERLINE("─");
+
+    private final String unicode;
+
+    DecorationChar(String unicode) {
+      this.unicode = unicode;
+    }
+
+    public String unicode() {
+      return unicode;
+    }
   }
 }

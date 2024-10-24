@@ -485,3 +485,12 @@ mod Result {
 * https://belkadan.com/blog/2022/04/Default-Arguments-and-Label-based-Overloading/
 * https://faultlore.com/blah/defaults-affect-inference/
 * https://github.com/gleam-lang/gleam/discussions/1122
+
+## Standard Library
+* http://gallium.inria.fr/blog/generators-iterators-control-and-continuations/
+
+## Implicits
+* https://typesanitizer.com/blog/ad-hoc-polymorphism.html
+
+## Pattern Matching
+* https://lobste.rs/s/tfxw8x/ultimate_conditional_syntax

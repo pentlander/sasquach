@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.cli;
 
+import com.pentlander.sasquach.Compiler.Result;
 import java.util.concurrent.Callable;
 import org.jspecify.annotations.NullUnmarked;
 import picocli.CommandLine.Command;
@@ -17,7 +18,10 @@ public class Run implements Callable<Integer> {
 
   @Override
   public Integer call() throws Exception {
-    buildMixin.compile();
+    if (buildMixin.compile() == Result.FAILURE) {
+      return 1;
+    }
+
     var builder = new ProcessBuilder(
         "java",
         "--class-path",

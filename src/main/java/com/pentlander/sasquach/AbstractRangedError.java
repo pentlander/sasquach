@@ -11,11 +11,21 @@ public abstract class AbstractRangedError extends RuntimeException implements Ra
     this.range = range;
   }
 
+  protected AbstractRangedError(Range range, @Nullable Throwable cause) {
+    super(cause);
+    this.range = range;
+  }
+
   @Override
   public final Range range() {
     return range;
   }
 
   @Override
-  abstract public String toPrettyString(Source source);
+  public String toPrettyString(Source source) {
+    return """
+          %s
+          %s
+          """.formatted(getMessage(), source.highlight(range));
+  }
 }

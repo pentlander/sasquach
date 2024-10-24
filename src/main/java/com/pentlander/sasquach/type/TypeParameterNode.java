@@ -19,10 +19,6 @@ public record TypeParameterNode(TypeParameterId id) implements Node, NamedTypeDe
     return new UniversalType(id.name().toString());
   }
 
-  public TypeVariable toTypeVariable(int level) {
-    return new TypeVariable(id.name().toString(), level, id);
-  }
-
   public TypeParameter toTypeParameter() {
     return new TypeParameter(name());
   }

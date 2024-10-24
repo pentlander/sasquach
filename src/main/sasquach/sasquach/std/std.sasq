@@ -8,7 +8,20 @@ Int {
   toString = (int: Int): String -> Integer#toString(int),
 }
 
+Char {
+  use foreign java/lang/Character,
+
+  equals = (a: Char, b: Char): Boolean -> a == b,
+
+  toString = (ch: Char): String -> Character#toString(ch),
+}
+
 String {
+  use std/Option,
+  use std/Ref,
+  use std/Iterator,
+
+  use foreign java/lang/CharSequence,
   use foreign java/lang/String,
 
   equals = (a: String, b: String): Boolean -> String#equals(a, b),
@@ -22,6 +35,103 @@ String {
   contains = (str: String, subStr: String): Boolean -> String#contains(str, subStr),
 
   length = (str: String): Int -> String#length(str),
+
+  charAt = (str: String, index: Int): Option.T[Char] ->
+    if (index < length(str)) Option.Some(String#charAt(str, index)) else Option.None,
+
+  iter = (str: String): Iterator.T[Char] -> {
+    let idx = Ref.new(0)
+    Iterator.new(() -> {
+      let ch = charAt(str, Ref.get(idx))
+      if Option.isSome(ch) {
+        idx |> Ref.map((i) -> i + 1)
+      }
+      ch
+    })
+  },
+}
+
+Ref {
+  use foreign com/pentlander/sasquach/runtime/Ref,
+
+  type T[A] = (Ref[A]),
+
+  new = [A](value: A): T[A] -> T(Ref#new(value)),
+
+  get = [A](ref: T[A]): A -> Ref#get(ref._0),
+
+  set = [A](ref: T[A], value: A): Void -> Ref#set(ref._0, value),
+
+  map = [A](ref: T[A], mapper: (prev: A) -> A): Void -> {
+    let next = ref |> get() |> mapper()
+    set(ref, next)
+  }
+}
+
+Iterator {
+  use std/Option,
+  use std/Ref,
+
+  typealias T[A] = { next: () -> Option.T[A], .. },
+
+  new = [A](next: () -> Option.T[A]): T[A] -> { next = next },
+
+  next = [A](iter: T[A]): Option.T[A] -> iter.next(),
+
+  map = [A, B](iter: T[A], fn: (item: A) -> B): T[B] -> new(() ->
+    iter |> next() |> Option.map(fn)
+  ),
+
+  filter = [A](iter: T[A], fn: (item: A) -> Boolean): T[A] ->
+    new(() ->
+      loop () -> match next(iter) {
+        Option.Some(item) -> if fn(item) Option.Some(item) else recur(),
+        Option.None -> Option.None,
+      }
+    ),
+
+  filterMap = [A, B](iter: T[A], fn: (item: A) -> Option.T[B]): T[B] ->
+    new(() ->
+      loop () -> match next(iter) {
+        Option.Some(item) -> match fn(item) {
+          Option.Some(mappedItem) -> Option.Some(mappedItem),
+          Option.None -> recur(),
+        },
+        Option.None -> Option.None,
+      }
+    ),
+
+  flatMap = [A, B](iter: T[A], fn: (item: A) -> T[B]): T[B] -> {
+    let nestedIterRef = Ref.new(Option.None)
+    new(() -> {
+      // Option.T[T[B]]
+      Ref.get(nestedIterRef)
+        |> Option.orElse(() ->
+          next(iter) |> Option.map((item) -> {
+            let newNestedIter = fn(item)
+            Ref.set(nestedIterRef, Option.Some(newNestedIter))
+            newNestedIter
+          })
+        )
+        |> Option.flatMap((nestedIter) -> next(nestedIter))
+    })
+  },
+
+  reduce = [A, B](iter: T[A], init: B, accumulator: (accum: B, value: A) -> B): B ->
+    loop (let accum = init) -> match next(iter) {
+      Option.Some(item) -> recur(accumulator(accum, item)),
+      Option.None -> accum,
+    },
+
+  forEach = [A](iter: T[A], fn: (item: A) -> Void): Void -> {
+    loop () -> match next(iter) {
+      Option.Some(item) -> {
+        fn(item)
+        recur()
+      },
+      Option.None -> {},
+    }
+  },
 }
 
 Into {

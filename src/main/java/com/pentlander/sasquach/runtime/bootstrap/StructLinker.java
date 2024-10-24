@@ -23,6 +23,8 @@ import jdk.dynalink.linker.GuardingDynamicLinker;
 import jdk.dynalink.linker.GuardingTypeConverterFactory;
 import jdk.dynalink.linker.LinkRequest;
 import jdk.dynalink.linker.LinkerServices;
+import jdk.dynalink.linker.support.Guards;
+import org.jspecify.annotations.Nullable;
 
 final class StructLinker implements GuardingDynamicLinker, GuardingTypeConverterFactory {
   private static final jdk.dynalink.linker.support.Lookup LOOKUP = new jdk.dynalink.linker.support.Lookup(
@@ -33,6 +35,11 @@ final class StructLinker implements GuardingDynamicLinker, GuardingTypeConverter
       boolean.class,
       List.class,
       Object[].class);
+
+  private static final MethodHandle NAMED_FUNC_EQUALS = LOOKUP.findStatic(
+      Func.class,
+      "namedFuncEquals",
+      MethodType.methodType(boolean.class, Object.class, Object.class, Object.class, Object.class));
 
   private static final MethodHandle MH_NAMED_FUNC = LOOKUP.findStatic(
       Func.class,
@@ -146,6 +153,7 @@ final class StructLinker implements GuardingDynamicLinker, GuardingTypeConverter
     return true;
   }
 
+  @Nullable
   @Override
   public GuardedInvocation getGuardedInvocation(LinkRequest linkRequest,
       LinkerServices linkerServices) throws Exception {
@@ -212,13 +220,20 @@ final class StructLinker implements GuardingDynamicLinker, GuardingTypeConverter
       var args = structLinkReq.getArguments();
       var func = (Func) args[0];
       return switch (func) {
-        case AnonFunc(var inner) ->
-            new GuardedInvocation(MethodHandles.dropArguments(inner, 0, Func.class, Object.class));
+        case AnonFunc(var inner) -> new GuardedInvocation(
+            MethodHandles.dropArguments(inner, 0, Func.class, Object.class),
+            Guards.getIdentityGuard(func));
         case NamedFunc(var inner) -> {
           args[0] = inner;
-          yield linkerServices.getGuardedInvocation(StructLinkRequest.from(structLinkReq.replaceArguments(
+          var guardedInvocation = linkerServices.getGuardedInvocation(StructLinkRequest.from(structLinkReq.replaceArguments(
               callSiteDesc,
               args), false));
+
+          yield new GuardedInvocation(
+              guardedInvocation.getInvocation(),
+              MethodHandles.insertArguments(NAMED_FUNC_EQUALS, 0, func, args[1]),
+              guardedInvocation.getSwitchPoints(),
+              guardedInvocation.getException());
         }
       };
     }

@@ -157,6 +157,23 @@ public class EndToEndTest extends BaseTest {
   }
 
   @Test
+  void higherOrderFunc_callLocalFunc() throws Exception {
+    var clazz = compile( """
+        Main {
+          addOne = (n: Int): Int -> n + 1,
+        
+          main = (): Int -> {
+            let addVars = (a: Int, b: Int): Int -> addOne(a + b)
+            addVars(1, 2)
+          }
+        }
+        """);
+    int sum = invokeMain(clazz);
+
+    assertThat(sum).isEqualTo(4);
+  }
+
+  @Test
   void literalStructFunc_withCapture() throws Exception {
     /*
      * So the TFunction properly has a capture associated with it, which means the func gets created
