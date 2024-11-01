@@ -8,6 +8,7 @@ import static com.pentlander.sasquach.rdparser.Scanner.TokenType.DOT_DOT;
 import static com.pentlander.sasquach.rdparser.Scanner.TokenType.EOF;
 import static com.pentlander.sasquach.rdparser.Scanner.TokenType.EQ;
 import static com.pentlander.sasquach.rdparser.Scanner.TokenType.FOREIGN;
+import static com.pentlander.sasquach.rdparser.Scanner.TokenType.LET;
 import static com.pentlander.sasquach.rdparser.Scanner.TokenType.L_BRACK;
 import static com.pentlander.sasquach.rdparser.Scanner.TokenType.L_CURLY;
 import static com.pentlander.sasquach.rdparser.Scanner.TokenType.L_PAREN;
@@ -18,10 +19,13 @@ import static com.pentlander.sasquach.rdparser.Scanner.TokenType.R_CURLY;
 import static com.pentlander.sasquach.rdparser.Scanner.TokenType.R_PAREN;
 import static com.pentlander.sasquach.rdparser.Scanner.TokenType.SLASH;
 
+import com.pentlander.sasquach.rdparser.Parser.BacktrackException;
 import com.pentlander.sasquach.rdparser.Parser.MarkOpened;
 import com.pentlander.sasquach.rdparser.Parser.TreeKind;
 import com.pentlander.sasquach.rdparser.Scanner.TokenType;
 import java.util.Arrays;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class SasquachParser {
   private final Parser p;
@@ -44,7 +48,7 @@ public class SasquachParser {
 
   private void module() {
     // Module identifier
-    var mark = assertOpen(NAME);
+    var mark = expectOpen(NAME);
     if (p.at(L_CURLY)) {
       struct();
     }
@@ -53,7 +57,7 @@ public class SasquachParser {
   }
 
   private void struct() {
-    var mark = assertOpen(L_CURLY);
+    var mark = expectOpen(L_CURLY);
 
     while (!p.at(R_CURLY) && !p.isAtEnd()) {
       structStatement();
@@ -67,38 +71,31 @@ public class SasquachParser {
 
   // TypeParamList = '[' Identifier (',' Identifier)* ']'
   private void typeParamList() {
-    var mark = assertOpen(L_BRACK);
-    while (!p.at(R_BRACK) && !p.isAtEnd()) {
-      if (p.eat(NAME)) {
-        if (!p.at(R_BRACK)) {
-          p.expect(COMMA);
-        }
-      } else {
-        break;
-      }
-    }
-    p.expect(R_BRACK);
+    var mark = expectOpen(L_BRACK);
+    commaSeparated(R_BRACK, () -> p.eat(NAME), () -> {});
     p.close(mark, TreeKind.TYPE_PARAM_LIST);
   }
 
   private void sumTypeDef() {
-    var mark = assertOpen(PIPE);
+    var mark = expectOpen(PIPE);
   }
 
   // StructTypeMember = Name TypeAnnotation
   // StructTypeSpread = '..' NamedType?
   // StructType = '{' StructTypeMember | StructTypeSpread (',' StructTypeMember | StructTypeSpread)* '}'
   private void structType() {
-    var mark = assertOpen(L_CURLY);
-    while (!p.at(R_CURLY) && !p.isAtEnd()) {
-      switch (p.nth(0)) {
+    var mark = expectOpen(L_CURLY);
+    boolean shouldContinue = true;
+    while (!p.at(R_CURLY) && !p.isAtEnd() && shouldContinue) {
+      switch (p.peek()) {
         case NAME -> assertTree(NAME, TreeKind.STRUCT_TYPE_MEMBER, this::typeAnnotation);
         case DOT_DOT -> assertTree(DOT_DOT, TreeKind.STRUCT_TYPE_SPREAD, () -> {
           if (p.at(NAME)) namedType();
         });
-        default -> {
-          if (!p.isAtEnd()) p.advance();
-        }
+        default -> shouldContinue = false;
+      }
+      if (!p.at(R_CURLY)) {
+        p.expect(COMMA);
       }
     }
     p.expect(R_CURLY);
@@ -106,41 +103,21 @@ public class SasquachParser {
   }
 
   private void tupleType() {
-    var mark = assertOpen(L_PAREN);
-    while (!p.at(R_PAREN) && !p.isAtEnd()) {
-      if (isTypeExprStart(p.nth(0))) {
-        typeExpr();
-        if (!p.at(R_PAREN)) {
-          p.expect(COMMA);
-        }
-      } else {
-        break;
-      }
-    }
-    p.expect(R_PAREN);
+    var mark = expectOpen(L_PAREN);
+    commaSeparated(R_PAREN, () -> isTypeExprStart(p.peek()), this::typeExpr);
     p.close(mark, TreeKind.TUPLE_TYPE);
   }
 
   // TypeArgList = '[' TypeExpr, (',' TypeExpr)* ']'
   private void typeArgList() {
-    var mark = assertOpen(L_BRACK);
-    while (!p.at(R_BRACK) && !p.isAtEnd()) {
-      if (isTypeExprStart(p.nth(0))) {
-        typeExpr();
-        if (!p.at(R_BRACK)) {
-          p.expect(COMMA);
-        }
-      } else {
-        break;
-      }
-    }
-    p.expect(R_BRACK);
+    var mark = expectOpen(L_BRACK);
+    commaSeparated(R_BRACK, () -> isTypeExprStart(p.peek()), this::typeExpr);
     p.close(mark, TreeKind.TYPE_ARG_LIST);
   }
 
   // NamedType = Identifier ('.' Identifier)? TypeArgList?
   private void namedType() {
-    var mark = assertOpen(NAME);
+    var mark = expectOpen(NAME);
     if (p.eat(DOT)) {
       p.expect(NAME);
     }
@@ -169,19 +146,10 @@ public class SasquachParser {
 
   // FunctionParamList = '(' FunctionParam? (',' FunctionParam)* ')'
   private void functionParamList() {
-    assertTree(L_PAREN, TreeKind.FUNCTION_PARAM_LIST, () -> {
-      while (!p.at(R_PAREN) && !p.isAtEnd()) {
-        if (p.at(NAME)) {
-          functionParam();
-          if (!p.at(R_PAREN)) {
-            p.expect(COMMA);
-          }
-        } else {
-          break;
-        }
-      }
-      p.expect(R_PAREN);
-    });
+    assertTree(
+        L_PAREN,
+        TreeKind.FUNCTION_PARAM_LIST,
+        () -> commaSeparated(R_PAREN, () -> p.at(NAME), this::functionParam));
   }
 
   // FunctionType = FunctionParamList '->' TypeExpr
@@ -193,9 +161,23 @@ public class SasquachParser {
     p.close(mark, TreeKind.FUNCTION_TYPE);
   }
 
+  private void parenExpr() {
+    assertTree(L_PAREN, TreeKind.EXPR_PAREN, () -> {
+      expr();
+      p.expect(R_PAREN);
+    });
+  }
+
+  private void tupleExpr() {
+    assertTree(
+        L_PAREN,
+        TreeKind.EXPR_TUPLE,
+        () -> commaSeparated(R_PAREN, () -> true, this::expr));
+  }
+
   // TypeAnnotation = ':' TypeExpr
   private void typeAnnotation() {
-    var mark = assertOpen(COLON);
+    var mark = expectOpen(COLON);
     typeExpr();
     p.close(mark, TreeKind.TYPE_ANNOTATION);
   }
@@ -211,7 +193,7 @@ public class SasquachParser {
   void typeExpr() {
     var mark = p.open();
     boolean isError = false;
-    switch (p.nth(0)) {
+    switch (p.peek()) {
       // StructType
       case L_CURLY -> structType();
       // NamedType
@@ -239,15 +221,18 @@ public class SasquachParser {
     p.close(mark, !isError ? TreeKind.TYPE_EXPR : TreeKind.ERROR_TREE);
   }
 
-  void parseCommaSeparated(TokenType endToken, Runnable parser) {
+  void commaSeparated(TokenType endToken, Supplier<Boolean> checkShouldParse, Runnable parser) {
     while (!p.at(endToken) && !p.isAtEnd()) {
-      if (p.at(NAME)) {
-        functionParam();
+      if (checkShouldParse.get()) {
+        parser.run();
         if (!p.at(endToken)) {
           p.expect(COMMA);
         }
+      } else {
+        break;
       }
     }
+    p.expect(endToken);
   }
 
   private void qualifiedName() {
@@ -259,16 +244,98 @@ public class SasquachParser {
     });
   }
 
+  private void varDecl() {
+    assertTree(LET, TreeKind.VAR_DECL, () -> {
+      p.expect(NAME);
+      if (p.at(COLON)) {
+        typeAnnotation();
+      }
+      p.expect(EQ);
+      expr();
+    });
+  }
+
+  private boolean isPatternStart(TokenType tokenType) {
+    return tokenType == NAME;
+  }
+  private void pattern() {
+    var mark = p.open();
+    namedType();
+    // Named tuple pattern
+    if (p.eat(L_PAREN)) {
+      commaSeparated(R_PAREN, () -> p.at(NAME), p::advance);
+    } else if (p.eat(L_CURLY)) {
+      commaSeparated(R_CURLY, () -> p.at(NAME), p::advance);
+    }
+    p.close(mark, TreeKind.PATTERN);
+  }
+
+  private void funcExpr() {
+    var mark = assertOpen(L_PAREN);
+    functionParamList();
+    if (p.eat(COLON)) {
+      typeExpr();
+    }
+    p.expect(ARROW);
+    expr();
+    p.close(mark, TreeKind.EXPR_FUNC);
+  }
+
   private void expr() {
     var mark = p.open();
-    p.expect(L_CURLY);
-    p.expect(R_CURLY);
+    switch (p.peek()) {
+      case TRUE, FALSE, NUMBER, STRING -> {
+        p.advance();
+        p.close(mark, TreeKind.EXPR_LITERAL);
+      }
+      case LOOP -> {
+        p.advance();
+        p.expect(L_PAREN);
+        commaSeparated(R_PAREN, () -> p.at(LET), this::varDecl);
+        p.expect(ARROW);
+        expr();
+        p.close(mark, TreeKind.EXPR_LOOP);
+      }
+      case MATCH -> {
+        p.advance();
+        expr();
+        p.expect(L_CURLY);
+        commaSeparated(R_CURLY, () -> isPatternStart(p.peek()), this::pattern);
+      }
+      // ParenExpr | TupleExpr | FuncExpr
+      case L_PAREN -> {
+        // If it has a comma before the ')' then it must either be a tuple or func
+        switch (p.nth(1)) {
+          case EOF -> {}
+          // Must
+          case R_PAREN -> funcExpr();
+          // Could still be either a function type or a tuple type
+          case NAME -> {
+            switch (p.nth(2)) {
+              // First name was the label, second is the param name
+              // First name was the param name, followed by default
+              case NAME, EQ -> funcExpr();
+              // Paren expr with an identifier or func with single param
+              case R_PAREN -> parenExpr();
+              case COMMA -> {
+                if (p.nth(3) == R_PAREN) {
+                  tupleExpr();
+                }
+              }
+              default -> functionType();
+            }
+          }
+          // '(' must be followed by a label or param name in a function type, so it must be a tuple
+          default -> tupleType();
+        }
+      }
+    }
     p.close(mark, TreeKind.EXPR);
   }
 
   private void structStatement() {
     var mark = p.open();
-    switch (p.nth(0)) {
+    switch (p.peek()) {
       case USE -> {
         p.advance();
         p.eat(FOREIGN);
@@ -282,7 +349,7 @@ public class SasquachParser {
         }
         p.expect(EQ);
 
-        switch (p.nth(0)) {
+        switch (p.peek()) {
           case PIPE -> sumTypeDef();
           default -> typeExpr();
         }
@@ -307,7 +374,11 @@ public class SasquachParser {
 
   private MarkOpened assertOpen(TokenType tokenType) {
     assertAt(tokenType);
-    var mark = p.open();
+    return p.open();
+  }
+
+  private MarkOpened expectOpen(TokenType tokenType) {
+    var mark = assertOpen(tokenType);
     p.expect(tokenType);
     return mark;
   }
@@ -326,5 +397,17 @@ public class SasquachParser {
     }
     throw new IllegalStateException("Expected to be at token type '%s', found: %s".formatted(Arrays.toString(
         tokenTypes), p.peekToken()));
+  }
+
+  private boolean tryParse(Consumer<SasquachParser> tryParser) {
+    var sasqParser = new SasquachParser(p.checkpointParser());
+    try {
+      tryParser.accept(sasqParser);
+      p.addEventsFrom(sasqParser.p);
+      return true;
+    } catch (BacktrackException e) {
+      // Should maybe do something with this?
+      return false;
+    }
   }
 }

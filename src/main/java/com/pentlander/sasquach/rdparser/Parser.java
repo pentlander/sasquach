@@ -12,13 +12,20 @@ import java.util.List;
 
 public class Parser {
   private static final int DEFAULT_FUEL = 256;
-  private final List<Token> tokens;
   private int current = 0;
   private int fuel = DEFAULT_FUEL;
   private final List<Event> events = new ArrayList<>();
 
-  Parser(List<Token> tokens) {
+  private final List<Token> tokens;
+  private final boolean shouldBacktrack;
+
+  Parser(List<Token> tokens, boolean shouldBacktrack) {
     this.tokens = tokens;
+    this.shouldBacktrack = shouldBacktrack;
+  }
+
+  Parser(List<Token> tokens) {
+    this(tokens, false);
   }
 
   MarkOpened open() {
@@ -47,6 +54,10 @@ public class Parser {
     return tokens.get(current);
   }
 
+  TokenType peek() {
+    return nth(0);
+  }
+
   TokenType nth(int lookahead) {
     Preconditions.checkState(fuel != 0, "parser is stuck");
     fuel--;
@@ -56,7 +67,7 @@ public class Parser {
   }
 
   boolean at(TokenType tokenType) {
-    return nth(0).equals(tokenType);
+    return peek().equals(tokenType);
   }
 
   /** Advance the cursor if the token type matches. */
@@ -74,10 +85,13 @@ public class Parser {
       return;
     }
 
-
-    var idx = current - 1;
-    var tokenFound = idx < tokens.size() ? tokens.get(idx) : null;
-    System.err.printf("expected token type '%s', found: %s\n", tokenType, tokenFound);
+    var tokenFound = current < tokens.size() ? tokens.get(current) : null;
+    var msg = "expected '%s', but found: %s".formatted(tokenType, tokenFound);
+    if (shouldBacktrack) {
+      throw new BacktrackException(msg);
+    } else {
+      System.err.println(msg);
+    }
   }
 
   void advanceWithError(String error) {
@@ -85,6 +99,16 @@ public class Parser {
     System.err.println("error: " + error);
     advance();
     close(mark, TreeKind.ERROR_TREE);
+  }
+
+  Parser checkpointParser() {
+    var parser = new Parser(tokens);
+    parser.current = current;
+    return parser;
+  }
+
+  void addEventsFrom(Parser parser) {
+    events.addAll(parser.events);
   }
 
   Tree buildTree() {
@@ -123,10 +147,17 @@ public class Parser {
     }
   }
 
+
+  static final class BacktrackException extends RuntimeException {
+    public BacktrackException(String message) {
+      super(message);
+    }
+  }
+
   enum TreeKind {
     ERROR_TREE, COMP_UNIT, QUALIFIED_NAME,
 
-    MODULE, STRUCT, STRUCT_STATEMENT, TYPE_ARG_LIST, TYPE_ANNOTATION,
+    MODULE, STRUCT, STRUCT_STATEMENT, TYPE_ARG_LIST, TYPE_ANNOTATION, VAR_DECL,
 
     // Function definition
     TYPE_PARAM_LIST, FUNCTION_PARAM, FUNCTION_PARAM_LIST,
@@ -136,7 +167,8 @@ public class Parser {
     STRUCT_TYPE, STRUCT_TYPE_MEMBER, STRUCT_TYPE_SPREAD,
 
     // Expressions
-    EXPR,
+    EXPR, EXPR_LITERAL, EXPR_VAR_REF, EXPR_LOOP, EXPR_PAREN, EXPR_MATCH, EXPR_IF, EXPR_BLOCK, EXPR_FUNC, EXPR_TUPLE,
+    PATTERN,
   }
 
   record Tree(TreeKind treeKind, List<Child> children) {
