@@ -19,12 +19,13 @@ import static com.pentlander.sasquach.rdparser.Scanner.TokenType.R_CURLY;
 import static com.pentlander.sasquach.rdparser.Scanner.TokenType.R_PAREN;
 import static com.pentlander.sasquach.rdparser.Scanner.TokenType.SLASH;
 
+import com.pentlander.sasquach.Preconditions;
 import com.pentlander.sasquach.rdparser.Parser.BacktrackException;
 import com.pentlander.sasquach.rdparser.Parser.MarkOpened;
 import com.pentlander.sasquach.rdparser.Parser.TreeKind;
 import com.pentlander.sasquach.rdparser.Scanner.TokenType;
 import java.util.Arrays;
-import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class SasquachParser {
@@ -172,7 +173,7 @@ public class SasquachParser {
     assertTree(
         L_PAREN,
         TreeKind.EXPR_TUPLE,
-        () -> commaSeparated(R_PAREN, () -> true, this::expr));
+        () -> commaSeparated(R_PAREN, () -> isExprStart(p.peek()), this::expr));
   }
 
   // TypeAnnotation = ':' TypeExpr
@@ -191,6 +192,8 @@ public class SasquachParser {
 
   // TypeExpr = StructType | NamedType | FunctionType | TupleType
   void typeExpr() {
+    checkStart(this::isTypeExprStart, "type expr");
+
     var mark = p.open();
     boolean isError = false;
     switch (p.peek()) {
@@ -259,6 +262,8 @@ public class SasquachParser {
     return tokenType == NAME;
   }
   private void pattern() {
+    checkStart(this::isPatternStart, "pattern");
+
     var mark = p.open();
     namedType();
     // Named tuple pattern
@@ -271,17 +276,26 @@ public class SasquachParser {
   }
 
   private void funcExpr() {
-    var mark = assertOpen(L_PAREN);
+    assertAt(L_PAREN);
     functionParamList();
     if (p.eat(COLON)) {
       typeExpr();
     }
     p.expect(ARROW);
     expr();
-    p.close(mark, TreeKind.EXPR_FUNC);
+  }
+
+
+  private boolean isExprStart(TokenType tokenType) {
+    return switch (tokenType) {
+      case TRUE, FALSE, NUMBER, STRING, LOOP, MATCH, L_PAREN -> true;
+      default -> false;
+    };
   }
 
   private void expr() {
+    checkStart(this::isExprStart, "expr");
+
     var mark = p.open();
     switch (p.peek()) {
       case TRUE, FALSE, NUMBER, STRING -> {
@@ -301,36 +315,31 @@ public class SasquachParser {
         expr();
         p.expect(L_CURLY);
         commaSeparated(R_CURLY, () -> isPatternStart(p.peek()), this::pattern);
+        p.close(mark, TreeKind.EXPR_MATCH);
       }
       // ParenExpr | TupleExpr | FuncExpr
       case L_PAREN -> {
-        // If it has a comma before the ')' then it must either be a tuple or func
-        switch (p.nth(1)) {
-          case EOF -> {}
-          // Must
-          case R_PAREN -> funcExpr();
-          // Could still be either a function type or a tuple type
-          case NAME -> {
-            switch (p.nth(2)) {
-              // First name was the label, second is the param name
-              // First name was the param name, followed by default
-              case NAME, EQ -> funcExpr();
-              // Paren expr with an identifier or func with single param
-              case R_PAREN -> parenExpr();
-              case COMMA -> {
-                if (p.nth(3) == R_PAREN) {
-                  tupleExpr();
-                }
-              }
-              default -> functionType();
-            }
+        if (tryParse(this::funcExpr)) {
+          p.close(mark, TreeKind.EXPR_FUNC);
+        } else {
+          p.advance();
+          expr();
+          if (p.eat(COMMA)) {
+            commaSeparated(R_PAREN, () -> isExprStart(p.peek()), this::expr);
+            p.close(mark, TreeKind.EXPR_TUPLE);
+          } else if (p.eat(R_PAREN)) {
+            p.close(mark, TreeKind.EXPR_PAREN);
+          } else {
+            p.advance();
+            p.close(mark, TreeKind.ERROR_TREE);
           }
-          // '(' must be followed by a label or param name in a function type, so it must be a tuple
-          default -> tupleType();
         }
       }
+      default -> {
+        p.advance();
+        p.close(mark, TreeKind.ERROR_TREE);
+      }
     }
-    p.close(mark, TreeKind.EXPR);
   }
 
   private void structStatement() {
@@ -399,14 +408,19 @@ public class SasquachParser {
         tokenTypes), p.peekToken()));
   }
 
-  private boolean tryParse(Consumer<SasquachParser> tryParser) {
-    var sasqParser = new SasquachParser(p.checkpointParser());
+  // Check that the method used to check if the starting token is valid matches the actual implementation
+  private void checkStart(Predicate<TokenType> startPred, String checkName) {
+    Preconditions.checkState(startPred.test(p.peek()), "Does not match " + checkName + " start");
+  }
+
+  private boolean tryParse(Runnable parser) {
+    p.checkpoint();
     try {
-      tryParser.accept(sasqParser);
-      p.addEventsFrom(sasqParser.p);
+      parser.run();
+      p.clearCheckpoint();
       return true;
     } catch (BacktrackException e) {
-      // Should maybe do something with this?
+      p.restore();
       return false;
     }
   }

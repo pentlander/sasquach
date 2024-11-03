@@ -17,7 +17,9 @@ public class Parser {
   private final List<Event> events = new ArrayList<>();
 
   private final List<Token> tokens;
-  private final boolean shouldBacktrack;
+  private boolean shouldBacktrack;
+  private int checkpointCurrent = 0;
+  private int checkpointEventsSize = 0;
 
   Parser(List<Token> tokens, boolean shouldBacktrack) {
     this.tokens = tokens;
@@ -101,14 +103,22 @@ public class Parser {
     close(mark, TreeKind.ERROR_TREE);
   }
 
-  Parser checkpointParser() {
-    var parser = new Parser(tokens);
-    parser.current = current;
-    return parser;
+  void checkpoint() {
+    shouldBacktrack = true;
+    checkpointCurrent = current;
+    checkpointEventsSize = events.size();
   }
 
-  void addEventsFrom(Parser parser) {
-    events.addAll(parser.events);
+  void clearCheckpoint() {
+    shouldBacktrack = false;
+    checkpointCurrent = 0;
+    checkpointEventsSize = 0;
+  }
+
+  void restore() {
+    current = checkpointCurrent;
+    events.subList(checkpointEventsSize, events.size()).clear();
+    clearCheckpoint();
   }
 
   Tree buildTree() {
