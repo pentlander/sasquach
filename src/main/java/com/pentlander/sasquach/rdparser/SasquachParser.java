@@ -25,7 +25,6 @@ import com.pentlander.sasquach.rdparser.Parser.MarkOpened;
 import com.pentlander.sasquach.rdparser.Parser.TreeKind;
 import com.pentlander.sasquach.rdparser.Scanner.TokenType;
 import java.util.Arrays;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class SasquachParser {
@@ -105,14 +104,14 @@ public class SasquachParser {
 
   private void tupleType() {
     var mark = expectOpen(L_PAREN);
-    commaSeparated(R_PAREN, () -> isTypeExprStart(p.peek()), this::typeExpr);
+    commaSeparated(R_PAREN, this::isTypeExprStart, this::typeExpr);
     p.close(mark, TreeKind.TUPLE_TYPE);
   }
 
   // TypeArgList = '[' TypeExpr, (',' TypeExpr)* ']'
   private void typeArgList() {
     var mark = expectOpen(L_BRACK);
-    commaSeparated(R_BRACK, () -> isTypeExprStart(p.peek()), this::typeExpr);
+    commaSeparated(R_BRACK, this::isTypeExprStart, this::typeExpr);
     p.close(mark, TreeKind.TYPE_ARG_LIST);
   }
 
@@ -162,20 +161,6 @@ public class SasquachParser {
     p.close(mark, TreeKind.FUNCTION_TYPE);
   }
 
-  private void parenExpr() {
-    assertTree(L_PAREN, TreeKind.EXPR_PAREN, () -> {
-      expr();
-      p.expect(R_PAREN);
-    });
-  }
-
-  private void tupleExpr() {
-    assertTree(
-        L_PAREN,
-        TreeKind.EXPR_TUPLE,
-        () -> commaSeparated(R_PAREN, () -> isExprStart(p.peek()), this::expr));
-  }
-
   // TypeAnnotation = ':' TypeExpr
   private void typeAnnotation() {
     var mark = expectOpen(COLON);
@@ -183,8 +168,8 @@ public class SasquachParser {
     p.close(mark, TreeKind.TYPE_ANNOTATION);
   }
 
-  private boolean isTypeExprStart(TokenType tokenType) {
-    return switch (tokenType) {
+  private boolean isTypeExprStart() {
+    return switch (p.peek()) {
       case L_CURLY, NAME, L_PAREN -> true;
       default -> false;
     };
@@ -258,8 +243,8 @@ public class SasquachParser {
     });
   }
 
-  private boolean isPatternStart(TokenType tokenType) {
-    return tokenType == NAME;
+  private boolean isPatternStart() {
+    return p.peek() == NAME;
   }
   private void pattern() {
     checkStart(this::isPatternStart, "pattern");
@@ -286,14 +271,54 @@ public class SasquachParser {
   }
 
 
-  private boolean isExprStart(TokenType tokenType) {
-    return switch (tokenType) {
-      case TRUE, FALSE, NUMBER, STRING, LOOP, MATCH, L_PAREN -> true;
+  private boolean isExprStart() {
+    return switch (p.peek()) {
+      case TRUE, FALSE, NUMBER, STRING, LOOP, MATCH, L_PAREN, L_CURLY -> true;
       default -> false;
     };
   }
 
+  public boolean isBlockStatementStart() {
+    return switch (p.peek()) {
+      case LET, PRINT -> true;
+      default -> isExprStart();
+    };
+  }
+
+  private void blockStatement() {
+    var mark = p.open();
+    switch (p.peek()) {
+      case LET -> {
+        p.advance();
+        p.expect(NAME);
+        if (p.at(COLON)) {
+          typeAnnotation();
+        }
+        p.expect(EQ);
+        expr();
+        p.close(mark, TreeKind.VAR_DECL);
+      }
+      case PRINT -> {
+        p.advance();
+        expr();
+        p.close(mark, TreeKind.PRINT_STMT);
+      }
+      default -> {
+        if (isExprStart()) {
+          expr();
+          p.close(mark, TreeKind.EXPR);
+        } else {
+          throw new IllegalStateException("Must check if valid start before calling");
+        }
+      }
+    }
+  }
+
   private void expr() {
+    exprDelimited();
+  }
+
+  private void exprDelimited() {
     checkStart(this::isExprStart, "expr");
 
     var mark = p.open();
@@ -314,7 +339,7 @@ public class SasquachParser {
         p.advance();
         expr();
         p.expect(L_CURLY);
-        commaSeparated(R_CURLY, () -> isPatternStart(p.peek()), this::pattern);
+        commaSeparated(R_CURLY, this::isPatternStart, this::pattern);
         p.close(mark, TreeKind.EXPR_MATCH);
       }
       // ParenExpr | TupleExpr | FuncExpr
@@ -325,20 +350,28 @@ public class SasquachParser {
           p.advance();
           expr();
           if (p.eat(COMMA)) {
-            commaSeparated(R_PAREN, () -> isExprStart(p.peek()), this::expr);
+            commaSeparated(R_PAREN, this::isExprStart, this::expr);
             p.close(mark, TreeKind.EXPR_TUPLE);
           } else if (p.eat(R_PAREN)) {
             p.close(mark, TreeKind.EXPR_PAREN);
           } else {
-            p.advance();
-            p.close(mark, TreeKind.ERROR_TREE);
+            p.advanceWithError(mark, "failed");
           }
         }
       }
-      default -> {
+      case L_CURLY -> {
         p.advance();
-        p.close(mark, TreeKind.ERROR_TREE);
+        while (!p.at(R_CURLY) && !p.isAtEnd()) {
+          if (isBlockStatementStart()) {
+            blockStatement();
+          } else {
+            break;
+          }
+        }
+        p.expect(R_CURLY);
+        p.close(mark, TreeKind.EXPR_BLOCK);
       }
+      default -> p.advanceWithError(mark, "failed");
     }
   }
 
@@ -409,8 +442,8 @@ public class SasquachParser {
   }
 
   // Check that the method used to check if the starting token is valid matches the actual implementation
-  private void checkStart(Predicate<TokenType> startPred, String checkName) {
-    Preconditions.checkState(startPred.test(p.peek()), "Does not match " + checkName + " start");
+  private void checkStart(Supplier<Boolean> startPred, String checkName) {
+    Preconditions.checkState(startPred.get(), "Does not match " + checkName + " start");
   }
 
   private boolean tryParse(Runnable parser) {

@@ -36,9 +36,16 @@ public class Parser {
     return mark;
   }
 
-  void close(MarkOpened mark, TreeKind treeKind) {
+  MarkOpened openBefore(MarkClosed mark) {
+    var openMark = new MarkOpened(mark.idx());
+    events.add(mark.idx(), Event.open(TreeKind.ERROR_TREE));
+    return openMark;
+  }
+
+  MarkClosed close(MarkOpened mark, TreeKind treeKind) {
     events.set(mark.idx(), Event.open(treeKind));
     events.add(EventKind.CLOSE);
+    return new MarkClosed(mark.idx());
   }
 
   boolean isAtEnd() {
@@ -96,11 +103,15 @@ public class Parser {
     }
   }
 
-  void advanceWithError(String error) {
-    var mark = open();
+  void advanceWithError(MarkOpened mark, String error) {
     System.err.println("error: " + error);
     advance();
     close(mark, TreeKind.ERROR_TREE);
+  }
+
+  void advanceWithError(String error) {
+    var mark = open();
+    advanceWithError(mark, error);
   }
 
   void checkpoint() {
@@ -144,6 +155,7 @@ public class Parser {
   }
 
   record MarkOpened(int idx) {}
+  record MarkClosed(int idx) {}
 
   sealed interface Event {
     record Open(TreeKind treeKind) implements Event {}
@@ -167,7 +179,7 @@ public class Parser {
   enum TreeKind {
     ERROR_TREE, COMP_UNIT, QUALIFIED_NAME,
 
-    MODULE, STRUCT, STRUCT_STATEMENT, TYPE_ARG_LIST, TYPE_ANNOTATION, VAR_DECL,
+    MODULE, STRUCT, STRUCT_STATEMENT, TYPE_ARG_LIST, TYPE_ANNOTATION, VAR_DECL, PRINT_STMT,
 
     // Function definition
     TYPE_PARAM_LIST, FUNCTION_PARAM, FUNCTION_PARAM_LIST,
