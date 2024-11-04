@@ -71,5 +71,12 @@ public final class Util {
     return Collections.unmodifiableList(list);
   }
 
+  public static int[] toArray(List<Integer> list) {
+    var arr = new int[list.size()];
+    for (int i = 0; i < list.size(); i++) {
+      arr[i] = list.get(i);
+    }
+    return arr;
+  }
 }
 

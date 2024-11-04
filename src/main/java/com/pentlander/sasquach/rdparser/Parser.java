@@ -9,6 +9,7 @@ import com.pentlander.sasquach.rdparser.Scanner.Token;
 import com.pentlander.sasquach.rdparser.Scanner.TokenType;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class Parser {
   private static final int DEFAULT_FUEL = 256;
@@ -17,17 +18,19 @@ public class Parser {
   private final List<Event> events = new ArrayList<>();
 
   private final List<Token> tokens;
+  private final Set<Integer> newlineTokenIndexes;
   private boolean shouldBacktrack;
   private int checkpointCurrent = 0;
   private int checkpointEventsSize = 0;
 
-  Parser(List<Token> tokens, boolean shouldBacktrack) {
+  Parser(List<Token> tokens, Set<Integer> newlineTokenIndexes, boolean shouldBacktrack) {
     this.tokens = tokens;
+    this.newlineTokenIndexes = newlineTokenIndexes;
     this.shouldBacktrack = shouldBacktrack;
   }
 
-  Parser(List<Token> tokens) {
-    this(tokens, false);
+  Parser(List<Token> tokens, Set<Integer> newlineTokenIndexes) {
+    this(tokens, newlineTokenIndexes, false);
   }
 
   MarkOpened open() {
@@ -36,7 +39,7 @@ public class Parser {
     return mark;
   }
 
-  MarkOpened openBefore(MarkClosed mark) {
+  MarkOpened openBefore(Mark mark) {
     var openMark = new MarkOpened(mark.idx());
     events.add(mark.idx(), Event.open(TreeKind.ERROR_TREE));
     return openMark;
@@ -46,6 +49,10 @@ public class Parser {
     events.set(mark.idx(), Event.open(treeKind));
     events.add(EventKind.CLOSE);
     return new MarkClosed(mark.idx());
+  }
+
+  boolean endOfLine() {
+    return newlineTokenIndexes.contains(current);
   }
 
   boolean isAtEnd() {
@@ -103,10 +110,10 @@ public class Parser {
     }
   }
 
-  void advanceWithError(MarkOpened mark, String error) {
+  MarkClosed advanceWithError(MarkOpened mark, String error) {
     System.err.println("error: " + error);
     advance();
-    close(mark, TreeKind.ERROR_TREE);
+    return close(mark, TreeKind.ERROR_TREE);
   }
 
   void advanceWithError(String error) {
@@ -154,8 +161,12 @@ public class Parser {
     return stack.getLast();
   }
 
-  record MarkOpened(int idx) {}
-  record MarkClosed(int idx) {}
+  interface Mark {
+    int idx();
+  }
+
+  record MarkOpened(int idx) implements Mark {}
+  record MarkClosed(int idx) implements Mark {}
 
   sealed interface Event {
     record Open(TreeKind treeKind) implements Event {}
@@ -177,7 +188,7 @@ public class Parser {
   }
 
   enum TreeKind {
-    ERROR_TREE, COMP_UNIT, QUALIFIED_NAME,
+    ERROR_TREE, COMP_UNIT, NAME, QUALIFIED_NAME,
 
     MODULE, STRUCT, STRUCT_STATEMENT, TYPE_ARG_LIST, TYPE_ANNOTATION, VAR_DECL, PRINT_STMT,
 
@@ -189,7 +200,8 @@ public class Parser {
     STRUCT_TYPE, STRUCT_TYPE_MEMBER, STRUCT_TYPE_SPREAD,
 
     // Expressions
-    EXPR, EXPR_LITERAL, EXPR_VAR_REF, EXPR_LOOP, EXPR_PAREN, EXPR_MATCH, EXPR_IF, EXPR_BLOCK, EXPR_FUNC, EXPR_TUPLE,
+    EXPR, EXPR_LITERAL, EXPR_VAR_REF, EXPR_LOOP, EXPR_PAREN, EXPR_MATCH, EXPR_IF, EXPR_BLOCK, EXPR_FUNC, EXPR_TUPLE, EXPR_NEGATE, EXPR_NOT,
+    EXPR_ADD, EXPR_SUBTR, EXPR_MULT, EXPR_DIV,
     PATTERN,
   }
 

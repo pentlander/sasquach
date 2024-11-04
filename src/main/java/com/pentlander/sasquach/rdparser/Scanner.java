@@ -9,6 +9,7 @@ import com.pentlander.sasquach.Source;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 public class Scanner {
@@ -29,7 +30,8 @@ public class Scanner {
 
   private final Source source;
   private final List<Token> tokens = new ArrayList<>();
-  private final List<Integer> newlineIndexes = new ArrayList<>();
+  private final List<Integer> newlineStrIndexes = new ArrayList<>();
+  private final List<Integer> newlineTokenIndexes = new ArrayList<>();
   private int start = 0;
   private int current = 0;
   private int line = 0;
@@ -176,7 +178,8 @@ public class Scanner {
       }
       case '"' -> addString();
       case '\n' -> {
-        newlineIndexes.add(current);
+        newlineStrIndexes.add(current);
+        newlineTokenIndexes.add(tokens.size() - 1);
         line++;
       }
       case ' ', '\r', '\t' -> {}
@@ -192,7 +195,7 @@ public class Scanner {
     }
   }
 
-  List<Token> scanTokens() {
+  Result scanTokens() {
     while (!isAtEnd()) {
       // We are at the beginning of the next lexeme.
       start = current;
@@ -200,8 +203,11 @@ public class Scanner {
     }
 
     tokens.add(new Token(EOF, "", null, line));
-    return tokens;
+
+    return new Result(tokens, Set.copyOf(newlineTokenIndexes));
   }
+
+  record Result(List<Token> tokens,  Set<Integer> newlineIndexes) {}
 
   record Token(TokenType type, String lexeme, @Nullable Object literal, int line) {
     @Override

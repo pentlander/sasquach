@@ -21,10 +21,15 @@ import static com.pentlander.sasquach.rdparser.Scanner.TokenType.SLASH;
 
 import com.pentlander.sasquach.Preconditions;
 import com.pentlander.sasquach.rdparser.Parser.BacktrackException;
+import com.pentlander.sasquach.rdparser.Parser.Mark;
+import com.pentlander.sasquach.rdparser.Parser.MarkClosed;
 import com.pentlander.sasquach.rdparser.Parser.MarkOpened;
 import com.pentlander.sasquach.rdparser.Parser.TreeKind;
 import com.pentlander.sasquach.rdparser.Scanner.TokenType;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 public class SasquachParser {
@@ -209,7 +214,8 @@ public class SasquachParser {
     p.close(mark, !isError ? TreeKind.TYPE_EXPR : TreeKind.ERROR_TREE);
   }
 
-  void commaSeparated(TokenType endToken, Supplier<Boolean> checkShouldParse, Runnable parser) {
+  void commaSeparated(TokenType endToken, Supplier<Boolean> checkShouldParse, Runnable parser, TokenType... recoveryTokens) {
+    var recoverySet = Set.of(recoveryTokens);
     while (!p.at(endToken) && !p.isAtEnd()) {
       if (checkShouldParse.get()) {
         parser.run();
@@ -217,7 +223,14 @@ public class SasquachParser {
           p.expect(COMMA);
         }
       } else {
-        break;
+        if (recoveryTokens.length == 0) {
+          break;
+        } else {
+          if (recoverySet.contains(p.peek())) {
+            break;
+          }
+          p.advanceWithError("expected");
+        }
       }
     }
     p.expect(endToken);
@@ -271,17 +284,10 @@ public class SasquachParser {
   }
 
 
-  private boolean isExprStart() {
-    return switch (p.peek()) {
-      case TRUE, FALSE, NUMBER, STRING, LOOP, MATCH, L_PAREN, L_CURLY -> true;
-      default -> false;
-    };
-  }
-
   public boolean isBlockStatementStart() {
     return switch (p.peek()) {
       case LET, PRINT -> true;
-      default -> isExprStart();
+      default -> atExprDelimitedStart();
     };
   }
 
@@ -304,7 +310,7 @@ public class SasquachParser {
         p.close(mark, TreeKind.PRINT_STMT);
       }
       default -> {
-        if (isExprStart()) {
+        if (atExprDelimitedStart()) {
           expr();
           p.close(mark, TreeKind.EXPR);
         } else {
@@ -314,18 +320,175 @@ public class SasquachParser {
     }
   }
 
-  private void expr() {
-    exprDelimited();
+  enum ExprState {
+    UNARY, BINARY
   }
 
-  private void exprDelimited() {
-    checkStart(this::isExprStart, "expr");
+  enum Operator {
+    MEMBER_ACCESS(0), FOREIGN_ACCESS(0),
+    NOT(1), NEG(1),
+    MULT(2), DIV(2),
+    PLUS(3), MINUS(3),
+    EQ(4), NEQ(4), GE(4), GT(4), LE(4), LT(4),
+    AND(5), OR(5),
+    APPLY(6), PIPE(6);
+
+    private final int precedence;
+
+    Operator(int precedence) {
+      this.precedence = precedence;
+    }
+
+    public boolean higherPrecedenceThan(Operator other) {
+      return precedence < other.precedence;
+    }
+  }
+
+  private static final class OperatorState {
+    private ExprState exprState = ExprState.UNARY;
+    private final List<Operator> operatorStack = new ArrayList<>();
+    private final List<Mark> operandStack = new ArrayList<>();
+
+    public ExprState exprState() {
+      return exprState;
+    }
+
+    public void toggleState() {
+      exprState = switch (exprState) {
+        case UNARY -> ExprState.BINARY;
+        case BINARY -> ExprState.UNARY;
+      };
+    }
+
+    public void addOperator(Operator op) {
+      operatorStack.add(op);
+      toggleState();
+    }
+
+    public boolean operatorsEmpty() {
+      return operatorStack.isEmpty();
+    }
+
+    public Operator peekOperator() {
+      return operatorStack.getLast();
+    }
+
+    public Operator popOperator() {
+      return operatorStack.removeLast();
+    }
+
+    public void addOperand(Mark mark) {
+      operandStack.add(mark);
+    }
+
+    public Mark popOperand() {
+      return operandStack.removeLast();
+    }
+
+    @Override
+    public String toString() {
+      return "OperatorState[" + "exprState=" + exprState + ", " + "operatorStack=" + operatorStack
+          + ", " + "operandStack=" + operandStack + ']';
+    }
+  }
+
+  void reduceOperator(OperatorState opState) {
+    var operator = opState.popOperator();
+    switch (operator) {
+      case PLUS -> {
+        opState.popOperand();
+        var first = opState.popOperand();
+        var mark = p.openBefore(first);
+        p.close(mark, TreeKind.EXPR_ADD);
+        opState.addOperand(mark);
+      }
+      case MULT -> {
+        opState.popOperand();
+        var first = opState.popOperand();
+        var mark = p.openBefore(first);
+        p.close(mark, TreeKind.EXPR_MULT);
+        opState.addOperand(mark);
+      }
+
+    }
+  }
+
+  private void expr() {
+    var state = new OperatorState();
+    while (true) {
+      if (!exprState(state)) {
+        break;
+      }
+    }
+  }
+
+  private boolean exprState(OperatorState opState) {
+    boolean shouldContinue = true;
+    switch (opState.exprState()) {
+      case UNARY -> {
+        if (atExprDelimitedStart()) {
+          opState.addOperand(exprDelimited());
+          opState.toggleState();
+        } else if (p.at(NAME)) {
+          // Don't know if this is a var reference, func call, named struct, etc. until we see the next token
+          var mark = p.open();
+          p.advance();
+          p.close(mark, TreeKind.NAME);
+          opState.addOperand(mark);
+          opState.toggleState();
+        } else {
+          p.advanceWithError("invalid expr");
+          shouldContinue = false;
+        }
+      }
+      case BINARY -> {
+        switch (p.peek()) {
+          case PLUS -> {
+            while (!opState.operatorsEmpty() && opState.peekOperator()
+                .higherPrecedenceThan(Operator.PLUS)) {
+              reduceOperator(opState);
+            }
+            opState.addOperator(Operator.PLUS);
+            p.advance();
+          }
+          case STAR -> {
+            while (!opState.operatorsEmpty() && opState.peekOperator()
+                .higherPrecedenceThan(Operator.MULT)) {
+              reduceOperator(opState);
+            }
+            opState.addOperator(Operator.MULT);
+            p.advance();
+          }
+          case L_PAREN -> {
+            opState.addOperator(Operator.APPLY);
+          }
+          default -> {
+            while (!opState.operatorsEmpty()) {
+              reduceOperator(opState);
+            }
+            shouldContinue = false;
+          }
+        }
+      }
+    }
+    return shouldContinue;
+  }
+
+  private boolean atExprDelimitedStart() {
+    return switch (p.peek()) {
+      case TRUE, FALSE, NUMBER, STRING, LOOP, MATCH, L_PAREN, L_CURLY, MINUS, BANG -> true;
+      default -> false;
+    };
+  }
+
+  private MarkClosed exprDelimited() {
+    checkStart(this::atExprDelimitedStart, "expr");
 
     var mark = p.open();
-    switch (p.peek()) {
+    return switch (p.peek()) {
       case TRUE, FALSE, NUMBER, STRING -> {
         p.advance();
-        p.close(mark, TreeKind.EXPR_LITERAL);
+        yield p.close(mark, TreeKind.EXPR_LITERAL);
       }
       case LOOP -> {
         p.advance();
@@ -333,29 +496,29 @@ public class SasquachParser {
         commaSeparated(R_PAREN, () -> p.at(LET), this::varDecl);
         p.expect(ARROW);
         expr();
-        p.close(mark, TreeKind.EXPR_LOOP);
+        yield p.close(mark, TreeKind.EXPR_LOOP);
       }
       case MATCH -> {
         p.advance();
         expr();
         p.expect(L_CURLY);
         commaSeparated(R_CURLY, this::isPatternStart, this::pattern);
-        p.close(mark, TreeKind.EXPR_MATCH);
+        yield p.close(mark, TreeKind.EXPR_MATCH);
       }
       // ParenExpr | TupleExpr | FuncExpr
       case L_PAREN -> {
         if (tryParse(this::funcExpr)) {
-          p.close(mark, TreeKind.EXPR_FUNC);
+          yield p.close(mark, TreeKind.EXPR_FUNC);
         } else {
           p.advance();
           expr();
           if (p.eat(COMMA)) {
-            commaSeparated(R_PAREN, this::isExprStart, this::expr);
-            p.close(mark, TreeKind.EXPR_TUPLE);
+            commaSeparated(R_PAREN, this::atExprDelimitedStart, this::expr);
+            yield p.close(mark, TreeKind.EXPR_TUPLE);
           } else if (p.eat(R_PAREN)) {
-            p.close(mark, TreeKind.EXPR_PAREN);
+            yield p.close(mark, TreeKind.EXPR_PAREN);
           } else {
-            p.advanceWithError(mark, "failed");
+            yield p.close(mark, TreeKind.ERROR_TREE);
           }
         }
       }
@@ -369,10 +532,20 @@ public class SasquachParser {
           }
         }
         p.expect(R_CURLY);
-        p.close(mark, TreeKind.EXPR_BLOCK);
+        yield p.close(mark, TreeKind.EXPR_BLOCK);
+      }
+      case MINUS -> {
+        p.advance();
+        expr();
+        yield p.close(mark, TreeKind.EXPR_NEGATE);
+      }
+      case BANG -> {
+        p.advance();
+        expr();
+        yield p.close(mark, TreeKind.EXPR_NOT);
       }
       default -> p.advanceWithError(mark, "failed");
-    }
+    };
   }
 
   private void structStatement() {

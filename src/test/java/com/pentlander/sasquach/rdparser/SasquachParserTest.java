@@ -40,12 +40,25 @@ class SasquachParserTest {
         Test {
           test0 = (true,
           test1 = (true,),
-          test2 = (true, 30),
+          test2 = {
+            (true, 30)
+          },
           test = (foo) -> true,
         }
           
         Bar {
           type T = String,
+        }
+        """);
+    System.out.println(tree.treeString());
+  }
+
+
+  @Test
+  void infix() {
+    var tree = parse("""
+        Test {
+          test = 3 + 4 * 4,
         }
         """);
     System.out.println(tree.treeString());
@@ -68,7 +81,8 @@ class SasquachParserTest {
 
   private static Tree parse(String source) {
     var scanner = new Scanner(Source.fromString("main", source));
-    var parser = new Parser(scanner.scanTokens());
+    var result = scanner.scanTokens();
+    var parser = new Parser(result.tokens(), result.newlineIndexes());
     var sasqParser = new SasquachParser(parser);
     sasqParser.compilationUnit();
     return parser.buildTree();
@@ -76,7 +90,8 @@ class SasquachParserTest {
 
   private static Tree parse(Consumer<SasquachParser> parse, String source) {
     var scanner = new Scanner(Source.fromString("main", source));
-    var parser = new Parser(scanner.scanTokens());
+    var result = scanner.scanTokens();
+    var parser = new Parser(result.tokens(), result.newlineIndexes());
     var mark = parser.open();
     var sasqParser = new SasquachParser(parser);
     parse.accept(sasqParser);
