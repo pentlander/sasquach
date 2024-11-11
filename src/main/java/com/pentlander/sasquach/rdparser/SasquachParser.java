@@ -26,6 +26,7 @@ import com.pentlander.sasquach.rdparser.Parser.MarkClosed;
 import com.pentlander.sasquach.rdparser.Parser.MarkOpened;
 import com.pentlander.sasquach.rdparser.Parser.TreeKind;
 import com.pentlander.sasquach.rdparser.Scanner.TokenType;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -325,13 +326,16 @@ public class SasquachParser {
   }
 
   enum Operator {
+    UNKNOWN(-1),
     MEMBER_ACCESS(0), FOREIGN_ACCESS(0),
     NOT(1), NEG(1),
     MULT(2), DIV(2),
     PLUS(3), MINUS(3),
     EQ(4), NEQ(4), GE(4), GT(4), LE(4), LT(4),
     AND(5), OR(5),
-    APPLY(6), PIPE(6);
+    SEPARATOR(6),
+    APPLY(7), PIPE(7),
+    CLOSE_PAREN(8);
 
     private final int precedence;
 
@@ -342,12 +346,36 @@ public class SasquachParser {
     public boolean higherPrecedenceThan(Operator other) {
       return precedence < other.precedence;
     }
+
+    public static Operator fromToken(TokenType tokenType) {
+      return switch (tokenType) {
+        case PLUS -> Operator.PLUS;
+        case MINUS -> Operator.MINUS;
+        case STAR -> Operator.MULT;
+        case SLASH -> Operator.DIV;
+        case DOT -> Operator.MEMBER_ACCESS;
+        case EQ -> Operator.EQ;
+        case BANG_EQ -> Operator.NEQ;
+        case GT_EQ -> Operator.GE;
+        case GT -> Operator.GT;
+        case LT_EQ -> Operator.LE;
+        case LT -> Operator.LT;
+        case AMP_AMP -> Operator.AND;
+        case PIPE_PIPE -> Operator.OR;
+        case L_PAREN -> Operator.APPLY;
+        case PIPE_OP -> Operator.PIPE;
+        case COMMA -> Operator.SEPARATOR;
+        case R_PAREN -> Operator.CLOSE_PAREN;
+        default -> Operator.UNKNOWN;
+      };
+    }
   }
 
   private static final class OperatorState {
     private ExprState exprState = ExprState.UNARY;
     private final List<Operator> operatorStack = new ArrayList<>();
     private final List<Mark> operandStack = new ArrayList<>();
+    private int openCount = 0;
 
     public ExprState exprState() {
       return exprState;
@@ -361,6 +389,8 @@ public class SasquachParser {
     }
 
     public void addOperator(Operator op) {
+      if (op == Operator.APPLY) openCount++;
+
       operatorStack.add(op);
       toggleState();
     }
@@ -374,7 +404,9 @@ public class SasquachParser {
     }
 
     public Operator popOperator() {
-      return operatorStack.removeLast();
+      var op = operatorStack.removeLast();
+      if (op == Operator.APPLY) openCount--;
+      return op;
     }
 
     public void addOperand(Mark mark) {
@@ -383,6 +415,10 @@ public class SasquachParser {
 
     public Mark popOperand() {
       return operandStack.removeLast();
+    }
+
+    public boolean isOpen() {
+      return openCount > 0;
     }
 
     @Override
@@ -409,7 +445,14 @@ public class SasquachParser {
         p.close(mark, TreeKind.EXPR_MULT);
         opState.addOperand(mark);
       }
-
+      case SEPARATOR -> {}
+      case APPLY -> {
+        opState.popOperand();
+        var first = opState.popOperand();
+        var mark = p.openBefore(first);
+        p.close(mark, TreeKind.EXPR_APPLY);
+        opState.addOperand(mark);
+      }
     }
   }
 
@@ -441,33 +484,38 @@ public class SasquachParser {
           shouldContinue = false;
         }
       }
+      // foo(1 + 3, bar)
       case BINARY -> {
-        switch (p.peek()) {
-          case PLUS -> {
-            while (!opState.operatorsEmpty() && opState.peekOperator()
-                .higherPrecedenceThan(Operator.PLUS)) {
-              reduceOperator(opState);
-            }
-            opState.addOperator(Operator.PLUS);
-            p.advance();
+        var op = Operator.fromToken(p.peek());
+        if (op == Operator.CLOSE_PAREN && opState.isOpen()) {
+          var operands = new ArrayDeque<Mark>();
+          operands.addFirst(opState.popOperand());
+          Operator operator;
+          do {
+            operands.addFirst(opState.popOperand());
+            operator = opState.popOperator();
+          } while (operator != Operator.APPLY);
+          var mark = p.openBefore(operands.getFirst());
+          p.close(mark, TreeKind.EXPR_APPLY);
+          opState.addOperand(mark);
+          p.advance();
+          // A separator (i.e. ',') is only valid when there's some sort of "open" operator in the stack, usually a '('. If a separator appears without an open operator, then it must be the end of a statement or an error
+        } else if (op != Operator.UNKNOWN) {
+          while (!opState.operatorsEmpty() && opState.peekOperator()
+              .higherPrecedenceThan(op)) {
+            reduceOperator(opState);
           }
-          case STAR -> {
-            while (!opState.operatorsEmpty() && opState.peekOperator()
-                .higherPrecedenceThan(Operator.MULT)) {
-              reduceOperator(opState);
-            }
-            opState.addOperator(Operator.MULT);
-            p.advance();
-          }
-          case L_PAREN -> {
-            opState.addOperator(Operator.APPLY);
-          }
-          default -> {
-            while (!opState.operatorsEmpty()) {
-              reduceOperator(opState);
-            }
+          if (op == Operator.SEPARATOR && !opState.isOpen()) {
             shouldContinue = false;
+          } else {
+            opState.addOperator(op);
+            p.advance();
           }
+        } else {
+          while (!opState.operatorsEmpty()) {
+            reduceOperator(opState);
+          }
+          shouldContinue = false;
         }
       }
     }

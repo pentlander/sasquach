@@ -14,17 +14,17 @@ class SasquachParserTest {
   void tuple() {
     var tree = parse("""
         Test {
-          use std/Option;
-          use std/Int;
+          use std/Option,
+          use std/Int,
           
-          type Box[A] = { item: A; ..A },
+          type Box[A] = { item: A, ..A },
           
           type Id = (String),
           
           test0 = (true,
           test1 = (true,),
           test2 = (true, 30),
-          test = (foo) -> true;
+          test = (foo) -> true,
         }
           
         Bar {
@@ -38,7 +38,7 @@ class SasquachParserTest {
   void tuple2() {
     var tree = parse("""
         Test {
-          test0 = (true,
+          test0 = (true),
           test1 = (true,),
           test2 = {
             (true, 30)
@@ -53,6 +53,15 @@ class SasquachParserTest {
     System.out.println(tree.treeString());
   }
 
+  @Test
+  void funcApplication() {
+    var tree = parse("""
+        Test {
+          test = foo(bar, 10, 5),
+        }
+        """);
+    System.out.println(tree.treeString());
+  }
 
   @Test
   void infix() {
