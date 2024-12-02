@@ -147,6 +147,7 @@ public class Scanner {
       case ':' -> addToken(COLON);
       case '+' -> addToken(PLUS);
       case '*' -> addToken(STAR);
+      case '#' -> addToken(POUND);
       case '-' -> addToken(match('>', ARROW, MINUS));
       case '.' -> addToken(match('.', DOT_DOT, DOT));
       case '!' -> addToken(match('=', BANG_EQ, BANG));
@@ -179,7 +180,7 @@ public class Scanner {
       case '"' -> addString();
       case '\n' -> {
         newlineStrIndexes.add(current);
-        newlineTokenIndexes.add(tokens.size() - 1);
+        newlineTokenIndexes.add(tokens.size());
         line++;
       }
       case ' ', '\r', '\t' -> {}
@@ -217,7 +218,7 @@ public class Scanner {
     }
   }
   enum TokenType {
-    PLUS, MINUS, STAR, SLASH, EQ, BANG, COMMA, DOT, PIPE, COLON,
+    PLUS, MINUS, STAR, SLASH, EQ, BANG, COMMA, DOT, POUND, PIPE, COLON,
     LT, GT, L_PAREN, R_PAREN, L_CURLY, R_CURLY, L_BRACK, R_BRACK,
 
     PIPE_OP, ARROW,
@@ -242,6 +243,7 @@ public class Scanner {
         case BANG -> "!";
         case COMMA -> ",";
         case DOT -> ".";
+        case POUND -> "#";
         case PIPE -> "|";
         case COLON -> ":";
         case LT -> "<";

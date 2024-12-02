@@ -38,7 +38,7 @@ class SasquachParserTest {
   void tuple2() {
     var tree = parse("""
         Test {
-          test0 = (true),
+          test0 = (true,
           test1 = (true,),
           test2 = {
             (true, 30)
@@ -54,10 +54,63 @@ class SasquachParserTest {
   }
 
   @Test
+  void namedStruct() {
+    var tree = parse("""
+        Test {
+          test = Foo { bar = 1 + 2, baz = "hello" },
+        }
+        """);
+    System.out.println(tree.treeString());
+  }
+
+  @Test
   void funcApplication() {
     var tree = parse("""
         Test {
           test = foo(bar, 10, 5),
+        }
+        """);
+    System.out.println(tree.treeString());
+  }
+
+  /**
+   * Need to decide when an end of line should complete a statement. It's only relevant when the
+   * parser is in a binary statement, in other cases it's unambiguous.
+   */
+  @Test
+  void funcApplication_block() {
+    var tree = parse("""
+        Test {
+          test = {
+            foo
+            (bar, 10, 5)
+          }
+        }
+        """);
+    System.out.println(tree.treeString());
+  }
+
+  @Test
+  void memberAccess() {
+    var tree = parse("""
+        Test {
+          test = {
+            Foo.T {
+              bar = true
+            }
+            foo.bar
+            { true }
+          }
+        }
+        """);
+    System.out.println(tree.treeString());
+  }
+
+  @Test
+  void funcApplication_noargs() {
+    var tree = parse("""
+        Test {
+          test = foo(),
         }
         """);
     System.out.println(tree.treeString());

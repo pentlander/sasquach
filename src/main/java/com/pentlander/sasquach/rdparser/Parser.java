@@ -51,12 +51,16 @@ public class Parser {
     return new MarkClosed(mark.idx());
   }
 
-  boolean endOfLine() {
+  boolean startOfLine() {
     return newlineTokenIndexes.contains(current);
   }
 
   boolean isAtEnd() {
     return current == tokens.size();
+  }
+
+  boolean shouldBacktrack() {
+    return shouldBacktrack;
   }
 
   void advance() {
@@ -190,7 +194,7 @@ public class Parser {
   enum TreeKind {
     ERROR_TREE, COMP_UNIT, NAME, QUALIFIED_NAME,
 
-    MODULE, STRUCT, STRUCT_STATEMENT, TYPE_ARG_LIST, TYPE_ANNOTATION, VAR_DECL, PRINT_STMT,
+    MODULE, STRUCT, NAMED_STRUCT, STRUCT_STATEMENT, TYPE_ARG_LIST, TYPE_ANNOTATION, VAR_DECL, PRINT_STMT,
 
     // Function definition
     TYPE_PARAM_LIST, FUNCTION_PARAM, FUNCTION_PARAM_LIST,
@@ -201,7 +205,8 @@ public class Parser {
 
     // Expressions
     EXPR, EXPR_LITERAL, EXPR_VAR_REF, EXPR_LOOP, EXPR_PAREN, EXPR_MATCH, EXPR_IF, EXPR_BLOCK, EXPR_FUNC, EXPR_TUPLE, EXPR_NEGATE, EXPR_NOT,
-    EXPR_ADD, EXPR_SUBTR, EXPR_MULT, EXPR_DIV, EXPR_APPLY, EXPR_PIPE,
+    EXPR_ADD, EXPR_SUB, EXPR_MULT, EXPR_DIV, EXPR_MEMBER_ACCESS, EXPR_FOREIGN_ACCESS, EXPR_APPLY, EXPR_PIPE,
+    EXPR_EQ, EXPR_NEQ, EXPR_GE, EXPR_GT, EXPR_LE, EXPR_LT, EXPR_AND, EXPR_OR,
     PATTERN,
   }
 

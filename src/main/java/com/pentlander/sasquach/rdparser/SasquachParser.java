@@ -288,7 +288,7 @@ public class SasquachParser {
   public boolean isBlockStatementStart() {
     return switch (p.peek()) {
       case LET, PRINT -> true;
-      default -> atExprDelimitedStart();
+      default -> atExprStart();
     };
   }
 
@@ -311,7 +311,7 @@ public class SasquachParser {
         p.close(mark, TreeKind.PRINT_STMT);
       }
       default -> {
-        if (atExprDelimitedStart()) {
+        if (atExprStart()) {
           expr();
           p.close(mark, TreeKind.EXPR);
         } else {
@@ -347,6 +347,30 @@ public class SasquachParser {
       return precedence < other.precedence;
     }
 
+    public TreeKind toTreeKind() {
+      return switch (this) {
+        case PLUS -> TreeKind.EXPR_ADD;
+        case MEMBER_ACCESS -> TreeKind.EXPR_MEMBER_ACCESS;
+        case FOREIGN_ACCESS -> TreeKind.EXPR_FOREIGN_ACCESS;
+        case NOT -> TreeKind.EXPR_NOT;
+        case NEG -> TreeKind.EXPR_NEGATE;
+        case MULT -> TreeKind.EXPR_MULT;
+        case DIV -> TreeKind.EXPR_DIV;
+        case MINUS -> TreeKind.EXPR_SUB;
+        case EQ -> TreeKind.EXPR_EQ;
+        case NEQ -> TreeKind.EXPR_NEQ;
+        case GE -> TreeKind.EXPR_GE;
+        case GT -> TreeKind.EXPR_GT;
+        case LE -> TreeKind.EXPR_LE;
+        case LT -> TreeKind.EXPR_LT;
+        case AND -> TreeKind.EXPR_AND;
+        case OR -> TreeKind.EXPR_OR;
+        case APPLY -> TreeKind.EXPR_APPLY;
+        case PIPE -> TreeKind.EXPR_PIPE;
+        case UNKNOWN, SEPARATOR, CLOSE_PAREN -> throw new IllegalStateException();
+      };
+    }
+
     public static Operator fromToken(TokenType tokenType) {
       return switch (tokenType) {
         case PLUS -> Operator.PLUS;
@@ -354,6 +378,7 @@ public class SasquachParser {
         case STAR -> Operator.MULT;
         case SLASH -> Operator.DIV;
         case DOT -> Operator.MEMBER_ACCESS;
+        case POUND -> Operator.FOREIGN_ACCESS;
         case EQ -> Operator.EQ;
         case BANG_EQ -> Operator.NEQ;
         case GT_EQ -> Operator.GE;
@@ -431,29 +456,20 @@ public class SasquachParser {
   void reduceOperator(OperatorState opState) {
     var operator = opState.popOperator();
     switch (operator) {
-      case PLUS -> {
-        opState.popOperand();
-        var first = opState.popOperand();
-        var mark = p.openBefore(first);
-        p.close(mark, TreeKind.EXPR_ADD);
-        opState.addOperand(mark);
-      }
-      case MULT -> {
-        opState.popOperand();
-        var first = opState.popOperand();
-        var mark = p.openBefore(first);
-        p.close(mark, TreeKind.EXPR_MULT);
-        opState.addOperand(mark);
-      }
       case SEPARATOR -> {}
-      case APPLY -> {
+      case UNKNOWN, CLOSE_PAREN -> throw new IllegalStateException();
+      default -> {
         opState.popOperand();
         var first = opState.popOperand();
         var mark = p.openBefore(first);
-        p.close(mark, TreeKind.EXPR_APPLY);
+        p.close(mark, operator.toTreeKind());
         opState.addOperand(mark);
       }
     }
+  }
+
+  private boolean atExprStart() {
+    return p.at(NAME) || atExprDelimitedStart();
   }
 
   private void expr() {
@@ -475,8 +491,28 @@ public class SasquachParser {
         } else if (p.at(NAME)) {
           // Don't know if this is a var reference, func call, named struct, etc. until we see the next token
           var mark = p.open();
+          boolean parsedNamedStruct = tryParse(() -> {
+            namedType();
+            if (p.startOfLine()) {
+              throw new BacktrackException("'{' must be on the same line as struct name");
+            }
+            struct();
+          });
+
+          if (parsedNamedStruct) {
+            p.close(mark, TreeKind.NAMED_STRUCT);
+          } else {
+            p.advance();
+            p.close(mark, TreeKind.NAME);
+          }
+          opState.addOperand(mark);
+          opState.toggleState();
+        } else if (p.at(R_PAREN) && opState.isOpen() && opState.peekOperator() == Operator.APPLY) {
+          opState.popOperator();
+          // Pop the function expr
+          var mark = p.openBefore(opState.popOperand());
           p.advance();
-          p.close(mark, TreeKind.NAME);
+          p.close(mark, TreeKind.EXPR_APPLY);
           opState.addOperand(mark);
           opState.toggleState();
         } else {
@@ -485,6 +521,7 @@ public class SasquachParser {
         }
       }
       // foo(1 + 3, bar)
+      // Foo { bar = bar }
       case BINARY -> {
         var op = Operator.fromToken(p.peek());
         if (op == Operator.CLOSE_PAREN && opState.isOpen()) {
@@ -496,16 +533,16 @@ public class SasquachParser {
             operator = opState.popOperator();
           } while (operator != Operator.APPLY);
           var mark = p.openBefore(operands.getFirst());
+          p.advance();
           p.close(mark, TreeKind.EXPR_APPLY);
           opState.addOperand(mark);
-          p.advance();
           // A separator (i.e. ',') is only valid when there's some sort of "open" operator in the stack, usually a '('. If a separator appears without an open operator, then it must be the end of a statement or an error
-        } else if (op != Operator.UNKNOWN) {
+        } else if (op != Operator.UNKNOWN && op != Operator.CLOSE_PAREN) {
           while (!opState.operatorsEmpty() && opState.peekOperator()
               .higherPrecedenceThan(op)) {
             reduceOperator(opState);
           }
-          if (op == Operator.SEPARATOR && !opState.isOpen()) {
+          if ((op == Operator.APPLY && p.startOfLine()) || (op == Operator.SEPARATOR && !opState.isOpen())) {
             shouldContinue = false;
           } else {
             opState.addOperator(op);
@@ -561,7 +598,7 @@ public class SasquachParser {
           p.advance();
           expr();
           if (p.eat(COMMA)) {
-            commaSeparated(R_PAREN, this::atExprDelimitedStart, this::expr);
+            commaSeparated(R_PAREN, this::atExprStart, this::expr);
             yield p.close(mark, TreeKind.EXPR_TUPLE);
           } else if (p.eat(R_PAREN)) {
             yield p.close(mark, TreeKind.EXPR_PAREN);
@@ -658,8 +695,13 @@ public class SasquachParser {
     for (var type : tokenTypes) {
       if (p.at(type)) return;
     }
-    throw new IllegalStateException("Expected to be at token type '%s', found: %s".formatted(Arrays.toString(
-        tokenTypes), p.peekToken()));
+    var msg = "Expected to be at token type '%s', found: %s".formatted(Arrays.toString(
+        tokenTypes), p.peekToken());
+    if (p.shouldBacktrack()) {
+      throw new BacktrackException(msg);
+    } else {
+      throw new IllegalStateException(msg);
+    }
   }
 
   // Check that the method used to check if the starting token is valid matches the actual implementation
