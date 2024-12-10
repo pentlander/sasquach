@@ -94,14 +94,14 @@ public class TypeNodeNameResolver {
   }
 
   private void resolveNamedType(NamedTypeNode typeNode) {
-    typeNode.typeArgumentNodes().forEach(this::resolveNamedType);
+    typeNode.typeArgumentNodes().forEach(this::resolveTypeNode);
 
     switch (typeNode.id()) {
       case TypeId typeId -> {
         // Check if the named type matches a type parameter
         var name = typeId.name();
         var typeParam = contextTypeParams.stream()
-            .filter(param -> param.name().equals(name.toString()))
+            .filter(param -> param.name().equals(name.simpleName()))
             .findFirst();
         // Check if the named type matches a local type alias
         var typeAlias = moduleScopedNameResolver.resolveTypeAlias(name);
@@ -131,12 +131,6 @@ public class TypeNodeNameResolver {
                 typeParam -> putNamedType(typeNode, typeParam),
                 () -> errors.add(new NameNotFoundError(typeId, "named type")));
       }
-    }
-  }
-
-  private void resolveNamedType(TypeNode typeNode) {
-    if (typeNode instanceof NamedTypeNode namedTypeNode) {
-      resolveNamedType(namedTypeNode);
     }
   }
 

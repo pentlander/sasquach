@@ -124,11 +124,11 @@ public class Compiler {
 
     var nameResolver = new ModuleResolver();
     var nameResolutionResult = nameResolver.resolveCompilationUnits(compUnits);
-    nameResolutionResult.errors().throwIfNotEmpty(sources);
+    nameResolutionResult.errors().throwIfNotEmpty(combinedSources);
 
     var typeResolver = new TypeResolver(nameResolutionResult);
     var typeResolutionResult = typeResolver.resolve(compUnits);
-    typeResolutionResult.errors().throwIfNotEmpty(sources);
+    typeResolutionResult.errors().throwIfNotEmpty(combinedSources);
 
     var bytecodeGenerator = new BytecodeGenerator();
     return bytecodeGenerator.generateBytecode(typeResolutionResult.getModuleDeclarations());

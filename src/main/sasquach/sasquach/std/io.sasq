@@ -1,6 +1,21 @@
 IO {
-    use foreign java/io/PrintStream,
     use foreign java/lang/System,
+    use foreign java/util/Objects,
+    use foreign java/io/PrintStream,
+    use foreign java/io/InputStreamReader,
+    use foreign java/io/BufferedReader,
+    use foreign java/nio/file/Files,
+    use foreign java/nio/file/Path,
 
-    println = (string: String): Void -> PrintStream#println(System#out, string)
+    use std/Iterator,
+    use std/Option,
+
+    println = (string: String): Void -> PrintStream#println(System#out, string),
+
+    stdinLines = (): Iterator.T[String] -> {
+      let reader = System#in |> InputStreamReader#new() |> BufferedReader#new()
+      Iterator.new(() -> reader |> BufferedReader#readLine() |> Option.wrap())
+    },
+
+    readString = (path: String): String -> Path#of(path) |> Files#readString(),
 }

@@ -28,6 +28,7 @@ import com.pentlander.sasquach.tast.expression.TFunction;
 import com.pentlander.sasquach.tast.expression.TModuleStruct;
 import com.pentlander.sasquach.tast.expression.TModuleStruct.TypeDef;
 import com.pentlander.sasquach.tast.expression.TStruct;
+import com.pentlander.sasquach.type.ArrayType;
 import com.pentlander.sasquach.type.BuiltinType;
 import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.SingletonType;
@@ -45,6 +46,7 @@ import java.lang.classfile.ClassHierarchyResolver;
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.MethodSignature;
 import java.lang.classfile.Signature;
+import java.lang.classfile.Signature.ArrayTypeSig;
 import java.lang.classfile.Signature.BaseTypeSig;
 import java.lang.classfile.Signature.TypeParam;
 import java.lang.classfile.TypeKind;
@@ -72,6 +74,7 @@ import java.util.stream.Stream;
 import jdk.dynalink.StandardOperation;
 import org.jspecify.annotations.Nullable;
 
+@SuppressWarnings("preview")
 class ClassGenerator {
   static final MethodTypeDesc MTD_TO_STRING = MethodTypeDesc.of(ConstantDescs.CD_String);
   static final MethodTypeDesc MTD_HASHCODE = MethodTypeDesc.of(ConstantDescs.CD_int);
@@ -422,6 +425,7 @@ class ClassGenerator {
       case UniversalType t -> TypeVarSig.of(t.name());
       case BuiltinType t when t != BuiltinType.STRING ->
           BaseTypeSig.of(t.classDesc());
+      case ArrayType t -> ArrayTypeSig.of(typeSignature(t.elementType()));
       default -> ClassTypeSig.of(type.classDesc());
     };
   }

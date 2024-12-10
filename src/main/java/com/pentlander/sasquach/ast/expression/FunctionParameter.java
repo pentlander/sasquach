@@ -21,6 +21,7 @@ public record FunctionParameter(Id id, @Nullable Id label, @Nullable TypeNode ty
     return id.name();
   }
 
+  // TODO this should really return an optional type instead of shimming a type variable
   /**
    * Type of the parameter.
    */

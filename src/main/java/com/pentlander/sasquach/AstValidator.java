@@ -83,6 +83,7 @@ public class AstValidator {
     }
 
     return switch (expr) {
+      case Recur _ -> null;
       case IfExpression ifExpr -> {
         var hasRecur = ifExpr.trueExpression() instanceof Recur
             || ifExpr.falseExpression() instanceof Recur;

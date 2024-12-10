@@ -29,6 +29,9 @@ public record ResolvedModuleNamedType(QualifiedTypeName name, List<Type> typeArg
 
   @Override
   public boolean isAssignableFrom(Type other) {
+    if (other instanceof ResolvedModuleNamedType namedType) {
+      return type.isAssignableFrom(namedType.type);
+    }
     return type.isAssignableFrom(other);
   }
 

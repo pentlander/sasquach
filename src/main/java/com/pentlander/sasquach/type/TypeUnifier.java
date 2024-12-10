@@ -4,6 +4,7 @@ import static com.pentlander.sasquach.Preconditions.checkNotInstanceOf;
 
 import com.pentlander.sasquach.name.UnqualifiedName;
 import com.pentlander.sasquach.type.StructType.RowModifier;
+import com.pentlander.sasquach.type.StructType.RowModifier.NamedRow;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
@@ -39,8 +40,8 @@ public class TypeUnifier {
           structType.memberTypes()
               .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType)));
 
-          StructType.RowModifier rowModifier = structType.rowModifier();
-          if (structType.rowModifier() instanceof RowModifier.NamedRow namedRow && namedRow.type() instanceof TypeVariable typeVar) {
+          RowModifier rowModifier = structType.rowModifier();
+          if (structType.rowModifier() instanceof NamedRow namedRow && namedRow.type() instanceof TypeVariable typeVar) {
             var rowStruct = typeVar.resolvedType().flatMap(TypeUtils::asStructType);
             rowStruct.ifPresent(value -> value.memberTypes()
                 .forEach((name, fieldType) -> fieldTypes.put(name, resolve(fieldType))));
@@ -64,6 +65,7 @@ public class TypeUnifier {
             sumType.qualifiedTypeName(),
             sumType.typeParameters(),
             sumType.types().stream().map(this::resolve).map(VariantType.class::cast).toList());
+        case ArrayType arrayType -> new ArrayType(resolve(arrayType.elementType()));
       };
     }
     return type;
@@ -151,12 +153,12 @@ public class TypeUnifier {
           }
         });
 
-        if (!sourceFieldTypes.isEmpty() && destStructType.rowModifier() instanceof StructType.RowModifier.NamedRow namedRow) {
+        if (!sourceFieldTypes.isEmpty() && destStructType.rowModifier() instanceof NamedRow namedRow) {
           var typeVar = (TypeVariable) namedRow.type();
           var structType = StructType.synthetic(sourceFieldTypes);
           unifyTypeVariable(typeVar, structType);
         }
-        if (!destFieldTypes.isEmpty() && sourceStructType.rowModifier() instanceof StructType.RowModifier.NamedRow namedRow) {
+        if (!destFieldTypes.isEmpty() && sourceStructType.rowModifier() instanceof NamedRow namedRow) {
           var typeVar = (TypeVariable) namedRow.type();
           var structType = StructType.synthetic(destFieldTypes);
           unifyTypeVariable(typeVar, structType);
@@ -192,6 +194,8 @@ public class TypeUnifier {
             .orElseThrow(() -> new UnificationException(destType, sourceType));
         unify(matchingVariant, sourceStructType);
       }
+      case ArrayType destArrayType when sourceType instanceof ArrayType sourceArrayType ->
+          unify(destArrayType.elementType(), sourceArrayType.elementType());
       case ClassType destClassType when sourceType instanceof ClassType sourceClassType -> {
         for (int i = 0; i < destClassType.typeArguments().size(); i++) {
           var destArgType = destClassType.typeArguments().get(i);

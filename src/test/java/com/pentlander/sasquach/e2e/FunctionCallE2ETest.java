@@ -43,7 +43,7 @@ public class FunctionCallE2ETest extends BaseTest {
     var ex = assertThrows(CompilationException.class, () -> compile("""
         Main {
           sub = (num a: Int, by b: Int): Int -> a - b,
-                
+        
           main = (): Int -> sub(num=3)
         }
         """));

@@ -15,7 +15,7 @@ import com.pentlander.sasquach.name.UnqualifiedTypeName;
 import com.pentlander.sasquach.nameres.NameResolutionResult;
 import com.pentlander.sasquach.type.MemberScopedTypeResolver.TypeMismatchError;
 import com.pentlander.sasquach.type.MemberScopedTypeResolver.UnknownType;
-import com.pentlander.sasquach.type.StructType.RowModifier;
+import com.pentlander.sasquach.type.StructType.RowModifier.NamedRow;
 import com.pentlander.sasquach.type.StructType.RowModifier.None;
 import com.pentlander.sasquach.type.StructType.RowModifier.UnnamedRow;
 import java.util.ArrayList;
@@ -97,7 +97,7 @@ public class NamedTypeResolver {
               .stream()
               .collect(toSeqMap(Entry::getKey, e -> resolveNames(e.getValue(), typeArgs, range))),
           switch (structType.rowModifier()) {
-            case RowModifier.NamedRow(var type) -> new RowModifier.NamedRow(resolveNames(type, typeArgs, range));
+            case NamedRow(var type) -> new NamedRow(resolveNames(type, typeArgs, range));
             case UnnamedRow unnamedRow -> unnamedRow;
             case None none -> none;
           });
@@ -121,7 +121,6 @@ public class NamedTypeResolver {
           sumType.types()
               .stream()
               .map(t -> resolveNames(t, typeArgs, range))
-              .map(VariantType.class::cast)
               .toList());
       case ResolvedModuleNamedType namedType -> new ResolvedModuleNamedType(
           namedType.name(),
@@ -132,6 +131,7 @@ public class NamedTypeResolver {
           resolveNames(namedType.type(), typeArgs, range));
       case ClassType classType -> new ClassType(classType.typeClass(),
           resolveNamedTypes(classType.typeArguments(), typeArgs, range));
+      case ArrayType arrayType -> new ArrayType(resolveNames(arrayType.elementType(), typeArgs, range));
     };
   }
 

@@ -5,4 +5,4 @@ package com.pentlander.sasquach.type;
  * <p>If any field in the struct is a {@link Type}, it should implement this interface. </p>
  */
 public sealed interface TypeNester extends Type permits ClassType, FunctionType, ParameterizedType,
-    ResolvedNamedType, StructType, SumType, TypeVariable, UniversalType {}
+    ResolvedNamedType, StructType, SumType, ArrayType, TypeVariable, UniversalType {}

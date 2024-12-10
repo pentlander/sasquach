@@ -1,11 +1,14 @@
 Int {
   use foreign java/lang/Integer,
+  use foreign java/lang/Math,
 
   equals = (a: Int, b: Int): Boolean -> a == b,
 
   parse = (str: String): Int -> Integer#parseInt(str),
 
   toString = (int: Int): String -> Integer#toString(int),
+
+  abs = (int: Int): Int -> Math#abs(int),
 }
 
 Char {
@@ -20,6 +23,7 @@ String {
   use std/Option,
   use std/Ref,
   use std/Iterator,
+  use std/List,
 
   use foreign java/lang/CharSequence,
   use foreign java/lang/String,
@@ -49,6 +53,15 @@ String {
       ch
     })
   },
+
+  split = (str: String, regex: String): List.T[String] -> {
+    str |> String#split(regex) |> List.fromArray()
+  },
+
+//  splitOnce = (str: String, regex: String): (String, String) -> {
+//    let parts = split(str, regex)
+//    if
+//  },
 }
 
 Ref {
@@ -75,6 +88,8 @@ Iterator {
   typealias T[A] = { next: () -> Option.T[A], .. },
 
   new = [A](next: () -> Option.T[A]): T[A] -> { next = next },
+
+  empty = [A](): T[A] -> new(() -> Option.None),
 
   next = [A](iter: T[A]): Option.T[A] -> iter.next(),
 
@@ -115,6 +130,44 @@ Iterator {
         )
         |> Option.flatMap((nestedIter) -> next(nestedIter))
     })
+  },
+
+// I think when looking up name defs the tuple is not getting recursed into
+  zip = [A, B](iter: T[A], otherIter: T[B]): T[(A, B)] -> {
+    let isDoneRef = Ref.new(false)
+    new(() -> {
+      if Ref.get(isDoneRef) {
+        Option.None
+      } else {
+        // For some reason item and otherItem's types are resolved to A, when only the first
+        // should be A
+        let item = next(iter)
+        let otherItem = next(otherIter)
+        // TODO Replace with pattern matching when implemented
+        if Option.isSome(item) && Option.isSome(otherItem) {
+          Option.Some((Option.unwrap(item), Option.unwrap(otherItem)))
+        } else {
+          Ref.set(isDoneRef, true)
+          Option.None
+        }
+      }
+    })
+  },
+
+  pairwise = [A](iter: T[A]): T[(A, A)] -> match next(iter) {
+    Option.Some(firstItem) -> {
+      let prevRef = Ref.new(firstItem)
+      new(() ->
+        iter
+        |> next()
+        |> Option.map((item) -> {
+          let prev = Ref.get(prevRef)
+          Ref.set(prevRef, item)
+          (prev, item)
+        })
+      )
+    },
+    Option.None -> empty(),
   },
 
   reduce = [A, B](iter: T[A], init: B, accumulator: (accum: B, value: A) -> B): B ->
@@ -176,9 +229,21 @@ Option {
     None -> false,
   },
 
+  wrap = [A](value: A): T[A] ->
+    if Objects#nonNull(value) {
+      Some(value)
+    } else {
+      None
+    },
+
   unwrap = [A](option: T[A]): A -> match option {
     Some(value) -> value,
     None -> Exception.illegalState("option is None"),
+  },
+
+  unwrapOr = [A](option: T[A], default: A): A -> match option {
+    Some(value) -> value,
+    None -> default,
   },
 
   getOrElse = [A](option: T[A], fn: () -> A): A -> match option {
@@ -264,8 +329,16 @@ Result {
 
 List {
   use std/Eq,
+  use std/Iterator,
+  use std/Ref,
+  use std/Option,
+
+  use foreign java/util/Arrays,
+  use foreign java/util/List,
   use foreign java/util/ArrayList,
   use foreign java/util/Iterator,
+  use foreign java/util/Collections,
+  use foreign com/pentlander/sasquach/runtime/Stdlib,
 
   type T[A] = { list: ArrayList[A] },
 
@@ -277,6 +350,10 @@ List {
     T { list = list }
   },
 
+  fromJavaList = [A](list: List[A]): T[A] -> T { list = ArrayList#new(list) },
+
+  fromArray = [A](arr: Array[A]): T[A] -> T { list = Stdlib#listFromArray(arr) },
+
   conj = [A](list: T[A], value: A): T[A] -> {
     let listCopy = ArrayList#new(list.list)
     ArrayList#add(listCopy, value)
@@ -284,6 +361,9 @@ List {
   },
 
   get = [A](list: T[A], idx: Int): A -> ArrayList#get(list.list, idx),
+
+  getOpt = [A](list: T[A], idx: Int): Option.T[A] ->
+    if (idx >= 0 && idx < size(list)) Option.Some(ArrayList#get(list.list, idx)) else Option.None,
 
   size = [A](list: T[A]): Int -> ArrayList#size(list.list),
 
@@ -337,6 +417,25 @@ List {
       }
   },
 
+  sorted = [A](list: T[A]): T[A] -> {
+    let newList = ArrayList#new(list.list)
+    Collections#sort(newList)
+    T { list = newList }
+  },
+
+  iter = [A](list: T[A]): Iterator.T[A] -> {
+    let idxRef = Ref.new(0)
+    Iterator.new(() -> {
+      let idx = Ref.get(idxRef)
+      if idx < size(list) {
+        Ref.set(idxRef, idx + 1)
+        Option.Some(ArrayList#get(list.list, idx))
+      } else {
+        Option.None
+      }
+    })
+  },
+
   equals = [A](list: T[A], otherList: T[A], eq: Eq.T[A]): Boolean -> {
     let size = size(list)
     let otherSize = size(otherList)
@@ -387,11 +486,12 @@ Map {
 
   get = [A, B](map: T[A, B], key: A): Option.T[B] -> {
     let value = HashMap#get(map.map, key)
-    if Objects#nonNull(value) {
-      Option.Some(value)
-    } else {
-      Option.None
-    }
+    Option.wrap(value)
+  },
+
+  getOr = [A, B](map: T[A, B], key: A, default: B): B -> {
+    let value = HashMap#get(map.map, key)
+    Option.wrap(value) |> Option.unwrapOr(default)
   },
 
   size = [A, B](map: T[A, B]): Int -> HashMap#size(map.map),
@@ -406,6 +506,11 @@ Map {
     let newMap = HashMap#new(map.map)
     HashMap#remove(newMap, key)
     T { hasher = map.hasher, map = newMap }
+  },
+
+  update = [A, B](map: T[A, B], key: A, fn: (prev: Option.T[B]) -> B): T[A, B] -> {
+    let newValue = get(map, key) |> fn()
+    assoc(map, key, newValue)
   },
 
   map = [A, B, C, D](map: T[A, B], hasher: Hash.T[C], mapper: (key: A, value: B) -> (C, D)): T[C, D] -> {

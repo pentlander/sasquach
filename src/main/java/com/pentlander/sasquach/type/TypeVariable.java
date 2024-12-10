@@ -58,6 +58,11 @@ public final class TypeVariable implements Type, TypeNester {
         typeVar.inner = inner;
       }
       return true;
+      // Likely need a table driven assignability rather than having a method per type. In this
+      // case when the inner type struct is being resolved against another struct where one of
+      // the struct fields is an already resolved type var and the other is an unresolved type var,
+      // isAssignable returns false because it asks `int.isAssignableFrom(typeVar)` and the int
+      // assignability doesn't know about type vars
     } else if (inner.type != null && !inner.type.isAssignableFrom(type)) {
       return false;
       // If the other type is also a type variable, the inner of the other needs to be used so that

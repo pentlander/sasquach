@@ -719,18 +719,19 @@ public class EndToEndTest extends BaseTest {
     var clazz = compile( """
         Main {
           type Box[A] = { value: A },
-                
+        
           new = [B](value: B): Box[B] -> Box { value = value },
-          main = (): Box[Int] -> {
+          main = (): (Box[Int], Box[String]) -> {
             let boxInt = new(10)
             let boxStr = new("hello")
-            boxInt
+            (boxInt, boxStr)
           }
         }
         """);
-    Object boxedInt = invokeName(clazz, "main");
+    Object tuple = invokeMain(clazz);
 
-    assertThat(boxedInt).hasFieldOrPropertyWithValue("value", 10);
+    assertThat(tuple).extracting("_0").hasFieldOrPropertyWithValue("value", 10);
+    assertThat(tuple).extracting("_1").hasFieldOrPropertyWithValue("value", "hello");
   }
 
   @Test

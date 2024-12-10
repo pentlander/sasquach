@@ -64,6 +64,7 @@ import com.pentlander.sasquach.type.TypeUnifier.UnificationException;
 import java.lang.constant.ClassDesc;
 import java.lang.reflect.AnnotatedType;
 import java.lang.reflect.Executable;
+import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.GenericDeclaration;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.WildcardType;
@@ -815,6 +816,7 @@ public class MemberScopedTypeResolver {
         yield new ClassType((Class<?>) paramType.getRawType(), typeArgs);
       }
       case WildcardType wildcard -> javaTypeToType(wildcard.getUpperBounds()[0], typeVariables);
+      case GenericArrayType array -> new ArrayType(javaTypeToType(array.getGenericComponentType(), typeVariables));
       default -> throw new IllegalStateException(type.toString());
     };
   }
@@ -838,7 +840,7 @@ public class MemberScopedTypeResolver {
     var lvl = typeVarNum.getAndIncrement();
     return Stream.concat(Arrays.stream(executable.getTypeParameters()), receiverTypeParams)
         .collect(toMap(java.lang.reflect.TypeVariable::getName,
-            t -> new TypeVariable(t.getName(), lvl)));
+            t -> new TypeVariable(t.getName(), lvl, executable.getName())));
   }
 
   private List<Type> executableParamTypes(Executable executable,

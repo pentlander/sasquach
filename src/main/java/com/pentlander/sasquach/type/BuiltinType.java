@@ -73,6 +73,6 @@ public enum BuiltinType implements Type {
   @Override
   public boolean isAssignableFrom(Type other) {
     return this.equals(other) || (other instanceof ClassType classType && (typeClass.equals(
-        classType.typeClass())));
+        classType.typeClass()))) || (other instanceof TypeVariable v && v.resolvedType().isEmpty());
   }
 }

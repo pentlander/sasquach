@@ -33,7 +33,7 @@ public final class TypeUtils {
   public static <T extends Type> Optional<T> asType(Class<T> clazz, Type type) {
     return switch (type) {
       case ResolvedNamedType resolvedNamedType -> asType(clazz, resolvedNamedType.type());
-      case TypeVariable typeVariable -> asType(clazz, typeVariable.resolvedType().orElseThrow());
+      case TypeVariable typeVariable -> typeVariable.resolvedType().flatMap(t -> asType(clazz, t));
       default -> {
         if (clazz.isInstance(type)) {
           yield Optional.of(clazz.cast(type));
