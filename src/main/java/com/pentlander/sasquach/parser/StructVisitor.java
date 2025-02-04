@@ -116,10 +116,10 @@ public class StructVisitor extends
             fields.add(new Field(id, expr));
           } else if (funcCtx != null) {
             var func = funcCtx.accept(new FunctionVisitor(moduleCtx));
-            if (!(structName instanceof StructIdentifier.TypeNode)) {
-              functions.add(new NamedFunction(id, func));
-            } else {
+            if (structName instanceof StructIdentifier.TypeNode) {
               fields.add(new Field(id, func));
+            } else {
+              functions.add(new NamedFunction(id, func));
             }
           }
         }
@@ -162,11 +162,10 @@ public class StructVisitor extends
           .functions(functions)
           .range(rangeFrom(ctx))
           .build();
-      case StructIdentifier.TypeNode(var node) -> {
-        yield Struct.namedStructConstructor((QualifiedTypeName) node.id().name(),
-            fields,
-            rangeFrom(ctx));
-      }
+      case StructIdentifier.TypeNode(var node) ->
+          Struct.namedStructConstructor((QualifiedTypeName) node.id().name(),
+              fields,
+              rangeFrom(ctx));
     };
   }
 

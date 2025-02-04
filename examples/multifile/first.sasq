@@ -45,6 +45,7 @@ First {
           |> Map.assoc("second", 2)
         print Map.get(map, "first") |> Option.unwrap()
 
+        let func = (foo, bar) -> 10
         let tup = (4, 5)
         print tup._1
         print "char"

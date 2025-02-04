@@ -4,7 +4,6 @@ import com.pentlander.sasquach.PackageName;
 import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.name.QualifiedModuleName;
-import java.lang.constant.ClassDesc;
 
 /**
  * Package-qualified id used for imports. Packages are separated by '/'.
@@ -23,5 +22,4 @@ public record QualifiedModuleId(QualifiedModuleName moduleName, Range.Single ran
   public QualifiedModuleName name() {
     return moduleName;
   }
-
 }

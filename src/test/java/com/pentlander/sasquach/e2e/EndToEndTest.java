@@ -739,7 +739,7 @@ public class EndToEndTest extends BaseTest {
     var clazz = compile( """
         Main {
           type Box[A] = { value: A },
-                
+        
           new = [B](value: B): Box[B] -> Box { value = value },
           map = [A, B](box: Box[A], mapper: (value: A) -> B): Box[B] -> Box { value = mapper(box.value) },
           main = (): String -> {

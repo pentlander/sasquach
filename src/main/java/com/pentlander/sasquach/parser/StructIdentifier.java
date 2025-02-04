@@ -3,7 +3,7 @@ package com.pentlander.sasquach.parser;
 import com.pentlander.sasquach.ast.typenode.NamedTypeNode;
 import com.pentlander.sasquach.name.QualifiedModuleName;
 
-sealed interface StructIdentifier {
+sealed public interface StructIdentifier {
   None NONE = new None();
 
   record TypeNode(NamedTypeNode node) implements StructIdentifier {}

@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 
 public record SumTypeNode(QualifiedModuleName moduleName, TypeId id,
                           List<TypeParameterNode> typeParameterNodes,
-                          List<VariantTypeNode> variantTypeNodes, Range range) implements TypeNode {
+                          List<? extends VariantTypeNode> variantTypeNodes, Range range) implements TypeNode {
   public SumTypeNode {
     if (variantTypeNodes.isEmpty()) {
       throw new IllegalArgumentException("Sum type must have at least one node");
