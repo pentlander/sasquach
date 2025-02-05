@@ -64,6 +64,7 @@ import jdk.dynalink.StandardNamespace;
 import jdk.dynalink.StandardOperation;
 import org.jspecify.annotations.Nullable;
 
+@SuppressWarnings("preview")
 final class ExpressionGenerator {
   private final Map<String, byte[]> generatedClasses = new HashMap<>();
   private final Deque<Label> loopLabels = new ArrayDeque<>();

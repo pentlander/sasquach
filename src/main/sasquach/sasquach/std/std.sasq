@@ -34,7 +34,7 @@ String {
 
   toString = (val: String): String -> val,
 
-  concat = (str: String, with otherStr: String): String -> String#concat(str, otherStr),
+  concat = (str: String, otherStr: String): String -> String#concat(str, otherStr),
 
   contains = (str: String, subStr: String): Boolean -> String#contains(str, subStr),
 
@@ -211,6 +211,12 @@ Eq {
   equals = [A](eq: T[A], val1: A, val2: A): Boolean -> eq.equals(val1, val2),
 }
 
+ToString {
+  type T[A] = { toString: (val: A) -> String, .. },
+
+  toString = [A](module: T[A], val: A): String -> module.toString(val),
+}
+
 Option {
   use std/Eq,
   use std/Result,
@@ -332,6 +338,8 @@ List {
   use std/Iterator,
   use std/Ref,
   use std/Option,
+  use std/String,
+  use std/ToString,
 
   use foreign java/util/Arrays,
   use foreign java/util/List,
@@ -447,7 +455,13 @@ List {
       } else {
         isEq
       }
-  }
+  },
+
+  toString = [A](list: T[A], module: ToString.T[A]): String ->
+    list
+    |> iter()
+    |> Iterator.reduce("[", (str, item) -> str |> String.concat(module.toString(item)) |> String.concat(", "))
+    |> String.concat("]"),
 }
 
 Hash {

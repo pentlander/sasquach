@@ -16,3 +16,6 @@
 * Infer struct types in lambdas before the concrete struct type is found. If an empty TypeVariable is found where a struct is expected, infer the inner type as a struct with an unnamed row variable
 * Only create `TypeVariable`s via a factory that keeps track of all the variables that get created. At the end of a named function, throw if any of the variables are unresolved
 * Separate TypeNode into UnresolvedTypeNode and TypeNode where the former does not have a `type` method. `NamedTypeResolver` handles the conversion and is able to do things like create type variables for missing parameters and generate struct names
+* Implement tuple destructuring
+* Implement `else` in match
+* Implement void expression `()`
