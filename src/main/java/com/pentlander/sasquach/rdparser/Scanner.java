@@ -131,10 +131,10 @@ public class Scanner {
 
   private Range currentRange() {
     var startLineCol = start - startLineIdx;
-    var startPos = new Position(startLine, startLineCol);
+    var startPos = new Position(startLine + 1, startLineCol);
 
     var currentLineCol = current - currentLineIdx;
-    var currentPos = new Position(currentLine, currentLineCol);
+    var currentPos = new Position(currentLine + 1, currentLineCol);
 
     return startPos.line() == currentPos.line()
         ? new Single(source.path(), startPos, currentPos.column() - startPos.column())
@@ -227,7 +227,7 @@ public class Scanner {
 
   record Result(List<Token> tokens,  Set<Integer> newlineIndexes) {}
 
-  record Token(TokenType type, String lexeme, @Nullable String literal, Range range) {
+  public record Token(TokenType type, String lexeme, @Nullable String literal, Range range) {
     public boolean hasType(TokenType tokenType) {
       return tokenType.equals(type);
     }
@@ -242,7 +242,8 @@ public class Scanner {
       return str + " @ " + range;
     }
   }
-  enum TokenType {
+
+  public enum TokenType {
     PLUS, MINUS, STAR, SLASH, EQ, BANG, COMMA, DOT, POUND, PIPE, COLON,
     LT, GT, L_PAREN, R_PAREN, L_CURLY, R_CURLY, L_BRACK, R_BRACK,
 

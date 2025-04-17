@@ -11,8 +11,12 @@ public record RangedErrorList(List<RangedError> errors) {
     return EMPTY;
   }
 
+  public boolean isEmpty() {
+    return errors.isEmpty();
+  }
+
   public void throwIfNotEmpty(Sources sources) throws CompilationException {
-    if (!errors.isEmpty()) {
+    if (!isEmpty()) {
       throw new CompilationException(sources, errors);
     }
   }

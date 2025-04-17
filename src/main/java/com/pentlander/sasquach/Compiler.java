@@ -6,6 +6,7 @@ import com.pentlander.sasquach.ast.CompilationUnit;
 import com.pentlander.sasquach.backend.BytecodeGenerator;
 import com.pentlander.sasquach.backend.BytecodeResult;
 import com.pentlander.sasquach.nameres.ModuleResolver;
+import com.pentlander.sasquach.rdparser.SasquachParser;
 import com.pentlander.sasquach.type.TypeResolver;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -111,7 +112,8 @@ public class Compiler {
     }
     var compUnits = new ArrayList<CompilationUnit>();
     for (Source source : combinedSources.values()) {
-      var result = parser.parse(source);
+      var result = SasquachParser.parse(source);
+      var oldResult = parser.parse(source);
       result.errors().throwIfNotEmpty(combinedSources);
 
       var compilationUnit = result.item();

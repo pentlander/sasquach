@@ -2,9 +2,11 @@ package com.pentlander.sasquach.rdparser;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.pentlander.sasquach.CompilationException;
 import com.pentlander.sasquach.PackageName;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.SourcePath;
+import com.pentlander.sasquach.Sources;
 import com.pentlander.sasquach.rdparser.Parser.Child.ChildTree;
 import com.pentlander.sasquach.rdparser.Parser.Tree;
 import com.pentlander.sasquach.rdparser.Parser.TreeKind;
@@ -22,12 +24,11 @@ class SasquachParserTest {
           use std/Int,
         
           type Box[A] = { item: A, ..A },
-        
           type Id = (String),
         
           test0 = (true),
           test1 = (true,),
-          test2 = (true, 30),
+          test2 = (true, 30 + 5),
           test = (foo) -> true,
         }
         
@@ -35,9 +36,7 @@ class SasquachParserTest {
           type T = String,
         }
         """);
-    System.out.println(tree.treeString());
-    var result = AstBuilder.build(new PackageName("test"), new SourcePath("test.sasq"), tree);
-    assertThat(result.errors().errors()).isEmpty();
+    printAndAssertNoErrors(tree);
   }
 
   @Test
@@ -49,6 +48,7 @@ class SasquachParserTest {
 
           typealias T[A] = { next: () -> Option.T[A], .. },
 
+          // the expr is getting parsed as a block containing a compare instead of a struct init
           new = [A](next: () -> Option.T[A]): T[A] -> { next = next },
 
           next = [A](iter: T[A]): Option.T[A] -> iter.next(),
@@ -109,36 +109,37 @@ class SasquachParserTest {
           },
         }
         """);
-    System.out.println(tree.treeString());
+    printAndAssertNoErrors(tree);
   }
 
   @Test
   void tuple2() {
     var tree = parse("""
         Test {
-          test0 = (true,
+          test0 = (true),
           test1 = (true,),
           test2 = {
             (true, 30)
           },
           test = (foo) -> true,
         }
-          
+        
         Bar {
           type T = String,
         }
         """);
-    System.out.println(tree.treeString());
+    printAndAssertNoErrors(tree);
   }
 
   @Test
   void namedStruct() {
     var tree = parse("""
         Test {
+          type Foo = { bar: Int, baz: String },
           test = Foo { bar = 1 + 2, baz = "hello" },
         }
         """);
-    System.out.println(tree.treeString());
+    printAndAssertNoErrors(tree);
   }
 
   @Test
@@ -148,7 +149,17 @@ class SasquachParserTest {
           test = foo(bar, 10, 5),
         }
         """);
-    System.out.println(tree.treeString());
+    printAndAssertNoErrors(tree);
+  }
+
+  @Test
+  void memberFuncApplication() {
+    var tree = parse("""
+        Test {
+          test = foo.baz(bar, 10, 5),
+        }
+        """);
+    printAndAssertNoErrors(tree);
   }
 
   /**
@@ -165,23 +176,49 @@ class SasquachParserTest {
           }
         }
         """);
-    System.out.println(tree.treeString());
+    printAndAssertNoErrors(tree);
   }
 
   @Test
   void memberAccess() {
     var tree = parse("""
         Test {
+          test = foo.bar
+        }
+        """);
+    printAndAssertNoErrors(tree);
+  }
+
+  @Test
+  void funcWithAlias() {
+    var tree = parse("""
+        Test {
+          typealias Foo = { bar: Int, baz: String },
+        
+          test = [A](str: String): Foo[A] -> { bar = 1, baz = str },
+        }
+        """);
+    printAndAssertNoErrors(tree);
+  }
+
+  @Test
+  void namedStruct_otherModule() {
+    var tree = parse("""
+        Foo {
+          type T = { bar: Boolean },
+        }
+        
+        Test {
+          use test/Foo,
+        
           test = {
             Foo.T {
               bar = true
             }
-            foo.bar
-            { true }
           }
         }
         """);
-    System.out.println(tree.treeString());
+    printAndAssertNoErrors(tree);
   }
 
   @Test
@@ -191,7 +228,7 @@ class SasquachParserTest {
           test = foo(),
         }
         """);
-    System.out.println(tree.treeString());
+    printAndAssertNoErrors(tree);
   }
 
   @Test
@@ -201,7 +238,7 @@ class SasquachParserTest {
           test = 3 + 4 * 4,
         }
         """);
-    System.out.println(tree.treeString());
+    printAndAssertNoErrors(tree);
   }
 
   @Nested
@@ -219,13 +256,30 @@ class SasquachParserTest {
     }
   }
 
-  private static Tree parse(String source) {
-    var scanner = new Scanner(Source.fromString("main", source));
+  private static void printAndAssertNoErrors(Tree tree) {
+    System.out.println(tree.treeString());
+    var result = AstBuilder.build(new PackageName("test"), new SourcePath("test.sasq"), tree);
+    var errors = result.errors().errors();
+    if (!errors.isEmpty()) {
+      System.out.println(result.item());
+      assertThat(errors).isEmpty();
+    }
+  }
+
+  private static Tree parse(String sourceStr) {
+    var source = Source.fromString("main", sourceStr);
+    var scanner = new Scanner(source);
     var result = scanner.scanTokens();
     var parser = new Parser(result.tokens(), result.newlineIndexes());
     var sasqParser = new SasquachParser(parser);
-    sasqParser.compilationUnit();
-    return parser.buildTree();
+    var res = sasqParser.build();
+    try {
+      res.errors().throwIfNotEmpty(Sources.single(source));
+    } catch (CompilationException e) {
+      throw new RuntimeException(e);
+    }
+
+    return res.item();
   }
 
   private static Tree parse(Consumer<SasquachParser> parse, String source) {

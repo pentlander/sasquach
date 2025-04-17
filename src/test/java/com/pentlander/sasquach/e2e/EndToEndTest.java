@@ -229,7 +229,7 @@ public class EndToEndTest extends BaseTest {
         Main {
           inc = (i: Int): Int -> i + 1,
           timesTwo = (i: Int): Int -> i * 2,
-          
+        
           foo = (): Int -> {
             let add = (a: Int, b: Int): Int -> a + b
             10 |> inc() |> timesTwo() |> add(5)
@@ -246,7 +246,7 @@ public class EndToEndTest extends BaseTest {
     var clazz = compile("""
         Main {
           type Option[T] = | Some(T) | None,
-          
+        
           foo = (): String -> {
             let option = if (true) Some("foo") else None
             match option {
@@ -396,8 +396,7 @@ public class EndToEndTest extends BaseTest {
     var clazz = compile( """
         Main {
           type Option = | Test { foo: (bar: Int) -> String },
-          
-          
+        
           main = (): String -> {
             let some = Test { foo = (bar: Int): String -> "fox" }
             match some {
@@ -416,8 +415,8 @@ public class EndToEndTest extends BaseTest {
     var clazz = compile( """
         Main {
           type Test = | Foo { foo: (bar: Int) -> String },
-          
-          
+        
+        
           main = (): String -> {
             let capture = "fox"
             let some = Foo { foo = (bar: Int): String -> capture }
@@ -557,7 +556,7 @@ public class EndToEndTest extends BaseTest {
         Main {
           use foreign java/io/PrintStream,
           use foreign java/lang/System,
-          
+        
           foo = (): Void -> {
             PrintStream#println(System#out, "test")
           }
@@ -571,17 +570,34 @@ public class EndToEndTest extends BaseTest {
     var clazz = compile( """
         Main {
           use foreign java/util/HashMap,
-          
-          foo = (): String -> {
+        
+          main = (): String -> {
             let map = HashMap#new()
             HashMap#put(map, "foo", "bar")
             HashMap#get(map, "foo")
           }
         }
         """);
-    String value = invokeName(clazz, "foo");
+    String value = invokeMain(clazz);
 
     assertThat(value).isEqualTo("bar");
+  }
+
+  @Test
+  void foreignFunctionCall_withPipe() throws Exception {
+    var clazz = compile( """
+        Main {
+          use foreign java/nio/file/Files,
+          use foreign java/nio/file/Path,
+
+          readString = (path: String): Boolean -> Path#of(path) |> Files#exists(),
+        
+          main = (): Boolean -> readString("test.txt")
+        }
+        """);
+    boolean value = invokeMain(clazz);
+
+    assertThat(value).isFalse();
   }
 
   @Test
@@ -695,14 +711,14 @@ public class EndToEndTest extends BaseTest {
     var clazz = compile( """
         Box {
           type T[A] = { value: A },
-          
+        
           new = [A](value: A): T[A] -> T { value = value },
           unbox = [A](box: T[A]): A -> box.value,
         }
-                
+        
         Main {
           use main/Box,
-                
+        
           main = (): Int -> {
             let box = Box.new(10)
             Box.unbox(box)

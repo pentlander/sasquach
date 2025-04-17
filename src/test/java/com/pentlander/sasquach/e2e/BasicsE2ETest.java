@@ -1,14 +1,12 @@
 package com.pentlander.sasquach.e2e;
 
-import static com.pentlander.sasquach.TestUtils.invokeMain;
-import static org.assertj.core.api.Assertions.assertThat;
-
 import com.pentlander.sasquach.BaseTest;
-import com.pentlander.sasquach.ast.expression.BinaryExpression.CompareOperator;
+import static com.pentlander.sasquach.TestUtils.invokeMain;
 import com.pentlander.sasquach.type.BuiltinType;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -211,6 +209,48 @@ public class BasicsE2ETest extends BaseTest {
           foo = (): Int -> 5,
         
           main = (): Int -> foo()
+        }
+        """);
+    int result = invokeMain(clazz);
+
+    assertThat(result).isEqualTo(5);
+  }
+
+  @Test
+  void functionCall_withArg() throws Exception {
+    var clazz = compile( """
+        Main {
+          foo = (n: Int): Int -> 5,
+        
+          main = (): Int -> foo(4)
+        }
+        """);
+    int result = invokeMain(clazz);
+
+    assertThat(result).isEqualTo(5);
+  }
+
+  @Test
+  void functionCall_withArgs() throws Exception {
+    var clazz = compile( """
+        Main {
+          foo = (str: String, n: Int): Int -> 5,
+        
+          main = (): Int -> foo("foo", 7)
+        }
+        """);
+    int result = invokeMain(clazz);
+
+    assertThat(result).isEqualTo(5);
+  }
+
+  @Test
+  void functionCall_withArgsBinary() throws Exception {
+    var clazz = compile( """
+        Main {
+          foo = (str: String, n: Int): Int -> 5,
+        
+          main = (): Int -> foo("foo", 7 + 2)
         }
         """);
     int result = invokeMain(clazz);

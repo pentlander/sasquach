@@ -1,7 +1,9 @@
 package com.pentlander.sasquach.rdparser;
 
+import com.pentlander.sasquach.AbstractRangedError;
 import com.pentlander.sasquach.Preconditions;
 import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.rdparser.Parser.Child.ChildToken;
 import com.pentlander.sasquach.rdparser.Parser.Child.ChildTree;
 import com.pentlander.sasquach.rdparser.Parser.Event.EventKind;
@@ -23,6 +25,7 @@ public class Parser {
   private int current = 0;
   private int fuel = DEFAULT_FUEL;
   private final List<Event> events = new ArrayList<>();
+  private final RangedErrorList.Builder errors = RangedErrorList.builder();
 
   private final List<Token> tokens;
   private final Set<Integer> newlineTokenIndexes;
@@ -40,14 +43,18 @@ public class Parser {
     this(tokens, newlineTokenIndexes, false);
   }
 
+  public RangedErrorList errors() {
+    return errors.build();
+  }
+
   MarkOpened open() {
-    var mark = new MarkOpened(events.size());
+    var mark = new MarkOpened(events.size(), current);
     events.add(Event.open(TreeKind.ERROR_TREE));
     return mark;
   }
 
   MarkOpened openBefore(Mark mark) {
-    var openMark = new MarkOpened(mark.idx());
+    var openMark = new MarkOpened(mark.idx(), mark.tokenIdx());
     events.add(mark.idx(), Event.open(TreeKind.ERROR_TREE));
     return openMark;
   }
@@ -55,7 +62,7 @@ public class Parser {
   MarkClosed close(MarkOpened mark, TreeKind treeKind) {
     events.set(mark.idx(), Event.open(treeKind));
     events.add(EventKind.CLOSE);
-    return new MarkClosed(mark.idx());
+    return new MarkClosed(mark.idx(), mark.tokenIdx());
   }
 
   boolean startOfLine() {
@@ -117,12 +124,26 @@ public class Parser {
     if (shouldBacktrack) {
       throw new BacktrackException(msg);
     } else {
+      addError(tokenType.toString());
       System.err.println(msg);
+    }
+  }
+
+  private void addError(String expected) {
+    var tokenFound = peekToken();
+    var msg = "expected '%s', but found: %s".formatted(expected, tokenFound);
+    errors.add(new ParseError(msg, tokenFound.range()));
+  }
+
+  static class ParseError extends AbstractRangedError {
+    protected ParseError(String message, Range range) {
+      super(message, range, null);
     }
   }
 
   MarkClosed advanceWithError(MarkOpened mark, String error) {
     System.err.println("error: " + error);
+    addError(error);
     advance();
     return close(mark, TreeKind.ERROR_TREE);
   }
@@ -174,10 +195,11 @@ public class Parser {
 
   interface Mark {
     int idx();
+    int tokenIdx();
   }
 
-  record MarkOpened(int idx) implements Mark {}
-  record MarkClosed(int idx) implements Mark {}
+  record MarkOpened(int idx, int tokenIdx) implements Mark {}
+  record MarkClosed(int idx, int tokenIdx) implements Mark {}
 
   ///  Indicates when a new sub [Tree] should open/close
   sealed interface Event {
@@ -200,9 +222,11 @@ public class Parser {
   }
 
   enum TreeKind {
-    ERROR_TREE, COMP_UNIT, NAME, QUALIFIED_NAME,
+    ERROR_TREE, COMP_UNIT, QUALIFIED_NAME,
 
-    MODULE, STRUCT, NAMED_STRUCT, STRUCT_STATEMENT, TYPE_ARG_LIST, TYPE_ANNOTATION,
+    MODULE,
+    EXPR_STRUCT,
+    EXPR_NAMED_STRUCT, STRUCT_STATEMENT, TYPE_ARG_LIST, TYPE_ANNOTATION,
     VAR_DECL,
     BLOCK_PRINT_STMT,
 
@@ -216,11 +240,13 @@ public class Parser {
 
     // Expressions
     BLOCK_EXPR, EXPR_LITERAL, EXPR_VAR_REF, EXPR_LOOP, EXPR_PAREN, EXPR_MATCH, EXPR_IF, EXPR_BLOCK, EXPR_FUNC, EXPR_TUPLE, EXPR_NEGATE, EXPR_NOT,
-    EXPR_ADD, EXPR_SUB, EXPR_MULT, EXPR_DIV, EXPR_MEMBER_ACCESS, EXPR_FOREIGN_ACCESS, EXPR_APPLY, EXPR_PIPE,
-    EXPR_EQ, EXPR_NEQ, EXPR_GE, EXPR_GT, EXPR_LE, EXPR_LT, EXPR_AND, EXPR_OR,
+    EXPR_MEMBER_ACCESS, EXPR_FOREIGN_ACCESS, EXPR_APPLY, EXPR_PIPE,
+    EXPR_BIN_MATH,
+    EXPR_BIN_COMPARE,
 
     PATTERN, MATCH_BRANCH,
     LOOP_VAR_DECLS,
+    EXPR_BIN_BOOLEAN,
   }
 
   // Need to attach a Range to the tree
@@ -366,6 +392,12 @@ public class Parser {
       return children.stream()
           .flatMap(child -> child instanceof ChildTree(var t, _, _) && treeKindsSet.contains(t.treeKind())
               ? Stream.of(t.read()) : Stream.empty());
+    }
+
+    Stream<TreeReader> filterChildrenTrees() {
+      return children.stream()
+          .flatMap(child -> child instanceof ChildTree(var t, _, _) ? Stream.of(t.read())
+              : Stream.empty());
     }
 
     Stream<Token> filterChildren(TokenType tokenType) {

@@ -55,8 +55,8 @@ public class TypeNodeNameResolver {
       }
       case StructTypeNode structTypeNode -> {
         structTypeNode.fieldTypeNodes().values().forEach(this::resolveTypeNode);
-        if (structTypeNode.rowModifier() instanceof NamedRow namedRow) {
-          resolveTypeNode(namedRow.typeNode());
+        if (structTypeNode.rowModifier() instanceof NamedRow(var node)) {
+          resolveTypeNode(node);
         }
       }
       case FunctionSignature functionSignature -> {

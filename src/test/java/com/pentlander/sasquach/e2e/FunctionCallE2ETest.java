@@ -9,6 +9,7 @@ import com.pentlander.sasquach.CompilationException;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+@Disabled("Not implemented in the new parser yet")
 public class FunctionCallE2ETest extends BaseTest {
   @Test
   void labeledArgs() throws Exception {

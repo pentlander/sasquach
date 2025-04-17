@@ -82,7 +82,11 @@ public final class TypeVariable implements Type, TypeNester {
 
   @Override
   public ClassDesc classDesc() {
-    return requireNonNull(inner.type).classDesc();
+    var type = inner.type;
+    if (type == null) {
+      throw new IllegalStateException("Unresolved type variable: " + name);
+    }
+    return type.classDesc();
   }
 
   @Override
