@@ -7,7 +7,6 @@ import com.pentlander.sasquach.Preconditions;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.CompilationUnit;
-import com.pentlander.sasquach.parser.CompileResult;
 import com.pentlander.sasquach.rdparser.Parser.BacktrackException;
 import com.pentlander.sasquach.rdparser.Parser.Mark;
 import com.pentlander.sasquach.rdparser.Parser.MarkClosed;

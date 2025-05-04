@@ -1,6 +1,5 @@
 plugins {
     java
-    id("antlr")
     id("application")
     id("com.github.mrcjkb.module-finder") version "0.0.7"
 }
@@ -20,7 +19,6 @@ java {
 }
 
 dependencies {
-    antlr("org.antlr:antlr4:4.9.2")
     annotationProcessor("io.soabase.record-builder:record-builder-processor:37")
     annotationProcessor("org.atteo.classindex:classindex:3.13")
 
@@ -52,8 +50,4 @@ tasks.getByName<Test>("test") {
     systemProperty("junit.jupiter.execution.parallel.enabled", true)
     systemProperty("junit.jupiter.execution.parallel.mode.default", "same_thread")
     systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "same_thread")
-}
-
-tasks.generateGrammarSource {
-    arguments = arguments + listOf("-package", "com.pentlander.sasquach.parser", "-visitor")
 }

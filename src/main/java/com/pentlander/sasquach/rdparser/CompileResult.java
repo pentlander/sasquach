@@ -1,4 +1,4 @@
-package com.pentlander.sasquach.parser;
+package com.pentlander.sasquach.rdparser;
 
 import com.pentlander.sasquach.RangedErrorList;
 

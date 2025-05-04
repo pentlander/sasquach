@@ -4,7 +4,6 @@ import org.jspecify.annotations.NullMarked;
 module sasquach.main {
   requires java.compiler;
   requires jdk.dynalink;
-  requires org.antlr.antlr4.runtime;
   requires org.jspecify;
   requires info.picocli;
   requires static io.soabase.recordbuilder.core;

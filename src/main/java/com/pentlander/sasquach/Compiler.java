@@ -25,7 +25,6 @@ import java.util.stream.Stream;
 import org.atteo.classindex.ClassIndex;
 
 public class Compiler {
-  private final CompilationUnitParser parser = new CompilationUnitParser();
   private final Set<Option> options;
 
   public Compiler(Set<Option> options) {
@@ -113,7 +112,6 @@ public class Compiler {
     var compUnits = new ArrayList<CompilationUnit>();
     for (Source source : combinedSources.values()) {
       var result = SasquachParser.parse(source);
-      var oldResult = parser.parse(source);
       result.errors().throwIfNotEmpty(combinedSources);
 
       var compilationUnit = result.item();
