@@ -1,6 +1,7 @@
 plugins {
     java
     id("application")
+    // Needed for classindex
     id("com.github.mrcjkb.module-finder") version "0.0.7"
 }
 
@@ -26,8 +27,7 @@ dependencies {
 
     implementation("org.atteo.classindex:classindex:3.13")
     implementation("info.picocli:picocli:4.7.6")
-
-    api("org.jspecify:jspecify:1.0.0")
+    implementation("org.jspecify:jspecify:1.0.0")
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.0")
     testImplementation("org.junit.jupiter:junit-jupiter-params")

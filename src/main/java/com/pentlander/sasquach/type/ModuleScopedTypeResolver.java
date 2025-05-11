@@ -2,11 +2,8 @@ package com.pentlander.sasquach.type;
 
 import static java.util.Objects.requireNonNull;
 
-import com.pentlander.sasquach.AbstractRangedError;
-import com.pentlander.sasquach.Range;
 import com.pentlander.sasquach.RangedErrorList;
 import com.pentlander.sasquach.RangedErrorList.Builder;
-import com.pentlander.sasquach.Source;
 import com.pentlander.sasquach.ast.ModuleDeclaration;
 import com.pentlander.sasquach.ast.expression.LocalFunctionCall;
 import com.pentlander.sasquach.ast.expression.LocalVariable;
@@ -86,15 +83,6 @@ public class ModuleScopedTypeResolver {
     struct.functions().forEach(func -> {
       // TODO Need to validate the the function signature has type annotations
       var funcSig = func.functionSignature();
-      funcSig.parameters().forEach(param -> {
-        if (param.typeNode() == null) {
-          errors.add(new TypeAnnotationRequiredError("parameter", param.range()));
-        }
-      });
-      if (funcSig.returnTypeNode() == null) {
-        errors.add(new TypeAnnotationRequiredError("return", funcSig.range()));
-      }
-
       var funcTypeParams = TypeUtils.typeParamsToUniversal(funcSig.typeParameterNodes());
       var funcType = namedTypeResolver.resolveNames(funcSig.type(),
           funcTypeParams,
@@ -132,7 +120,7 @@ public class ModuleScopedTypeResolver {
     var modScopedTypes = new ResolverModuleScopedTypes();
     var typedFunctions = new ArrayList<TNamedFunction>();
     var mergedResult = nameResolvedFuncTypes.stream().map(func -> {
-      var result = new MemberScopedTypeResolver(nameResolutionResult, modScopedTypes).checkType(func.func(), func.type());
+      var result = new MemberScopedTypeResolver(nameResolutionResult, modScopedTypes).checkFunc(func.func(), func.type());
       typedFunctions.add((TNamedFunction) result.getTypedMember());
       return result;
     }).reduce(TypeResolutionResult.EMPTY, TypeResolutionResult::merge);
@@ -203,22 +191,6 @@ public class ModuleScopedTypeResolver {
           .map(entry -> Map.entry(entry.getKey(), entry.getValue().classDesc()))
           .toList();
       return new StructTypeKey(memberList);
-    }
-  }
-
-  static class TypeAnnotationRequiredError extends AbstractRangedError {
-    public TypeAnnotationRequiredError(
-        String nodeKind, Range range
-    ) {
-      super("Type annotation required for function " + nodeKind, range, null);
-    }
-
-    @Override
-    public String toPrettyString(Source source) {
-      return """
-          %s
-          %s
-          """.formatted(getMessage(), source.highlight(range));
     }
   }
 }

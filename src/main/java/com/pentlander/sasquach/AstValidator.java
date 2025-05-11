@@ -68,10 +68,28 @@ public class AstValidator {
               List.of(existingFunction.nameRange(), function.nameRange())));
         }
 
-        errors.addAll(validateFunctionParameters(function.name(), function.parameters()));
-        errors.addAll(validateExpression(function.expression()));
+        errors.addAll(validateNamedFunction(function));
       }
     }
+
+    return errors;
+  }
+
+  private List<Error> validateNamedFunction(NamedFunction function) {
+    var errors = new ArrayList<>(validateFunctionParameters(
+        function.name(),
+        function.parameters()));
+
+    var funcSig = function.functionSignature();
+    funcSig.parameters().forEach(param -> {
+      if (param.typeNode() == null) {
+        errors.add(new TypeAnnotationRequiredError("parameter", param.range()));
+      }
+    });
+    if (funcSig.returnTypeNode() == null) {
+      errors.add(new TypeAnnotationRequiredError("return", funcSig.range()));
+    }
+    errors.addAll(validateExpression(function.expression()));
 
     return errors;
   }
@@ -211,6 +229,14 @@ public class AstValidator {
           %s first appearance here
           %s
           """.formatted(message, source.highlight(firstRange), restHighlights);
+    }
+  }
+
+  static class TypeAnnotationRequiredError extends AbstractRangedError {
+    public TypeAnnotationRequiredError(
+        String nodeKind, Range range
+    ) {
+      super("Type annotation required for function " + nodeKind, range, null);
     }
   }
 }

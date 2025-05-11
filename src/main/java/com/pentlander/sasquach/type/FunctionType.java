@@ -118,7 +118,7 @@ public record FunctionType(List<Param> parameters,
 
     public static Param from(FunctionParameter funcParam) {
       var label = mapNonNull(funcParam.label(), Id::name);
-      return new Param(funcParam.type(), label, funcParam.defaultExpr() != null);
+      return new Param(funcParam.type().orElseThrow(), label, funcParam.defaultExpr() != null);
     }
 
     public static Param from(TFunctionParameter funcParam) {

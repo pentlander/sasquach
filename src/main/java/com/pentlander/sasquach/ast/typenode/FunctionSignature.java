@@ -1,5 +1,6 @@
 package com.pentlander.sasquach.ast.typenode;
 
+import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 import com.pentlander.sasquach.Range;
@@ -7,7 +8,6 @@ import com.pentlander.sasquach.ast.Node;
 import com.pentlander.sasquach.ast.expression.FunctionParameter;
 import com.pentlander.sasquach.type.FunctionType;
 import com.pentlander.sasquach.type.TypeParameterNode;
-import com.pentlander.sasquach.type.TypeVariable;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
@@ -26,7 +26,7 @@ public record FunctionSignature(List<FunctionParameter> parameters,
 
   @Override
   public FunctionType type() {
-    var returnType = returnTypeNode != null ? returnTypeNode.type() : new TypeVariable("Return", 0);
+    var returnType = requireNonNull(returnTypeNode, "Return type must not be null").type();
     return new FunctionType(
         parameters.stream().map(FunctionType.Param::from).toList(),
         typeParameterNodes.stream().map(TypeParameterNode::toTypeParameter).toList(),
@@ -40,7 +40,7 @@ public record FunctionSignature(List<FunctionParameter> parameters,
         .collect(joining(", ", "[", "]")) : "";
     var returnTypeStr = returnTypeNode != null ?  ": " + returnTypeNode.toPrettyString() : "";
     return typeParams + parameters().stream()
-        .map(param -> param.name() + ": " + param.type().toPrettyString())
+        .map(FunctionParameter::toPrettyString)
         .collect(joining(", ", "(", ")")) + returnTypeStr;
   }
 }

@@ -32,7 +32,7 @@ public class EndToEndTest extends BaseTest {
         compile("""
             Main {
               missingTypes = (str: String) -> "foo",
-              
+            
               main = (): String -> missingTypes("something"),
             }
             """));
@@ -372,15 +372,17 @@ public class EndToEndTest extends BaseTest {
   }
 
   @Test
+  // Test correctly fails here, the `opt` variable doesn't get unified with anything, so it's an
+  // unknown type var
   void sumTypeSingleton() throws Exception {
     var clazz = compile( """
         Main {
           type Option[T] = | Some(T) | None,
-          
+        
           identity = [T](option: Option[T]): Option[T] -> option,
-          
+        
           foo = (): Option[String] -> {
-            let opt = None
+            let opt: Option[Int] = None
             let ident = identity(None)
             ident
           },

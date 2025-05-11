@@ -63,6 +63,7 @@ import com.pentlander.sasquach.type.ModuleScopedTypes.VarRefType.Singleton;
 import com.pentlander.sasquach.type.TypeUnifier.UnificationException;
 import java.lang.constant.ClassDesc;
 import java.lang.reflect.AnnotatedType;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.GenericDeclaration;
@@ -88,6 +89,7 @@ public class MemberScopedTypeResolver {
   private final TypeUnifier typeUnifier = new TypeUnifier();
   private final Builder errors = RangedErrorList.builder();
   private final AtomicInteger typeVarNum = new AtomicInteger();
+  private final List<TypeVariable> typeVars = new ArrayList<>();
   private final NameResolutionResult nameResolutionResult;
   private final NamedTypeResolver namedTypeResolver;
   private final ModuleScopedTypes moduleScopedTypes;
@@ -102,10 +104,17 @@ public class MemberScopedTypeResolver {
     this.moduleScopedTypes = moduleScopedTypes;
   }
 
-  public TypeResolutionResult checkType(NamedFunction namedFunction, FunctionType functionType) {
+  public TypeResolutionResult checkFunc(NamedFunction namedFunction, FunctionType functionType) {
     nodeResolving = namedFunction;
     try {
       var typedFunction = (TFunction) check(namedFunction.function(), functionType);
+      for (var typeVar : typeVars) {
+        if (typeVar.resolvedType().isEmpty()) {
+          // TODO need to include rante in type var before I can do this
+//          addError(new BasicError("Unable to infer type variable ''".formatted(typeVar.typeNameStr()), typeVar));
+          throw new TypeResolutionException("Unable to resolve type variable: " + typeVar.typeNameStr(), null);
+        }
+      }
       return TypeResolutionResult.ofTypedMember(new TNamedFunction(namedFunction.id(),
           typedFunction), errors());
     } catch (RuntimeException e) {
@@ -127,14 +136,28 @@ public class MemberScopedTypeResolver {
   private <T extends ParameterizedType> T convertUniversals(T type, Range range) {
     List<TypeParameter> typeParams = type.typeParameters();
     Map<UnqualifiedTypeName, Type> typeParamToVar = typeParams.stream()
-        .collect(toSeqMap(TypeParameter::name, param -> {
-          int level = typeVarNum.getAndIncrement();
-          return new TypeVariable(param.name().toString(), level, type);
-        }));
+        .collect(toSeqMap(
+            TypeParameter::name,
+            param -> typeVariable(param.name().toString(), type)));
     return namedTypeResolver.resolveNames(type, typeParamToVar, range);
   }
 
+  private TypeVariable typeVariable(String name) {
+    return typeVariable(name, null);
+  }
+
+  private TypeVariable typeVariable(String name, @Nullable Object context) {
+    return typeVariable(name, typeVarNum.getAndIncrement(), context);
+  }
+
+  private TypeVariable typeVariable(String name, int level, @Nullable Object context) {
+    var typeVar = new TypeVariable(name, level, context);
+    typeVars.add(typeVar);
+    return typeVar;
+  }
+
   private static Type builtinOrClassType(Class<?> clazz, List<Type> typeArgs) {
+    //noinspection ConstantValue
     if (clazz.componentType() != null) {
       return new ArrayType(builtinOrClassType(clazz.componentType(), typeArgs));
     }
@@ -145,7 +168,7 @@ public class MemberScopedTypeResolver {
         .orElseGet(() -> new ClassType(clazz, typeArgs));
   }
 
-  public TypedExpression check(Expression expr, Type expectedType) {
+  private TypedExpression check(Expression expr, Type expectedType) {
     checkNotInstanceOf(expectedType, NamedType.class, "type must be resolved");
 
     return switch (expr) {
@@ -157,7 +180,9 @@ public class MemberScopedTypeResolver {
         var typeArgs = TypeUtils.typeParams(funcSig.typeParameterNodes(), TypeParameterNode::toUniversal);
         for (int i = 0; i < func.parameters().size(); i++) {
           var param = funcSig.parameters().get(i);
-          var paramType = namedTypeResolver.resolveNames(param.type(), typeArgs, param.range());
+          var paramType = param.type()
+              .map(t -> namedTypeResolver.resolveNames(t, typeArgs, param.range()))
+              .orElseGet(() -> typeVariable(param.name().toString(), param));
           var expectedParamType = funcType.parameterTypes().get(i);
           typeUnifier.unify(paramType, expectedParamType);
 
@@ -209,7 +234,7 @@ public class MemberScopedTypeResolver {
     };
   }
 
-  public TypedExpression infer(Expression expr) {
+  TypedExpression infer(Expression expr) {
     currentNode = expr;
     var memoizedTypedExpr = typedExprs.get(expr);
     if (memoizedTypedExpr != null) {
@@ -295,7 +320,7 @@ public class MemberScopedTypeResolver {
                 recur.range());
             yield new TRecur(typedVarDecls,
                 typedExprs,
-                typeUnifier.resolve(new TypeVariable("Loop", typeVarNum.getAndIncrement())),
+                typeUnifier.resolve(typeVariable("Loop")),
                 recur.range());
           }
         };
@@ -318,7 +343,7 @@ public class MemberScopedTypeResolver {
           if (typeNode != null) {
             paramType = namedTypeResolver.resolveNames(typeNode, Map.of());
           } else {
-            paramType = new TypeVariable(param.name().toString(), lvl);
+            paramType = typeVariable(param.name().toString(), lvl, func);
           }
           var typedParam = new TFunctionParameter(param.id(), Label.of(param.label(), null), paramType, param.range());
           putLocalVarType(param, typedParam);
@@ -593,10 +618,11 @@ public class MemberScopedTypeResolver {
     void addAll(Collection<? extends T> items) {
       int labeledIdx = 0;
       for (var item : items) {
-        if (item.label() == null) {
+        var label = item.label();
+        if (label == null) {
           this.items.add(item);
         } else {
-          labeledItems.put(item.label(), new Indexed<>(labeledIdx++, item));
+          labeledItems.put(label, new Indexed<>(labeledIdx++, item));
         }
       }
     }
@@ -807,8 +833,7 @@ public class MemberScopedTypeResolver {
         yield builtinOrClassType(clazz, typeArgs);
       }
       case java.lang.reflect.TypeVariable<?> typeVariable ->
-          typeVariables.getOrDefault(typeVariable.getName(),
-              new TypeVariable(typeVariable.getName(), typeVarNum.getAndIncrement()));
+          requireNonNull(typeVariables.get(typeVariable.getName()));
       case java.lang.reflect.ParameterizedType paramType -> {
         var typeArgs = Arrays.stream(paramType.getActualTypeArguments())
             .map(t -> javaTypeToType(t, typeVariables))
@@ -836,9 +861,13 @@ public class MemberScopedTypeResolver {
   private Map<String, TypeVariable> executableTypeParams(Executable executable) {
     var receiverType = Optional.ofNullable(executable.getAnnotatedReceiverType())
         .map(AnnotatedType::getType);
+    var typeParams = executable.getTypeParameters();
+    if (typeParams.length == 0 && executable instanceof Constructor<?> constr) {
+      typeParams = constr.getDeclaringClass().getTypeParameters();
+    }
     var receiverTypeParams = receiverType.stream().flatMap(t -> javaTypeParams(t).stream());
     var lvl = typeVarNum.getAndIncrement();
-    return Stream.concat(Arrays.stream(executable.getTypeParameters()), receiverTypeParams)
+    return Stream.concat(Arrays.stream(typeParams), receiverTypeParams)
         .collect(toMap(java.lang.reflect.TypeVariable::getName,
             t -> new TypeVariable(t.getName(), lvl, executable.getName())));
   }
@@ -868,6 +897,7 @@ public class MemberScopedTypeResolver {
       var paramTypes = executableParamTypes(executable, typeParams);
       var isVarArgs = executable.isVarArgs();
       if (argsMatchParamTypes(paramTypes, argTypes, isVarArgs)) {
+        typeVars.addAll(typeParams.values());
         // Need to alter the parameter types to omit or repeat the vararg parm type. Then in code
         // generations the extra args need to be collected into an array before passing to the func
         // (I think? Maybe it'll just work)
@@ -1033,7 +1063,7 @@ public class MemberScopedTypeResolver {
   static class UnknownTypeException extends RuntimeException {}
 
   static class TypeResolutionException extends RuntimeException {
-    public TypeResolutionException(String message, Exception cause) {
+    public TypeResolutionException(String message, @Nullable Exception cause) {
       super(message, cause);
     }
   }
