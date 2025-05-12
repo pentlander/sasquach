@@ -2,6 +2,8 @@ package com.pentlander.sasquach.type;
 
 import static java.util.Objects.requireNonNull;
 
+import com.pentlander.sasquach.Range;
+import com.pentlander.sasquach.ast.Node;
 import java.lang.constant.ClassDesc;
 import java.util.Objects;
 import java.util.Optional;
@@ -14,7 +16,7 @@ import org.jspecify.annotations.Nullable;
 public final class TypeVariable implements Type, TypeNester {
   private final String name;
   private final int level;
-  private @Nullable Object context;
+  private Node context;
   private InnerType inner = new InnerType();
 
   private StackTraceElement[] stackTrace;
@@ -22,15 +24,15 @@ public final class TypeVariable implements Type, TypeNester {
   /**
    * @param name captureName of the type variable.
    */
-  public TypeVariable(String name, int level, @Nullable Object context) {
+  public TypeVariable(String name, int level, Node context) {
     this.name = name;
     this.level = level;
     this.context = context;
     stackTrace = Thread.currentThread().getStackTrace();
   }
 
-  public TypeVariable(String name, int level) {
-    this(name, level, null);
+  public Range range() {
+    return context.range();
   }
 
   public Optional<Type> resolvedType() {

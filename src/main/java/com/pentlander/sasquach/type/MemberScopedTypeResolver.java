@@ -110,9 +110,7 @@ public class MemberScopedTypeResolver {
       var typedFunction = (TFunction) check(namedFunction.function(), functionType);
       for (var typeVar : typeVars) {
         if (typeVar.resolvedType().isEmpty()) {
-          // TODO need to include rante in type var before I can do this
-//          addError(new BasicError("Unable to infer type variable ''".formatted(typeVar.typeNameStr()), typeVar));
-          throw new TypeResolutionException("Unable to resolve type variable: " + typeVar.typeNameStr(), null);
+          addError(new BasicError("Unable to infer type variable '%s'".formatted(typeVar.typeNameStr()), typeVar.range()));
         }
       }
       return TypeResolutionResult.ofTypedMember(new TNamedFunction(namedFunction.id(),
@@ -133,24 +131,17 @@ public class MemberScopedTypeResolver {
     return errors.build().concat(namedTypeResolver.errors());
   }
 
-  private <T extends ParameterizedType> T convertUniversals(T type, Range range) {
-    List<TypeParameter> typeParams = type.typeParameters();
+  private <T extends ParameterizedType> T convertUniversals(T type, Node node) {
+    var typeParams = type.typeParameters();
     Map<UnqualifiedTypeName, Type> typeParamToVar = typeParams.stream()
         .collect(toSeqMap(
             TypeParameter::name,
-            param -> typeVariable(param.name().toString(), type)));
-    return namedTypeResolver.resolveNames(type, typeParamToVar, range);
+            param -> typeVariable(param.name().toString(), node)));
+    return namedTypeResolver.resolveNames(type, typeParamToVar, node.range());
   }
 
-  private TypeVariable typeVariable(String name) {
-    return typeVariable(name, null);
-  }
-
-  private TypeVariable typeVariable(String name, @Nullable Object context) {
-    return typeVariable(name, typeVarNum.getAndIncrement(), context);
-  }
-
-  private TypeVariable typeVariable(String name, int level, @Nullable Object context) {
+  private TypeVariable typeVariable(String name, Node context) {
+    int level = typeVarNum.getAndIncrement();
     var typeVar = new TypeVariable(name, level, context);
     typeVars.add(typeVar);
     return typeVar;
@@ -298,7 +289,7 @@ public class MemberScopedTypeResolver {
         var recurPoint = nameResolutionResult.getRecurPoint(recur);
         yield switch (recurPoint) {
           case Function func -> {
-            var funcType = convertUniversals((FunctionType) infer(func).type(), func.range());
+            var funcType = convertUniversals((FunctionType) infer(func).type(), func);
             var typedExprs = checkFuncArgTypes(NAME_RECUR,
                 recur.arguments(),
                 funcType.parameterTypes(),
@@ -320,7 +311,7 @@ public class MemberScopedTypeResolver {
                 recur.range());
             yield new TRecur(typedVarDecls,
                 typedExprs,
-                typeUnifier.resolve(typeVariable("Loop")),
+                typeUnifier.resolve(typeVariable("Loop", loop)),
                 recur.range());
           }
         };
@@ -336,14 +327,13 @@ public class MemberScopedTypeResolver {
       }
       // Should only infer anonymous function, not ones defined at the module level
       case Function func -> {
-        var lvl = typeVarNum.getAndIncrement();
         var paramTypes = func.parameters().stream().map(param -> {
           Type paramType;
           var typeNode = param.typeNode();
           if (typeNode != null) {
             paramType = namedTypeResolver.resolveNames(typeNode, Map.of());
           } else {
-            paramType = typeVariable(param.name().toString(), lvl, func);
+            paramType = typeVariable(param.name().toString(), param);
           }
           var typedParam = new TFunctionParameter(param.id(), Label.of(param.label(), null), paramType, param.range());
           putLocalVarType(param, typedParam);
@@ -722,7 +712,7 @@ public class MemberScopedTypeResolver {
     if (fieldType instanceof FunctionType fieldFuncType) {
       // We only have the function type here, not the full function. Need to figure out the right
       // place to match up labeled args with their parameters
-      var funcType = convertUniversals(fieldFuncType, range);
+      var funcType = convertUniversals(fieldFuncType, structFuncCall);
       var typedFuncArgs = checkFuncArgs(name, args, funcType.parameters(), range);
       return new TBasicFunctionCall(TCallTarget.struct(structExpr),
           structFuncCall.functionId().name(),
@@ -764,7 +754,7 @@ public class MemberScopedTypeResolver {
             case FuncCallType.LocalVar(var localVar) -> {
               var tLocalVar = getLocalVar(localVar).orElseThrow();
               var funcType = TypeUtils.asFunctionType(tLocalVar.variableType()).orElseThrow();
-              var resolvedFuncType = convertUniversals(funcType, range);
+              var resolvedFuncType = convertUniversals(funcType, funcCall);
               var typedExprs = checkFuncArgs(name, args, resolvedFuncType.parameters(), range);
               yield new TBasicFunctionCall(TCallTarget.localVar(tLocalVar),
                   localFuncCall.functionId().name(),
@@ -858,7 +848,10 @@ public class MemberScopedTypeResolver {
     };
   }
 
-  private Map<String, TypeVariable> executableTypeParams(Executable executable) {
+  private Map<String, TypeVariable> executableTypeParams(
+      Executable executable,
+      ForeignFunctionCall funcCall
+  ) {
     var receiverType = Optional.ofNullable(executable.getAnnotatedReceiverType())
         .map(AnnotatedType::getType);
     var typeParams = executable.getTypeParameters();
@@ -869,7 +862,7 @@ public class MemberScopedTypeResolver {
     var lvl = typeVarNum.getAndIncrement();
     return Stream.concat(Arrays.stream(typeParams), receiverTypeParams)
         .collect(toMap(java.lang.reflect.TypeVariable::getName,
-            t -> new TypeVariable(t.getName(), lvl, executable.getName())));
+            t -> new TypeVariable(t.getName(), lvl, funcCall)));
   }
 
   private List<Type> executableParamTypes(Executable executable,
@@ -893,7 +886,7 @@ public class MemberScopedTypeResolver {
 
     for (var foreignFuncHandle : funcCandidates.functions()) {
       var executable = foreignFuncHandle.executable();
-      var typeParams = executableTypeParams(executable);
+      var typeParams = executableTypeParams(executable, funcCall);
       var paramTypes = executableParamTypes(executable, typeParams);
       var isVarArgs = executable.isVarArgs();
       if (argsMatchParamTypes(paramTypes, argTypes, isVarArgs)) {
